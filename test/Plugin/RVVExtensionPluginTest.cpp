@@ -178,6 +178,32 @@ int expectTypedConfigFacts(
                     "materialization facts");
 }
 
+bool routeHasTypeMapping(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef sourceType, llvm::StringRef cType) {
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    if (mapping.sourceType == sourceType && mapping.cType == cType)
+      return true;
+  return false;
+}
+
+int expectRouteConsumesTypedConfigFacts(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
+    llvm::StringRef vlCType, llvm::StringRef context) {
+  if (int result = expect(routeHasTypeMapping(route, "!tcrv_rvv.vl", vlCType),
+                          llvm::Twine(context) +
+                              " maps VL through typed config facts"))
+    return result;
+  if (int result =
+          expect(routeHasTypeMapping(route, vectorTypeName, vectorCType),
+                 llvm::Twine(context) +
+                     " maps vector type through typed config facts"))
+    return result;
+  return 0;
+}
+
 mlir::Operation *findFirstNestedOp(VariantOp variant, llvm::StringRef name) {
   mlir::Operation *found = nullptr;
   if (!variant)
@@ -1465,6 +1491,10 @@ module {
                          "__riscv_vse32_v_i32m2",
                  "RVV LMUL m2 route derives m2 setvl/load/add/store "
                  "intrinsics from typed config"))
+    return result;
+  if (int result = expectRouteConsumesTypedConfigFacts(
+          route, "!tcrv_rvv.vector<i32, \"m2\">", "vint32m2_t", "size_t",
+          "RVV LMUL m2 provider route"))
     return result;
   if (int result = expectSuccess(
       tianchenrv::conversion::emitc::
@@ -3894,6 +3924,10 @@ module {
         return result;
       ++index;
     }
+    if (int result = expectRouteConsumesTypedConfigFacts(
+            route, "!tcrv_rvv.vector<i32, \"m1\">", "vint32m1_t", "size_t",
+            "provider base memory route"))
+      return result;
     return 0;
   };
 
@@ -3974,6 +4008,19 @@ module {
           {"base memory movement statement plan requires the verified base "
            "memory movement route-family plan",
            "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleConfigConsumption =
+      *stridedLoadAnalysis;
+  staleConfigConsumption.baseMemoryMovementRouteFamilyPlan->vectorCType =
+      "metadata_i32_vec";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteMaterializationFacts(
+              staleConfigConsumption,
+              "base memory stale typed config emission consumption unit test")
+              .takeError(),
+          {"typed config emission consumption result vector C type",
+           "vint32m1_t", "metadata_i32_vec"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *stridedLoadAnalysis;

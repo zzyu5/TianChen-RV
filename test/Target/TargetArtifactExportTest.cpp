@@ -1072,6 +1072,21 @@ bool expectRVVTargetArtifactExporterShape(
            "m2", "m1"}))
     return false;
 
+  TargetArtifactCandidate staleElementTypeCandidate = candidate;
+  if (!rewriteArtifactMetadataValue(staleElementTypeCandidate,
+                                    "tcrv_rvv.element_type", "i64")) {
+    llvm::errs() << "test fixture did not contain element type metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          validateTargetArtifactCandidateAgainstExporter(
+              staleElementTypeCandidate, *exporter),
+          "RVV artifact rejects stale element type metadata",
+          {"candidate tcrv_rvv selected-body metadata key "
+           "'tcrv_rvv.element_type'",
+           "i32", "i64"}))
+    return false;
+
   TargetArtifactCandidate metadataOnlyCandidate =
       makeValidRVVTargetArtifactCandidate();
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(

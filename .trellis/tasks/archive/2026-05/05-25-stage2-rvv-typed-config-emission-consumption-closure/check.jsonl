@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify provider/materialization/statement-plan/artifact mirror compliance"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC and target export remain neutral consumers"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused coverage and no unsupported runtime claims"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check typed config facts validation, statement-plan inputs, and metadata mirrors"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Check provider consumes materialization typed facts for type/header/intrinsic route construction"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Check target artifact export validates provider-derived typed config mirrors and does not infer route authority"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused positive/fail-closed typed config consumption coverage"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target artifact mirror validation coverage"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-cmp-select.mlir", "reason": "Representative compare/select FileCheck for emitted provider-derived typed config mirrors"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-strided-load-unit-store.mlir", "reason": "Representative memory FileCheck for emitted provider-derived typed config mirrors"}

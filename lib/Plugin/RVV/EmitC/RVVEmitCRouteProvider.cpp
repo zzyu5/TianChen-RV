@@ -273,10 +273,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsPlainStandaloneReduction =
       materializationFacts.emitsPlainStandaloneReduction;
 
-  llvm::StringRef vlCType = materializationFacts.vlCType;
+  const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
+      materializationFacts.typedConfigFacts;
+
+  llvm::StringRef vlCType = typedConfigFacts.vlCType;
   llvm::StringRef resultVectorTypeName =
-      materializationFacts.resultVectorTypeName;
-  llvm::StringRef resultVectorCType = materializationFacts.resultVectorCType;
+      typedConfigFacts.vectorTypeName;
+  llvm::StringRef resultVectorCType = typedConfigFacts.vectorCType;
   llvm::StringRef sourceVectorTypeName =
       materializationFacts.sourceVectorTypeName;
   llvm::StringRef sourceVectorCType = materializationFacts.sourceVectorCType;
@@ -322,8 +325,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   route.addTypeMapping("!tcrv_rvv.vl", vlCType);
   route.addTypeMapping(resultVectorTypeName, resultVectorCType);
   if (!description.indexVectorTypeName.empty())
-    route.addTypeMapping(description.indexVectorTypeName,
-                         description.indexVectorCType);
+    route.addTypeMapping(typedConfigFacts.indexVectorTypeName,
+                         typedConfigFacts.indexVectorCType);
   if (!sourceVectorTypeName.empty())
     route.addTypeMapping(sourceVectorTypeName, sourceVectorCType);
   if (!maskTypeName.empty())

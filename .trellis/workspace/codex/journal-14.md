@@ -266,7 +266,6 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 
 - None - task complete
 
-
 ## Session 197: Stage2 RVV pre-realized selected-body executable closure
 
 **Date**: 2026-05-25
@@ -1459,6 +1458,52 @@ Added RVV plugin-owned typed config facts from realized selected-body config int
 ### Status
 
 [OK] Completed and archived. No new runtime/correctness/performance claim; no new `ssh rvv` evidence required.
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 198: Stage2 RVV typed config emission consumption closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV typed config emission consumption closure
+**Branch**: `main`
+
+### Summary
+
+Closed RVV provider/emission consumption of typed config route facts for existing route-supported families, with fail-closed provider and target artifact mirror coverage.
+
+### Main Changes
+
+- Made RVV route materialization initialize generic typed route fields from `RVVSelectedBodyTypedConfigFacts` and fail closed if provider materialization facts disagree on VL C type, result vector type/C type, setvl, mask, or generic typed load/store leaves.
+- Made provider route construction consume `materializationFacts.typedConfigFacts` directly for `!tcrv_rvv.vl`, result vector, and index vector type mappings.
+- Added focused provider tests for arithmetic LMUL m2 and base memory typed-config type mappings, stale base memory provider materialization rejection, and stale target artifact `tcrv_rvv.element_type` mirror rejection.
+- Confirmed no spec update was needed: this implements existing RVV plugin typed-config materialization and common EmitC neutrality contracts without adding new API or metadata keys.
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-typed-config-emission-consumption-closure`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-25-stage2-rvv-typed-config-emission-consumption-closure`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] focused lit filter for `pre-realized-selected-body-artifact-(cmp-select|strided-load-unit-store|i64-add)` from `build/test`; first attempt overlapped with relinking and rerun passed.
+- [OK] bounded authority scan over touched RVV planning/provider/target/test files; hits were existing negative/fail-closed fixtures or target rejection tests only.
+- [OK] `rtk git diff --check`
+- [OK] `rtk cmake --build build --target check-tianchenrv -j2`
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Status
+
+[OK] Completed. No new runtime/correctness/performance claim; no new `ssh rvv` evidence required.
 
 ### Next Steps
 

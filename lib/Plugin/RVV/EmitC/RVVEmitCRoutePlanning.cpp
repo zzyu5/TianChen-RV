@@ -21265,6 +21265,9 @@ getRVVSelectedBodyRouteMaterializationFacts(
         " computed-mask accumulation route requires the shared accumulation "
         "route-family plan before provider materialization");
 
+  const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
+      facts.typedConfigFacts;
+
   facts.vlCType =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vlCType
@@ -21274,7 +21277,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.baseMemoryMovementPlan ? facts.baseMemoryMovementPlan->vlCType
       : facts.contractionPlan ? facts.contractionPlan->vlCType
       : facts.standaloneReductionPlan ? facts.standaloneReductionPlan->vlCType
-                                      : description.vlCType;
+                                      : typedConfigFacts.vlCType;
   facts.resultVectorTypeName =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorTypeName
@@ -21289,7 +21292,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.contractionPlan ? facts.contractionPlan->resultVectorTypeName
       : facts.standaloneReductionPlan
           ? facts.standaloneReductionPlan->vectorTypeName
-          : description.vectorTypeName;
+          : typedConfigFacts.vectorTypeName;
   facts.resultVectorCType =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorCType
@@ -21303,7 +21306,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.contractionPlan ? facts.contractionPlan->resultVectorCType
       : facts.standaloneReductionPlan
           ? facts.standaloneReductionPlan->vectorCType
-          : description.vectorCType;
+          : typedConfigFacts.vectorCType;
   facts.sourceVectorTypeName =
       facts.wideningConversionPlan
           ? facts.wideningConversionPlan->sourceVectorTypeName
@@ -21331,9 +21334,10 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.computedMaskSelectPlan ? facts.computedMaskSelectPlan->maskCType
       : facts.baseMemoryMovementPlan ? facts.baseMemoryMovementPlan->maskCType
       : facts.contractionPlan ? facts.contractionPlan->maskCType
-                              : description.maskCType;
+      : !description.maskCType.empty() ? typedConfigFacts.maskCType
+                                       : llvm::StringRef();
 
-  facts.setVLLeaf = description.setVLIntrinsic;
+  facts.setVLLeaf = typedConfigFacts.setVLIntrinsic;
   if (facts.computedMaskAccumulationPlan)
     facts.setVLLeaf = facts.computedMaskAccumulationPlan->setVLIntrinsic;
   else if (facts.plainCompareSelectPlan)
@@ -21355,7 +21359,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
   else if (facts.standaloneReductionPlan)
     facts.setVLLeaf = facts.standaloneReductionPlan->setVLIntrinsic;
 
-  facts.sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
+  facts.sourceLoadLeaf = typedConfigFacts.vectorLoadIntrinsic;
   if (facts.computedMaskAccumulationPlan)
     facts.sourceLoadLeaf =
         facts.computedMaskAccumulationPlan->vectorLoadIntrinsic;
@@ -21394,7 +21398,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
           ? facts.computedMaskMemoryPlan->vectorLoadIntrinsic
       : facts.standaloneReductionPlan
           ? facts.standaloneReductionPlan->vectorLoadIntrinsic
-          : description.vectorLoadIntrinsic;
+          : typedConfigFacts.vectorLoadIntrinsic;
   facts.stridedSourceLoadLeaf =
       facts.baseMemoryMovementPlan &&
               !facts.baseMemoryMovementPlan->stridedLoadIntrinsic.empty()
@@ -21402,7 +21406,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.contractionPlan ? facts.contractionPlan->stridedLoadIntrinsic
                               : description.stridedLoadIntrinsic;
 
-  facts.storeLeaf = description.storeIntrinsic;
+  facts.storeLeaf = typedConfigFacts.storeIntrinsic;
   if (facts.computedMaskAccumulationPlan)
     facts.storeLeaf = facts.computedMaskAccumulationPlan->storeIntrinsic;
   else if (facts.plainCompareSelectPlan)
@@ -21496,6 +21500,70 @@ getRVVSelectedBodyRouteMaterializationFacts(
     facts.requiredHeaders = facts.computedMaskMemoryPlan->requiredHeaders;
   else if (facts.standaloneReductionPlan)
     facts.requiredHeaders = facts.standaloneReductionPlan->requiredHeaders;
+
+  if (!typedConfigFacts.hasFacts())
+    return facts;
+
+  auto requireTypedEmissionMatch =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " typed config emission consumption " + field +
+        " must come from typed config facts value '" + expected +
+        "' but provider materialization facts carried '" + actual + "'");
+  };
+
+  if (llvm::Error error = requireTypedEmissionMatch(
+          "VL C type", facts.vlCType, typedConfigFacts.vlCType))
+    return std::move(error);
+  if (llvm::Error error = requireTypedEmissionMatch(
+          "result vector type", facts.resultVectorTypeName,
+          typedConfigFacts.vectorTypeName))
+    return std::move(error);
+  if (llvm::Error error = requireTypedEmissionMatch(
+          "result vector C type", facts.resultVectorCType,
+          typedConfigFacts.vectorCType))
+    return std::move(error);
+  if (llvm::Error error = requireTypedEmissionMatch(
+          "setvl intrinsic", facts.setVLLeaf,
+          typedConfigFacts.setVLIntrinsic))
+    return std::move(error);
+
+  if (!facts.maskTypeName.empty())
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "mask type", facts.maskTypeName, typedConfigFacts.maskTypeName))
+      return std::move(error);
+  if (!facts.maskCType.empty())
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "mask C type", facts.maskCType, typedConfigFacts.maskCType))
+      return std::move(error);
+
+  const bool elementwiseSelectConsumer =
+      isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
+          description.operation);
+  const bool baseMemoryUsesTypedVectorLoad =
+      facts.baseMemoryMovementPlan &&
+      !facts.baseMemoryMovementPlan->usesStridedLoad &&
+      !facts.baseMemoryMovementPlan->usesIndexedGather &&
+      !facts.baseMemoryMovementPlan->usesStaticMaskLoad;
+  const bool baseMemoryUsesTypedStore =
+      facts.baseMemoryMovementPlan &&
+      !facts.baseMemoryMovementPlan->usesStridedStore &&
+      !facts.baseMemoryMovementPlan->usesIndexedScatter &&
+      !facts.baseMemoryMovementPlan->usesStaticMaskStore;
+
+  if (elementwiseSelectConsumer || baseMemoryUsesTypedVectorLoad)
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "vector load intrinsic", facts.vectorLoadLeaf,
+            typedConfigFacts.vectorLoadIntrinsic))
+      return std::move(error);
+  if (elementwiseSelectConsumer || baseMemoryUsesTypedStore)
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "store intrinsic", facts.storeLeaf,
+            typedConfigFacts.storeIntrinsic))
+      return std::move(error);
 
   return facts;
 }
