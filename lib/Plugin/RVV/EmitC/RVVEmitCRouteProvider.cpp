@@ -252,14 +252,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return memoryOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMemoryRouteOperandBindingFacts
       &memoryOperandBindingFacts = *memoryOperandBindingFactsOrError;
+  llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
+      mathOperandBindingFactsOrError =
+          getRVVSelectedBodyMathRouteOperandBindingFacts(
+              analysis, "selected RVV EmitC route construction");
+  if (!mathOperandBindingFactsOrError)
+    return mathOperandBindingFactsOrError.takeError();
+  const RVVSelectedBodyMathRouteOperandBindingFacts
+      &mathOperandBindingFacts = *mathOperandBindingFactsOrError;
 
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
   const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
       materializationFacts.segment2MemoryPlan;
-  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
-      *computedMaskAccumulationPlan =
-          materializationFacts.computedMaskAccumulationPlan;
 
   const bool emitsContractionDotReduction =
       materializationFacts.emitsContractionDotReduction;
@@ -273,9 +278,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       materializationFacts.emitsStandaloneReduction;
   const bool emitsComputedMaskStandaloneReduction =
       materializationFacts.emitsComputedMaskStandaloneReduction;
-  const bool emitsRuntimeScalarComputedMaskStandaloneReduction =
-      materializationFacts
-          .emitsRuntimeScalarComputedMaskStandaloneReduction;
   const bool emitsWideningConversion =
       materializationFacts.emitsWideningConversion;
   const bool emitsPlainStandaloneReduction =
@@ -388,6 +390,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     } else if (memoryOperandBindingFacts.bindsMemoryCluster) {
       boundRuntimeElementCountABI =
           memoryOperandBindingFacts.runtimeElementCountABI;
+    } else if (mathOperandBindingFacts.bindsMathCluster) {
+      boundRuntimeElementCountABI =
+          mathOperandBindingFacts.runtimeElementCountABI;
     } else {
       llvm::Expected<const support::RuntimeABIParameter *> boundN =
           getRequiredBinding(bindingPlan, "n", "setvl-avl",
@@ -417,63 +422,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                              context);
       if (!parameter)
         return parameter.takeError();
-      return llvm::Error::success();
-    };
-    auto bindComputedMaskAccumulationProducer =
-        [&](llvm::StringRef routeName, llvm::StringRef cmpLhsLoadUse,
-            llvm::StringRef cmpLhsCallUse, llvm::StringRef rhsLogicalOperand,
-            llvm::StringRef rhsProducerUse,
-            llvm::StringRef rhsCompareUse) -> llvm::Error {
-      if (!computedMaskAccumulationPlan)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(routeName) +
-            " requires the shared computed-mask accumulation route-family plan "
-            "before binding operands");
-      if (rhsLogicalOperand == "rhs_scalar" &&
-          !computedMaskAccumulationPlan->usesRuntimeScalarProducer)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(routeName) +
-            " requested runtime-scalar producer binding without a "
-            "runtime-scalar accumulation producer plan");
-      if (rhsLogicalOperand == "cmp_rhs" &&
-          !computedMaskAccumulationPlan->usesVectorCompareProducer)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(routeName) +
-            " requested vector compare producer binding without a vector "
-            "accumulation producer plan");
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", cmpLhsLoadUse,
-              (llvm::Twine(routeName) + " compare lhs load operand").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", cmpLhsCallUse,
-              (llvm::Twine(routeName) + " compare lhs operand").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "hdr",
-              (llvm::Twine(routeName) + " compare lhs header mirror").str()))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, rhsLogicalOperand, rhsProducerUse,
-              (llvm::Twine(routeName) + " compare rhs producer operand")
-                  .str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              rhsLogicalOperand, rhsCompareUse,
-              (llvm::Twine(routeName) + " compare rhs operand").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              rhsLogicalOperand, "hdr",
-              (llvm::Twine(routeName) + " compare rhs header mirror").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop",
-              (llvm::Twine(routeName) + " runtime loop control").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr",
-              (llvm::Twine(routeName) + " runtime header mirror").str()))
-        return error;
       return llvm::Error::success();
     };
 
@@ -574,28 +522,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundAccumulatorABI = memoryOperandBindingFacts.passthroughABI;
       boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
-                          "reduce_add input load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "reduction-input-call", "reduce_add input operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "rhs", "materialized-accumulator-load-base",
-              "reduce_add accumulator load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "reduction-accumulator-call",
-              "reduce_add accumulator operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "materialized-store-base",
-                          "reduce_add output store"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "reduction-result-store", "reduce_add result store"))
-        return error;
+      if (!mathOperandBindingFacts.bindsReduceAdd)
+        return makeRVVEmitCRouteProviderError(
+            "reduce_add provider requires RVV-owned math operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (isRVVSelectedBodyMaskedArithmeticRoute(description.operation)) {
       llvm::StringRef materializedUsePrefix =
           description.operation == RVVSelectedBodyOperationKind::MaskedSub
@@ -671,547 +604,111 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "out_stride", "out-byte-addr", "strided_add output byte address"))
         return error;
     } else if (description.operation == RVVSelectedBodyOperationKind::MAccAdd) {
-      llvm::Expected<const support::RuntimeABIParameter *> lhs =
-          getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
-                             "macc lhs load operand");
-      if (!lhs)
-        return lhs.takeError();
-      boundLHSABI = *lhs;
-      llvm::Expected<const support::RuntimeABIParameter *> rhs =
-          getRequiredBinding(bindingPlan, "rhs", "materialized-load-base",
-                             "macc rhs load operand");
-      if (!rhs)
-        return rhs.takeError();
-      boundRHSABI = *rhs;
-      llvm::Expected<const support::RuntimeABIParameter *> acc =
-          getRequiredBinding(bindingPlan, "acc",
-                             "materialized-accumulator-load-base",
-                             "macc accumulator load operand");
-      if (!acc)
-        return acc.takeError();
-      boundAccumulatorABI = *acc;
-      llvm::Expected<const support::RuntimeABIParameter *> out =
-          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
-                             "macc output store operand");
-      if (!out)
-        return out.takeError();
-      boundOutABI = *out;
+      if (!mathOperandBindingFacts.bindsPlainMAcc)
+        return makeRVVEmitCRouteProviderError(
+            "macc provider requires RVV-owned math operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
-      if (llvm::Error error =
-              bindComputedMaskAccumulationProducer(
-                  "computed_masked_macc", "cmp-lhs", "cmp-call", "cmp_rhs",
-                  "cmp-rhs", "cmp-call"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundDotLHSABI, "lhs",
-                          "lhs-load",
-                          "computed_masked_macc payload lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "macc-lhs",
-              "computed_masked_macc payload lhs compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "hdr",
-              "computed_masked_macc payload lhs header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundDotRHSABI, "rhs",
-                          "rhs-load",
-                          "computed_masked_macc payload rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "macc-rhs",
-              "computed_masked_macc payload rhs compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "hdr",
-              "computed_masked_macc payload rhs header mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundAccumulatorABI, "acc",
-              "acc-load",
-              "computed_masked_macc accumulator load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "macc-acc",
-              "computed_masked_macc accumulator compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "macc-pass",
-              "computed_masked_macc inactive-lane passthrough operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "hdr",
-              "computed_masked_macc accumulator header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "store",
-                          "computed_masked_macc output store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "hdr",
-              "computed_masked_macc output header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsComputedMaskMAcc)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask MAcc provider requires RVV-owned math "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundDotLHSABI = mathOperandBindingFacts.dotLHSABI;
+      boundDotRHSABI = mathOperandBindingFacts.dotRHSABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    RuntimeScalarComputedMaskedMAccAdd) {
-      if (llvm::Error error =
-              bindComputedMaskAccumulationProducer(
-                  "runtime_scalar_computed_masked_macc", "cmp-lhs",
-                  "cmp-call", "rhs_scalar", "splat", "cmp-rhs"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundDotLHSABI, "lhs", "lhs-load",
-                          "runtime_scalar_computed_masked_macc payload lhs "
-                          "load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "macc-lhs",
-              "runtime_scalar_computed_masked_macc payload lhs compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "hdr",
-              "runtime_scalar_computed_masked_macc payload lhs header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundDotRHSABI, "rhs", "rhs-load",
-                          "runtime_scalar_computed_masked_macc payload rhs "
-                          "load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "macc-rhs",
-              "runtime_scalar_computed_masked_macc payload rhs compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "hdr",
-              "runtime_scalar_computed_masked_macc payload rhs header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundAccumulatorABI, "acc", "acc-load",
-                          "runtime_scalar_computed_masked_macc accumulator "
-                          "load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "macc-acc",
-              "runtime_scalar_computed_masked_macc accumulator compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "macc-pass",
-              "runtime_scalar_computed_masked_macc inactive-lane passthrough "
-              "operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "hdr",
-              "runtime_scalar_computed_masked_macc accumulator header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "store",
-                          "runtime_scalar_computed_masked_macc output store "
-                          "operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "hdr",
-              "runtime_scalar_computed_masked_macc output header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsComputedMaskMAcc)
+        return makeRVVEmitCRouteProviderError(
+            "runtime scalar computed-mask MAcc provider requires RVV-owned "
+            "math operand-binding facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundDotLHSABI = mathOperandBindingFacts.dotLHSABI;
+      boundDotRHSABI = mathOperandBindingFacts.dotRHSABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::WideningMAccAdd) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "src-load",
-                          "widening_macc lhs i16 source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "wmacc-lhs",
-              "widening_macc lhs i16 source compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "src-i16mf2",
-              "widening_macc lhs source width mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "rhs", "src-load",
-                          "widening_macc rhs i16 source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "wmacc-rhs",
-              "widening_macc rhs i16 source compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "src-i16mf2",
-              "widening_macc rhs source width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundAccumulatorABI, "acc", "acc-load",
-              "widening_macc i32 accumulator load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "wmacc-acc",
-              "widening_macc accumulator compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "acc-i32m1",
-              "widening_macc accumulator width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "out", "res-store",
-              "widening_macc i32 result store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "res-i32m1",
-              "widening_macc result width mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop", "widening_macc runtime loop control"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr", "widening_macc runtime header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsWideningMAcc)
+        return makeRVVEmitCRouteProviderError(
+            "widening MAcc provider requires RVV-owned math operand-binding "
+            "facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (emitsWideningConversion) {
-      const bool isI16ToI32 =
-          description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
-      const llvm::StringRef sourceConfigUse =
-          isI16ToI32 ? "src-i16mf2" : "src-i32m1";
-      const llvm::StringRef resultConfigUse =
-          isI16ToI32 ? "res-i32m1" : "res-i64m2";
-      const llvm::StringRef relationUse =
-          isI16ToI32 ? "relation-signed-i16mf2-to-i32m1"
-                     : "relation-signed-i32m1-to-i64m2";
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "src-load",
-                          "widening conversion source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "convert-src",
-              "widening conversion compute source operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", sourceConfigUse,
-              "widening conversion source type/config mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", relationUse,
-              "widening conversion source direction mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "hdr", "widening conversion source header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "res-store",
-                          "widening conversion result store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "convert-result",
-              "widening conversion result dataflow operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", resultConfigUse,
-              "widening conversion result type/config mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", relationUse,
-              "widening conversion result direction mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "hdr", "widening conversion output header mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop", "widening conversion runtime loop control"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr", "widening conversion runtime header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsWideningConversion)
+        return makeRVVEmitCRouteProviderError(
+            "widening conversion provider requires RVV-owned math "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "ld",
-                          "widening_dot_reduce lhs i16 source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "dot-lhs",
-              "widening_dot_reduce lhs dot-product operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("lhs", "i16",
-                                "widening_dot_reduce lhs source width mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "rhs", "ld",
-                          "widening_dot_reduce rhs i16 source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "dot-rhs",
-              "widening_dot_reduce rhs dot-product operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("rhs", "i16",
-                                "widening_dot_reduce rhs source width mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundAccumulatorABI, "acc", "seed",
-                          "widening_dot_reduce scalar seed operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "red",
-              "widening_dot_reduce reduction accumulator operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "i32",
-              "widening_dot_reduce accumulator/result width mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "store",
-                          "widening_dot_reduce scalar output store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "i32", "widening_dot_reduce result width mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop", "widening_dot_reduce runtime loop control"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr", "widening_dot_reduce runtime header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsWideningDotReduction)
+        return makeRVVEmitCRouteProviderError(
+            "widening dot-reduction provider requires RVV-owned math "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    StridedInputWideningDotReduceAdd) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "lhs", "sld",
-              "strided_input_widening_dot_reduce lhs strided source load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "dot-lhs",
-              "strided_input_widening_dot_reduce lhs dot-product operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "i16",
-              "strided_input_widening_dot_reduce lhs source width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "rhs", "sld",
-              "strided_input_widening_dot_reduce rhs strided source load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "dot-rhs",
-              "strided_input_widening_dot_reduce rhs dot-product operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "i16",
-              "strided_input_widening_dot_reduce rhs source width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundAccumulatorABI, "acc", "seed",
-              "strided_input_widening_dot_reduce scalar seed operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "red",
-              "strided_input_widening_dot_reduce reduction accumulator operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "i32",
-              "strided_input_widening_dot_reduce accumulator/result width "
-              "mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "out", "store",
-              "strided_input_widening_dot_reduce scalar output store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "i32",
-              "strided_input_widening_dot_reduce result width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundLHSStrideABI, "lhs_stride", "str",
-              "strided_input_widening_dot_reduce lhs stride operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs_stride", "addr",
-              "strided_input_widening_dot_reduce lhs address operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSStrideABI, "rhs_stride", "str",
-              "strided_input_widening_dot_reduce rhs stride operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_stride", "addr",
-              "strided_input_widening_dot_reduce rhs address operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop",
-              "strided_input_widening_dot_reduce runtime loop control"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr",
-              "strided_input_widening_dot_reduce runtime header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsStridedInputWideningDotReduction)
+        return makeRVVEmitCRouteProviderError(
+            "strided-input widening dot-reduction provider requires "
+            "RVV-owned math operand-binding facts before route statement "
+            "construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
+      boundLHSStrideABI = mathOperandBindingFacts.lhsStrideABI;
+      boundRHSStrideABI = mathOperandBindingFacts.rhsStrideABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    ComputedMaskWideningDotReduceAdd) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "cmp_lhs", "cmp",
-                          "computed_masked_widening_dot_reduce compare lhs"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("cmp_lhs", "mask",
-                                "computed_masked_widening_dot_reduce mask lhs"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "cmp_rhs", "cmp",
-                          "computed_masked_widening_dot_reduce compare rhs"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("cmp_rhs", "mask",
-                                "computed_masked_widening_dot_reduce mask rhs"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundDotLHSABI, "dot_lhs", "ld",
-              "computed_masked_widening_dot_reduce dot lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_lhs", "mlhs",
-              "computed_masked_widening_dot_reduce masked dot lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_lhs", "i16",
-              "computed_masked_widening_dot_reduce dot lhs width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundDotRHSABI, "dot_rhs", "ld",
-              "computed_masked_widening_dot_reduce dot rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_rhs", "mrhs",
-              "computed_masked_widening_dot_reduce masked dot rhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_rhs", "i16",
-              "computed_masked_widening_dot_reduce dot rhs width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundAccumulatorABI, "acc", "seed",
-              "computed_masked_widening_dot_reduce scalar seed operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "red",
-              "computed_masked_widening_dot_reduce reduction accumulator"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "i32",
-              "computed_masked_widening_dot_reduce accumulator/result width"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "out", "store",
-              "computed_masked_widening_dot_reduce scalar output store"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "i32",
-              "computed_masked_widening_dot_reduce result width mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop",
-              "computed_masked_widening_dot_reduce runtime loop control"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr",
-              "computed_masked_widening_dot_reduce runtime header mirror"))
-        return error;
+      if (!mathOperandBindingFacts.bindsComputedMaskWideningDotReduction)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask widening dot-reduction provider requires "
+            "RVV-owned math operand-binding facts before route statement "
+            "construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundDotLHSABI = mathOperandBindingFacts.dotLHSABI;
+      boundDotRHSABI = mathOperandBindingFacts.dotRHSABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    ComputedMaskStridedInputWideningDotReduceAdd) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp",
-              "computed_masked_strided_input_widening_dot_reduce compare lhs"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "mask",
-              "computed_masked_strided_input_widening_dot_reduce mask lhs"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp",
-              "computed_masked_strided_input_widening_dot_reduce compare rhs"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "mask",
-              "computed_masked_strided_input_widening_dot_reduce mask rhs"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundDotLHSABI, "dot_lhs", "sld",
-              "computed_masked_strided_input_widening_dot_reduce dot lhs "
-              "strided load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_lhs", "mlhs",
-              "computed_masked_strided_input_widening_dot_reduce masked dot "
-              "lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_lhs", "i16",
-              "computed_masked_strided_input_widening_dot_reduce dot lhs "
-              "width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundDotRHSABI, "dot_rhs", "sld",
-              "computed_masked_strided_input_widening_dot_reduce dot rhs "
-              "strided load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_rhs", "mrhs",
-              "computed_masked_strided_input_widening_dot_reduce masked dot "
-              "rhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dot_rhs", "i16",
-              "computed_masked_strided_input_widening_dot_reduce dot rhs "
-              "width mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundAccumulatorABI, "acc", "seed",
-              "computed_masked_strided_input_widening_dot_reduce scalar seed"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "red",
-              "computed_masked_strided_input_widening_dot_reduce reduction "
-              "accumulator"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "i32",
-              "computed_masked_strided_input_widening_dot_reduce "
-              "accumulator/result width"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "out", "store",
-              "computed_masked_strided_input_widening_dot_reduce scalar output "
-              "store"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "i32",
-              "computed_masked_strided_input_widening_dot_reduce result width"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundLHSStrideABI, "lhs_stride", "str",
-              "computed_masked_strided_input_widening_dot_reduce lhs stride"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs_stride", "addr",
-              "computed_masked_strided_input_widening_dot_reduce lhs address"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSStrideABI, "rhs_stride", "str",
-              "computed_masked_strided_input_widening_dot_reduce rhs stride"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_stride", "addr",
-              "computed_masked_strided_input_widening_dot_reduce rhs address"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "loop",
-              "computed_masked_strided_input_widening_dot_reduce runtime loop"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "hdr",
-              "computed_masked_strided_input_widening_dot_reduce runtime "
-              "header mirror"))
-        return error;
+      if (!mathOperandBindingFacts
+               .bindsComputedMaskStridedInputWideningDotReduction)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask strided-input widening dot-reduction provider "
+            "requires RVV-owned math operand-binding facts before route "
+            "statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundDotLHSABI = mathOperandBindingFacts.dotLHSABI;
+      boundDotRHSABI = mathOperandBindingFacts.dotRHSABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
+      boundLHSStrideABI = mathOperandBindingFacts.lhsStrideABI;
+      boundRHSStrideABI = mathOperandBindingFacts.rhsStrideABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
       if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
@@ -1292,125 +789,25 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
       boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (emitsComputedMaskStandaloneReduction) {
-      const bool isRuntimeScalarThreshold =
-          emitsRuntimeScalarComputedMaskStandaloneReduction;
-      const bool isVectorComputedMaskAccumulationAdd =
-          description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
-      llvm::StringRef inactiveUse =
-          (description.operation ==
-                  RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd
-           || isRuntimeScalarThreshold)
-              ? "zero-inactive"
-              : "neutral-inactive";
-      if (isRuntimeScalarThreshold) {
-        if (llvm::Error error =
-                bindComputedMaskAccumulationProducer(
-                    "runtime_scalar_computed_mask_standalone_reduction",
-                    "cmp-lhs-load", "cmp-lhs-call", "rhs_scalar", "splat",
-                    "cmp-rhs-call"))
-          return error;
-      } else if (isVectorComputedMaskAccumulationAdd) {
-        if (llvm::Error error =
-                bindComputedMaskAccumulationProducer(
-                    "computed_mask_standalone_reduction", "cmp-lhs-load",
-                    "cmp-lhs-call", "cmp_rhs", "cmp-rhs-load",
-                    "cmp-rhs-call"))
-          return error;
-      } else {
-        llvm::Expected<const support::RuntimeABIParameter *> cmpLhs =
-            getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
-                               "computed-mask standalone reduction compare lhs "
-                               "load operand");
-        if (!cmpLhs)
-          return cmpLhs.takeError();
-        boundLHSABI = *cmpLhs;
-        if (llvm::Error error = requireOperandUse(
-                "cmp_lhs", "cmp-lhs-call",
-                "computed-mask standalone reduction compare lhs call operand"))
-          return error;
-        llvm::Expected<const support::RuntimeABIParameter *> cmpRhs =
-            getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
-                               "computed-mask standalone reduction compare rhs "
-                               "load operand");
-        if (!cmpRhs)
-          return cmpRhs.takeError();
-        boundRHSABI = *cmpRhs;
-        if (llvm::Error error = requireOperandUse(
-                "cmp_rhs", "cmp-rhs-call",
-                "computed-mask standalone reduction compare rhs call operand"))
-          return error;
-      }
-      llvm::Expected<const support::RuntimeABIParameter *> source =
-          getRequiredBinding(bindingPlan, "src", "src-load",
-                             "computed-mask standalone reduction source load "
-                             "operand");
-      if (!source)
-        return source.takeError();
-      boundSourceABI = *source;
-      if (llvm::Error error = requireOperandUse(
-              "src", "masked-reduce-input",
-              "computed-mask standalone reduction source compute operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "src", inactiveUse,
-              "computed-mask standalone reduction inactive-lane neutral "
-              "source operand"))
-        return error;
-      llvm::Expected<const support::RuntimeABIParameter *> acc =
-          getRequiredBinding(bindingPlan, "acc", "initial-seed",
-                             "computed-mask standalone reduction accumulator "
-                             "operand");
-      if (!acc)
-        return acc.takeError();
-      boundAccumulatorABI = *acc;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "acc-state",
-              "computed-mask standalone reduction accumulator state"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "acc", "masked-reduce-acc",
-              "computed-mask standalone reduction accumulator compute operand"))
-        return error;
-      llvm::Expected<const support::RuntimeABIParameter *> outState =
-          getRequiredBinding(bindingPlan, "out", "acc-state",
-                             "computed-mask standalone reduction output "
-                             "accumulator state");
-      if (!outState)
-        return outState.takeError();
-      llvm::Expected<const support::RuntimeABIParameter *> outStore =
-          getRequiredBinding(bindingPlan, "out", "store-base",
-                             "computed-mask standalone reduction output store "
-                             "operand");
-      if (!outStore)
-        return outStore.takeError();
-      boundOutABI = *outStore;
+      if (!mathOperandBindingFacts.bindsComputedMaskStandaloneReduction &&
+          !mathOperandBindingFacts
+               .bindsRuntimeScalarComputedMaskStandaloneReduction)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask standalone reduction provider requires RVV-owned "
+            "math operand-binding facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundRHSABI = mathOperandBindingFacts.rhsABI;
+      boundSourceABI = mathOperandBindingFacts.sourceABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (emitsPlainStandaloneReduction) {
-      llvm::Expected<const support::RuntimeABIParameter *> lhs =
-          getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
-                             "standalone reduction input load operand");
-      if (!lhs)
-        return lhs.takeError();
-      boundLHSABI = *lhs;
-      llvm::Expected<const support::RuntimeABIParameter *> acc =
-          getRequiredBinding(bindingPlan, "acc",
-                             "standalone-initial-accumulator-call",
-                             "standalone reduction accumulator operand");
-      if (!acc)
-        return acc.takeError();
-      boundAccumulatorABI = *acc;
-      llvm::Expected<const support::RuntimeABIParameter *> outState =
-          getRequiredBinding(bindingPlan, "out",
-                             "standalone-accumulator-state-load",
-                             "standalone reduction output accumulator state");
-      if (!outState)
-        return outState.takeError();
-      llvm::Expected<const support::RuntimeABIParameter *> outStore =
-          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
-                             "standalone reduction output store operand");
-      if (!outStore)
-        return outStore.takeError();
-      boundOutABI = *outStore;
+      if (!mathOperandBindingFacts.bindsStandaloneReduction)
+        return makeRVVEmitCRouteProviderError(
+            "standalone reduction provider requires RVV-owned math "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = mathOperandBindingFacts.lhsABI;
+      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
+      boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::MaskedUnitLoadStore) {
       if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)

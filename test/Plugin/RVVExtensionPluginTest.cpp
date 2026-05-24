@@ -6563,26 +6563,31 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base"});
+             {"runtime-abi-mirror", "materialized-load-base",
+              "macc-lhs-call"});
   addBinding(plan, "rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base"});
+             {"runtime-abi-mirror", "materialized-load-base",
+              "macc-rhs-call"});
   addBinding(plan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"runtime-abi-mirror", "materialized-accumulator-load-base"});
+             {"runtime-abi-mirror", "materialized-accumulator-load-base",
+              "macc-accumulator-call"});
   addBinding(plan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"runtime-abi-mirror", "materialized-store-base"});
+             {"runtime-abi-mirror", "materialized-store-base",
+              "header-mirror"});
   addBinding(plan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+             {"runtime-abi-mirror", "setvl-avl", "loop-control",
+              "header-mirror"});
 
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
@@ -6636,26 +6641,26 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int16_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi", "src-load", "wmacc-lhs", "src-i16mf2"});
+             {"abi", "src-load", "wmacc-lhs", "src-i16mf2", "hdr"});
   addBinding(wideningMAccPlan, "rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int16_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi", "src-load", "wmacc-rhs", "src-i16mf2"});
+             {"abi", "src-load", "wmacc-rhs", "src-i16mf2", "hdr"});
   addBinding(wideningMAccPlan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"abi", "acc-load", "wmacc-acc", "acc-i32m1"});
+             {"abi", "acc-load", "wmacc-acc", "acc-i32m1", "hdr"});
   addBinding(wideningMAccPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi", "res-store", "res-i32m1"});
+             {"abi", "res-store", "res-i32m1", "hdr"});
   addBinding(wideningMAccPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"abi", "setvl-avl", "loop"});
+             {"abi", "setvl-avl", "loop", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               wideningMAccPlan,
@@ -6770,26 +6775,26 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int16_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi", "ld", "dot-lhs", "i16"});
+             {"abi", "ld", "dot-lhs", "i16", "hdr"});
   addBinding(wideningDotPlan, "rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int16_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi", "ld", "dot-rhs", "i16"});
+             {"abi", "ld", "dot-rhs", "i16", "hdr"});
   addBinding(wideningDotPlan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"abi", "seed", "red", "i32"});
+             {"abi", "seed", "red", "i32", "hdr"});
   addBinding(wideningDotPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi", "store", "i32"});
+             {"abi", "store", "i32", "hdr"});
   addBinding(wideningDotPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"abi", "setvl-avl", "loop"});
+             {"abi", "setvl-avl", "loop", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               wideningDotPlan,
@@ -6827,36 +6832,36 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int16_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi", "sld", "dot-lhs", "i16"});
+             {"abi", "sld", "dot-lhs", "i16", "hdr"});
   addBinding(stridedWideningDotPlan, "rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int16_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi", "sld", "dot-rhs", "i16"});
+             {"abi", "sld", "dot-rhs", "i16", "hdr"});
   addBinding(stridedWideningDotPlan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"abi", "seed", "red", "i32"});
+             {"abi", "seed", "red", "i32", "hdr"});
   addBinding(stridedWideningDotPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi", "store", "i32"});
+             {"abi", "store", "i32", "hdr"});
   addBinding(stridedWideningDotPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"abi", "setvl-avl", "loop"});
+             {"abi", "setvl-avl", "loop", "hdr"});
   addBinding(stridedWideningDotPlan, "lhs_stride",
              makeTargetExportABIParameter(
                  "lhs_stride", "size_t",
                  RuntimeABIParameterRole::LHSInputStride),
-             {"abi", "str", "addr"});
+             {"abi", "str", "addr", "hdr"});
   addBinding(stridedWideningDotPlan, "rhs_stride",
              makeTargetExportABIParameter(
                  "rhs_stride", "size_t",
                  RuntimeABIParameterRole::RHSInputStride),
-             {"abi", "str", "addr"});
+             {"abi", "str", "addr", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               stridedWideningDotPlan,
@@ -6886,36 +6891,36 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "cmp_lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi", "cmp", "mask"});
+             {"abi", "cmp", "mask", "hdr"});
   addBinding(maskedWideningDotPlan, "cmp_rhs",
              makeTargetExportABIParameter(
                  "cmp_rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi", "cmp", "mask"});
+             {"abi", "cmp", "mask", "hdr"});
   addBinding(maskedWideningDotPlan, "dot_lhs",
              makeTargetExportABIParameter(
                  "lhs", "const int16_t *",
                  RuntimeABIParameterRole::DotLHSInputBuffer),
-             {"abi", "ld", "mlhs", "i16"});
+             {"abi", "ld", "mlhs", "i16", "hdr"});
   addBinding(maskedWideningDotPlan, "dot_rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int16_t *",
                  RuntimeABIParameterRole::DotRHSInputBuffer),
-             {"abi", "ld", "mrhs", "i16"});
+             {"abi", "ld", "mrhs", "i16", "hdr"});
   addBinding(maskedWideningDotPlan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"abi", "seed", "red", "i32"});
+             {"abi", "seed", "red", "i32", "hdr"});
   addBinding(maskedWideningDotPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi", "store", "i32"});
+             {"abi", "store", "i32", "hdr"});
   addBinding(maskedWideningDotPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"abi", "setvl-avl", "loop"});
+             {"abi", "setvl-avl", "loop", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               maskedWideningDotPlan,
@@ -6975,16 +6980,16 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"abi", "seed", "red", "i32"});
+             {"abi", "seed", "red", "i32", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi", "store", "i32"});
+             {"abi", "store", "i32", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"abi", "setvl-avl", "loop"});
+             {"abi", "setvl-avl", "loop", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "lhs_stride",
              makeTargetExportABIParameter(
                  "lhs_stride", "size_t",
@@ -7762,6 +7767,251 @@ int runRouteOperandBindingPlanValidationTest() {
               "route operand binding unit test"),
           {"logical operand 'rhs_stride'", "rhs-input-stride",
            "output-stride"}))
+    return result;
+
+  auto makeMathAnalysis =
+      [&](RVVSelectedBodyOperationKind operation, llvm::StringRef abiOrder,
+          const RVVRouteOperandBindingPlan &bindingPlan) {
+        tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis analysis;
+        analysis.description = makeClosureDescription(operation, abiOrder,
+                                                      bindingPlan);
+        analysis.routeOperandBindingPlan = bindingPlan;
+        return analysis;
+      };
+  auto getMathFacts =
+      [](tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis &analysis)
+      -> llvm::Expected<
+          tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts> {
+    return tianchenrv::plugin::rvv::
+        getRVVSelectedBodyMathRouteOperandBindingFacts(
+            analysis, "math operand binding facts unit test");
+  };
+
+  RVVRouteOperandBindingPlan reducePlan;
+  reducePlan.planID = "rvv-route-operand-binding:reduce_add.v1";
+  addBinding(reducePlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base",
+              "reduction-input-call"});
+  addBinding(reducePlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-accumulator-load-base",
+              "reduction-accumulator-call"});
+  addBinding(reducePlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base",
+              "reduction-result-store", "header-mirror"});
+  addBinding(reducePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control",
+              "header-mirror"});
+  auto reduceAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::ReduceAdd, "lhs,rhs,out,n", reducePlan);
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts>
+      reduceFacts = getMathFacts(reduceAnalysis);
+  if (!reduceFacts)
+    return fail("reduce_add math binding facts: " +
+                llvm::toString(reduceFacts.takeError()));
+  if (int result = expect(reduceFacts->bindsReduceAdd &&
+                              reduceFacts->lhsABI->cName == "lhs" &&
+                              reduceFacts->rhsABI->cName == "rhs" &&
+                              reduceFacts->outABI->cName == "out" &&
+                              reduceFacts->runtimeElementCountABI->cName == "n",
+                          "reduce_add math binding facts expose verified "
+                          "source, accumulator, output, and runtime count"))
+    return result;
+
+  auto maccAnalysis = makeMathAnalysis(RVVSelectedBodyOperationKind::MAccAdd,
+                                       "lhs,rhs,acc,out,n", plan);
+  auto maccFacts = getMathFacts(maccAnalysis);
+  if (!maccFacts)
+    return fail("macc math binding facts: " +
+                llvm::toString(maccFacts.takeError()));
+  if (int result =
+          expect(maccFacts->bindsPlainMAcc &&
+                     maccFacts->lhsABI->cName == "lhs" &&
+                     maccFacts->rhsABI->cName == "rhs" &&
+                     maccFacts->accumulatorABI->cName == "acc" &&
+                     maccFacts->outABI->cName == "out",
+                 "MAcc math binding facts expose lhs, rhs, accumulator, and "
+                 "output operands"))
+    return result;
+
+  RVVRouteOperandBindingPlan computedMAccPlan;
+  computedMAccPlan.planID =
+      "rvv-route-operand-binding:computed_masked_macc_add.v1";
+  addBinding(computedMAccPlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "cmp-lhs", "cmp-call", "hdr"});
+  addBinding(computedMAccPlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "cmp-rhs", "cmp-call", "hdr"});
+  addBinding(computedMAccPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::DotLHSInputBuffer),
+             {"abi", "lhs-load", "macc-lhs", "hdr"});
+  addBinding(computedMAccPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::DotRHSInputBuffer),
+             {"abi", "rhs-load", "macc-rhs", "hdr"});
+  addBinding(computedMAccPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
+  addBinding(computedMAccPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "hdr"});
+  addBinding(computedMAccPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop", "hdr"});
+  auto computedMAccAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n", computedMAccPlan);
+  computedMAccAnalysis.computedMaskAccumulationRouteFamilyPlan.emplace();
+  computedMAccAnalysis.computedMaskAccumulationRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  computedMAccAnalysis.computedMaskAccumulationRouteFamilyPlan
+      ->usesVectorMAccSuffix = true;
+  computedMAccAnalysis.computedMaskAccumulationRouteFamilyPlan
+      ->usesVectorCompareProducer = true;
+  auto computedMAccFacts = getMathFacts(computedMAccAnalysis);
+  if (!computedMAccFacts)
+    return fail("computed-mask MAcc math binding facts: " +
+                llvm::toString(computedMAccFacts.takeError()));
+  if (int result = expect(computedMAccFacts->bindsComputedMaskMAcc &&
+                              computedMAccFacts->lhsABI->cName == "cmp_lhs" &&
+                              computedMAccFacts->rhsABI->cName == "cmp_rhs" &&
+                              computedMAccFacts->dotLHSABI->cName == "lhs" &&
+                              computedMAccFacts->dotRHSABI->cName == "rhs" &&
+                              computedMAccFacts->accumulatorABI->cName == "acc",
+                          "computed-mask MAcc math binding facts expose "
+                          "compare producer, payload, and accumulator roles"))
+    return result;
+
+  RVVRouteOperandBindingPlan staleComputedMAcc = computedMAccPlan;
+  bool removedMAccPass = false;
+  for (RVVRouteOperandBinding &binding : staleComputedMAcc.bindings) {
+    if (binding.logicalOperand != "acc")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "macc-pass")
+        continue;
+      binding.materializedUses.erase(it);
+      removedMAccPass = true;
+      break;
+    }
+  }
+  if (int result =
+          expect(removedMAccPass,
+                 "test setup removes the computed-mask MAcc passthrough use"))
+    return result;
+  auto staleComputedMAccAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n", staleComputedMAcc);
+  staleComputedMAccAnalysis.computedMaskAccumulationRouteFamilyPlan =
+      computedMAccAnalysis.computedMaskAccumulationRouteFamilyPlan;
+  if (int result = expectErrorContains(
+          getMathFacts(staleComputedMAccAnalysis).takeError(),
+          {"acc", "macc-pass",
+           "computed_masked_macc inactive-lane passthrough operand"}))
+    return result;
+
+  auto wideningMAccAnalysis =
+      makeMathAnalysis(RVVSelectedBodyOperationKind::WideningMAccAdd,
+                       "lhs,rhs,acc,out,n", wideningMAccPlan);
+  wideningMAccAnalysis.contractionRouteFamilyPlan.emplace();
+  wideningMAccAnalysis.contractionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::WideningMAccAdd;
+  wideningMAccAnalysis.contractionRouteFamilyPlan->usesWideningMAcc = true;
+  auto wideningMAccFacts = getMathFacts(wideningMAccAnalysis);
+  if (!wideningMAccFacts)
+    return fail("widening MAcc math binding facts: " +
+                llvm::toString(wideningMAccFacts.takeError()));
+  if (int result = expect(wideningMAccFacts->bindsWideningMAcc &&
+                              wideningMAccFacts->lhsABI->cName == "lhs" &&
+                              wideningMAccFacts->rhsABI->cName == "rhs" &&
+                              wideningMAccFacts->accumulatorABI->cName == "acc",
+                          "widening MAcc math binding facts expose widened "
+                          "source and accumulator roles"))
+    return result;
+
+  auto widenI32Analysis =
+      makeMathAnalysis(RVVSelectedBodyOperationKind::WidenI32ToI64,
+                       "lhs,out,n", widenI32ToI64Plan);
+  widenI32Analysis.wideningConversionRouteFamilyPlan.emplace();
+  widenI32Analysis.wideningConversionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  auto widenI32Facts = getMathFacts(widenI32Analysis);
+  if (!widenI32Facts)
+    return fail("widening conversion math binding facts: " +
+                llvm::toString(widenI32Facts.takeError()));
+  if (int result =
+          expect(widenI32Facts->bindsWideningConversion &&
+                     widenI32Facts->lhsABI->cName == "lhs" &&
+                     widenI32Facts->outABI->cName == "out",
+                 "widening conversion math binding facts expose source and "
+                 "result operands"))
+    return result;
+
+  auto dotAnalysis =
+      makeMathAnalysis(RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+                       "lhs,rhs,acc,out,n", wideningDotPlan);
+  dotAnalysis.contractionRouteFamilyPlan.emplace();
+  dotAnalysis.contractionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+  dotAnalysis.contractionRouteFamilyPlan->usesDotReduction = true;
+  auto dotFacts = getMathFacts(dotAnalysis);
+  if (!dotFacts)
+    return fail("widening dot math binding facts: " +
+                llvm::toString(dotFacts.takeError()));
+  if (int result =
+          expect(dotFacts->bindsWideningDotReduction &&
+                     dotFacts->lhsABI->cName == "lhs" &&
+                     dotFacts->rhsABI->cName == "rhs" &&
+                     dotFacts->accumulatorABI->cName == "acc",
+                 "widening dot-reduction math binding facts expose dot "
+                 "sources and scalar seed"))
+    return result;
+
+  auto maskedDotAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n", maskedWideningDotPlan);
+  maskedDotAnalysis.contractionRouteFamilyPlan.emplace();
+  maskedDotAnalysis.contractionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
+  maskedDotAnalysis.contractionRouteFamilyPlan->usesDotReduction = true;
+  maskedDotAnalysis.contractionRouteFamilyPlan->usesComputedMask = true;
+  auto maskedDotFacts = getMathFacts(maskedDotAnalysis);
+  if (!maskedDotFacts)
+    return fail("computed-mask widening dot math binding facts: " +
+                llvm::toString(maskedDotFacts.takeError()));
+  if (int result =
+          expect(maskedDotFacts->bindsComputedMaskWideningDotReduction &&
+                     maskedDotFacts->lhsABI->cName == "cmp_lhs" &&
+                     maskedDotFacts->rhsABI->cName == "cmp_rhs" &&
+                     maskedDotFacts->dotLHSABI->cName == "lhs" &&
+                     maskedDotFacts->dotRHSABI->cName == "rhs",
+                 "computed-mask widening dot math binding facts expose "
+                 "compare producer and dot payload roles"))
     return result;
 
   return 0;

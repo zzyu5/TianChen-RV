@@ -22867,6 +22867,856 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
   }
 }
 
+static bool isRVVSelectedBodyMathRouteOperandBindingFactsConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  return operation == RVVSelectedBodyOperationKind::ReduceAdd ||
+         operation == RVVSelectedBodyOperationKind::MAccAdd ||
+         isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+             operation) ||
+         isRVVSelectedBodyStandaloneReductionRouteOperation(operation) ||
+         isRVVSelectedBodyContractionRouteOperation(operation) ||
+         isRVVSelectedBodyWideningConversionRouteOperation(operation);
+}
+
+llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
+getRVVSelectedBodyMathRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyMathRouteOperandBindingFacts facts;
+  if (!isRVVSelectedBodyMathRouteOperandBindingFactsConsumer(description))
+    return facts;
+
+  facts.bindingPlan = &analysis.routeOperandBindingPlan;
+  facts.bindsMathCluster = true;
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, description, context))
+    return std::move(error);
+
+  const RVVRouteOperandBindingPlan &bindingPlan =
+      analysis.routeOperandBindingPlan;
+  auto bindOperand =
+      [&](const support::RuntimeABIParameter *&target,
+          llvm::StringRef logicalOperand, llvm::StringRef materializedUse,
+          llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    target = *parameter;
+    return llvm::Error::success();
+  };
+  auto requireOperandUse = [&](llvm::StringRef logicalOperand,
+                               llvm::StringRef materializedUse,
+                               llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    return llvm::Error::success();
+  };
+  auto bindRuntimeCount =
+      [&](llvm::StringRef loopUse, llvm::StringRef headerUse,
+          llvm::StringRef routeName) -> llvm::Error {
+    if (llvm::Error error =
+            bindOperand(facts.runtimeElementCountABI, "n", "setvl-avl",
+                        (llvm::Twine(routeName) +
+                         " runtime AVL/control operand")
+                            .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("n", loopUse,
+                              (llvm::Twine(routeName) +
+                               " runtime loop-control operand")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("n", headerUse,
+                              (llvm::Twine(routeName) +
+                               " runtime header mirror")
+                                  .str()))
+      return error;
+    return llvm::Error::success();
+  };
+  auto requireFamilyPlan = [&](bool hasPlan,
+                               llvm::StringRef familyName) -> llvm::Error {
+    if (hasPlan)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires the " + familyName +
+        " route-family plan before binding math operands for " +
+        stringifyRVVSelectedBodyOperationKind(description.operation));
+  };
+  auto requirePlanFlag = [&](bool flag, llvm::StringRef message) -> llvm::Error {
+    if (flag)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(llvm::Twine(context) + " " + message);
+  };
+  auto bindComputedMaskAccumulationProducer =
+      [&](llvm::StringRef routeName, llvm::StringRef cmpLhsLoadUse,
+          llvm::StringRef cmpLhsCallUse, llvm::StringRef rhsLogicalOperand,
+          llvm::StringRef rhsProducerUse,
+          llvm::StringRef rhsCompareUse) -> llvm::Error {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.computedMaskAccumulationRouteFamilyPlan.has_value(),
+            "computed-mask accumulation"))
+      return error;
+    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan &plan =
+        *analysis.computedMaskAccumulationRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            rhsLogicalOperand == "rhs_scalar" ? plan.usesRuntimeScalarProducer
+                                              : plan.usesVectorCompareProducer,
+            rhsLogicalOperand == "rhs_scalar"
+                ? "runtime-scalar computed-mask accumulation route requires a "
+                  "runtime-scalar producer plan before binding math operands"
+                : "computed-mask accumulation route requires a vector compare "
+                  "producer plan before binding math operands"))
+      return error;
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "cmp_lhs", cmpLhsLoadUse,
+                        (llvm::Twine(routeName) + " compare lhs load operand")
+                            .str()))
+      return error;
+    if (llvm::Error error = requireOperandUse(
+            "cmp_lhs", cmpLhsCallUse,
+            (llvm::Twine(routeName) + " compare lhs operand").str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("cmp_lhs", "hdr",
+                              (llvm::Twine(routeName) +
+                               " compare lhs header mirror")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, rhsLogicalOperand, rhsProducerUse,
+                        (llvm::Twine(routeName) +
+                         " compare rhs producer operand")
+                            .str()))
+      return error;
+    if (llvm::Error error = requireOperandUse(
+            rhsLogicalOperand, rhsCompareUse,
+            (llvm::Twine(routeName) + " compare rhs operand").str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse(rhsLogicalOperand, "hdr",
+                              (llvm::Twine(routeName) +
+                               " compare rhs header mirror")
+                                  .str()))
+      return error;
+    return llvm::Error::success();
+  };
+  auto bindMAccPayload =
+      [&](llvm::StringRef routeName) -> llvm::Error {
+    if (llvm::Error error =
+            bindOperand(facts.dotLHSABI, "lhs", "lhs-load",
+                        (llvm::Twine(routeName) + " payload lhs load operand")
+                            .str()))
+      return error;
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "macc-lhs",
+            (llvm::Twine(routeName) + " payload lhs compute operand").str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              (llvm::Twine(routeName) +
+                               " payload lhs header mirror")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            bindOperand(facts.dotRHSABI, "rhs", "rhs-load",
+                        (llvm::Twine(routeName) + " payload rhs load operand")
+                            .str()))
+      return error;
+    if (llvm::Error error = requireOperandUse(
+            "rhs", "macc-rhs",
+            (llvm::Twine(routeName) + " payload rhs compute operand").str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("rhs", "hdr",
+                              (llvm::Twine(routeName) +
+                               " payload rhs header mirror")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            bindOperand(facts.accumulatorABI, "acc", "acc-load",
+                        (llvm::Twine(routeName) + " accumulator load operand")
+                            .str()))
+      return error;
+    if (llvm::Error error = requireOperandUse(
+            "acc", "macc-acc",
+            (llvm::Twine(routeName) + " accumulator compute operand").str()))
+      return error;
+    if (llvm::Error error = requireOperandUse(
+            "acc", "macc-pass",
+            (llvm::Twine(routeName) +
+             " inactive-lane passthrough operand")
+                .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("acc", "hdr",
+                              (llvm::Twine(routeName) +
+                               " accumulator header mirror")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store",
+                        (llvm::Twine(routeName) + " output store operand")
+                            .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("out", "hdr",
+                              (llvm::Twine(routeName) +
+                               " output header mirror")
+                                  .str()))
+      return error;
+    return llvm::Error::success();
+  };
+
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::ReduceAdd:
+    facts.bindsReduceAdd = true;
+    if (llvm::Error error = bindOperand(
+            facts.lhsABI, "lhs", "materialized-load-base",
+            "reduce_add input load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "reduction-input-call", "reduce_add input operand"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.rhsABI, "rhs", "materialized-accumulator-load-base",
+            "reduce_add accumulator load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs", "reduction-accumulator-call",
+            "reduce_add accumulator operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "materialized-store-base",
+                        "reduce_add output store"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "reduction-result-store", "reduce_add result store"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "header-mirror",
+                              "reduce_add output header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop-control", "header-mirror", "reduce_add"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::MAccAdd:
+    facts.bindsPlainMAcc = true;
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "lhs", "materialized-load-base",
+                        "macc lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "macc-lhs-call",
+                              "macc lhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, "rhs", "materialized-load-base",
+                        "macc rhs load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs", "macc-rhs-call",
+                              "macc rhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.accumulatorABI, "acc", "materialized-accumulator-load-base",
+            "macc accumulator load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "macc-accumulator-call",
+                              "macc accumulator compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "materialized-store-base",
+                        "macc output store operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "header-mirror",
+                              "macc output header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop-control", "header-mirror", "macc"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    facts.bindsComputedMaskMAcc = true;
+    if (llvm::Error error = bindComputedMaskAccumulationProducer(
+            "computed_masked_macc", "cmp-lhs", "cmp-call", "cmp_rhs",
+            "cmp-rhs", "cmp-call"))
+      return std::move(error);
+    if (llvm::Error error = requirePlanFlag(
+            analysis.computedMaskAccumulationRouteFamilyPlan
+                ->usesVectorMAccSuffix,
+            "computed_masked_macc requires a vector MAcc accumulation suffix "
+            "plan before binding math operands"))
+      return std::move(error);
+    if (llvm::Error error = bindMAccPayload("computed_masked_macc"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount("loop", "hdr",
+                                             "computed_masked_macc"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
+    facts.bindsComputedMaskMAcc = true;
+    if (llvm::Error error = bindComputedMaskAccumulationProducer(
+            "runtime_scalar_computed_masked_macc", "cmp-lhs", "cmp-call",
+            "rhs_scalar", "splat", "cmp-rhs"))
+      return std::move(error);
+    if (llvm::Error error = requirePlanFlag(
+            analysis.computedMaskAccumulationRouteFamilyPlan
+                ->usesVectorMAccSuffix,
+            "runtime_scalar_computed_masked_macc requires a vector MAcc "
+            "accumulation suffix plan before binding math operands"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindMAccPayload("runtime_scalar_computed_masked_macc"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop", "hdr", "runtime_scalar_computed_masked_macc"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::WideningMAccAdd:
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.contractionRouteFamilyPlan.has_value(), "contraction"))
+      return std::move(error);
+    if (llvm::Error error = requirePlanFlag(
+            analysis.contractionRouteFamilyPlan->usesWideningMAcc,
+            "widening_macc requires a widening-MAcc contraction plan before "
+            "binding math operands"))
+      return std::move(error);
+    facts.bindsWideningMAcc = true;
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "lhs", "src-load",
+                        "widening_macc lhs i16 source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "wmacc-lhs",
+                              "widening_macc lhs i16 source compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "src-i16mf2",
+                              "widening_macc lhs source width mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              "widening_macc lhs header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, "rhs", "src-load",
+                        "widening_macc rhs i16 source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs", "wmacc-rhs",
+                              "widening_macc rhs i16 source compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs", "src-i16mf2",
+                              "widening_macc rhs source width mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs", "hdr",
+                              "widening_macc rhs header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.accumulatorABI, "acc", "acc-load",
+            "widening_macc i32 accumulator load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "wmacc-acc",
+                              "widening_macc accumulator compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "acc-i32m1",
+                              "widening_macc accumulator width mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "hdr",
+                              "widening_macc accumulator header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.outABI, "out", "res-store",
+            "widening_macc i32 result store operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "res-i32m1",
+                              "widening_macc result width mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "hdr",
+                              "widening_macc result header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop", "hdr", "widening_macc"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::WidenI32ToI64:
+  case RVVSelectedBodyOperationKind::WidenI16ToI32: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.wideningConversionRouteFamilyPlan.has_value(),
+            "widening conversion"))
+      return std::move(error);
+    facts.bindsWideningConversion = true;
+    const bool isI16ToI32 =
+        description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
+    const llvm::StringRef sourceConfigUse =
+        isI16ToI32 ? "src-i16mf2" : "src-i32m1";
+    const llvm::StringRef resultConfigUse =
+        isI16ToI32 ? "res-i32m1" : "res-i64m2";
+    const llvm::StringRef relationUse =
+        isI16ToI32 ? "relation-signed-i16mf2-to-i32m1"
+                   : "relation-signed-i32m1-to-i64m2";
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "lhs", "src-load",
+                        "widening conversion source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "convert-src",
+                              "widening conversion compute source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", sourceConfigUse,
+                              "widening conversion source type/config mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", relationUse,
+                              "widening conversion source direction mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              "widening conversion source header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "res-store",
+                        "widening conversion result store operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "convert-result",
+                              "widening conversion result dataflow operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", resultConfigUse,
+                              "widening conversion result type/config mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", relationUse,
+                              "widening conversion result direction mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "hdr",
+                              "widening conversion output header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop", "hdr", "widening conversion"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      ComputedMaskStridedInputWideningDotReduceAdd: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.contractionRouteFamilyPlan.has_value(), "contraction"))
+      return std::move(error);
+    const bool isStrided =
+        description.operation ==
+            RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
+        description.operation ==
+            RVVSelectedBodyOperationKind::
+                ComputedMaskStridedInputWideningDotReduceAdd;
+    const bool isComputedMask =
+        description.operation ==
+            RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
+        description.operation ==
+            RVVSelectedBodyOperationKind::
+                ComputedMaskStridedInputWideningDotReduceAdd;
+    if (llvm::Error error = requirePlanFlag(
+            analysis.contractionRouteFamilyPlan->usesDotReduction,
+            "widening dot reduction requires a dot-reduction contraction plan "
+            "before binding math operands"))
+      return std::move(error);
+    if (llvm::Error error = requirePlanFlag(
+            analysis.contractionRouteFamilyPlan->usesStridedInputs == isStrided,
+            "widening dot reduction found a stale strided-input contraction "
+            "plan marker before binding math operands"))
+      return std::move(error);
+    if (llvm::Error error = requirePlanFlag(
+            analysis.contractionRouteFamilyPlan->usesComputedMask ==
+                isComputedMask,
+            "widening dot reduction found a stale computed-mask contraction "
+            "plan marker before binding math operands"))
+      return std::move(error);
+
+    facts.bindsWideningDotReduction = !isStrided && !isComputedMask;
+    facts.bindsStridedInputWideningDotReduction = isStrided && !isComputedMask;
+    facts.bindsComputedMaskWideningDotReduction = !isStrided && isComputedMask;
+    facts.bindsComputedMaskStridedInputWideningDotReduction =
+        isStrided && isComputedMask;
+
+    auto bindDotInput =
+        [&](const support::RuntimeABIParameter *&target,
+            llvm::StringRef logicalOperand, llvm::StringRef loadUse,
+            llvm::StringRef computeUse, llvm::StringRef routeName)
+        -> llvm::Error {
+      if (llvm::Error error = bindOperand(
+              target, logicalOperand, loadUse,
+              (llvm::Twine(routeName) + " source load operand").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              logicalOperand, computeUse,
+              (llvm::Twine(routeName) + " dot-product operand").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              logicalOperand, "i16",
+              (llvm::Twine(routeName) + " source width mirror").str()))
+        return error;
+      if (!isComputedMask || !isStrided) {
+        if (llvm::Error error = requireOperandUse(
+                logicalOperand, "hdr",
+                (llvm::Twine(routeName) + " source header mirror").str()))
+          return error;
+      }
+      return llvm::Error::success();
+    };
+
+    if (isComputedMask) {
+      if (llvm::Error error = bindOperand(
+              facts.lhsABI, "cmp_lhs", "cmp",
+              "computed_masked_widening_dot_reduce compare lhs"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "mask",
+              "computed_masked_widening_dot_reduce mask lhs"))
+        return std::move(error);
+      if (!isStrided) {
+        if (llvm::Error error = requireOperandUse(
+                "cmp_lhs", "hdr",
+                "computed_masked_widening_dot_reduce compare lhs header"))
+          return std::move(error);
+      }
+      if (llvm::Error error = bindOperand(
+              facts.rhsABI, "cmp_rhs", "cmp",
+              "computed_masked_widening_dot_reduce compare rhs"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "mask",
+              "computed_masked_widening_dot_reduce mask rhs"))
+        return std::move(error);
+      if (!isStrided) {
+        if (llvm::Error error = requireOperandUse(
+                "cmp_rhs", "hdr",
+                "computed_masked_widening_dot_reduce compare rhs header"))
+          return std::move(error);
+      }
+      if (llvm::Error error = bindDotInput(
+              facts.dotLHSABI, "dot_lhs", isStrided ? "sld" : "ld", "mlhs",
+              isStrided ? "computed_masked_strided_input_widening_dot_reduce "
+                           "dot lhs"
+                        : "computed_masked_widening_dot_reduce dot lhs"))
+        return std::move(error);
+      if (llvm::Error error = bindDotInput(
+              facts.dotRHSABI, "dot_rhs", isStrided ? "sld" : "ld", "mrhs",
+              isStrided ? "computed_masked_strided_input_widening_dot_reduce "
+                           "dot rhs"
+                        : "computed_masked_widening_dot_reduce dot rhs"))
+        return std::move(error);
+    } else {
+      if (llvm::Error error = bindDotInput(
+              facts.lhsABI, "lhs", isStrided ? "sld" : "ld", "dot-lhs",
+              isStrided ? "strided_input_widening_dot_reduce lhs"
+                        : "widening_dot_reduce lhs"))
+        return std::move(error);
+      if (llvm::Error error = bindDotInput(
+              facts.rhsABI, "rhs", isStrided ? "sld" : "ld", "dot-rhs",
+              isStrided ? "strided_input_widening_dot_reduce rhs"
+                        : "widening_dot_reduce rhs"))
+        return std::move(error);
+    }
+
+    const llvm::StringRef routeName =
+        isComputedMask
+            ? (isStrided
+                   ? "computed_masked_strided_input_widening_dot_reduce"
+                   : "computed_masked_widening_dot_reduce")
+            : (isStrided ? "strided_input_widening_dot_reduce"
+                         : "widening_dot_reduce");
+    if (llvm::Error error =
+            bindOperand(facts.accumulatorABI, "acc", "seed",
+                        (llvm::Twine(routeName) + " scalar seed operand")
+                            .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "red",
+                              (llvm::Twine(routeName) +
+                               " reduction accumulator operand")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "i32",
+                              (llvm::Twine(routeName) +
+                               " accumulator/result width mirror")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "hdr",
+                              (llvm::Twine(routeName) +
+                               " accumulator header mirror")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store",
+                        (llvm::Twine(routeName) + " scalar output store")
+                            .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "i32",
+                              (llvm::Twine(routeName) +
+                               " result width mirror")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "hdr",
+                              (llvm::Twine(routeName) +
+                               " output header mirror")
+                                  .str()))
+      return std::move(error);
+    if (isStrided) {
+      if (llvm::Error error =
+              bindOperand(facts.lhsStrideABI, "lhs_stride", "str",
+                          (llvm::Twine(routeName) + " lhs stride operand")
+                              .str()))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("lhs_stride", "addr",
+                                (llvm::Twine(routeName) +
+                                 " lhs address operand")
+                                    .str()))
+        return std::move(error);
+      if (!isComputedMask) {
+        if (llvm::Error error = requireOperandUse(
+                "lhs_stride", "hdr",
+                (llvm::Twine(routeName) + " lhs stride header mirror").str()))
+          return std::move(error);
+      }
+      if (llvm::Error error =
+              bindOperand(facts.rhsStrideABI, "rhs_stride", "str",
+                          (llvm::Twine(routeName) + " rhs stride operand")
+                              .str()))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("rhs_stride", "addr",
+                                (llvm::Twine(routeName) +
+                                 " rhs address operand")
+                                    .str()))
+        return std::move(error);
+      if (!isComputedMask) {
+        if (llvm::Error error = requireOperandUse(
+                "rhs_stride", "hdr",
+                (llvm::Twine(routeName) + " rhs stride header mirror").str()))
+          return std::move(error);
+      }
+    }
+    if (llvm::Error error = bindRuntimeCount("loop", "hdr", routeName))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.standaloneReductionRouteFamilyPlan.has_value(),
+            "standalone reduction"))
+      return std::move(error);
+    facts.bindsStandaloneReduction = true;
+    if (llvm::Error error = bindOperand(
+            facts.lhsABI, "lhs", "materialized-load-base",
+            "standalone reduction input load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "standalone-reduction-input-call",
+                              "standalone reduction input compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.accumulatorABI, "acc",
+                        "standalone-initial-accumulator-call",
+                        "standalone reduction accumulator operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out",
+                        "standalone-accumulator-state-load",
+                        "standalone reduction output accumulator state"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "materialized-store-base",
+                              "standalone reduction output store operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "header-mirror",
+                              "standalone reduction output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "standalone reduction"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.standaloneReductionRouteFamilyPlan.has_value(),
+            "standalone reduction"))
+      return std::move(error);
+    facts.bindsStandaloneReduction = true;
+    facts.bindsComputedMaskStandaloneReduction =
+        description.operation !=
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceAdd;
+    facts.bindsRuntimeScalarComputedMaskStandaloneReduction =
+        description.operation ==
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceAdd;
+    const bool isRuntimeScalarThreshold =
+        facts.bindsRuntimeScalarComputedMaskStandaloneReduction;
+    const bool isVectorComputedMaskAccumulationAdd =
+        description.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
+    const llvm::StringRef inactiveUse =
+        (isVectorComputedMaskAccumulationAdd || isRuntimeScalarThreshold)
+            ? "zero-inactive"
+            : "neutral-inactive";
+    if (isRuntimeScalarThreshold) {
+      if (llvm::Error error = bindComputedMaskAccumulationProducer(
+              "runtime_scalar_computed_mask_standalone_reduction",
+              "cmp-lhs-load", "cmp-lhs-call", "rhs_scalar", "splat",
+              "cmp-rhs-call"))
+        return std::move(error);
+      if (llvm::Error error = requirePlanFlag(
+              analysis.computedMaskAccumulationRouteFamilyPlan
+                  ->usesScalarHorizontalReductionSuffix,
+              "runtime scalar computed-mask standalone reduction requires a "
+              "scalar horizontal reduction suffix plan before binding math "
+              "operands"))
+        return std::move(error);
+    } else if (isVectorComputedMaskAccumulationAdd) {
+      if (llvm::Error error = bindComputedMaskAccumulationProducer(
+              "computed_mask_standalone_reduction", "cmp-lhs-load",
+              "cmp-lhs-call", "cmp_rhs", "cmp-rhs-load", "cmp-rhs-call"))
+        return std::move(error);
+      if (llvm::Error error = requirePlanFlag(
+              analysis.computedMaskAccumulationRouteFamilyPlan
+                  ->usesScalarHorizontalReductionSuffix,
+              "computed-mask standalone reduction requires a scalar "
+              "horizontal reduction suffix plan before binding math operands"))
+        return std::move(error);
+    } else {
+      if (llvm::Error error =
+              bindOperand(facts.lhsABI, "cmp_lhs", "cmp-lhs-load",
+                          "computed-mask standalone reduction compare lhs "
+                          "load operand"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "cmp-lhs-call",
+              "computed-mask standalone reduction compare lhs call operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("cmp_lhs", "hdr",
+                                "computed-mask standalone reduction compare "
+                                "lhs header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.rhsABI, "cmp_rhs", "cmp-rhs-load",
+                          "computed-mask standalone reduction compare rhs "
+                          "load operand"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "cmp-rhs-call",
+              "computed-mask standalone reduction compare rhs call operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("cmp_rhs", "hdr",
+                                "computed-mask standalone reduction compare "
+                                "rhs header mirror"))
+        return std::move(error);
+    }
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "src", "src-load",
+                        "computed-mask standalone reduction source load "
+                        "operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "masked-reduce-input",
+                              "computed-mask standalone reduction source "
+                              "compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", inactiveUse,
+                              "computed-mask standalone reduction "
+                              "inactive-lane neutral source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "hdr",
+                              "computed-mask standalone reduction source "
+                              "header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.accumulatorABI, "acc", "initial-seed",
+                        "computed-mask standalone reduction accumulator "
+                        "operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "acc-state",
+                              "computed-mask standalone reduction accumulator "
+                              "state"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "masked-reduce-acc",
+                              "computed-mask standalone reduction accumulator "
+                              "compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "acc-state",
+                        "computed-mask standalone reduction output "
+                        "accumulator state"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "store-base",
+                              "computed-mask standalone reduction output "
+                              "store operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "hdr",
+                              "computed-mask standalone reduction output "
+                              "header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop", "hdr",
+                             "computed-mask standalone reduction"))
+      return std::move(error);
+    return facts;
+  }
+
+  default:
+    return facts;
+  }
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {

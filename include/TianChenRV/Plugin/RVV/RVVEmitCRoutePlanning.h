@@ -818,6 +818,35 @@ struct RVVSelectedBodyMemoryRouteOperandBindingFacts {
   const support::RuntimeABIParameter *destinationStrideABI = nullptr;
 };
 
+struct RVVSelectedBodyMathRouteOperandBindingFacts {
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+
+  bool bindsMathCluster = false;
+  bool bindsReduceAdd = false;
+  bool bindsPlainMAcc = false;
+  bool bindsComputedMaskMAcc = false;
+  bool bindsStandaloneReduction = false;
+  bool bindsComputedMaskStandaloneReduction = false;
+  bool bindsRuntimeScalarComputedMaskStandaloneReduction = false;
+  bool bindsWideningMAcc = false;
+  bool bindsWideningConversion = false;
+  bool bindsWideningDotReduction = false;
+  bool bindsStridedInputWideningDotReduction = false;
+  bool bindsComputedMaskWideningDotReduction = false;
+  bool bindsComputedMaskStridedInputWideningDotReduction = false;
+
+  const support::RuntimeABIParameter *lhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *sourceABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *dotLHSABI = nullptr;
+  const support::RuntimeABIParameter *dotRHSABI = nullptr;
+  const support::RuntimeABIParameter *outABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+  const support::RuntimeABIParameter *lhsStrideABI = nullptr;
+  const support::RuntimeABIParameter *rhsStrideABI = nullptr;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -989,6 +1018,10 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
 
 llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
 getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
+getRVVSelectedBodyMathRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

@@ -609,6 +609,112 @@ verified route-family plans
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Math Operand-Binding Facts Boundary
+
+### 1. Scope / Trigger
+
+For mature selected-body reduction, accumulation, contraction, and widening
+routes, `RVVEmitCRouteProvider` must not locally recreate logical operand to
+materialized-use binding rules in the central provider prelude. After
+provider-plan verification, the RVV planning layer must expose one RVV-owned
+operand-binding facts boundary for route families such as `reduce_add`,
+standalone reductions, plain and computed-mask MAcc, widening MAcc, widening
+conversion, widening dot-reduction, and computed-mask widening dot-reduction.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
+getRVVSelectedBodyMathRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must consume these facts after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)` and after
+obtaining route materialization facts for the same analysis. It may obtain the
+elementwise/select and memory operand-binding facts in the same provider
+prelude, but math route branches must consume math facts for their own
+logical operands and materialized uses.
+
+### 3. Contracts
+
+`RVVSelectedBodyMathRouteOperandBindingFacts` is RVV-local provider input. It
+may carry:
+
+- the verified `RouteOperandBindingPlan` pointer used for binding closure;
+- math cluster booleans for reduction, plain MAcc, computed-mask MAcc,
+  standalone reduction, computed-mask standalone reduction, runtime-scalar
+  computed-mask standalone reduction, widening MAcc, widening conversion, and
+  widening dot-reduction shapes;
+- bound runtime ABI parameters for source lhs/rhs, compare lhs/rhs or runtime
+  scalar producers, payload dot lhs/rhs, source payload, accumulator or scalar
+  seed, result/output, runtime element count, and strided dot input strides.
+
+These facts are consumed only to assign provider-local `RuntimeABIParameter`
+pointers before building `TCRVEmitCLowerableRoute` statements. They are not
+common EmitC facts, not artifact metadata, and not route support state.
+
+### 4. Validation & Error Matrix
+
+- A non-math route requests the boundary -> return default empty facts without
+  changing unrelated family binding.
+- A math consumer has no matching family plan, such as contraction,
+  standalone reduction, widening conversion, or shared computed-mask
+  accumulation where required -> fail closed before statement construction.
+- A math consumer has a stale route-shape marker, such as wrong
+  computed-mask, strided-input, runtime-scalar producer, vector MAcc suffix, or
+  scalar horizontal reduction suffix marker -> fail closed before statement
+  construction.
+- A required logical operand lacks the expected materialized use -> fail closed
+  with the logical operand, materialized use, and math route-family binding
+  context.
+- Header mirror, loop-control, setvl AVL, source/payload, compare producer,
+  accumulator/seed, width/config mirror, conversion relation, stride address,
+  result, or store uses are missing from the binding plan -> fail closed before
+  common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed math `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> math operand-binding facts -> provider-built route.
+- Base: non-math route families keep their own binding surface and receive
+  empty math binding facts.
+- Bad: central provider branches manually enumerate the mature reduction,
+  MAcc, widening conversion, or widening dot logical operand and
+  materialized-use table.
+
+### 6. Tests Required
+
+- C++ tests for representative `reduce_add`, MAcc, computed-mask MAcc or
+  computed-mask accumulation, widening MAcc, widening conversion, and widening
+  dot-reduction binding facts.
+- C++ fail-closed diagnostics for at least one missing or stale materialized
+  use in the math cluster.
+- Representative lit/FileCheck coverage proving existing explicit or
+  pre-realized math and widening selected-body artifacts still pass.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider prelude:
+  if operation is macc_add or widening_dot_reduce, bind math logical operands here
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyMathRouteOperandBindingFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

@@ -845,3 +845,52 @@ Added RVV-owned memory operand-binding facts, rewired the selected-body provider
 ### Next Steps
 
 - None - task complete
+
+
+## Session 186: Stage2 RVV math operand-binding surface ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV math operand-binding surface ownership
+**Branch**: `main`
+
+### Summary
+
+Added RVV-owned math operand-binding facts, rewired the selected-body provider to consume them for the included reduction, accumulation, contraction, standalone reduction, widening conversion, and widening dot-reduction cluster, documented the boundary, verified focused math coverage and full check-tianchenrv, and archived the task.
+
+### Main Changes
+
+- Added `RVVSelectedBodyMathRouteOperandBindingFacts` and `getRVVSelectedBodyMathRouteOperandBindingFacts()` as the RVV-local math operand-binding facts boundary.
+- Implemented facts validation for ReduceAdd, MAcc, computed-mask/runtime-scalar MAcc, standalone reductions, computed-mask standalone reductions, widening MAcc, widening conversion, and widening dot-reduction variants including strided and computed-mask forms.
+- Rewired `RVVEmitCRouteProvider.cpp` so the included math branches consume math binding facts after provider verification, materialization facts, elementwise/select binding facts, and memory binding facts.
+- Extended `test/Plugin/RVVExtensionPluginTest.cpp` with representative binding assertions and a stale materialized-use diagnostic.
+- Documented the math operand-binding boundary in `.trellis/spec/extension-plugins/rvv-plugin.md` and archived the completed Trellis task.
+- Verification: task context validation, `git diff --check`, focused plugin build/unit, focused lit 76/76, active-authority scan with no matches, and `check-tianchenrv` 363/363.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-math-operand-binding-surface-ownership`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit/FileCheck from `build/test`: 76/76 representative
+  reduction, MAcc, widening, and selected-boundary tests passed.
+- [OK] Added-line active-authority scan over touched RVV planning/provider/test
+  files found no new legacy i32/source-front-door/descriptor/direct-C/
+  source-export or mirror-only authority terms.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
