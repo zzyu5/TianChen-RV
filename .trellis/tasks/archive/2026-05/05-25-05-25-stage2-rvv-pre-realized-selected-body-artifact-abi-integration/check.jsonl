@@ -1,0 +1,6 @@
+{"file":".trellis/spec/index.md","reason":"Verify final changes preserve RVV-first authority and Stage 2 boundaries."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check selected-body route-entry artifact/ABI evidence against RVV plugin ownership rules."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check common EmitC and target artifact code remain neutral consumers of provider-built routes."}
+{"file":".trellis/spec/plugin-protocol/index.md","reason":"Check no plugin locality drift or core extension-specific semantic branch was introduced."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused FileCheck/script evidence is attached to production compiler behavior and avoids legacy/source-front-door authority."}
+{"file":".trellis/spec/guides/index.md","reason":"Final shared-guide review for RVV artifact/testing changes."}

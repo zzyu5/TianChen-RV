@@ -1337,3 +1337,36 @@ Generalized RVV pre-realized selected-body route-entry realization beyond elemen
 ### Next Steps
 
 - None - task complete
+
+
+## Session 196: Stage2 RVV pre-realized route-entry artifact ABI integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV pre-realized route-entry artifact ABI integration
+**Branch**: `main`
+
+### Summary
+
+Carried bounded pre-realized RVV route-entry fixtures through direct target artifact and generated-bundle ABI evidence, added direct script mode, updated testing spec, archived task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

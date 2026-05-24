@@ -7,8 +7,10 @@ emission plans, exports the generated target artifact bundle, checks the
 bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
-lowering-boundary materialization pass before emission planning. The legacy
-``--source-seed`` mode is unsupported and exits before bundle generation.
+lowering-boundary materialization pass before emission planning unless
+``--direct-pre-realized-route-entry`` is set for the bounded route-entry
+artifact/ABI evidence cases. The legacy ``--source-seed`` mode is unsupported
+and exits before bundle generation.
 The script does not implement compiler IR, lowering, plugin selection,
 emission, descriptors, fallback computation, or runtime glue.
 """
@@ -1647,6 +1649,12 @@ class OpExpectation:
     @property
     def is_pre_realized(self) -> bool:
         return self.input_mode == "pre-realized-selected-body"
+
+    @property
+    def supports_direct_pre_realized_route_entry(self) -> bool:
+        return self.is_pre_realized and (
+            self.is_cmp_select or self.is_strided_load_unit_store
+        )
 
     @property
     def is_rhs_broadcast(self) -> bool:
@@ -13300,10 +13308,11 @@ def generate_bundle(
     expectation: OpExpectation,
     bundle_dir: Path,
     timeout: int,
+    direct_pre_realized_route_entry: bool,
 ) -> dict[str, Any]:
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
-    if expectation.is_pre_realized:
+    if expectation.is_pre_realized and not direct_pre_realized_route_entry:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
     materialize_command.extend(
         ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]
@@ -13342,11 +13351,22 @@ def generate_bundle(
     }
     if expectation.is_pre_realized:
         result["front_door"] = "pre-realized-selected-tcrv-exec-rvv-body"
-        result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
-        result["realization_boundary"] = (
-            "public selected lowering-boundary materialization consumed the "
-            "pre-realized typed tcrv_rvv body before provider route construction"
-        )
+        if direct_pre_realized_route_entry:
+            result["materializer"] = "rvv-route-entry-selected-body-realization"
+            result["route_entry_realization"] = True
+            result["realization_boundary"] = (
+                "RVV production emission-plan route-entry consumed the "
+                "pre-realized typed tcrv_rvv body before provider route "
+                "construction"
+            )
+        else:
+            result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
+            result["route_entry_realization"] = False
+            result["realization_boundary"] = (
+                "public selected lowering-boundary materialization consumed the "
+                "pre-realized typed tcrv_rvv body before provider route "
+                "construction"
+            )
     return result
 
 
@@ -13542,6 +13562,23 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
     expectations = [expectation_table[kind] for kind in op_kinds]
     if args.input is not None:
         expectations = [replace(expectations[0], input_path=args.input)]
+    if args.direct_pre_realized_route_entry:
+        if not args.pre_realized_selected_body:
+            raise EvidenceError(
+                "--direct-pre-realized-route-entry requires "
+                "--pre-realized-selected-body"
+            )
+        unsupported_direct = [
+            expectation.kind
+            for expectation in expectations
+            if not expectation.supports_direct_pre_realized_route_entry
+        ]
+        if unsupported_direct:
+            raise EvidenceError(
+                "--direct-pre-realized-route-entry is bounded to "
+                "pre-realized cmp_select/cmp_select_sle and "
+                f"strided_load_unit_store fixtures; got {unsupported_direct}"
+            )
     return [
         replace(
             expectation,
@@ -13708,6 +13745,7 @@ def run_one_op_e2e(
             expectation,
             bundle_dir,
             args.timeout,
+            args.direct_pre_realized_route_entry,
         )
         evidence["local_bundle_generation"] = local
         evidence["materialized_selected_body_checks"] = (
@@ -14143,6 +14181,8 @@ def run_e2e(args: argparse.Namespace) -> int:
     }
     if args.pre_realized_selected_body:
         evidence["input_mode"] = "pre-realized-selected-body"
+        if args.direct_pre_realized_route_entry:
+            evidence["pre_realized_route_entry_mode"] = "direct"
     elif args.rhs_broadcast_selected_body:
         evidence["input_mode"] = "rhs-broadcast-selected-body"
     elif args.lmul_m2_selected_body:
@@ -14882,6 +14922,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"
+        ),
+    )
+    parser.add_argument(
+        "--direct-pre-realized-route-entry",
+        action="store_true",
+        help=(
+            "with --pre-realized-selected-body, skip the public selected "
+            "lowering-boundary materializer and require the RVV production "
+            "emission-plan route-entry bridge to realize bounded cmp_select/"
+            "cmp_select_sle or strided_load_unit_store fixtures before "
+            "target bundle export"
         ),
     )
     parser.add_argument(

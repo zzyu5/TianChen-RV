@@ -1,0 +1,74 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id direct-pre-realized-route-entry --overwrite --op-kind cmp_select --op-kind strided_load_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --stride-bytes 4 --stride-bytes 8 --stride-bytes 12 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/direct-pre-realized-route-entry/evidence.json
+# RUN: FileCheck %s --check-prefix=CMP --implicit-check-not="--tcrv-materialize-selected-lowering-boundaries" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/direct-pre-realized-route-entry/cmp_select/evidence.json
+# RUN: FileCheck %s --check-prefix=STRIDED --implicit-check-not="--tcrv-materialize-selected-lowering-boundaries" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/direct-pre-realized-route-entry/strided_load_unit_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS-CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/direct-pre-realized-route-entry/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-STRIDED --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/direct-pre-realized-route-entry/strided_load_unit_store/rvv_generated_bundle_abi_strided_load_unit_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "pre_realized_route_entry_mode": "direct"
+# ROOT-DAG: "cmp_select"
+# ROOT-DAG: "strided_load_unit_store"
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# CMP-DAG: "input_mode": "pre-realized-selected-body"
+# CMP-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-cmp-select.mlir"
+# CMP-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select"
+# CMP-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
+# CMP-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# CMP-DAG: "materializer": "rvv-route-entry-selected-body-realization"
+# CMP-DAG: "route_entry_realization": true
+# CMP-DAG: "pre_realized_body_consumed": true
+# CMP-DAG: "key": "rvv_emitc_lowerable_route"
+# CMP-DAG: "value": "rvv-generic-cmp-select-emitc-route"
+# CMP-DAG: "key": "rvv_selected_body_operation"
+# CMP-DAG: "value": "cmp_select"
+# CMP-DAG: "key": "rvv_selected_body_typed_compute_op"
+# CMP-DAG: "value": "tcrv_rvv.select"
+# CMP-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
+# CMP-DAG: --tcrv-materialize-emission-plans
+# CMP-DAG: --tcrv-export-target-artifact-bundle
+# CMP-DAG: "status": "dry_run_success"
+
+# STRIDED-DAG: "input_mode": "pre-realized-selected-body"
+# STRIDED-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-strided-load-unit-store.mlir"
+# STRIDED-DAG: "expected_selected_variant": "pre_realized_body_rvv_strided_load_unit_store"
+# STRIDED-DAG: "expected_runtime_abi_name": "rvv-generic-strided-load-unit-store-callable-c-abi.v1"
+# STRIDED-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# STRIDED-DAG: "materializer": "rvv-route-entry-selected-body-realization"
+# STRIDED-DAG: "route_entry_realization": true
+# STRIDED-DAG: "pre_realized_body_consumed": true
+# STRIDED-DAG: "stride_bytes_values"
+# STRIDED-DAG: 4
+# STRIDED-DAG: 8
+# STRIDED-DAG: 12
+# STRIDED-DAG: "key": "rvv_emitc_lowerable_route"
+# STRIDED-DAG: "value": "rvv-generic-strided-load-unit-store-emitc-route"
+# STRIDED-DAG: "key": "rvv_selected_body_operation"
+# STRIDED-DAG: "value": "strided_load_unit_store"
+# STRIDED-DAG: "key": "rvv_selected_body_typed_compute_op"
+# STRIDED-DAG: "value": "tcrv_rvv.move"
+# STRIDED-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# STRIDED-DAG: "value": "rvv-route-operand-binding:strided_load_unit_store.v1"
+# STRIDED-DAG: "byte_stride_coverage_contract": "runtime strided_load_unit_store cases must execute the same generated artifact with explicit runtime byte strides"
+# STRIDED-DAG: --tcrv-materialize-emission-plans
+# STRIDED-DAG: --tcrv-export-target-artifact-bundle
+# STRIDED-DAG: "status": "dry_run_success"
+
+# HARNESS-CMP: tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(lhs, rhs, out, n);
+# HARNESS-CMP: predicate_true_lanes
+# HARNESS-CMP: predicate_false_lanes
+# HARNESS-CMP: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
+# HARNESS-CMP: PASS op=cmp_select counts=7,16,23
+
+# HARNESS-STRIDED-DAG: const size_t stride_bytes_values[] = {4, 8, 12};
+# HARNESS-STRIDED-DAG: tcrv_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store(src, out, n, stride_bytes);
+# HARNESS-STRIDED-DAG: *(int32_t *)(src_raw + index * stride_bytes)
+# HARNESS-STRIDED-DAG: byte_strided_load contiguous_output tail_preserved
+# HARNESS-STRIDED-DAG: PASS op=strided_load_unit_store counts=7,16,23 stride_bytes=4,8,12
