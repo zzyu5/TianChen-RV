@@ -209,15 +209,6 @@ llvm::Error addCallStepFromSource(
   return llvm::Error::success();
 }
 
-llvm::Expected<const support::RuntimeABIParameter *>
-getRequiredBinding(const RVVRouteOperandBindingPlan &plan,
-                   llvm::StringRef logicalOperand,
-                   llvm::StringRef materializedUse,
-                   llvm::StringRef context) {
-  return getRVVRouteOperandBindingParameter(plan, logicalOperand,
-                                            materializedUse, context);
-}
-
 static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     RVVSelectedBodyRouteAnalysis &analysis,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
@@ -389,8 +380,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       &slice->sourceStrideABI;
   const support::RuntimeABIParameter *boundOutStrideABI =
       &slice->outStrideABI;
-  const RVVRouteOperandBindingPlan &bindingPlan =
-      analysis.routeOperandBindingPlan;
   {
     if (elementwiseSelectOperandBindingFacts.bindsElementwiseSelectCluster) {
       boundRuntimeElementCountABI =
@@ -405,65 +394,23 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundRuntimeElementCountABI =
           residualOperandBindingFacts.runtimeElementCountABI;
     } else {
-      llvm::Expected<const support::RuntimeABIParameter *> boundN =
-          getRequiredBinding(bindingPlan, "n", "setvl-avl",
-                             "runtime AVL/control operand");
-      if (!boundN)
-        return boundN.takeError();
-      boundRuntimeElementCountABI = *boundN;
+      return makeRVVEmitCRouteProviderError(
+          "selected RVV provider requires RVV-owned operand-binding facts for "
+          "runtime AVL/control before route statement construction");
     }
-
-    auto bindOperand =
-        [&](const support::RuntimeABIParameter *&target,
-            llvm::StringRef logicalOperand, llvm::StringRef materializedUse,
-            llvm::StringRef context) -> llvm::Error {
-      llvm::Expected<const support::RuntimeABIParameter *> parameter =
-          getRequiredBinding(bindingPlan, logicalOperand, materializedUse,
-                             context);
-      if (!parameter)
-        return parameter.takeError();
-      target = *parameter;
-      return llvm::Error::success();
-    };
-    auto requireOperandUse = [&](llvm::StringRef logicalOperand,
-                                 llvm::StringRef materializedUse,
-                                 llvm::StringRef context) -> llvm::Error {
-      llvm::Expected<const support::RuntimeABIParameter *> parameter =
-          getRequiredBinding(bindingPlan, logicalOperand, materializedUse,
-                             context);
-      if (!parameter)
-        return parameter.takeError();
-      return llvm::Error::success();
-    };
 
     if (description.operation == RVVSelectedBodyOperationKind::Add ||
         description.operation == RVVSelectedBodyOperationKind::Sub ||
         description.operation == RVVSelectedBodyOperationKind::Mul) {
-      if (elementwiseSelectOperandBindingFacts
-              .bindsOrdinaryElementwiseArithmetic) {
-        boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
-        boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
-        boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
-      } else {
-        if (llvm::Error error =
-                bindOperand(boundLHSABI, "lhs", "load-base",
-                            "binary lhs load operand"))
-          return error;
-        if (llvm::Error error = requireOperandUse(
-                "lhs", "binary-lhs-call", "binary lhs compute operand"))
-          return error;
-        if (llvm::Error error =
-                bindOperand(boundRHSABI, "rhs", "load-base",
-                            "binary rhs load operand"))
-          return error;
-        if (llvm::Error error = requireOperandUse(
-                "rhs", "binary-rhs-call", "binary rhs compute operand"))
-          return error;
-        if (llvm::Error error =
-                bindOperand(boundOutABI, "out", "store-base",
-                            "binary output store"))
-          return error;
-      }
+      if (!elementwiseSelectOperandBindingFacts
+               .bindsOrdinaryElementwiseArithmetic)
+        return makeRVVEmitCRouteProviderError(
+            "ordinary elementwise provider requires RVV-owned "
+            "elementwise/select operand-binding facts before route statement "
+            "construction");
+      boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
+      boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
+      boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::CmpSelect) {
       if (!elementwiseSelectOperandBindingFacts.bindsPlainCompareSelect)

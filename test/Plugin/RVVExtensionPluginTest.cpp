@@ -2816,6 +2816,23 @@ module {
     }
   }
 
+  tcrv.exec.kernel @binding_broadcast_load_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_broadcast_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_broadcast_load, sew = 32 : i64, source_kernel = "binding_broadcast_load_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %b = tcrv_rvv.broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %a, %b, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
   tcrv.exec.kernel @binding_plain_select_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @rvv_plain_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
@@ -2911,6 +2928,59 @@ module {
                               addFacts->runtimeElementCountABI->cName == "n",
                           "ordinary elementwise binding facts expose verified "
                           "logical operands and runtime count"))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> addAnalysis =
+      analyzeRouteInModule(*module, "binding_add_kernel", "rvv_add");
+  if (!addAnalysis)
+    return fail("analyze ordinary elementwise binding facts route: " +
+                llvm::toString(addAnalysis.takeError()));
+  RVVSelectedBodyRouteAnalysis staleAddUse = *addAnalysis;
+  bool removedAddUse = false;
+  for (tianchenrv::plugin::rvv::RVVRouteOperandBinding &binding :
+       staleAddUse.routeOperandBindingPlan.bindings) {
+    if (binding.logicalOperand != "lhs")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "binary-lhs-call")
+        continue;
+      binding.materializedUses.erase(it);
+      removedAddUse = true;
+      break;
+    }
+  }
+  if (int result =
+          expect(removedAddUse,
+                 "test setup removes stale ordinary elementwise lhs use"))
+    return result;
+  staleAddUse.description.routeOperandBindingSummary =
+      tianchenrv::plugin::rvv::stringifyRVVRouteOperandBindingPlan(
+          staleAddUse.routeOperandBindingPlan);
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+              staleAddUse,
+              "ordinary elementwise stale materialized-use binding facts unit "
+              "test")
+              .takeError(),
+          {"lhs", "binary-lhs-call",
+           "ordinary elementwise lhs compute operand"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
+      broadcastLoadFacts =
+          analyzeAndGetFacts("binding_broadcast_load_kernel",
+                             "rvv_broadcast_load");
+  if (!broadcastLoadFacts)
+    return fail("elementwise/select broadcast-load binding facts: " +
+                llvm::toString(broadcastLoadFacts.takeError()));
+  if (int result =
+          expect(broadcastLoadFacts->bindsOrdinaryElementwiseArithmetic &&
+                     broadcastLoadFacts->lhsABI->cName == "lhs" &&
+                     broadcastLoadFacts->rhsABI->cName == "rhs" &&
+                     broadcastLoadFacts->outABI->cName == "out",
+                 "broadcast-load elementwise binding facts expose lhs, RHS "
+                 "broadcast source, and output operands"))
     return result;
 
   llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>

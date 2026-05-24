@@ -256,6 +256,54 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 - None - task complete
 
 
+## Session 187: Stage2 RVV provider facts-only operand-binding closure
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV provider facts-only operand-binding closure
+**Branch**: `main`
+
+### Summary
+
+Removed the remaining selected-body RVV provider-local ordinary Add/Sub/Mul
+operand-binding fallback and made provider construction consume RVV-owned
+elementwise/select operand-binding facts or fail closed before
+`TCRVEmitCLowerableRoute` statement construction.
+
+### Main Changes
+
+- Removed the provider-local `getRequiredBinding`, `bindOperand`, and
+  `requireOperandUse` logical operand table from `RVVEmitCRouteProvider.cpp`.
+- Required ordinary Add/Sub/Mul provider construction to consume
+  `RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts`.
+- Extended elementwise/select operand-binding facts to cover the existing
+  selected-body `RHSBroadcastLoad` Add path, so the legitimate broadcast-load
+  selected-body route remains supported without using provider-local fallback
+  authority.
+- Added focused C++ coverage for stale ordinary elementwise `binary-lhs-call`
+  rejection and broadcast-load facts binding.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-provider-facts-only-operand-binding-closure`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit/FileCheck from `build/test`: 11/11 representative ordinary
+  Add/Sub/Mul and selected-boundary tests passed.
+- [OK] Bounded provider scan found no remaining local `bindOperand` /
+  `requireOperandUse` table in selected-body route construction.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 184: Stage2 RVV selected-body route materialization facts ownership
 
 **Date**: 2026-05-24

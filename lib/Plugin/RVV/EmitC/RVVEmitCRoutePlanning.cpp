@@ -21315,7 +21315,8 @@ static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad ||
+           description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
   case RVVSelectedBodyOperationKind::CmpSelect:
   case RVVSelectedBodyOperationKind::ComputedMaskSelect:
   case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
@@ -21394,10 +21395,11 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
-    if (llvm::Error error = requireFamilyPlan(
-            analysis.elementwiseArithmeticRouteFamilyPlan.has_value(),
-            "elementwise arithmetic"))
-      return std::move(error);
+    if (description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad)
+      if (llvm::Error error = requireFamilyPlan(
+              analysis.elementwiseArithmeticRouteFamilyPlan.has_value(),
+              "elementwise arithmetic"))
+        return std::move(error);
     facts.bindsOrdinaryElementwiseArithmetic = true;
     if (llvm::Error error = bindOperand(
             facts.lhsABI, "lhs", "load-base",
