@@ -239,7 +239,13 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-memory-route-operand-binding-surface-ownership`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit/FileCheck from `build/test`: 36/36 representative memory and selected-boundary tests passed.
+- [OK] Added-line active-authority scan over touched RVV planning/provider/test files found no new legacy/source-front-door/descriptor/mirror-authority terms.
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
 
 ### Status
 
@@ -792,6 +798,45 @@ Added RVV-owned elementwise/select operand-binding facts, rewired the selected-b
 - [OK] Focused lit/FileCheck from `build/test`: 14/14 representative
   elementwise/select artifact and selected-boundary negative tests passed.
 - [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 185: Stage2 RVV memory route operand-binding surface ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV memory route operand-binding surface ownership
+**Branch**: `main`
+
+### Summary
+
+Added RVV-owned memory operand-binding facts, rewired the selected-body provider to consume them for the included memory cluster, documented the boundary, verified focused memory coverage and full check-tianchenrv, and archived the task.
+
+### Main Changes
+
+- Added `RVVSelectedBodyMemoryRouteOperandBindingFacts` and `getRVVSelectedBodyMemoryRouteOperandBindingFacts()` as the RVV-local memory operand-binding facts boundary.
+- Implemented facts coverage for base unit/strided/indexed/static-mask memory, runtime-scalar computed-mask store/load-store, computed-mask strided/indexed/segment2 memory, and plain segment2 memory.
+- Rewired `RVVEmitCRouteProvider.cpp` so included memory branches consume memory binding facts after provider verification, materialization facts, and elementwise/select binding facts.
+- Extended `test/Plugin/RVVExtensionPluginTest.cpp` with representative binding assertions and stale materialized-use diagnostics.
+- Documented the memory operand-binding boundary in `.trellis/spec/extension-plugins/rvv-plugin.md` and archived the completed Trellis task.
+- Verification: `git diff --check`, focused plugin build/unit, focused lit 36/36, active-authority scan with no matches, and `check-tianchenrv` 363/363.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

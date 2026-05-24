@@ -510,6 +510,105 @@ verified route-family plans
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Memory Operand-Binding Facts Boundary
+
+### 1. Scope / Trigger
+
+For mature selected-body memory movement routes, `RVVEmitCRouteProvider` must
+not locally recreate logical operand to materialized-use binding rules in the
+central provider prelude. After provider-plan verification, the RVV planning
+layer must expose one RVV-owned operand-binding facts boundary for base
+unit/strided/indexed/static-mask memory movement, computed-mask memory
+movement, runtime-scalar computed-mask store/load-store, and segment2 memory
+movement.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must consume these facts after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)` and after
+obtaining route materialization facts for the same analysis.
+
+### 3. Contracts
+
+`RVVSelectedBodyMemoryRouteOperandBindingFacts` is RVV-local provider input. It
+may carry:
+
+- the verified `RouteOperandBindingPlan` pointer used for binding closure;
+- memory cluster booleans for base memory movement, computed-mask memory,
+  runtime-scalar computed-mask memory, plain segment2 memory, and segment2
+  memory;
+- bound runtime ABI parameters for compare lhs/rhs, runtime scalar threshold,
+  source/destination windows, old-destination passthrough, index, mask, segment
+  fields, runtime element count, source stride, and destination stride.
+
+These facts are consumed only to assign provider-local `RuntimeABIParameter`
+pointers before building `TCRVEmitCLowerableRoute` statements. They are not
+common EmitC facts, not artifact metadata, and not route support state.
+
+### 4. Validation & Error Matrix
+
+- A non-memory route requests the boundary -> return default empty facts
+  without changing unrelated family binding.
+- A memory consumer has no matching base/computed-mask/segment2 family plan ->
+  fail closed before statement construction.
+- A memory consumer has a stale route-shape marker, such as wrong
+  strided/indexed/static-mask/load-merge/store-only/segment2 direction marker ->
+  fail closed before statement construction.
+- A required logical operand lacks the expected materialized use -> fail closed
+  with the logical operand, materialized use, and memory route-family binding
+  context.
+- Header mirror, loop-control, setvl AVL, source/destination, stride, index,
+  mask, passthrough, or segment field uses are missing from the binding plan ->
+  fail closed before common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed memory `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> memory operand-binding facts -> provider-built route.
+- Base: non-memory route families keep their own binding surface and receive
+  empty memory binding facts.
+- Bad: central provider branches manually enumerate the mature memory logical
+  operand and materialized-use table.
+
+### 6. Tests Required
+
+- C++ tests for representative strided memory, indexed memory, static-mask/base
+  memory, computed-mask memory, runtime-scalar computed-mask memory, and
+  segment2 memory binding facts.
+- C++ fail-closed diagnostics for at least one missing or stale materialized
+  use in the memory cluster.
+- Representative lit/FileCheck coverage proving existing explicit or
+  pre-realized memory selected-body artifacts still pass.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider prelude:
+  if operation is indexed_gather or computed_masked_strided_load, bind memory
+  logical operands here
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyMemoryRouteOperandBindingFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

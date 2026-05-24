@@ -793,6 +793,31 @@ struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
 };
 
+struct RVVSelectedBodyMemoryRouteOperandBindingFacts {
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+
+  bool bindsMemoryCluster = false;
+  bool bindsBaseMemoryMovement = false;
+  bool bindsComputedMaskMemory = false;
+  bool bindsRuntimeScalarComputedMaskMemory = false;
+  bool bindsPlainSegment2Memory = false;
+  bool bindsSegment2Memory = false;
+
+  const support::RuntimeABIParameter *compareLhsABI = nullptr;
+  const support::RuntimeABIParameter *compareRhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
+  const support::RuntimeABIParameter *sourceABI = nullptr;
+  const support::RuntimeABIParameter *destinationABI = nullptr;
+  const support::RuntimeABIParameter *passthroughABI = nullptr;
+  const support::RuntimeABIParameter *indexABI = nullptr;
+  const support::RuntimeABIParameter *maskABI = nullptr;
+  const support::RuntimeABIParameter *field0ABI = nullptr;
+  const support::RuntimeABIParameter *field1ABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+  const support::RuntimeABIParameter *sourceStrideABI = nullptr;
+  const support::RuntimeABIParameter *destinationStrideABI = nullptr;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -960,6 +985,10 @@ getRVVSelectedBodyRouteMaterializationFacts(
 
 llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
 getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+getRVVSelectedBodyMemoryRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

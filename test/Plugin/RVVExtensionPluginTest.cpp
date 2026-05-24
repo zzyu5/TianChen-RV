@@ -3036,6 +3036,10 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
 
@@ -3255,6 +3259,23 @@ module {
           "strided_load_unit_store plan must carry runtime control, strided "
           "layout, intrinsic, and binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      stridedLoadBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *stridedLoadAnalysis, "memory operand binding facts unit test");
+  if (!stridedLoadBindingFacts)
+    return fail("strided_load_unit_store memory binding facts: " +
+                llvm::toString(stridedLoadBindingFacts.takeError()));
+  if (int result = expect(
+          stridedLoadBindingFacts->bindsBaseMemoryMovement &&
+              stridedLoadBindingFacts->sourceABI->cName == "src" &&
+              stridedLoadBindingFacts->destinationABI->cName == "out" &&
+              stridedLoadBindingFacts->sourceStrideABI->cName ==
+                  "stride_bytes" &&
+              stridedLoadBindingFacts->runtimeElementCountABI->cName == "n",
+          "strided memory binding facts expose source, destination, stride, "
+          "and runtime count"))
+    return result;
 
   RVVSelectedBodyRouteAnalysis stale = *stridedLoadAnalysis;
   stale.description.runtimeAVLASource = "metadata-selected-avl";
@@ -3351,6 +3372,21 @@ module {
           "indexed_gather_unit_store plan must carry index/load layout and "
           "binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      indexedGatherBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *indexedGatherAnalysis, "memory operand binding facts unit test");
+  if (!indexedGatherBindingFacts)
+    return fail("indexed_gather_unit_store memory binding facts: " +
+                llvm::toString(indexedGatherBindingFacts.takeError()));
+  if (int result = expect(
+          indexedGatherBindingFacts->bindsBaseMemoryMovement &&
+              indexedGatherBindingFacts->sourceABI->cName == "data" &&
+              indexedGatherBindingFacts->indexABI->cName == "index" &&
+              indexedGatherBindingFacts->destinationABI->cName == "out",
+          "indexed memory binding facts expose data, index, and output "
+          "operands"))
+    return result;
 
   stale = *indexedGatherAnalysis;
   stale.description.offsetUnit = "byte";
@@ -3420,6 +3456,23 @@ module {
           "masked_unit_load_store plan must carry mask, passthrough, and "
           "binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      maskedLoadStoreBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *maskedLoadStoreAnalysis,
+              "memory operand binding facts unit test");
+  if (!maskedLoadStoreBindingFacts)
+    return fail("masked_unit_load_store memory binding facts: " +
+                llvm::toString(maskedLoadStoreBindingFacts.takeError()));
+  if (int result = expect(
+          maskedLoadStoreBindingFacts->bindsBaseMemoryMovement &&
+              maskedLoadStoreBindingFacts->sourceABI->cName == "src" &&
+              maskedLoadStoreBindingFacts->maskABI->cName == "mask" &&
+              maskedLoadStoreBindingFacts->passthroughABI->cName == "dst" &&
+              maskedLoadStoreBindingFacts->destinationABI->cName == "dst",
+          "masked base memory binding facts expose source, mask, passthrough, "
+          "and destination operands"))
+    return result;
 
   stale = *maskedLoadStoreAnalysis;
   stale.description.maskRole = "metadata-selected-mask";
@@ -3479,6 +3532,10 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
       isRVVSelectedBodyMemoryRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
@@ -3683,6 +3740,55 @@ module {
           "runtime_scalar_cmp_masked_store plan must carry runtime-scalar "
           "mask producer, store-only, and binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      runtimeScalarBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *runtimeScalarAnalysis, "memory operand binding facts unit test");
+  if (!runtimeScalarBindingFacts)
+    return fail("runtime-scalar computed-mask memory binding facts: " +
+                llvm::toString(runtimeScalarBindingFacts.takeError()));
+  if (int result = expect(
+          runtimeScalarBindingFacts->bindsComputedMaskMemory &&
+              runtimeScalarBindingFacts->bindsRuntimeScalarComputedMaskMemory &&
+              runtimeScalarBindingFacts->compareLhsABI->cName == "lhs" &&
+              runtimeScalarBindingFacts->rhsScalarABI->cName == "rhs_scalar" &&
+              runtimeScalarBindingFacts->sourceABI->cName == "src" &&
+              runtimeScalarBindingFacts->destinationABI->cName == "dst" &&
+              runtimeScalarBindingFacts->runtimeElementCountABI->cName == "n",
+          "runtime-scalar computed-mask memory binding facts expose compare, "
+          "scalar, payload, destination, and runtime operands"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleMissingUse = *runtimeScalarAnalysis;
+  bool removedUse = false;
+  for (tianchenrv::plugin::rvv::RVVRouteOperandBinding &binding :
+       staleMissingUse.routeOperandBindingPlan.bindings) {
+    if (binding.logicalOperand != "src")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "masked-store-source-call")
+        continue;
+      binding.materializedUses.erase(it);
+      removedUse = true;
+      break;
+    }
+  }
+  if (int result =
+          expect(removedUse,
+                 "test setup removes runtime-scalar memory source use"))
+    return result;
+  staleMissingUse.description.routeOperandBindingSummary =
+      tianchenrv::plugin::rvv::stringifyRVVRouteOperandBindingPlan(
+          staleMissingUse.routeOperandBindingPlan);
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              staleMissingUse,
+              "memory stale materialized-use binding facts unit test")
+              .takeError(),
+          {"src", "masked-store-source-call",
+           "runtime_scalar_cmp_masked_store payload source operand"}))
+    return result;
 
   RVVSelectedBodyRouteAnalysis stale = *runtimeScalarAnalysis;
   stale.description.computedMaskMemoryMaskProducerSource =
@@ -3757,6 +3863,22 @@ module {
           "computed_masked_strided_load plan must carry vector compare, "
           "source stride, masked load, and binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      stridedBindingFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *stridedAnalysis, "memory operand binding facts unit test");
+  if (!stridedBindingFacts)
+    return fail("computed-mask strided memory binding facts: " +
+                llvm::toString(stridedBindingFacts.takeError()));
+  if (int result = expect(
+          stridedBindingFacts->bindsComputedMaskMemory &&
+              stridedBindingFacts->compareLhsABI->cName == "cmp_lhs" &&
+              stridedBindingFacts->compareRhsABI->cName == "cmp_rhs" &&
+              stridedBindingFacts->sourceABI->cName == "src" &&
+              stridedBindingFacts->destinationABI->cName == "dst" &&
+              stridedBindingFacts->sourceStrideABI->cName == "src_stride_bytes",
+          "computed-mask strided memory binding facts expose compare, source, "
+          "destination, and stride operands"))
+    return result;
 
   stale = *stridedAnalysis;
   stale.description.sourceStrideSource = "metadata-selected-stride";
@@ -3800,6 +3922,20 @@ module {
                       ->indexedDataMemoryForm == "masked-indexed-load",
           "computed_masked_indexed_gather plan must carry index and masked "
           "indexed data memory facts"))
+    return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      indexedBindingFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *indexedAnalysis, "memory operand binding facts unit test");
+  if (!indexedBindingFacts)
+    return fail("computed-mask indexed memory binding facts: " +
+                llvm::toString(indexedBindingFacts.takeError()));
+  if (int result = expect(
+          indexedBindingFacts->bindsComputedMaskMemory &&
+              indexedBindingFacts->sourceABI->cName == "src" &&
+              indexedBindingFacts->indexABI->cName == "index" &&
+              indexedBindingFacts->destinationABI->cName == "dst",
+          "computed-mask indexed memory binding facts expose source, index, "
+          "and destination operands"))
     return result;
 
   stale = *indexedAnalysis;
@@ -3846,6 +3982,22 @@ module {
           "computed_masked_segment2_load plan must carry segment count, "
           "field roles, segment intrinsic, and binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      segmentBindingFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *segmentAnalysis, "memory operand binding facts unit test");
+  if (!segmentBindingFacts)
+    return fail("computed-mask segment2 memory binding facts: " +
+                llvm::toString(segmentBindingFacts.takeError()));
+  if (int result = expect(
+          segmentBindingFacts->bindsComputedMaskMemory &&
+              segmentBindingFacts->bindsSegment2Memory &&
+              segmentBindingFacts->compareLhsABI->cName == "cmp_lhs" &&
+              segmentBindingFacts->sourceABI->cName == "src" &&
+              segmentBindingFacts->field0ABI->cName == "out0" &&
+              segmentBindingFacts->field1ABI->cName == "out1",
+          "computed-mask segment2 memory binding facts expose compare, source, "
+          "and field operands"))
+    return result;
 
   stale = *segmentAnalysis;
   stale.description.segmentLoadIntrinsic = "__riscv_vle32_v_i32m1";
@@ -3881,6 +4033,10 @@ int runPlainSegment2MemoryRouteFamilyProviderPlanTest(
       isRVVSelectedBodyMemoryRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
@@ -4037,6 +4193,23 @@ module {
           "segment2_deinterleave_unit_store plan must carry direction, "
           "segment, field role, intrinsic, and binding facts"))
     return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      deinterleaveBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *deinterleaveAnalysis, "memory operand binding facts unit test");
+  if (!deinterleaveBindingFacts)
+    return fail("plain segment2 deinterleave memory binding facts: " +
+                llvm::toString(deinterleaveBindingFacts.takeError()));
+  if (int result = expect(
+          deinterleaveBindingFacts->bindsPlainSegment2Memory &&
+              deinterleaveBindingFacts->bindsSegment2Memory &&
+              deinterleaveBindingFacts->sourceABI->cName == "src" &&
+              deinterleaveBindingFacts->field0ABI->cName == "out0" &&
+              deinterleaveBindingFacts->field1ABI->cName == "out1" &&
+              deinterleaveBindingFacts->runtimeElementCountABI->cName == "n",
+          "plain segment2 deinterleave binding facts expose source, field "
+          "outputs, and runtime count"))
+    return result;
 
   RVVSelectedBodyRouteAnalysis stale = *deinterleaveAnalysis;
   stale.segment2MemoryRouteFamilyPlan->usesDeinterleaveLoad = false;
@@ -4136,6 +4309,21 @@ module {
                   "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
           "segment2_interleave_unit_load plan must carry direction, "
           "segment store, field source form, and binding facts"))
+    return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      interleaveBindingFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *interleaveAnalysis, "memory operand binding facts unit test");
+  if (!interleaveBindingFacts)
+    return fail("plain segment2 interleave memory binding facts: " +
+                llvm::toString(interleaveBindingFacts.takeError()));
+  if (int result = expect(
+          interleaveBindingFacts->bindsPlainSegment2Memory &&
+              interleaveBindingFacts->bindsSegment2Memory &&
+              interleaveBindingFacts->field0ABI->cName == "src0" &&
+              interleaveBindingFacts->field1ABI->cName == "src1" &&
+              interleaveBindingFacts->destinationABI->cName == "dst",
+          "plain segment2 interleave binding facts expose field sources and "
+          "destination"))
     return result;
 
   stale = *interleaveAnalysis;

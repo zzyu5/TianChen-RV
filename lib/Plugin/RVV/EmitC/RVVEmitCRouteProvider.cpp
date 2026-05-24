@@ -244,6 +244,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       &elementwiseSelectOperandBindingFacts =
           *elementwiseSelectOperandBindingFactsOrError;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      memoryOperandBindingFactsOrError =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              analysis, "selected RVV EmitC route construction");
+  if (!memoryOperandBindingFactsOrError)
+    return memoryOperandBindingFactsOrError.takeError();
+  const RVVSelectedBodyMemoryRouteOperandBindingFacts
+      &memoryOperandBindingFacts = *memoryOperandBindingFactsOrError;
 
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
@@ -377,6 +385,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (elementwiseSelectOperandBindingFacts.bindsElementwiseSelectCluster) {
       boundRuntimeElementCountABI =
           elementwiseSelectOperandBindingFacts.runtimeElementCountABI;
+    } else if (memoryOperandBindingFacts.bindsMemoryCluster) {
+      boundRuntimeElementCountABI =
+          memoryOperandBindingFacts.runtimeElementCountABI;
     } else {
       llvm::Expected<const support::RuntimeABIParameter *> boundN =
           getRequiredBinding(bindingPlan, "n", "setvl-avl",
@@ -542,86 +553,26 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
-                          "runtime_scalar_cmp_masked_store lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "compare-lhs-call",
-              "runtime_scalar_cmp_masked_store compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "rhs_scalar", "scalar-broadcast-rhs-call",
-              "runtime_scalar_cmp_masked_store scalar threshold splat"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_scalar", "compare-rhs-call",
-              "runtime_scalar_cmp_masked_store compare rhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundSourceABI, "src", "materialized-source-load-base",
-              "runtime_scalar_cmp_masked_store payload source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "src", "masked-store-source-call",
-              "runtime_scalar_cmp_masked_store masked-store source operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "dst", "materialized-masked-store-base",
-              "runtime_scalar_cmp_masked_store destination store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dst", "masked-store-destination-call",
-              "runtime_scalar_cmp_masked_store destination operand"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "runtime scalar computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.rhsScalarABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    RuntimeScalarComputedMaskLoadStore) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
-                          "runtime_scalar_cmp_masked_load_store lhs load "
-                          "operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "compare-lhs-call",
-              "runtime_scalar_cmp_masked_load_store compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "rhs_scalar", "scalar-broadcast-rhs-call",
-              "runtime_scalar_cmp_masked_load_store scalar threshold splat"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_scalar", "compare-rhs-call",
-              "runtime_scalar_cmp_masked_load_store compare rhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundSourceABI, "src", "materialized-masked-load-base",
-              "runtime_scalar_cmp_masked_load_store source masked-load "
-              "base"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "src", "masked-load-source-call",
-              "runtime_scalar_cmp_masked_load_store masked-load source "
-              "operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundAccumulatorABI, "dst",
-              "materialized-old-destination-load-base",
-              "runtime_scalar_cmp_masked_load_store old destination load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dst", "masked-load-passthrough-call",
-              "runtime_scalar_cmp_masked_load_store passthrough operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "dst", "materialized-store-base",
-              "runtime_scalar_cmp_masked_load_store destination store"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "header-mirror",
-                                "runtime_scalar_cmp_masked_load_store "
-                                "destination header mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "runtime scalar computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.rhsScalarABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundAccumulatorABI = memoryOperandBindingFacts.passthroughABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
       if (llvm::Error error =
               bindOperand(boundLHSABI, "lhs", "materialized-load-base",
@@ -1263,180 +1214,58 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
-      llvm::Expected<const support::RuntimeABIParameter *> src =
-          getRequiredBinding(bindingPlan, "src",
-                             "materialized-strided-load-base",
-                             "byte-strided source load operand");
-      if (!src)
-        return src.takeError();
-      boundLHSABI = *src;
-      llvm::Expected<const support::RuntimeABIParameter *> out =
-          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
-                             "byte-strided load output store operand");
-      if (!out)
-        return out.takeError();
-      boundOutABI = *out;
-      llvm::Expected<const support::RuntimeABIParameter *> stride =
-          getRequiredBinding(bindingPlan, "stride_bytes",
-                             "materialized-strided-load-stride",
-                             "byte-strided source load stride operand");
-      if (!stride)
-        return stride.takeError();
-      boundLHSStrideABI = *stride;
+      if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
+        return makeRVVEmitCRouteProviderError(
+            "base memory provider requires RVV-owned operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
+      boundLHSStrideABI = memoryOperandBindingFacts.sourceStrideABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::UnitLoadStridedStore) {
-      llvm::Expected<const support::RuntimeABIParameter *> src =
-          getRequiredBinding(bindingPlan, "src", "materialized-load-base",
-                             "unit source load operand");
-      if (!src)
-        return src.takeError();
-      boundLHSABI = *src;
-      llvm::Expected<const support::RuntimeABIParameter *> dst =
-          getRequiredBinding(bindingPlan, "dst",
-                             "materialized-strided-store-base",
-                             "byte-strided destination store operand");
-      if (!dst)
-        return dst.takeError();
-      boundOutABI = *dst;
-      llvm::Expected<const support::RuntimeABIParameter *> stride =
-          getRequiredBinding(bindingPlan, "dst_stride_bytes",
-                             "materialized-strided-store-stride",
-                             "byte-strided destination store stride operand");
-      if (!stride)
-        return stride.takeError();
-      boundOutStrideABI = *stride;
+      if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
+        return makeRVVEmitCRouteProviderError(
+            "base memory provider requires RVV-owned operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
+      boundOutStrideABI = memoryOperandBindingFacts.destinationStrideABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::IndexedGatherUnitStore) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "data",
-                          "materialized-indexed-data-base",
-                          "indexed gather data base operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("data", "indexed-load-base",
-                                "indexed gather data load base operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundIndexABI, "index",
-                          "materialized-index-load-base",
-                          "indexed gather index load operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-offset-scale",
-                                "indexed gather offset scaling operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-source-mirror",
-                                "indexed gather index source mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "materialized-store-base",
-                          "indexed gather output store operand"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
+        return makeRVVEmitCRouteProviderError(
+            "base memory provider requires RVV-owned operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundIndexABI = memoryOperandBindingFacts.indexABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::IndexedScatterUnitLoad) {
-      if (llvm::Error error = bindOperand(boundLHSABI, "src",
-                                          "materialized-load-base",
-                                          "indexed scatter source load operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src", "move-source",
-                                "indexed scatter moved source operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundIndexABI, "index",
-                          "materialized-index-load-base",
-                          "indexed scatter index load operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-offset-scale",
-                                "indexed scatter offset scaling operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-source-mirror",
-                                "indexed scatter index source mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst",
-                          "materialized-indexed-store-base",
-                          "indexed scatter destination store operand"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
+        return makeRVVEmitCRouteProviderError(
+            "base memory provider requires RVV-owned operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundIndexABI = memoryOperandBindingFacts.indexABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "src", "seg-load-base",
-                          "segment2 deinterleave source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "src", "src-mem",
-              "segment2 deinterleave source memory form mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundField0ABI, "out0", "field0-store-base",
-                          "segment2 deinterleave field0 output store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out0", "field0-role",
-              "segment2 deinterleave field0 role mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out0", "dst-mem",
-              "segment2 deinterleave field0 destination memory mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundField1ABI, "out1", "field1-store-base",
-                          "segment2 deinterleave field1 output store operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out1", "field1-role",
-              "segment2 deinterleave field1 role mirror"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out1", "dst-mem",
-              "segment2 deinterleave field1 destination memory mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsPlainSegment2Memory)
+        return makeRVVEmitCRouteProviderError(
+            "plain segment2 memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundField0ABI = memoryOperandBindingFacts.field0ABI;
+      boundField1ABI = memoryOperandBindingFacts.field1ABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "src0", "field0-load-base",
-                          "segment2 interleave field0 source load operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "field0-role",
-                                "segment2 interleave field0 role mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "src0-mem",
-                                "segment2 interleave field0 memory mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "tuple-field0",
-                                "segment2 interleave tuple field0 operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "src1", "field1-load-base",
-                          "segment2 interleave field1 source load operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "field1-role",
-                                "segment2 interleave field1 role mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "src1-mem",
-                                "segment2 interleave field1 memory mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "tuple-field1",
-                                "segment2 interleave tuple field1 operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "seg-store-base",
-                          "segment2 interleave destination store operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "dst-mem",
-                                "segment2 interleave destination memory mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsPlainSegment2Memory)
+        return makeRVVEmitCRouteProviderError(
+            "plain segment2 memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.field0ABI;
+      boundRHSABI = memoryOperandBindingFacts.field1ABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
       llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
@@ -1584,465 +1413,105 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundOutABI = *outStore;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::MaskedUnitLoadStore) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "src", "materialized-masked-load-base",
-                          "masked unit-load-store masked source load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "src", "masked-load-source-call",
-              "masked unit-load-store masked-load source operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundMaskABI, "mask", "materialized-mask-load-base",
-              "masked unit-load-store mask load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "mask", "masked-load-mask-call",
-              "masked unit-load-store masked-load mask operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundAccumulatorABI, "dst",
-                          "materialized-old-destination-load-base",
-                          "masked unit-load-store old destination load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dst", "masked-load-passthrough-call",
-              "masked unit-load-store masked-load passthrough operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "materialized-store-base",
-                          "masked unit-load-store destination store"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "header-mirror",
-                                "masked unit-load-store header mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
+        return makeRVVEmitCRouteProviderError(
+            "base memory provider requires RVV-owned operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundMaskABI = memoryOperandBindingFacts.maskABI;
+      boundAccumulatorABI = memoryOperandBindingFacts.passthroughABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::MaskedUnitStore) {
-      llvm::Expected<const support::RuntimeABIParameter *> src =
-          getRequiredBinding(bindingPlan, "src", "materialized-load-base",
-                             "masked unit-store source load operand");
-      if (!src)
-        return src.takeError();
-      boundLHSABI = *src;
-      llvm::Expected<const support::RuntimeABIParameter *> mask =
-          getRequiredBinding(bindingPlan, "mask",
-                             "materialized-mask-load-base",
-                             "masked unit-store mask load operand");
-      if (!mask)
-        return mask.takeError();
-      boundMaskABI = *mask;
-      llvm::Expected<const support::RuntimeABIParameter *> dst =
-          getRequiredBinding(bindingPlan, "dst",
-                             "materialized-masked-store-base",
-                             "masked unit-store destination operand");
-      if (!dst)
-        return dst.takeError();
-      boundOutABI = *dst;
+      if (!memoryOperandBindingFacts.bindsBaseMemoryMovement)
+        return makeRVVEmitCRouteProviderError(
+            "base memory provider requires RVV-owned operand-binding facts "
+            "before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.sourceABI;
+      boundMaskABI = memoryOperandBindingFacts.maskABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
-              "computed-mask unit-load-store compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "compare-lhs-call",
-              "computed-mask unit-load-store compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
-              "computed-mask unit-load-store compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "compare-rhs-call",
-              "computed-mask unit-load-store compare rhs operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundSourceABI, "src",
-                          "materialized-masked-load-base",
-                          "computed-mask unit-load-store masked source load"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse(
-                  "src", "masked-load-source-call",
-                  "computed-mask unit-load-store masked-load source"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "old-dst-load",
-                          "computed-mask unit-load-store old destination load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dst", "masked-load-passthrough-call",
-              "computed-mask unit-load-store masked-load passthrough"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "materialized-store-base",
-                                "computed-mask unit-load-store destination"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "header-mirror",
-                                "computed-mask unit-load-store header mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ComputedMaskStridedStore) {
-      llvm::Expected<const support::RuntimeABIParameter *> cmpLHS =
-          getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
-                             "computed-mask compare lhs load operand");
-      if (!cmpLHS)
-        return cmpLHS.takeError();
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "cmp-lhs-call",
-              "computed-mask strided-store compare lhs operand"))
-        return error;
-      boundLHSABI = *cmpLHS;
-      llvm::Expected<const support::RuntimeABIParameter *> cmpRHS =
-          getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
-                             "computed-mask compare rhs load operand");
-      if (!cmpRHS)
-        return cmpRHS.takeError();
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "cmp-rhs-call",
-              "computed-mask strided-store compare rhs operand"))
-        return error;
-      boundRHSABI = *cmpRHS;
-      llvm::Expected<const support::RuntimeABIParameter *> src =
-          getRequiredBinding(bindingPlan, "src", "src-load",
-                             "computed-mask payload source operand");
-      if (!src)
-        return src.takeError();
-      if (llvm::Error error =
-              requireOperandUse(
-                  "src", "mstr-store-src-call",
-                  "computed-mask strided-store payload source operand"))
-        return error;
-      boundSourceABI = *src;
-      llvm::Expected<const support::RuntimeABIParameter *> dst =
-          getRequiredBinding(bindingPlan, "dst",
-                             "mstr-store-base",
-                             "computed-mask masked strided destination operand");
-      if (!dst)
-        return dst.takeError();
-      boundOutABI = *dst;
-    llvm::Expected<const support::RuntimeABIParameter *> dstStride =
-        getRequiredBinding(bindingPlan, "dst_stride_bytes",
-                             "mstr-store-stride",
-                             "computed-mask masked strided destination byte stride");
-      if (!dstStride)
-        return dstStride.takeError();
-      boundOutStrideABI = *dstStride;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
+      boundOutStrideABI = memoryOperandBindingFacts.destinationStrideABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    ComputedMaskStridedLoadUnitStore) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
-              "computed-mask strided-load compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "lhs-call",
-              "computed-mask strided-load compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
-              "computed-mask strided-load compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "rhs-call",
-              "computed-mask strided-load compare rhs operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundSourceABI, "src", "mstr-base",
-                          "computed-mask masked strided source load"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse(
-                  "src", "mstr-load-call",
-                  "computed-mask strided-load source operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "old-dst-load",
-                          "computed-mask strided-load old destination load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dst", "passthru-call",
-              "computed-mask strided-load passthrough operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "store-base",
-                                "computed-mask strided-load destination"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "hdr-mirror",
-                                "computed-mask strided-load header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundSourceStrideABI, "src_stride_bytes",
-                          "mstr-stride",
-                          "computed-mask masked strided source byte stride"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
+      boundSourceStrideABI = memoryOperandBindingFacts.sourceStrideABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedGatherLoadUnitStore) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
-              "computed-mask indexed gather-load compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "lhs-call",
-              "computed-mask indexed gather-load compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
-              "computed-mask indexed gather-load compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "rhs-call",
-              "computed-mask indexed gather-load compare rhs operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundSourceABI, "src", "midx-base",
-                          "computed-mask masked indexed source base"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse(
-                  "src", "midx-load-call",
-                  "computed-mask indexed gather-load source operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundIndexABI, "index",
-                          "materialized-index-load-base",
-                          "computed-mask indexed gather-load index operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-offset-scale",
-                                "computed-mask indexed gather offset scale"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-source-mirror",
-                                "computed-mask indexed gather index mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "old-dst-load",
-                          "computed-mask indexed gather-load old destination "
-                          "load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "dst", "passthru-call",
-              "computed-mask indexed gather-load passthrough operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "store-base",
-                                "computed-mask indexed gather-load "
-                                "destination"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "hdr-mirror",
-                                "computed-mask indexed gather-load header "
-                                "mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundIndexABI = memoryOperandBindingFacts.indexABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedScatterStoreUnitLoad) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
-              "computed-mask indexed scatter-store compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "lhs-call",
-              "computed-mask indexed scatter-store compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
-              "computed-mask indexed scatter-store compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "rhs-call",
-              "computed-mask indexed scatter-store compare rhs operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundSourceABI, "src", "src-load",
-                          "computed-mask indexed scatter-store payload source"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse(
-                  "src", "mistore-src-call",
-                  "computed-mask indexed scatter-store payload operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundIndexABI, "index",
-                          "materialized-index-load-base",
-                          "computed-mask indexed scatter-store index operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-offset-scale",
-                                "computed-mask indexed scatter offset scale"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("index", "index-source-mirror",
-                                "computed-mask indexed scatter index mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "mistore-base",
-                          "computed-mask indexed scatter-store destination "
-                          "base"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "hdr-mirror",
-                                "computed-mask indexed scatter-store header "
-                                "mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundIndexABI = memoryOperandBindingFacts.indexABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
-              "computed-mask segment2 load compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "lhs-call",
-              "computed-mask segment2 load compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
-              "computed-mask segment2 load compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "rhs-call",
-              "computed-mask segment2 load compare rhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundSourceABI, "src", "mseg-base",
-              "computed-mask segment2 load interleaved source operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src", "mseg-call",
-                                "computed-mask segment2 load intrinsic base"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src", "src-mem",
-                                "computed-mask segment2 source memory mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundField0ABI, "out0", "old0-load",
-              "computed-mask segment2 load field0 passthrough load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out0", "f0-pass",
-              "computed-mask segment2 load field0 passthrough operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out0", "f0-store",
-                                "computed-mask segment2 field0 destination"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out0", "f0-role",
-                                "computed-mask segment2 field0 role mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out0", "dst-mem",
-                                "computed-mask segment2 field0 memory mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out0", "hdr",
-                                "computed-mask segment2 field0 header mirror"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundField1ABI, "out1", "old1-load",
-              "computed-mask segment2 load field1 passthrough load"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out1", "f1-pass",
-              "computed-mask segment2 load field1 passthrough operand"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out1", "f1-store",
-                                "computed-mask segment2 field1 destination"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out1", "f1-role",
-                                "computed-mask segment2 field1 role mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out1", "dst-mem",
-                                "computed-mask segment2 field1 memory mirror"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("out1", "hdr",
-                                "computed-mask segment2 field1 header mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory ||
+          !memoryOperandBindingFacts.bindsSegment2Memory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask segment2 memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundSourceABI = memoryOperandBindingFacts.sourceABI;
+      boundField0ABI = memoryOperandBindingFacts.field0ABI;
+      boundField1ABI = memoryOperandBindingFacts.field1ABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::
                    ComputedMaskSegment2StoreUnitLoad) {
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
-              "computed-mask segment2 store compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "lhs-call",
-              "computed-mask segment2 store compare lhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
-              "computed-mask segment2 store compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "rhs-call",
-              "computed-mask segment2 store compare rhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundField0ABI, "src0", "f0-load",
-              "computed-mask segment2 store field0 payload load"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "f0-payload",
-                                "computed-mask segment2 store field0 payload"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "tuple0",
-                                "computed-mask segment2 store tuple field0"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "f0-role",
-                                "computed-mask segment2 store field0 role"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src0", "src0-mem",
-                                "computed-mask segment2 store src0 memory"))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundField1ABI, "src1", "f1-load",
-              "computed-mask segment2 store field1 payload load"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "f1-payload",
-                                "computed-mask segment2 store field1 payload"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "tuple1",
-                                "computed-mask segment2 store tuple field1"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "f1-role",
-                                "computed-mask segment2 store field1 role"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("src1", "src1-mem",
-                                "computed-mask segment2 store src1 memory"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "dst", "mseg-store",
-                          "computed-mask segment2 store destination base"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "mseg-store",
-                                "computed-mask segment2 store call"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "dst-mem",
-                                "computed-mask segment2 store destination mem"))
-        return error;
-      if (llvm::Error error =
-              requireOperandUse("dst", "hdr",
-                                "computed-mask segment2 store header mirror"))
-        return error;
+      if (!memoryOperandBindingFacts.bindsComputedMaskMemory ||
+          !memoryOperandBindingFacts.bindsSegment2Memory)
+        return makeRVVEmitCRouteProviderError(
+            "computed-mask segment2 memory provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
+      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
+      boundField0ABI = memoryOperandBindingFacts.field0ABI;
+      boundField1ABI = memoryOperandBindingFacts.field1ABI;
+      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else {
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("route operand ABI binding closure for selected RVV "
@@ -2987,14 +2456,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
-	  } else if (description.memoryForm ==
-	                 RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
-	             description.memoryForm ==
-	                 RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect ||
-	             description.memoryForm == RVVSelectedBodyMemoryForm::
-	                                           RuntimeScalarDualCompareMaskAndSelect ||
-	             description.memoryForm ==
-	                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore ||
+  } else if (description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
+             description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect ||
+             description.memoryForm == RVVSelectedBodyMemoryForm::
+                                           RuntimeScalarDualCompareMaskAndSelect ||
+             description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore ||
              description.memoryForm ==
                  RVVSelectedBodyMemoryForm::
                      RuntimeScalarComputedMaskLoadStore ||
@@ -3013,8 +2482,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       description.vectorCType.str()}))
       return error;
-	  } else if (description.memoryForm ==
-	             RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             description.rhsBroadcastIntrinsic,
@@ -3055,36 +2524,36 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       description.vectorCType.str()}))
-	      return error;
-	  }
-	  if (isRuntimeScalarDualCompareMaskAndSelect) {
-	    if (llvm::Error error = addLoopStep(
-	            slice->secondaryCompareLhsLoadOperation, "load",
-	            description.vectorLoadIntrinsic,
-	            {TCRVEmitCCallOpaqueOperand{
-	                 (llvm::StringRef(boundSecondaryCompareLHSABI->cName) +
-	                  " + " + inductionName)
-	                     .str(),
-	                 boundSecondaryCompareLHSABI->cType},
-	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-	                                        description.vlCType.str()}},
-	            TCRVEmitCCallOpaqueResult{"cmp_lhs_b_vec",
-	                                      description.vectorCType.str()}))
-	      return error;
-	    if (llvm::Error error = addLoopStep(
-	            slice->rhsSecondaryScalarSplat.getOperation(), "load",
-	            rhsScalarBroadcastLeaf,
-	            {TCRVEmitCCallOpaqueOperand{
-	                 boundSecondaryCompareRHSScalarABI->cName,
-	                 boundSecondaryCompareRHSScalarABI->cType},
-	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-	                                        description.vlCType.str()}},
-	            TCRVEmitCCallOpaqueResult{"rhs_b_vec",
-	                                      description.vectorCType.str()}))
-	      return error;
-	  }
-	  if (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
-	      isRuntimeScalarDualCompareMaskAndSelect) {
+      return error;
+  }
+  if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (llvm::Error error = addLoopStep(
+            slice->secondaryCompareLhsLoadOperation, "load",
+            description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundSecondaryCompareLHSABI->cName) +
+                  " + " + inductionName)
+                     .str(),
+                 boundSecondaryCompareLHSABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"cmp_lhs_b_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->rhsSecondaryScalarSplat.getOperation(), "load",
+            rhsScalarBroadcastLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 boundSecondaryCompareRHSScalarABI->cName,
+                 boundSecondaryCompareRHSScalarABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"rhs_b_vec",
+                                      description.vectorCType.str()}))
+      return error;
+  }
+  if (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
+      isRuntimeScalarDualCompareMaskAndSelect) {
     if (llvm::Error error = addLoopStep(
             slice->trueValueLoadOperation, "load",
             description.vectorLoadIntrinsic,
@@ -3212,57 +2681,57 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-	  if (isRuntimeScalarDualCompareMaskAndSelect) {
-	    if (llvm::Error error = addLoopStep(
-	            slice->compareOp.getOperation(), "compute",
-	            description.compareIntrinsic,
-	            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
-	                                        description.vectorCType.str()},
-	             TCRVEmitCCallOpaqueOperand{"rhs_vec",
-	                                        description.vectorCType.str()},
-	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-	                                        description.vlCType.str()}},
-	            TCRVEmitCCallOpaqueResult{"mask_a",
-	                                      description.maskCType.str()}))
-	      return error;
-	    if (llvm::Error error = addLoopStep(
-	            slice->secondaryCompareOp.getOperation(), "compute",
-	            description.secondaryCompareIntrinsic,
-	            {TCRVEmitCCallOpaqueOperand{"cmp_lhs_b_vec",
-	                                        description.vectorCType.str()},
-	             TCRVEmitCCallOpaqueOperand{"rhs_b_vec",
-	                                        description.vectorCType.str()},
-	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-	                                        description.vlCType.str()}},
-	            TCRVEmitCCallOpaqueResult{"mask_b",
-	                                      description.maskCType.str()}))
-	      return error;
-	    if (llvm::Error error = addLoopStep(
-	            slice->maskAndOp.getOperation(), "compute",
-	            description.maskAndIntrinsic,
-	            {TCRVEmitCCallOpaqueOperand{"mask_a",
-	                                        description.maskCType.str()},
-	             TCRVEmitCCallOpaqueOperand{"mask_b",
-	                                        description.maskCType.str()},
-	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-	                                        description.vlCType.str()}},
-	            TCRVEmitCCallOpaqueResult{description.maskName.str(),
-	                                      description.maskCType.str()}))
-	      return error;
-	    if (llvm::Error error = addLoopStep(
-	            slice->arithmeticOp, "compute", description.intrinsic,
-	            {TCRVEmitCCallOpaqueOperand{"false_value_vec",
-	                                        description.vectorCType.str()},
-	             TCRVEmitCCallOpaqueOperand{"true_value_vec",
-	                                        description.vectorCType.str()},
-	             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
-	                                        description.maskCType.str()},
-	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-	                                        description.vlCType.str()}},
-	            TCRVEmitCCallOpaqueResult{description.resultName.str(),
-	                                      description.vectorCType.str()}))
-	      return error;
-	  } else if (isRVVSelectedBodyCompareSelectRoute(description.operation)) {
+  if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute",
+            description.compareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"mask_a",
+                                      description.maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->secondaryCompareOp.getOperation(), "compute",
+            description.secondaryCompareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"cmp_lhs_b_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_b_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"mask_b",
+                                      description.maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->maskAndOp.getOperation(), "compute",
+            description.maskAndIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"mask_a",
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{"mask_b",
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      description.maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"false_value_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"true_value_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (isRVVSelectedBodyCompareSelectRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->compareOp.getOperation(), "compute",
             description.compareIntrinsic,

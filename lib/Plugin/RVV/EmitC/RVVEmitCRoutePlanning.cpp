@@ -21759,6 +21759,1114 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
   }
 }
 
+static bool isRVVSelectedBodyMemoryRouteOperandBindingFactsConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyMemoryRouteFamilyConsumer(description.operation);
+}
+
+llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts facts;
+  if (!isRVVSelectedBodyMemoryRouteOperandBindingFactsConsumer(description))
+    return facts;
+
+  facts.bindingPlan = &analysis.routeOperandBindingPlan;
+  facts.bindsMemoryCluster = true;
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, description, context))
+    return std::move(error);
+
+  const RVVRouteOperandBindingPlan &bindingPlan =
+      analysis.routeOperandBindingPlan;
+  auto bindOperand =
+      [&](const support::RuntimeABIParameter *&target,
+          llvm::StringRef logicalOperand, llvm::StringRef materializedUse,
+          llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    target = *parameter;
+    return llvm::Error::success();
+  };
+  auto requireOperandUse = [&](llvm::StringRef logicalOperand,
+                               llvm::StringRef materializedUse,
+                               llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    return llvm::Error::success();
+  };
+  auto bindRuntimeCount =
+      [&](llvm::StringRef loopUse, llvm::StringRef headerUse,
+          llvm::StringRef routeName) -> llvm::Error {
+    if (llvm::Error error =
+            bindOperand(facts.runtimeElementCountABI, "n", "setvl-avl",
+                        (llvm::Twine(routeName) +
+                         " runtime AVL/control operand")
+                            .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("n", loopUse,
+                              (llvm::Twine(routeName) +
+                               " runtime loop-control operand")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("n", headerUse,
+                              (llvm::Twine(routeName) +
+                               " runtime header mirror")
+                                  .str()))
+      return error;
+    return llvm::Error::success();
+  };
+  auto requireFamilyPlan = [&](bool hasPlan,
+                               llvm::StringRef familyName) -> llvm::Error {
+    if (hasPlan)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires the " + familyName +
+        " route-family plan before binding memory operands for " +
+        stringifyRVVSelectedBodyOperationKind(description.operation));
+  };
+  auto requirePlanFlag = [&](bool flag, llvm::StringRef message) -> llvm::Error {
+    if (flag)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(llvm::Twine(context) + " " + message);
+  };
+
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.baseMemoryMovementRouteFamilyPlan.has_value(),
+            "base memory movement"))
+      return std::move(error);
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+        *analysis.baseMemoryMovementRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesStridedLoad,
+            "strided_load_unit_store requires a strided-load base memory plan "
+            "before binding memory operands"))
+      return std::move(error);
+    facts.bindsBaseMemoryMovement = true;
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "src",
+                        "materialized-strided-load-base",
+                        "strided_load_unit_store source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "move-source",
+                              "strided_load_unit_store move source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "out",
+                        "materialized-store-base",
+                        "strided_load_unit_store output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header-mirror",
+            "strided_load_unit_store output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "strided_load_unit_store"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.sourceStrideABI, "stride_bytes",
+                        "materialized-strided-load-stride",
+                        "strided_load_unit_store source byte stride"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("stride_bytes", "materialized-byte-address",
+                              "strided_load_unit_store byte address operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("stride_bytes", "header-mirror",
+                              "strided_load_unit_store stride header mirror"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.baseMemoryMovementRouteFamilyPlan.has_value(),
+            "base memory movement"))
+      return std::move(error);
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+        *analysis.baseMemoryMovementRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesStridedStore,
+            "unit_load_strided_store requires a strided-store base memory plan "
+            "before binding memory operands"))
+      return std::move(error);
+    facts.bindsBaseMemoryMovement = true;
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "src", "materialized-load-base",
+                        "unit_load_strided_store source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "move-source",
+                              "unit_load_strided_store move source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "dst",
+                        "materialized-strided-store-base",
+                        "unit_load_strided_store destination store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst", "header-mirror",
+            "unit_load_strided_store destination header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "unit_load_strided_store"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationStrideABI, "dst_stride_bytes",
+                        "materialized-strided-store-stride",
+                        "unit_load_strided_store destination byte stride"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst_stride_bytes", "materialized-byte-address",
+            "unit_load_strided_store byte address operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst_stride_bytes", "header-mirror",
+            "unit_load_strided_store stride header mirror"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.baseMemoryMovementRouteFamilyPlan.has_value(),
+            "base memory movement"))
+      return std::move(error);
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+        *analysis.baseMemoryMovementRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesIndexedGather,
+            "indexed_gather_unit_store requires an indexed-gather base memory "
+            "plan before binding memory operands"))
+      return std::move(error);
+    facts.bindsBaseMemoryMovement = true;
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "data",
+                        "materialized-indexed-data-base",
+                        "indexed_gather_unit_store data base operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "data", "indexed-load-base",
+            "indexed_gather_unit_store indexed load base operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "data", "header-mirror",
+            "indexed_gather_unit_store data header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.indexABI, "index",
+                        "materialized-index-load-base",
+                        "indexed_gather_unit_store index load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("index", "index-offset-scale",
+                              "indexed_gather_unit_store offset scale"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("index", "index-source-mirror",
+                              "indexed_gather_unit_store index mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("index", "header-mirror",
+                              "indexed_gather_unit_store index header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "out",
+                        "materialized-store-base",
+                        "indexed_gather_unit_store output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header-mirror",
+            "indexed_gather_unit_store output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "indexed_gather_unit_store"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.baseMemoryMovementRouteFamilyPlan.has_value(),
+            "base memory movement"))
+      return std::move(error);
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+        *analysis.baseMemoryMovementRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesIndexedScatter,
+            "indexed_scatter_unit_load requires an indexed-scatter base memory "
+            "plan before binding memory operands"))
+      return std::move(error);
+    facts.bindsBaseMemoryMovement = true;
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "src", "materialized-load-base",
+                        "indexed_scatter_unit_load source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "move-source",
+                              "indexed_scatter_unit_load moved source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "header-mirror",
+                              "indexed_scatter_unit_load source header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.indexABI, "index",
+                        "materialized-index-load-base",
+                        "indexed_scatter_unit_load index load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("index", "index-offset-scale",
+                              "indexed_scatter_unit_load offset scale"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("index", "index-source-mirror",
+                              "indexed_scatter_unit_load index mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("index", "header-mirror",
+                              "indexed_scatter_unit_load index header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "dst",
+                        "materialized-indexed-store-base",
+                        "indexed_scatter_unit_load destination store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst", "header-mirror",
+            "indexed_scatter_unit_load destination header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "indexed_scatter_unit_load"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.baseMemoryMovementRouteFamilyPlan.has_value(),
+            "base memory movement"))
+      return std::move(error);
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+        *analysis.baseMemoryMovementRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesStaticMaskLoad,
+            "masked_unit_load_store requires a static-mask-load base memory "
+            "plan before binding memory operands"))
+      return std::move(error);
+    facts.bindsBaseMemoryMovement = true;
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "src",
+                        "materialized-masked-load-base",
+                        "masked_unit_load_store source masked-load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "src", "masked-load-source-call",
+            "masked_unit_load_store masked-load source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src", "header-mirror",
+                              "masked_unit_load_store source header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.maskABI, "mask", "materialized-mask-load-base",
+                        "masked_unit_load_store mask load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "mask", "masked-load-mask-call",
+            "masked_unit_load_store mask operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.passthroughABI, "dst",
+                        "materialized-old-destination-load-base",
+                        "masked_unit_load_store old destination load"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst", "masked-load-passthrough-call",
+            "masked_unit_load_store passthrough operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "dst", "materialized-store-base",
+                        "masked_unit_load_store destination store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst", "header-mirror",
+            "masked_unit_load_store destination header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "masked_unit_load_store"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::MaskedUnitStore: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.baseMemoryMovementRouteFamilyPlan.has_value(),
+            "base memory movement"))
+      return std::move(error);
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+        *analysis.baseMemoryMovementRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesStaticMaskStore,
+            "masked_unit_store requires a static-mask-store base memory plan "
+            "before binding memory operands"))
+      return std::move(error);
+    facts.bindsBaseMemoryMovement = true;
+    if (llvm::Error error =
+            bindOperand(facts.sourceABI, "src", "materialized-load-base",
+                        "masked_unit_store source load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "src", "masked-store-source-call",
+            "masked_unit_store masked-store source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.maskABI, "mask", "materialized-mask-load-base",
+                        "masked_unit_store mask load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "mask", "masked-store-mask-call",
+            "masked_unit_store mask operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "dst",
+                        "materialized-masked-store-base",
+                        "masked_unit_store destination store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "dst", "header-mirror",
+            "masked_unit_store destination header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "masked_unit_store"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.computedMaskMemoryRouteFamilyPlan.has_value(),
+            "computed-mask memory"))
+      return std::move(error);
+    const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
+        *analysis.computedMaskMemoryRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesRuntimeScalarProducer,
+            "runtime scalar computed-mask memory requires a runtime-scalar "
+            "producer plan before binding memory operands"))
+      return std::move(error);
+    const bool isLoadStore =
+        description.operation ==
+        RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+    if (llvm::Error error = requirePlanFlag(
+            isLoadStore ? plan.usesLoadMerge : plan.usesStoreOnly,
+            isLoadStore
+                ? "runtime_scalar_cmp_masked_load_store requires a load-merge "
+                  "computed-mask memory plan before binding memory operands"
+                : "runtime_scalar_cmp_masked_store requires a store-only "
+                  "computed-mask memory plan before binding memory operands"))
+      return std::move(error);
+    facts.bindsComputedMaskMemory = true;
+    facts.bindsRuntimeScalarComputedMaskMemory = true;
+    const llvm::StringRef routeName =
+        isLoadStore ? "runtime_scalar_cmp_masked_load_store"
+                    : "runtime_scalar_cmp_masked_store";
+    if (llvm::Error error =
+            bindOperand(facts.compareLhsABI, "lhs", "materialized-load-base",
+                        (llvm::Twine(routeName) + " lhs load operand").str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "compare-lhs-call",
+                              (llvm::Twine(routeName) +
+                               " compare lhs operand")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "header-mirror",
+            (llvm::Twine(routeName) + " lhs header mirror").str()))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsScalarABI, "rhs_scalar",
+                        "scalar-broadcast-rhs-call",
+                        (llvm::Twine(routeName) + " scalar threshold splat")
+                            .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs_scalar", "compare-rhs-call",
+                              (llvm::Twine(routeName) +
+                               " compare rhs operand")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs_scalar", "header-mirror",
+            (llvm::Twine(routeName) + " scalar header mirror").str()))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.sourceABI, "src",
+            isLoadStore ? "materialized-masked-load-base"
+                        : "materialized-source-load-base",
+            (llvm::Twine(routeName) + " source operand").str()))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "src",
+            isLoadStore ? "masked-load-source-call" : "masked-store-source-call",
+            (llvm::Twine(routeName) + " payload source operand").str()))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "src", "header-mirror",
+            (llvm::Twine(routeName) + " source header mirror").str()))
+      return std::move(error);
+    if (isLoadStore) {
+      if (llvm::Error error = bindOperand(
+              facts.passthroughABI, "dst",
+              "materialized-old-destination-load-base",
+              "runtime_scalar_cmp_masked_load_store old destination load"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "dst", "masked-load-passthrough-call",
+              "runtime_scalar_cmp_masked_load_store passthrough operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst",
+                          "materialized-store-base",
+                          "runtime_scalar_cmp_masked_load_store destination "
+                          "store"))
+        return std::move(error);
+    } else {
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst",
+                          "materialized-masked-store-base",
+                          "runtime_scalar_cmp_masked_store destination store"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "dst", "masked-store-destination-call",
+              "runtime_scalar_cmp_masked_store destination operand"))
+        return std::move(error);
+    }
+    if (llvm::Error error = requireOperandUse(
+            "dst", "header-mirror",
+            (llvm::Twine(routeName) + " destination header mirror").str()))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop-control", "header-mirror", routeName))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.computedMaskMemoryRouteFamilyPlan.has_value(),
+            "computed-mask memory"))
+      return std::move(error);
+    const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
+        *analysis.computedMaskMemoryRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesVectorCompareProducer,
+            "computed-mask memory requires a vector compare producer plan "
+            "before binding memory operands"))
+      return std::move(error);
+    facts.bindsComputedMaskMemory = true;
+
+    auto bindVectorCompare = [&](llvm::StringRef lhsUse, llvm::StringRef rhsUse,
+                                 llvm::StringRef lhsCallUse,
+                                 llvm::StringRef rhsCallUse,
+                                 llvm::StringRef routeName) -> llvm::Error {
+      if (llvm::Error error =
+              bindOperand(facts.compareLhsABI, "cmp_lhs", lhsUse,
+                          (llvm::Twine(routeName) + " compare lhs load operand")
+                              .str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", lhsCallUse,
+              (llvm::Twine(routeName) + " compare lhs operand").str()))
+        return error;
+      if (llvm::Error error =
+              bindOperand(facts.compareRhsABI, "cmp_rhs", rhsUse,
+                          (llvm::Twine(routeName) + " compare rhs load operand")
+                              .str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", rhsCallUse,
+              (llvm::Twine(routeName) + " compare rhs operand").str()))
+        return error;
+      return llvm::Error::success();
+    };
+
+    switch (description.operation) {
+    case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesLoadMerge,
+              "computed_masked_unit_load_store requires a load-merge "
+              "computed-mask memory plan before binding memory operands"))
+        return std::move(error);
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "compare-lhs-call",
+              "compare-rhs-call", "computed_masked_unit_load_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src",
+                          "materialized-masked-load-base",
+                          "computed_masked_unit_load_store source base"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "masked-load-source-call",
+                                "computed_masked_unit_load_store source "
+                                "operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.passthroughABI, "dst", "old-dst-load",
+                          "computed_masked_unit_load_store old destination"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "dst", "masked-load-passthrough-call",
+              "computed_masked_unit_load_store passthrough operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst",
+                          "materialized-store-base",
+                          "computed_masked_unit_load_store destination"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "dst", "header-mirror",
+              "computed_masked_unit_load_store header mirror"))
+        return std::move(error);
+      if (llvm::Error error = bindRuntimeCount(
+              "loop-control", "header-mirror",
+              "computed_masked_unit_load_store"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesStoreOnly,
+              "computed_masked_strided_store requires a store-only "
+              "computed-mask memory plan before binding memory operands"))
+        return std::move(error);
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "cmp-lhs-call", "cmp-rhs-call",
+              "computed_masked_strided_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src", "src-load",
+                          "computed_masked_strided_store source operand"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "src", "mstr-store-src-call",
+              "computed_masked_strided_store payload operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst", "mstr-store-base",
+                          "computed_masked_strided_store destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "header-mirror",
+                                "computed_masked_strided_store header mirror"))
+        return std::move(error);
+      if (llvm::Error error = bindRuntimeCount(
+              "loop-control", "header-mirror",
+              "computed_masked_strided_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationStrideABI, "dst_stride_bytes",
+                          "mstr-store-stride",
+                          "computed_masked_strided_store destination stride"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst_stride_bytes", "byte",
+                                "computed_masked_strided_store byte address"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst_stride_bytes", "header-mirror",
+                                "computed_masked_strided_store stride header"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesLoadMerge,
+              "computed_masked_strided_load_unit_store requires a load-merge "
+              "computed-mask memory plan before binding memory operands"))
+        return std::move(error);
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "lhs-call", "rhs-call",
+              "computed_masked_strided_load_unit_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src", "mstr-base",
+                          "computed_masked_strided_load_unit_store source"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "src", "mstr-load-call",
+              "computed_masked_strided_load_unit_store load operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.passthroughABI, "dst", "old-dst-load",
+                          "computed_masked_strided_load_unit_store old "
+                          "destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "passthru-call",
+                                "computed_masked_strided_load_unit_store "
+                                "passthrough operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst", "store-base",
+                          "computed_masked_strided_load_unit_store destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr-mirror",
+                                "computed_masked_strided_load_unit_store "
+                                "header mirror"))
+        return std::move(error);
+      if (llvm::Error error = bindRuntimeCount(
+              "loop-control", "hdr-mirror",
+              "computed_masked_strided_load_unit_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceStrideABI, "src_stride_bytes",
+                          "mstr-stride",
+                          "computed_masked_strided_load_unit_store source "
+                          "stride"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src_stride_bytes", "byte",
+                                "computed_masked_strided_load_unit_store byte "
+                                "address"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src_stride_bytes", "hdr-mirror",
+                                "computed_masked_strided_load_unit_store stride "
+                                "header"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesIndexedGather,
+              "computed_masked_indexed_gather_load_unit_store requires an "
+              "indexed-gather computed-mask memory plan before binding memory "
+              "operands"))
+        return std::move(error);
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "lhs-call", "rhs-call",
+              "computed_masked_indexed_gather_load_unit_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src", "midx-base",
+                          "computed_masked_indexed_gather source"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "midx-load-call",
+                                "computed_masked_indexed_gather source operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.indexABI, "index",
+                          "materialized-index-load-base",
+                          "computed_masked_indexed_gather index operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "index-offset-scale",
+                                "computed_masked_indexed_gather offset scale"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "index-source-mirror",
+                                "computed_masked_indexed_gather index mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "hdr-mirror",
+                                "computed_masked_indexed_gather index header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.passthroughABI, "dst", "old-dst-load",
+                          "computed_masked_indexed_gather old destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "passthru-call",
+                                "computed_masked_indexed_gather passthrough"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst", "store-base",
+                          "computed_masked_indexed_gather destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr-mirror",
+                                "computed_masked_indexed_gather header mirror"))
+        return std::move(error);
+      if (llvm::Error error = bindRuntimeCount(
+              "loop-control", "hdr-mirror",
+              "computed_masked_indexed_gather"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesIndexedScatter,
+              "computed_masked_indexed_scatter_store_unit_load requires an "
+              "indexed-scatter computed-mask memory plan before binding memory "
+              "operands"))
+        return std::move(error);
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "lhs-call", "rhs-call",
+              "computed_masked_indexed_scatter_store_unit_load"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src", "src-load",
+                          "computed_masked_indexed_scatter source"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "mistore-src-call",
+                                "computed_masked_indexed_scatter payload"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.indexABI, "index",
+                          "materialized-index-load-base",
+                          "computed_masked_indexed_scatter index operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "index-offset-scale",
+                                "computed_masked_indexed_scatter offset scale"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "index-source-mirror",
+                                "computed_masked_indexed_scatter index mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "hdr-mirror",
+                                "computed_masked_indexed_scatter index header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst", "mistore-base",
+                          "computed_masked_indexed_scatter destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr-mirror",
+                                "computed_masked_indexed_scatter header mirror"))
+        return std::move(error);
+      if (llvm::Error error = bindRuntimeCount(
+              "loop-control", "hdr-mirror",
+              "computed_masked_indexed_scatter"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesSegment2Load,
+              "computed_masked_segment2_load_unit_store requires a segment2 "
+              "load computed-mask memory plan before binding memory operands"))
+        return std::move(error);
+      facts.bindsSegment2Memory = true;
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "lhs-call", "rhs-call",
+              "computed_masked_segment2_load_unit_store"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src", "mseg-base",
+                          "computed_masked_segment2_load source"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "mseg-call",
+                                "computed_masked_segment2_load intrinsic base"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "src-mem",
+                                "computed_masked_segment2_load source memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.field0ABI, "out0", "old0-load",
+                          "computed_masked_segment2_load field0 passthrough"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "f0-pass",
+                                "computed_masked_segment2_load field0 pass"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "f0-store",
+                                "computed_masked_segment2_load field0 store"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "f0-role",
+                                "computed_masked_segment2_load field0 role"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "dst-mem",
+                                "computed_masked_segment2_load field0 memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "hdr",
+                                "computed_masked_segment2_load field0 header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.field1ABI, "out1", "old1-load",
+                          "computed_masked_segment2_load field1 passthrough"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "f1-pass",
+                                "computed_masked_segment2_load field1 pass"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "f1-store",
+                                "computed_masked_segment2_load field1 store"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "f1-role",
+                                "computed_masked_segment2_load field1 role"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "dst-mem",
+                                "computed_masked_segment2_load field1 memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "hdr",
+                                "computed_masked_segment2_load field1 header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindRuntimeCount("loop-control", "hdr",
+                               "computed_masked_segment2_load"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesSegment2Store,
+              "computed_masked_segment2_store_unit_load requires a segment2 "
+              "store computed-mask memory plan before binding memory operands"))
+        return std::move(error);
+      facts.bindsSegment2Memory = true;
+      if (llvm::Error error = bindVectorCompare(
+              "cmp-lhs-load", "cmp-rhs-load", "lhs-call", "rhs-call",
+              "computed_masked_segment2_store_unit_load"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.field0ABI, "src0", "f0-load",
+                          "computed_masked_segment2_store field0 payload"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src0", "f0-payload",
+                                "computed_masked_segment2_store field0 "
+                                "payload"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src0", "tuple0",
+                                "computed_masked_segment2_store tuple field0"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src0", "f0-role",
+                                "computed_masked_segment2_store field0 role"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src0", "src0-mem",
+                                "computed_masked_segment2_store src0 memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.field1ABI, "src1", "f1-load",
+                          "computed_masked_segment2_store field1 payload"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src1", "f1-payload",
+                                "computed_masked_segment2_store field1 "
+                                "payload"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src1", "tuple1",
+                                "computed_masked_segment2_store tuple field1"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src1", "f1-role",
+                                "computed_masked_segment2_store field1 role"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src1", "src1-mem",
+                                "computed_masked_segment2_store src1 memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst", "mseg-store",
+                          "computed_masked_segment2_store destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "dst-mem",
+                                "computed_masked_segment2_store destination "
+                                "memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr",
+                                "computed_masked_segment2_store header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindRuntimeCount("loop-control", "hdr",
+                               "computed_masked_segment2_store"))
+        return std::move(error);
+      return facts;
+
+    default:
+      llvm_unreachable("unsupported computed-mask memory operation");
+    }
+  }
+
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.segment2MemoryRouteFamilyPlan.has_value(),
+            "plain segment2 memory"))
+      return std::move(error);
+    const RVVSelectedBodySegment2MemoryRouteFamilyPlan &plan =
+        *analysis.segment2MemoryRouteFamilyPlan;
+    const bool isInterleave =
+        description.operation ==
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+    if (llvm::Error error = requirePlanFlag(
+            isInterleave ? plan.usesInterleaveStore : plan.usesDeinterleaveLoad,
+            isInterleave
+                ? "segment2_interleave_unit_load requires an interleave-store "
+                  "plain segment2 memory plan before binding memory operands"
+                : "segment2_deinterleave_unit_store requires a deinterleave-load "
+                  "plain segment2 memory plan before binding memory operands"))
+      return std::move(error);
+    facts.bindsPlainSegment2Memory = true;
+    facts.bindsSegment2Memory = true;
+
+    if (!isInterleave) {
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "src", "seg-load-base",
+                          "segment2_deinterleave_unit_store source load"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "src", "src-mem",
+              "segment2_deinterleave_unit_store source memory mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "header",
+                                "segment2_deinterleave_unit_store source "
+                                "header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.field0ABI, "out0", "field0-store-base",
+                          "segment2_deinterleave_unit_store field0 store"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "field0-role",
+                                "segment2_deinterleave_unit_store field0 role"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "dst-mem",
+                                "segment2_deinterleave_unit_store field0 "
+                                "destination memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out0", "header",
+                                "segment2_deinterleave_unit_store field0 "
+                                "header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.field1ABI, "out1", "field1-store-base",
+                          "segment2_deinterleave_unit_store field1 store"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "field1-role",
+                                "segment2_deinterleave_unit_store field1 role"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "dst-mem",
+                                "segment2_deinterleave_unit_store field1 "
+                                "destination memory"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out1", "header",
+                                "segment2_deinterleave_unit_store field1 "
+                                "header mirror"))
+        return std::move(error);
+      if (llvm::Error error = bindRuntimeCount(
+              "loop-control", "header", "segment2_deinterleave_unit_store"))
+        return std::move(error);
+      return facts;
+    }
+
+    if (llvm::Error error =
+            bindOperand(facts.field0ABI, "src0", "field0-load-base",
+                        "segment2_interleave_unit_load field0 load"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src0", "field0-role",
+                              "segment2_interleave_unit_load field0 role"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src0", "src0-mem",
+                              "segment2_interleave_unit_load field0 memory"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src0", "tuple-field0",
+                              "segment2_interleave_unit_load tuple field0"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src0", "header",
+                              "segment2_interleave_unit_load field0 header"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.field1ABI, "src1", "field1-load-base",
+                        "segment2_interleave_unit_load field1 load"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src1", "field1-role",
+                              "segment2_interleave_unit_load field1 role"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src1", "src1-mem",
+                              "segment2_interleave_unit_load field1 memory"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src1", "tuple-field1",
+                              "segment2_interleave_unit_load tuple field1"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("src1", "header",
+                              "segment2_interleave_unit_load field1 header"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.destinationABI, "dst", "seg-store-base",
+                        "segment2_interleave_unit_load destination store"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("dst", "dst-mem",
+                              "segment2_interleave_unit_load destination "
+                              "memory mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("dst", "header",
+                              "segment2_interleave_unit_load destination "
+                              "header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop-control", "header",
+                             "segment2_interleave_unit_load"))
+      return std::move(error);
+    return facts;
+  }
+
+  default:
+    return facts;
+  }
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {
