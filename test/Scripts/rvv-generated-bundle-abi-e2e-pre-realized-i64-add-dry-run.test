@@ -19,6 +19,12 @@
 # ROOT-DAG: "correctness_oracle"
 # ROOT-DAG: "expected_expression": "lhs[index] + rhs[index]"
 # ROOT-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_i64_add_ok"
+# ROOT-DAG: "runtime_avl_vl_boundary"
+# ROOT-DAG: "selected_runtime_abi"
+# ROOT-DAG: "setvl_consumes_runtime_avl": true
+# ROOT-DAG: "uses_runtime_remaining_avl": true
+# ROOT-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
+# ROOT-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
@@ -58,6 +64,30 @@
 # I64-DAG: "value": "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"
 # I64-DAG: "key": "tcrv_rvv.runtime_abi_order"
 # I64-DAG: "value": "lhs,rhs,out,n"
+# I64-DAG: "key": "tcrv_rvv.runtime_control_plan"
+# I64-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
+# I64-DAG: "key": "tcrv_rvv.runtime_vl_contract"
+# I64-DAG: "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+# I64-DAG: "key": "tcrv_rvv.runtime_avl_source"
+# I64-DAG: "value": "runtime_abi:n"
+# I64-DAG: "key": "tcrv_rvv.remaining_avl"
+# I64-DAG: "value": "n-offset"
+# I64-DAG: "runtime_avl_vl_boundary"
+# I64-DAG: "selected_runtime_abi"
+# I64-DAG: "c_name": "n"
+# I64-DAG: "role": "runtime-element-count"
+# I64-DAG: "materialized_setvl"
+# I64-DAG: "runtime_avl_source": "runtime_abi:n"
+# I64-DAG: "setvl_consumes_runtime_avl": true
+# I64-DAG: "emitted_cpp"
+# I64-DAG: "setvl_intrinsic": "__riscv_vsetvl_e64m1"
+# I64-DAG: "loop_remaining_avl": "{{.*}}"
+# I64-DAG: "uses_runtime_remaining_avl": true
+# I64-DAG: "uses_loop_vl_for_intrinsics": true
+# I64-DAG: "route_metadata"
+# I64-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
+# I64-DAG: "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+# I64-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # I64-DAG: "emitted_rvv_cpp_checks"
 # I64-DAG: "vector_c_type": "vint64m1_t"
 # I64-DAG: "__riscv_vsetvl_e64m1"
@@ -71,12 +101,15 @@
 # I64-DAG: "status": "dry_run_success"
 
 # CPP: #include <riscv_vector.h>
-# CPP: extern "C" void tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add
-# CPP: __riscv_vsetvl_e64m1
+# CPP: extern "C" void tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add({{.*}}size_t [[N:v[0-9]+]])
+# CPP: size_t [[FULL_VL:v[0-9]+]] = __riscv_vsetvl_e64m1([[N]]);
+# CPP: for (size_t [[OFFSET:v[0-9]+]] = 0; [[OFFSET]] < [[N]]; [[OFFSET]] += [[FULL_VL]])
+# CPP: size_t [[REMAINING:v[0-9]+]] = [[N]] - [[OFFSET]];
+# CPP: size_t [[VL:v[0-9]+]] = __riscv_vsetvl_e64m1([[REMAINING]]);
 # CPP: vint64m1_t
-# CPP: __riscv_vle64_v_i64m1
-# CPP: __riscv_vadd_vv_i64m1
-# CPP: __riscv_vse64_v_i64m1
+# CPP: __riscv_vle64_v_i64m1({{.*}}, [[VL]])
+# CPP: __riscv_vadd_vv_i64m1({{.*}}, [[VL]])
+# CPP: __riscv_vse64_v_i64m1({{.*}}, [[VL]])
 
 # HARNESS: int64_t *lhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
 # HARNESS: int64_t *rhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final implementation still follows the RVV-first typed-body authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check runtime AVL/VL ownership, provider facts, fail-closed behavior, and ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check generated artifact ABI and evidence remain mirrors after provider route construction."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and real hardware evidence satisfy runtime correctness claim requirements."}

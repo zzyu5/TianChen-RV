@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, runtime/correctness evidence rules, and non-authority surfaces."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for runtime ABI imports, setvl/VL control, selected-body realization, route provider facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and prohibition on deriving runtime ABI or RVV semantics in common materialization."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact/runtime ABI evidence contract and metadata mirror restrictions."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and real ssh rvv evidence requirements for runtime correctness claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-typed-config-real-hardware-executable-closure/prd.md", "reason": "Previous executable i64_add generated-bundle closure and evidence command baseline."}

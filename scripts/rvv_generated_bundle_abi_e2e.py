@@ -4518,6 +4518,24 @@ COMMON_EXPECTED_METADATA = {
     "tcrv_rvv.pointer_advance": "offset",
     "tcrv_rvv.multi_vl": "supported",
 }
+RUNTIME_AVL_VL_METADATA_KEYS = (
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.vl_def",
+    "tcrv_rvv.vl_scope",
+    "tcrv_rvv.vl_uses",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.runtime_avl_abi_parameter",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.emitc_loop",
+    "tcrv_rvv.loop_induction",
+    "tcrv_rvv.loop_step",
+    "tcrv_rvv.remaining_avl",
+    "tcrv_rvv.pointer_advance",
+    "tcrv_rvv.multi_vl",
+)
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
     "binary self-check",
@@ -4804,6 +4822,13 @@ def require_no_op_invocation(text: str, op_name: str, context: str) -> None:
     if not pattern.search(text):
         return
     raise EvidenceError(f"{context}: forbidden op invocation {op_name!r} present")
+
+
+def require_regex(text: str, pattern: str, context: str) -> re.Match[str]:
+    match = re.search(pattern, text, re.MULTILINE | re.DOTALL)
+    if match:
+        return match
+    raise EvidenceError(f"{context}: missing pattern {pattern!r}")
 
 
 def require_no_forbidden_public_residue(text: str, context: str) -> None:
@@ -6586,6 +6611,7 @@ def verify_emitted_rvv_cpp(
 
     intrinsics: list[str] = []
     vector_c_type = ""
+    runtime_avl_vl_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -6601,6 +6627,9 @@ def verify_emitted_rvv_cpp(
             require_contains(
                 text, intrinsic, "emitted RVV C/C++ typed intrinsic spelling"
             )
+        runtime_avl_vl_boundary = extract_runtime_avl_vl_emitc_boundary(
+            text, expectation
+        )
 
     return {
         "path": str(source_path),
@@ -6613,6 +6642,67 @@ def verify_emitted_rvv_cpp(
         "vector_c_type": vector_c_type,
         "intrinsics": intrinsics,
         "required_header": "riscv_vector.h",
+        "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
+    }
+
+
+def extract_runtime_avl_vl_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        r"\([^)]*\bsize_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ runtime ABI n parameter",
+    )
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ full-chunk setvl from runtime n",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ runtime n loop control",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ remaining AVL to loop VL",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    for intrinsic, context in (
+        (expectation.unit_load_intrinsic, "load"),
+        (expectation.plain_binary_compute_intrinsic, "compute"),
+        (expectation.unit_store_intrinsic, "store"),
+    ):
+        require_regex(
+            text,
+            rf"{re.escape(intrinsic)}\([^;\n]*,\s*{loop_vl}\)",
+            f"emitted RVV C/C++ {context} intrinsic uses loop VL",
+        )
+    return {
+        "runtime_abi_parameter": runtime_n,
+        "full_chunk_vl": full_chunk_vl,
+        "offset_induction": offset,
+        "remaining_avl": remaining_avl,
+        "loop_vl": loop_vl,
+        "setvl_intrinsic": expectation.setvl_intrinsic,
+        "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+        "loop_remaining_avl": f"{runtime_n} - {offset}",
+        "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+        "uses_runtime_remaining_avl": True,
+        "uses_loop_vl_for_intrinsics": True,
     }
 
 
@@ -6756,6 +6846,9 @@ def verify_materialized_selected_body(
             '!tcrv_rvv.vector<i32, "m2">',
             "materialized selected-body MLIR i32 LMUL m2 vector type",
         )
+    runtime_avl_vl_boundary = extract_runtime_avl_vl_materialized_boundary(
+        text, expectation
+    )
     if expectation.is_widen_i32_to_i64:
         require_contains(
             text,
@@ -8725,6 +8818,65 @@ def verify_materialized_selected_body(
         "lmul": expectation.lmul,
         "contains_with_vl": True,
         "pre_realized_body_consumed": expectation.is_pre_realized,
+        "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
+    }
+
+
+def extract_runtime_avl_vl_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    runtime_count_bindings = list(
+        re.finditer(
+            r"(?P<value>%[-A-Za-z0-9_.$]+) = "
+            r"tcrv_rvv\.runtime_abi_value \{(?P<attrs>[^}]*)\} : index",
+            text,
+        )
+    )
+    runtime_count_bindings = [
+        match
+        for match in runtime_count_bindings
+        if 'c_name = "n"' in match.group("attrs")
+        and 'role = "runtime-element-count"' in match.group("attrs")
+        and 'c_type = "size_t"' in match.group("attrs")
+    ]
+    if len(runtime_count_bindings) != 1:
+        raise EvidenceError(
+            "materialized selected-body MLIR must carry exactly one runtime "
+            f"n ABI value consumed as AVL; found {len(runtime_count_bindings)}"
+        )
+    runtime_avl_value = runtime_count_bindings[0].group("value")
+    setvl = require_regex(
+        text,
+        rf"(?P<vl>%[-A-Za-z0-9_.$]+) = tcrv_rvv\.setvl "
+        rf"{re.escape(runtime_avl_value)} \{{(?P<attrs>[^}}]*)\}} : "
+        r"index -> !tcrv_rvv\.vl",
+        "materialized selected-body MLIR setvl consumes runtime n",
+    )
+    attrs = setvl.group("attrs")
+    for token, context in (
+        (f'lmul = "{expectation.lmul}"', "LMUL"),
+        (f"sew = {expectation.sew} : i64", "SEW"),
+        ("policy = #tcrv_rvv.policy<", "policy"),
+    ):
+        require_contains(
+            attrs, token, f"materialized selected-body MLIR setvl {context}"
+        )
+    vl_value = setvl.group("vl")
+    require_regex(
+        text,
+        rf"tcrv_rvv\.with_vl {re.escape(vl_value)}\b",
+        "materialized selected-body MLIR with_vl consumes setvl result",
+    )
+    return {
+        "runtime_avl_value": runtime_avl_value,
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "setvl_result": vl_value,
+        "setvl_consumes_runtime_avl": True,
+        "with_vl_consumes_setvl": True,
+        "sew": expectation.sew,
+        "lmul": expectation.lmul,
+        "policy": "explicit-tcrv-rvv-policy",
     }
 
 
@@ -13837,6 +13989,84 @@ def runtime_count_contract_summary(runtime_counts: list[int]) -> dict[str, Any]:
     }
 
 
+def runtime_avl_parameter_for(expectation: OpExpectation) -> dict[str, str]:
+    for parameter in expectation.runtime_parameters:
+        if parameter.get("role") == "runtime-element-count":
+            require_equal(
+                parameter.get("c_name"),
+                "n",
+                f"{expectation.kind} runtime AVL ABI parameter name",
+            )
+            require_equal(
+                parameter.get("c_type"),
+                "size_t",
+                f"{expectation.kind} runtime AVL ABI parameter C type",
+            )
+            return dict(parameter)
+    raise EvidenceError(f"{expectation.kind} has no runtime-element-count ABI parameter")
+
+
+def runtime_avl_vl_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError("runtime AVL/VL evidence requires object and header records")
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    for key in RUNTIME_AVL_VL_METADATA_KEYS:
+        expected = expected_metadata_for(expectation).get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object runtime AVL/VL metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header runtime AVL/VL metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
+def runtime_avl_vl_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    return {
+        "source": (
+            "selected runtime ABI n -> tcrv_rvv.setvl -> "
+            "RVV provider route facts -> emitted loop setvl -> artifact ABI"
+        ),
+        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "evidence_role": (
+            "mirror-only-after-provider-route-and-materialized-emitc"
+        ),
+        "selected_runtime_abi": runtime_avl_parameter_for(expectation),
+        "materialized_setvl": materialized_checks.get(
+            "runtime_avl_vl_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get("runtime_avl_vl_boundary", {}),
+        "route_metadata": runtime_avl_vl_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_parameter_count": len(expectation.runtime_parameters),
+        },
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_vl_authority": True,
+    }
+
+
 def run_one_op_e2e(
     *,
     args: argparse.Namespace,
@@ -13940,6 +14170,13 @@ def run_one_op_e2e(
             "required_header": "riscv_vector.h",
             "artifact_metadata_role": "mirror-only-after-provider-route",
         }
+        evidence["runtime_avl_vl_boundary"] = runtime_avl_vl_boundary_summary(
+            expectation=expectation,
+            materialized_checks=evidence["materialized_selected_body_checks"],
+            emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+            bundle_checks=bundle_checks,
+            runtime_counts=runtime_counts,
+        )
 
         header_path = bundle_dir / bundle_checks["header_file"]
         object_path = bundle_dir / bundle_checks["object_file"]
@@ -14375,6 +14612,9 @@ def root_op_result_summary(
         "ssh_evidence": result["ssh_evidence"],
         "pass_marker": harness["pass_marker"],
         "runtime_counts": result["runtime_counts"],
+        "runtime_avl_vl_boundary": result.get(
+            "runtime_avl_vl_boundary", {}
+        ),
         "typed_config_artifact_closure": result.get(
             "typed_config_artifact_closure", {}
         ),

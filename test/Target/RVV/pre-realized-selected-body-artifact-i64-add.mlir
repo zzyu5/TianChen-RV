@@ -26,7 +26,11 @@ module {
 }
 
 // REALIZED-NOT: tcrv_rvv.typed_binary_pre_realized_body
-// REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64}
+// REALIZED: %[[N:[0-9]+]] = tcrv_rvv.runtime_abi_value {{.*}}c_name = "n"
+// REALIZED-SAME: c_type = "size_t"
+// REALIZED-SAME: role = "runtime-element-count"
+// REALIZED-SAME: : index
+// REALIZED-NEXT: %[[VL:[0-9]+]] = tcrv_rvv.setvl %[[N]] {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: origin = "rvv-plugin"
 // REALIZED-SAME: selected_path_role = "dispatch case"
@@ -50,7 +54,18 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.element_type", value = "i64"}
 // PLAN-SAME: {key = "tcrv_rvv.sew", value = "64"}
 // PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"}
+// PLAN-SAME: {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"}
+// PLAN-SAME: {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_avl_abi_parameter", value = "n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
+// PLAN-SAME: {key = "tcrv_rvv.emitc_loop", value = "emitc.for"}
+// PLAN-SAME: {key = "tcrv_rvv.remaining_avl", value = "n-offset"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew64-lmul-m1"}
+// PLAN-SAME: {key = "tcrv_rvv.multi_vl", value = "supported"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
@@ -64,4 +79,11 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.element_type: i64
+// HEADER: tianchenrv.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
+// HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.runtime_avl_abi_parameter: n
+// HEADER: tianchenrv.rvv.remaining_avl: n-offset
+// HEADER: tianchenrv.rvv.multi_vl: supported
+// HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
 // HEADER: void tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);

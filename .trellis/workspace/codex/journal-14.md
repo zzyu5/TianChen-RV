@@ -36,7 +36,6 @@ Closed contraction provider validation for active `widening_macc_add`,
   361/361 passed.
 
 ### Status
-
 [OK] **Completed and archived**. Commit is created after this journal entry.
 
 ---
@@ -261,10 +260,6 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 ### Status
 
 [OK] **Completed**
-
-### Next Steps
-
-- None - task complete
 
 ## Session 197: Stage2 RVV pre-realized selected-body executable closure
 
@@ -1657,3 +1652,79 @@ through nested per-op evidence only.
 ### Status
 
 [OK] **Completed**
+
+---
+
+## Session 201 - Stage2 RVV runtime AVL/VL boundary closure
+
+### Date
+
+2026-05-25
+
+### Summary
+
+Closed a focused runtime AVL/VL authority evidence gap for the pre-realized
+`i64_add` generated-bundle path. The script and focused tests now prove the
+selected runtime ABI parameter `n` is imported into `tcrv_rvv`, consumed by
+`tcrv_rvv.setvl`, mirrored by RVV provider/export metadata, emitted as runtime
+`n` / `n - offset` setvl control in generated RVV C++, and executed correctly
+on real `ssh rvv` hardware for counts `7,16,23`.
+
+### Main Changes
+
+- Added `runtime_avl_vl_boundary` checks and evidence to
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- Tightened pre-realized `i64_add` target FileCheck coverage so realized MLIR
+  captures `%n = tcrv_rvv.runtime_abi_value ... role = "runtime-element-count"`
+  and requires `tcrv_rvv.setvl %n`.
+- Tightened the pre-realized `i64_add` generated-bundle dry-run script test so
+  root/per-op evidence exposes the runtime AVL/VL boundary and generated C++
+  FileCheck binds runtime `n`, `offset`, `n - offset`, and loop VL use in
+  `vle64/vadd/vse64`.
+- Created Trellis task
+  `05-25-stage2-rvv-runtime-avl-vl-boundary-closure`.
+
+### Real Hardware Evidence
+
+- Command:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --artifact-root artifacts/tmp/stage2_runtime_avl_vl_boundary_closure --run-id pre-realized-i64-add-ssh-rvv --overwrite --op-kind i64_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --ssh-target rvv`
+- Evidence root:
+  `artifacts/tmp/stage2_runtime_avl_vl_boundary_closure/pre-realized-i64-add-ssh-rvv/evidence.json`
+- Per-op evidence:
+  `artifacts/tmp/stage2_runtime_avl_vl_boundary_closure/pre-realized-i64-add-ssh-rvv/i64_add/evidence.json`
+- Materialized selected body:
+  `artifacts/tmp/stage2_runtime_avl_vl_boundary_closure/pre-realized-i64-add-ssh-rvv/i64_add/materialized_selected_body.mlir`
+- Generated RVV C++:
+  `artifacts/tmp/stage2_runtime_avl_vl_boundary_closure/pre-realized-i64-add-ssh-rvv/i64_add/materialized_rvv_emitc.cpp`
+- Oracle: `lhs[index] + rhs[index]` over `int64_t` buffers, runtime counts
+  `7,16,23`.
+- Remote output ended with:
+  `PASS op=i64_add counts=7,16,23`.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-runtime-avl-vl-boundary-closure`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused dry-run for pre-realized `i64_add`, counts `7,16,23`.
+- [OK] Focused lit from `build/test` for
+  `pre-realized-selected-body-artifact-i64-add`, 1/1 passed.
+- [OK] Focused lit from `build/test` for
+  `rvv-generated-bundle-abi-e2e-pre-realized-i64-add-dry-run`, 1/1 passed.
+- [OK] Focused fail-closed lit from `build/test` for
+  `rvv-generic-stage2-runtime-control-negative`, 1/1 passed.
+- [OK] Real `ssh rvv` generated-bundle compile/run for pre-realized `i64_add`,
+  counts `7,16,23`.
+- [OK] Bounded authority scan over touched and relevant runtime AVL/VL files
+  found no new metadata-derived AVL/VL authority or positive legacy i32 route
+  authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 365/365 passed.
+
+### Status
+
+[OK] Completed; archived and commit created after this journal entry.
+
+### Next Steps
+
+- None - task complete
