@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and Stage 1/2 compliance check."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization remains RVV-owned and route facts consume realized structure."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and route-provider ownership."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/plugin hook boundaries and fail-closed behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit coverage and runtime evidence scope."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-selected-body-realization-route-path-integration/prd.md", "reason": "Check this round improves beyond previous route-analysis guard-only behavior."}

@@ -10,6 +10,9 @@ namespace tianchenrv::plugin::rvv {
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
 
+bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
+    tcrv::exec::VariantOp variant);
+
 struct RVVElementwiseCompareSelectRealizationResult {
   tcrv::rvv::WithVLOp boundary;
 
@@ -19,6 +22,10 @@ struct RVVElementwiseCompareSelectRealizationResult {
 llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
 realizePreRealizedRVVElementwiseCompareSelectCluster(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
+    const VariantLoweringBoundaryRequest &request);
 
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSelectedBody(

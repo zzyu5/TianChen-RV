@@ -119,6 +119,29 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
   return withVLs.front();
 }
 
+llvm::Expected<tcrv::rvv::WithVLOp>
+getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
+    const VariantLoweringBoundaryRequest &request) {
+  llvm::Expected<tcrv::rvv::WithVLOp> boundary =
+      findSelectedRVVSelectedBodyBoundary(request.getVariant());
+  if (boundary) {
+    if (rvv::variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+      return makeRVVPluginError(
+          "pre-realized RVV selected body must not be mixed with an already "
+          "realized setvl/with_vl body before route construction");
+    return *boundary;
+  }
+
+  llvm::Error boundaryError = boundary.takeError();
+  if (!rvv::variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
+          request.getVariant()))
+    return std::move(boundaryError);
+  llvm::consumeError(std::move(boundaryError));
+
+  return rvv::realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
+      request);
+}
+
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
     VariantEmissionRole role, tcrv::rvv::WithVLOp boundary) {
@@ -390,8 +413,12 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   if (llvm::Error error = verifyVariantLegality(legality))
     return error;
 
+  mlir::OpBuilder builder(request.getVariant().getContext());
   llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      findSelectedRVVSelectedBodyBoundary(request.getVariant());
+      getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
+          VariantLoweringBoundaryRequest(
+              request.getVariant(), request.getKernel(),
+              request.getCapabilities(), request.getRole(), builder));
   if (!selectedBoundary)
     return selectedBoundary.takeError();
   VariantLoweringBoundaryValidationRequest boundaryRequest(
@@ -497,6 +524,27 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
 llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
     const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) const {
+  if (!request.getVariant())
+    return makeRVVPluginError(
+        "EmitC route construction requires a materialized tcrv.exec.variant");
+  if (!request.getKernel())
+    return makeRVVPluginError(
+        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  mlir::OpBuilder builder(request.getVariant().getContext());
+  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
+      getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
+          VariantLoweringBoundaryRequest(
+              request.getVariant(), request.getKernel(),
+              request.getCapabilities(), request.getRole(), builder));
+  if (!selectedBoundary)
+    return selectedBoundary.takeError();
+
   return buildRVVSelectedBodyEmitCLowerableRoute(request, out);
 }
 

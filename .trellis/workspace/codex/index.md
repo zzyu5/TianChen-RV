@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-14.md`
-- **Total Sessions**: 192
+- **Total Sessions**: 194
 - **Last Active**: 2026-05-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-14.md` | ~1222 | Active |
+| `journal-14.md` | ~1308 | Active |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
@@ -42,6 +42,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 194 | 2026-05-24 | Stage2 RVV selected-body realization route materialization | pending-final-session-commit | `main` |
 | 192 | 2026-05-24 | Stage2 RVV selected-body realization boundary | pending-final-session-commit | `main` |
 | 191 | 2026-05-24 | Stage2 RVV statement-plan provider-neutral closure | pending-final-commit | `main` |
 | 190 | 2026-05-24 | Stage2 RVV segment2 memory statement-plan ownership | pending-final-commit | `main` |

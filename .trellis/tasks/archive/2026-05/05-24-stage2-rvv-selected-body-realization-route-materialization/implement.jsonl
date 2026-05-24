@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, Stage 1/2 boundaries, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization boundary, elementwise/compare-select scope, route-provider ownership, and test requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership and common EmitC neutrality requirements."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Selected-body realization hook and route-provider interface boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck coverage for selected-body realization and provider handoff."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-selected-body-realization-route-path-integration/prd.md", "reason": "Previous gate-focused route-path task and continuation evidence."}
