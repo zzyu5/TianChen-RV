@@ -63,7 +63,18 @@ module {
 
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_masked_unit_store
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-masked-unit-store-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-undisturbed-mask-undisturbed.v1
+// HEADER: tianchenrv.rvv.tail_policy: undisturbed
+// HEADER: tianchenrv.rvv.mask_policy: undisturbed
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,mask,dst,n
+// HEADER: tianchenrv.rvv.memory_form: masked-unit-store
+// HEADER: tianchenrv.rvv.destination_memory_form: masked-unit-store
+// HEADER: tianchenrv.rvv.mask_role: predicate-mask-input-buffer
+// HEADER: tianchenrv.rvv.mask_source: runtime_abi:mask
+// HEADER: tianchenrv.rvv.mask_memory_form: unit-stride-mask-load
+// HEADER: tianchenrv.rvv.inactive_lane_contract: masked-store-false-lanes-preserve-output-buffer
+// HEADER: tianchenrv.rvv.masked_passthrough_layout: masked-store-has-no-passthrough-load
+// HEADER: tianchenrv.rvv.masked_memory_layout: unit-stride-source-mask-destination-masked-store-runtime-abi
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-masked-unit-store-leaf-profile.v1
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-masked-unit-store-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_unit_store.v1

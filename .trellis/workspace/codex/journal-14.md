@@ -309,6 +309,90 @@ not another dry-run artifact proof.
 
 - None - task complete
 
+---
+
+## Session 202 - Stage2 RVV mask/tail policy route closure
+
+### Date
+
+2026-05-25
+
+### Summary
+
+Closed a focused Stage 2 mask/tail policy authority path for the pre-realized
+`masked_unit_store` generated-bundle route. The evidence now ties explicit
+typed `tcrv_rvv` mask/policy/body facts to RVV realization, provider
+route-family facts, operand binding, base memory statement planning, generated
+RVV C++ masked intrinsic operands, generated artifact mirrors, and real
+`ssh rvv` correctness evidence for runtime counts `7,16,23`.
+
+### Main Changes
+
+- Added `mask_tail_policy_boundary` verification and evidence to
+  `scripts/rvv_generated_bundle_abi_e2e.py` for `masked_unit_store`.
+- Tightened `test/Plugin/RVVExtensionPluginTest.cpp` so the masked store
+  provider path checks typed undisturbed tail/mask policy, runtime mask ABI,
+  mask role/source/form, target leaf profile, provider mirror, compare leaf,
+  masked-store intrinsic, and source/mask/destination/n binding facts before
+  statement planning.
+- Tightened
+  `test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-store.mlir`
+  header checks for mirror-only config/policy, mask role/source/form,
+  inactive-lane contract, masked layout, and route operand binding fields.
+- Tightened
+  `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-masked-unit-store-dry-run.test`
+  to check the new evidence summary and mask/tail mirror metadata.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` with the durable
+  mask/tail policy generated-bundle evidence contract.
+- Created Trellis task
+  `05-25-stage2-rvv-mask-tail-policy-route-closure`.
+
+### Real Hardware Evidence
+
+- Command:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --artifact-root artifacts/tmp/stage2_mask_tail_policy_route_closure --run-id pre-realized-masked-unit-store-ssh-rvv --overwrite --op-kind masked_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --ssh-target rvv`
+- Evidence root:
+  `artifacts/tmp/stage2_mask_tail_policy_route_closure/pre-realized-masked-unit-store-ssh-rvv/evidence.json`
+- Per-op evidence:
+  `artifacts/tmp/stage2_mask_tail_policy_route_closure/pre-realized-masked-unit-store-ssh-rvv/masked_unit_store/evidence.json`
+- Generated RVV C++:
+  `artifacts/tmp/stage2_mask_tail_policy_route_closure/pre-realized-masked-unit-store-ssh-rvv/masked_unit_store/materialized_rvv_emitc.cpp`
+- Oracle: mask lanes with `mask[index] != 0` write `src[index]`; false mask
+  lanes preserve old `dst[index]`; tail sentinel remains untouched.
+- Remote output ended with:
+  `PASS op=masked_unit_store counts=7,16,23`.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-05-25-stage2-rvv-mask-tail-policy-route-closure`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused dry-run for pre-realized `masked_unit_store`, counts `7,16,23`.
+- [OK] Focused lit from `build/test` for
+  `pre-realized-selected-body-artifact-masked-unit-store`, 1/1 passed.
+- [OK] Focused lit from `build/test` for
+  `rvv-generated-bundle-abi-e2e-pre-realized-masked-unit-store-dry-run`,
+  1/1 passed.
+- [OK] Focused fail-closed lit from `build/test` for
+  `pre-realized-masked-unit-store-negative`, 1/1 passed.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Real `ssh rvv` generated-bundle compile/run for pre-realized
+  `masked_unit_store`, counts `7,16,23`.
+- [OK] Bounded authority scan over touched and relevant mask/tail policy files
+  found no new metadata-derived mask/tail authority or positive legacy i32
+  route authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 365/365 passed.
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
+### Next Steps
+
+- None - task complete
+
 
 ## Session 193: Stage2 RVV selected-body realization route-path integration
 

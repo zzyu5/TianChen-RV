@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, stack boundary, descriptor/source-front-door prohibitions, and Stage 2 typed RVV scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body/config mask-tail policy ownership, selected-body realization, route-provider, statement-plan, artifact mirror, and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary: plugin-owned RVV mask/tail policy and intrinsic mapping, common materialization as neutral consumer."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-bundle and ssh rvv evidence requirements for RVV runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-runtime-avl-vl-boundary-closure/prd.md", "reason": "Previous closure pattern for typed RVV boundary evidence, generated-bundle script hardening, ssh rvv evidence, and final validation shape."}

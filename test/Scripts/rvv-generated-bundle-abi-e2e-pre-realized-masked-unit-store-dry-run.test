@@ -39,8 +39,38 @@
 # MASKED-DAG: "value": "unit-stride-source-mask-destination-masked-store-runtime-abi"
 # MASKED-DAG: "key": "tcrv_rvv.inactive_lane_contract"
 # MASKED-DAG: "value": "masked-store-false-lanes-preserve-output-buffer"
+# MASKED-DAG: "key": "tcrv_rvv.mask_role"
+# MASKED-DAG: "value": "predicate-mask-input-buffer"
+# MASKED-DAG: "key": "tcrv_rvv.mask_source"
+# MASKED-DAG: "value": "runtime_abi:mask"
+# MASKED-DAG: "key": "tcrv_rvv.mask_memory_form"
+# MASKED-DAG: "value": "unit-stride-mask-load"
 # MASKED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
 # MASKED-DAG: "value": "masked-store-has-no-passthrough-load"
+# MASKED-DAG: "mask_tail_policy_boundary":
+# MASKED-DAG: "authority": "provider-derived typed tcrv_rvv mask/policy body/config/runtime facts"
+# MASKED-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# MASKED-DAG: "tail_policy": "undisturbed"
+# MASKED-DAG: "mask_policy": "undisturbed"
+# MASKED-DAG: "inactive_lane_contract": "masked-store-false-lanes-preserve-output-buffer"
+# MASKED-DAG: "selected_mask_abi":
+# MASKED-DAG: "role": "mask-input-buffer"
+# MASKED-DAG: "source": "runtime_abi:mask"
+# MASKED-DAG: "materialized_body":
+# MASKED-DAG: "realized_mask_op": "tcrv_rvv.mask_load"
+# MASKED-DAG: "realized_store_op": "tcrv_rvv.masked_store"
+# MASKED-DAG: "mask_memory_form": "unit-stride-mask-load"
+# MASKED-DAG: "emitted_cpp":
+# MASKED-DAG: "mask_compare_intrinsic": "__riscv_vmsne_vx_i32m1_b32"
+# MASKED-DAG: "masked_store_intrinsic": "__riscv_vse32_v_i32m1_m"
+# MASKED-DAG: "uses_mask_operand_for_store": true
+# MASKED-DAG: "route_metadata":
+# MASKED-DAG: "tcrv_rvv.tail_policy": "undisturbed"
+# MASKED-DAG: "tcrv_rvv.mask_policy": "undisturbed"
+# MASKED-DAG: "tcrv_rvv.mask_role": "predicate-mask-input-buffer"
+# MASKED-DAG: "tcrv_rvv.mask_source": "runtime_abi:mask"
+# MASKED-DAG: "tcrv_rvv.mask_memory_form": "unit-stride-mask-load"
+# MASKED-DAG: "runtime_counts_are_execution_cases_not_policy_authority": true
 # MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_store"
 # MASKED-DAG: "memory_form": "masked-unit-store"
 # MASKED-DAG: "status": "dry_run_success"

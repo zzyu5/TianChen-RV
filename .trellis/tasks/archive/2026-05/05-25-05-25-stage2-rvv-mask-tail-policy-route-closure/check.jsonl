@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that changes preserve the RVV-first typed-body authority chain and avoid descriptor/source-front-door/legacy i32 drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local mask/tail policy, route-provider, statement-plan, artifact mirror, and fail-closed contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC/export remain neutral consumers and do not infer RVV mask/tail semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test/evidence coverage and ssh rvv claim requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-runtime-avl-vl-boundary-closure/prd.md", "reason": "Check continuity with the prior runtime AVL/VL closure style and evidence reporting discipline."}

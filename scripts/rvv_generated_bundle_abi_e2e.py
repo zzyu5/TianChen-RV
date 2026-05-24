@@ -4536,6 +4536,26 @@ RUNTIME_AVL_VL_METADATA_KEYS = (
     "tcrv_rvv.pointer_advance",
     "tcrv_rvv.multi_vl",
 )
+MASK_TAIL_POLICY_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.base_memory_movement_route_family_plan",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.masked_memory_layout",
+    "tcrv_rvv.mask_role",
+    "tcrv_rvv.mask_source",
+    "tcrv_rvv.mask_memory_form",
+    "tcrv_rvv.inactive_lane_contract",
+    "tcrv_rvv.masked_passthrough_layout",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
+)
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
     "binary self-check",
@@ -6612,6 +6632,7 @@ def verify_emitted_rvv_cpp(
     intrinsics: list[str] = []
     vector_c_type = ""
     runtime_avl_vl_boundary: dict[str, Any] = {}
+    mask_tail_policy_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -6630,6 +6651,32 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = extract_runtime_avl_vl_emitc_boundary(
             text, expectation
         )
+    if expectation.is_masked_unit_store:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            "__riscv_vmsne_vx_i32m1_b32",
+            "__riscv_vse32_v_i32m1_m",
+        ]
+        require_contains(
+            text, vector_c_type, "emitted RVV C/C++ masked-store vector C type"
+        )
+        require_contains(
+            text, "vbool32_t", "emitted RVV C/C++ masked-store mask C type"
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ masked-store intrinsic spelling",
+            )
+        mask_tail_policy_boundary = extract_masked_unit_store_emitc_boundary(
+            text, expectation
+        )
+        runtime_avl_vl_boundary = mask_tail_policy_boundary[
+            "runtime_avl_vl_control"
+        ]
 
     return {
         "path": str(source_path),
@@ -6643,6 +6690,110 @@ def verify_emitted_rvv_cpp(
         "intrinsics": intrinsics,
         "required_header": "riscv_vector.h",
         "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
+        "mask_tail_policy_boundary": mask_tail_policy_boundary,
+    }
+
+
+def extract_masked_unit_store_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        r"\(const int32_t\s*\*\s*(?P<src>v[0-9]+), "
+        r"const int32_t\s*\*\s*(?P<mask>v[0-9]+), "
+        r"int32_t\s*\*\s*(?P<dst>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ masked_unit_store ABI parameters",
+    )
+    src = signature.group("src")
+    mask = signature.group("mask")
+    dst = signature.group("dst")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ masked_unit_store full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ masked_unit_store runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ masked_unit_store remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    payload_load = require_regex(
+        text,
+        rf"const int32_t\* (?P<src_ptr>v[0-9]+) = {src} \+ {offset};\s*"
+        rf"vint32m1_t (?P<payload>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=src_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ masked_unit_store source payload load",
+    )
+    payload = payload_load.group("payload")
+    mask_load = require_regex(
+        text,
+        rf"const int32_t\* (?P<mask_ptr>v[0-9]+) = {mask} \+ {offset};\s*"
+        rf"vint32m1_t (?P<mask_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=mask_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ masked_unit_store mask buffer load",
+    )
+    mask_vec = mask_load.group("mask_vec")
+    mask_predicate = require_regex(
+        text,
+        rf"vbool32_t (?P<mask_predicate>v[0-9]+) = "
+        rf"__riscv_vmsne_vx_i32m1_b32\({mask_vec}, 0, {loop_vl}\);",
+        "emitted RVV C/C++ masked_unit_store mask predicate construction",
+    )
+    mask_predicate_value = mask_predicate.group("mask_predicate")
+    store = require_regex(
+        text,
+        rf"int32_t\* (?P<dst_ptr>v[0-9]+) = {dst} \+ {offset};\s*"
+        rf"__riscv_vse32_v_i32m1_m\({mask_predicate_value}, "
+        rf"(?P=dst_ptr), {payload}, {loop_vl}\);",
+        "emitted RVV C/C++ masked_unit_store masked store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "mask_abi_parameter": mask,
+        "destination_abi_parameter": dst,
+        "payload_vector": payload,
+        "mask_vector": mask_vec,
+        "mask_predicate": mask_predicate_value,
+        "mask_load_intrinsic": expectation.unit_load_intrinsic,
+        "mask_compare_intrinsic": "__riscv_vmsne_vx_i32m1_b32",
+        "masked_store_intrinsic": "__riscv_vse32_v_i32m1_m",
+        "tail_policy": "undisturbed",
+        "mask_policy": "undisturbed",
+        "inactive_lane_contract": MASKED_STORE_INACTIVE_LANE_CONTRACT,
+        "uses_mask_operand_for_store": True,
+        "masked_store_destination": store.group("dst_ptr"),
     }
 
 
@@ -6849,6 +7000,11 @@ def verify_materialized_selected_body(
     runtime_avl_vl_boundary = extract_runtime_avl_vl_materialized_boundary(
         text, expectation
     )
+    mask_tail_policy_boundary: dict[str, Any] = {}
+    if expectation.is_masked_unit_store:
+        mask_tail_policy_boundary = extract_masked_unit_store_materialized_boundary(
+            text, expectation
+        )
     if expectation.is_widen_i32_to_i64:
         require_contains(
             text,
@@ -8819,6 +8975,71 @@ def verify_materialized_selected_body(
         "contains_with_vl": True,
         "pre_realized_body_consumed": expectation.is_pre_realized,
         "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
+        "mask_tail_policy_boundary": mask_tail_policy_boundary,
+    }
+
+
+def extract_masked_unit_store_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    require_contains(
+        text,
+        'c_name = "mask"',
+        "materialized selected-body MLIR masked_unit_store mask ABI name",
+    )
+    require_contains(
+        text,
+        'role = "mask-input-buffer"',
+        "materialized selected-body MLIR masked_unit_store mask ABI role",
+    )
+    require_contains(
+        text,
+        "policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>",
+        "materialized selected-body MLIR masked_unit_store undisturbed policy",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.mask_load",
+        "materialized selected-body MLIR masked_unit_store mask_load",
+    )
+    require_contains(
+        text,
+        'mask_role = "predicate-mask-input-buffer"',
+        "materialized selected-body MLIR masked_unit_store mask role",
+    )
+    require_contains(
+        text,
+        'mask_memory_form = "unit-stride-mask-load"',
+        "materialized selected-body MLIR masked_unit_store mask memory form",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.masked_store",
+        "materialized selected-body MLIR masked_unit_store masked_store",
+    )
+    require_contains(
+        text,
+        'memory_form = "masked-unit-store"',
+        "materialized selected-body MLIR masked_unit_store memory form",
+    )
+    require_contains(
+        text,
+        'inactive_lane_policy = "preserve-output-on-false-lanes"',
+        "materialized selected-body MLIR masked_unit_store inactive lane policy",
+    )
+    return {
+        "typed_body_source": "tcrv_rvv.typed_masked_memory_pre_realized_body",
+        "realized_mask_op": "tcrv_rvv.mask_load",
+        "realized_store_op": expectation.typed_compute_op,
+        "mask_abi_role": "mask-input-buffer",
+        "mask_role": MASKED_MEMORY_MASK_ROLE,
+        "mask_source": MASKED_MEMORY_MASK_SOURCE,
+        "mask_memory_form": MASKED_MEMORY_MASK_FORM,
+        "tail_policy": "undisturbed",
+        "mask_policy": "undisturbed",
+        "inactive_lane_policy": "preserve-output-on-false-lanes",
+        "memory_form": MASKED_STORE_DESTINATION_MEMORY_FORM,
+        "pre_realized_body_consumed": expectation.is_pre_realized,
     }
 
 
@@ -14033,6 +14254,34 @@ def runtime_avl_vl_metadata_from_bundle(
     return metadata
 
 
+def mask_tail_policy_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError("mask/tail policy evidence requires object and header records")
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in MASK_TAIL_POLICY_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object mask/tail policy metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header mask/tail policy metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def runtime_avl_vl_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -14064,6 +14313,47 @@ def runtime_avl_vl_boundary_summary(
         },
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_vl_authority": True,
+    }
+
+
+def mask_tail_policy_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_masked_unit_store:
+        return {}
+    return {
+        "source": (
+            "typed tcrv_rvv masked memory body/config -> RVV realization -> "
+            "route-family facts -> statement plan -> emitted masked store"
+        ),
+        "authority": "provider-derived typed tcrv_rvv mask/policy body/config/runtime facts",
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "selected_mask_abi": {
+            "c_name": "mask",
+            "role": "mask-input-buffer",
+            "source": MASKED_MEMORY_MASK_SOURCE,
+        },
+        "tail_policy": "undisturbed",
+        "mask_policy": "undisturbed",
+        "inactive_lane_contract": MASKED_STORE_INACTIVE_LANE_CONTRACT,
+        "materialized_body": materialized_checks.get(
+            "mask_tail_policy_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get("mask_tail_policy_boundary", {}),
+        "route_metadata": mask_tail_policy_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_policy_authority": True,
     }
 
 
@@ -14177,6 +14467,18 @@ def run_one_op_e2e(
             bundle_checks=bundle_checks,
             runtime_counts=runtime_counts,
         )
+        if expectation.is_masked_unit_store:
+            evidence["mask_tail_policy_boundary"] = (
+                mask_tail_policy_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
 
         header_path = bundle_dir / bundle_checks["header_file"]
         object_path = bundle_dir / bundle_checks["object_file"]
@@ -14614,6 +14916,9 @@ def root_op_result_summary(
         "runtime_counts": result["runtime_counts"],
         "runtime_avl_vl_boundary": result.get(
             "runtime_avl_vl_boundary", {}
+        ),
+        "mask_tail_policy_boundary": result.get(
+            "mask_tail_policy_boundary", {}
         ),
         "typed_config_artifact_closure": result.get(
             "typed_config_artifact_closure", {}

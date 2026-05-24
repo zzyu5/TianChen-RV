@@ -81,6 +81,99 @@ lanes when applicable) with sentinels and fail if the generated route writes
 outside the runtime element count. These sentinel checks are evidence quality
 guards only; they do not become route, dtype, or artifact authority.
 
+## Mask/Tail Policy Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use mask/tail policy generated-bundle evidence whenever an RVV generated-bundle
+test claims executable masked behavior, inactive-lane behavior, or tail-policy
+correctness for a route-supported typed `tcrv_rvv` path.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key such as:
+
+```json
+"mask_tail_policy_boundary": {
+  "authority": "provider-derived typed tcrv_rvv mask/policy body/config/runtime facts",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "tail_policy": "undisturbed",
+  "mask_policy": "undisturbed",
+  "selected_mask_abi": {"c_name": "mask", "role": "mask-input-buffer"},
+  "materialized_body": {},
+  "emitted_cpp": {},
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_policy_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of route support.
+- `artifact_metadata_role` must make mirror-only status explicit.
+- `selected_mask_abi` must identify the runtime mask operand and role when the
+  route consumes an external mask.
+- `materialized_body` must prove the typed/pre-realized body was consumed into
+  realized mask/policy-carrying `tcrv_rvv` ops.
+- `emitted_cpp` must prove generated RVV C/C++ uses the expected mask operand,
+  predicate construction, masked intrinsic form, and runtime VL operands.
+- `route_metadata` may mirror provider/export metadata only after provider route
+  construction. It must not be used as route authority.
+- Runtime counts are execution cases only. They must not define mask/tail
+  policy, dtype, route support, or artifact authority.
+
+### 4. Validation & Error Matrix
+
+- Missing selected mask ABI for an externally masked route -> evidence failure.
+- Missing realized mask op or masked compute/store op -> evidence failure.
+- Generated C/C++ omits the mask operand in the masked intrinsic -> evidence
+  failure.
+- Object/header mirror metadata disagree on tail/mask policy or mask role ->
+  evidence failure.
+- Descriptor, direct-C/source-export, route-id, artifact-name, or test-name
+  residue is required to explain policy -> evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries mask/policy facts -> RVV plugin realizes or
+  validates those facts -> provider emits masked route -> evidence mirrors the
+  facts and harness checks inactive/tail preservation.
+- Base: non-masked routes omit `mask_tail_policy_boundary` and keep ordinary
+  runtime AVL/VL or typed-config evidence.
+- Bad: evidence infers mask/tail policy from route id, ABI string, artifact
+  name, exact intrinsic spelling, or harness constants.
+
+### 6. Tests Required
+
+- lit/FileCheck for the generated-bundle dry-run must check representative
+  `mask_tail_policy_boundary` fields and mirror metadata.
+- Provider or C++ API tests must check the route facts before common EmitC
+  materialization when textual MLIR cannot fully prove the boundary.
+- Runtime RVV claims must include `ssh rvv` output and inactive/tail sentinel
+  checks for the claimed masked route.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact metadata says tail_policy=undisturbed
+  -> claim masked route support
+```
+
+Correct:
+
+```text
+typed body/config/runtime mask facts
+  -> RVV plugin legality/realization
+  -> provider-built masked route
+  -> common EmitC
+  -> mirror metadata plus executable harness evidence
+```
+
 ## Direct Pre-Realized Route-Entry Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

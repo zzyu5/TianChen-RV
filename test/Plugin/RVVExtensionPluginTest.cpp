@@ -4285,12 +4285,76 @@ module {
           maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
               ->usesStaticMaskStore &&
           maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->runtimeControlPlan.tailPolicy == "undisturbed" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->runtimeControlPlan.maskPolicy == "undisturbed" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan->maskRole ==
+              "predicate-mask-input-buffer" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan->maskSource ==
+              "runtime_abi:mask" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->maskMemoryForm == "unit-stride-mask-load" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
                   ->inactiveLaneContract ==
               "masked-store-false-lanes-preserve-output-buffer" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->targetLeafProfile ==
+              "rvv-v1-e32m1-masked-unit-store-leaf-profile.v1" &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->providerSupportedMirror ==
+              "provider_supported_mirror:rvv-masked-unit-store-plan-validated" &&
           maskedStoreAnalysis->routeOperandBindingPlan.planID ==
               "rvv-route-operand-binding:masked_unit_store.v1",
-      "masked_unit_store plan must carry masked store inactive-lane and "
-      "binding facts"))
+      "masked_unit_store plan must carry typed mask/policy, inactive-lane, "
+      "target profile, provider mirror, and binding facts"))
+    return result;
+  auto maskedStoreMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *maskedStoreAnalysis, "masked_unit_store provider route unit test");
+  if (!maskedStoreMaterializationFacts)
+    return fail("masked_unit_store materialization facts: " +
+                llvm::toString(maskedStoreMaterializationFacts.takeError()));
+  if (int result = expect(
+          maskedStoreMaterializationFacts->typedConfigFacts.tailPolicy ==
+              "undisturbed" &&
+              maskedStoreMaterializationFacts->typedConfigFacts.maskPolicy ==
+                  "undisturbed" &&
+              maskedStoreMaterializationFacts->baseMemoryMovementPlan &&
+              maskedStoreMaterializationFacts->baseMemoryMovementPlan
+                      ->usesStaticMaskStore &&
+              maskedStoreMaterializationFacts->baseMemoryMovementPlan
+                      ->maskRole == "predicate-mask-input-buffer" &&
+              maskedStoreMaterializationFacts->baseMemoryMovementPlan
+                      ->maskSource == "runtime_abi:mask" &&
+              maskedStoreMaterializationFacts->baseMemoryMovementPlan
+                      ->maskMemoryForm == "unit-stride-mask-load" &&
+              maskedStoreMaterializationFacts->baseMemoryMovementPlan
+                      ->storeIntrinsic ==
+                  "__riscv_vse32_v_i32m1_m" &&
+              maskedStoreMaterializationFacts->compareLeaf ==
+                  "__riscv_vmsne_vx_i32m1_b32",
+          "masked_unit_store materialization facts consume typed "
+          "undisturbed policy, runtime mask ABI, and masked-store intrinsics"))
+    return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      maskedStoreBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *maskedStoreAnalysis, "masked_unit_store memory facts unit test");
+  if (!maskedStoreBindingFacts)
+    return fail("masked_unit_store memory binding facts: " +
+                llvm::toString(maskedStoreBindingFacts.takeError()));
+  if (int result = expect(
+          maskedStoreBindingFacts->bindsBaseMemoryMovement &&
+              maskedStoreBindingFacts->sourceABI &&
+              maskedStoreBindingFacts->sourceABI->cName == "src" &&
+              maskedStoreBindingFacts->maskABI &&
+              maskedStoreBindingFacts->maskABI->cName == "mask" &&
+              maskedStoreBindingFacts->destinationABI &&
+              maskedStoreBindingFacts->destinationABI->cName == "dst" &&
+              maskedStoreBindingFacts->runtimeElementCountABI &&
+              maskedStoreBindingFacts->runtimeElementCountABI->cName == "n",
+          "masked_unit_store binding facts expose source, mask, destination, "
+          "and runtime n ABI operands before statement planning"))
     return result;
   if (int result = expectBaseMemoryStatementPlan(
           *maskedStoreAnalysis, "masked_unit_store_provider_kernel",
