@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPLANNING_H
 #define TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPLANNING_H
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
@@ -762,6 +763,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef vectorLoadLeaf;
   llvm::StringRef stridedSourceLoadLeaf;
   llvm::StringRef storeLeaf;
+  llvm::StringRef stridedStoreLeaf;
   llvm::StringRef contractionComputeLeaf;
   llvm::StringRef elementwiseComputeLeaf;
   llvm::StringRef wideningProductLeaf;
@@ -863,6 +865,23 @@ struct RVVSelectedBodyResidualRouteOperandBindingFacts {
   const support::RuntimeABIParameter *lhsStrideABI = nullptr;
   const support::RuntimeABIParameter *rhsStrideABI = nullptr;
   const support::RuntimeABIParameter *outStrideABI = nullptr;
+};
+
+struct RVVSelectedBodyElementwiseArithmeticRouteStatementPlan {
+  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan
+      *elementwiseArithmeticPlan = nullptr;
+  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
+      *scalarBroadcastPlan = nullptr;
+
+  bool plansElementwiseArithmeticRoute = false;
+  bool plansOrdinaryElementwiseArithmetic = false;
+  bool plansScalarBroadcastElementwiseAdd = false;
+  bool plansMaskedElementwiseArithmetic = false;
+  bool plansStridedElementwiseAdd = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
 };
 
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
@@ -1045,6 +1064,16 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
 llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
 getRVVSelectedBodyResidualRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
+getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 

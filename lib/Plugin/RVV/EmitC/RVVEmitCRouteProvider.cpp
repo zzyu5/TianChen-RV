@@ -347,6 +347,27 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return withVLSource.takeError();
   route.addSourceOpProvenance(std::move(*withVLSource));
 
+  llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
+      elementwiseArithmeticStatementPlanOrError =
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              analysis, materializationFacts,
+              elementwiseSelectOperandBindingFacts,
+              residualOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!elementwiseArithmeticStatementPlanOrError)
+    return elementwiseArithmeticStatementPlanOrError.takeError();
+  RVVSelectedBodyElementwiseArithmeticRouteStatementPlan
+      elementwiseArithmeticStatementPlan =
+          std::move(*elementwiseArithmeticStatementPlanOrError);
+  if (elementwiseArithmeticStatementPlan.plansElementwiseArithmeticRoute) {
+    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         elementwiseArithmeticStatementPlan.preLoopSteps)
+      route.addCallOpaqueStep(std::move(step));
+    route.addForLoop(std::move(elementwiseArithmeticStatementPlan.loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
+
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
 

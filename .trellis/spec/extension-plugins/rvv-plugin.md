@@ -812,6 +812,136 @@ verified route-family plans
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Elementwise Arithmetic Statement-Plan Boundary
+
+### 1. Scope / Trigger
+
+For mature selected-body elementwise arithmetic routes,
+`RVVEmitCRouteProvider` must not locally recreate the route statement sequence
+from operation names, ABI strings, or memory-form branches after RVV-owned
+family plans, materialization facts, and operand-binding facts have been
+validated. The RVV planning layer must expose one RVV-owned statement-plan
+boundary for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`, masked
+`Add`/`Sub`/`Mul`, and strided `Add` where those routes are production-active.
+
+The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
+adds neutral headers, type mappings, ABI mappings, selected-boundary source
+provenance, and attaches the RVV-owned statement plan. It must not duplicate
+the included elementwise arithmetic loop/setvl/load/compute/merge/store
+sequence in the central provider path.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
+getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this boundary after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining the
+elementwise/select and residual operand-binding facts for the same analysis.
+Non-consumer route families receive an empty/default statement plan.
+
+### 3. Contracts
+
+`RVVSelectedBodyElementwiseArithmeticRouteStatementPlan` is RVV-local provider
+input. It may carry:
+
+- pointers to the verified elementwise arithmetic and scalar-broadcast family
+  plans that justify the statement sequence;
+- sub-family booleans for ordinary elementwise arithmetic, scalar-broadcast
+  add, masked elementwise arithmetic, and strided elementwise add;
+- provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
+- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, load/broadcast or
+  strided-load steps, compute/compare/merge steps where needed, and the store
+  step.
+
+The plan must be derived only from verified typed body/config/runtime facts,
+route materialization facts, and RVV-owned operand-binding facts. It is not a
+common EmitC fact, not artifact metadata, not an acceptance/status mirror, and
+not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A non elementwise-arithmetic route requests the boundary -> return an empty
+  plan without changing unrelated route-family behavior.
+- An included elementwise arithmetic route has no matching verified family
+  plan -> fail closed before route statement construction.
+- An included route lacks the required operand-binding facts from the
+  elementwise/select or residual facts boundary -> fail closed before route
+  statement construction.
+- Required ABI roles such as `lhs`, `rhs`, `rhs_scalar`, `out`, runtime count,
+  or stride roles are absent -> fail closed with the logical operand name and
+  operation/memory-form context.
+- Required materialization leaves such as `setvl`, load, scalar broadcast,
+  compute, compare, masked merge, strided load, or strided store are absent ->
+  fail closed before common EmitC.
+- Required source operation provenance for configure/load/compute/store steps
+  is absent or reports the wrong EmitC source role -> fail closed before common
+  EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed elementwise arithmetic `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> elementwise/select or residual operand-binding facts
+  -> RVV-owned statement plan -> provider-built route.
+- Base: compare/select, memory, math, runtime scalar splat-store, and future
+  families keep their own statement construction surfaces and receive an empty
+  elementwise arithmetic statement plan.
+- Bad: central provider code branches on `Add`, `MaskedAdd`,
+  `RHSScalarBroadcast`, or `StridedLoadStore` to rebuild the included
+  elementwise arithmetic setvl/load/compute/merge/store sequence after the
+  statement-plan boundary exists.
+
+### 6. Tests Required
+
+- C++ tests for positive statement-plan construction and provider consumption
+  for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`, masked
+  `Add`/`Sub`/`Mul`, and strided `Add`.
+- C++ fail-closed diagnostics for at least one missing or stale statement-plan
+  dependency before route statement construction.
+- C++ default/empty-plan coverage for unrelated route families.
+- Representative lit/FileCheck coverage proving existing explicit,
+  pre-realized, generic, and selected-boundary elementwise arithmetic artifacts
+  still pass.
+- Bounded provider scan showing included elementwise arithmetic statement
+  sequence construction is reached through the RVV-owned plan before the older
+  generic provider-local statement assembly path.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider body:
+  if operation is add/sub/mul/masked_add/strided_add,
+  locally assemble setvl/load/compute/merge/store statements from operation
+  names, memory forms, and ABI strings
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyRouteMaterializationFacts
+  -> RVV-owned operand-binding facts
+  -> RVVSelectedBodyElementwiseArithmeticRouteStatementPlan
+  -> provider attaches plan into TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

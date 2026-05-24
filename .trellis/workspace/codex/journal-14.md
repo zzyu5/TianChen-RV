@@ -229,7 +229,18 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 
 ### Main Changes
 
-(Add details)
+- Added `RVVSelectedBodyElementwiseArithmeticRouteStatementPlan` and
+  `getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan()` as the
+  RVV-local statement-plan boundary for ordinary Add/Sub/Mul,
+  scalar-broadcast Add, masked Add/Sub/Mul, and strided Add.
+- Rewired `RVVEmitCRouteProvider.cpp` so those routes attach the RVV-owned
+  pre-loop setvl step and loop before the older generic provider statement
+  assembly path.
+- Added focused C++ coverage for statement-plan construction, provider route
+  consumption, unrelated-route empty plans, and missing dependency
+  diagnostics.
+- Documented the durable statement-plan boundary in
+  `.trellis/spec/extension-plugins/rvv-plugin.md`.
 
 ### Git Commits
 
@@ -884,7 +895,21 @@ Added RVV-owned memory operand-binding facts, rewired the selected-body provider
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-05-24-stage2-rvv-elementwise-arithmetic-statement-plan-ownership`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+  and `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`.
+- [OK] Focused lit/FileCheck from `build/test`: 21/21 representative
+  ordinary, scalar-broadcast, masked, strided, generic, and selected-boundary
+  tests passed.
+- [OK] Bounded provider scan confirmed the included elementwise arithmetic
+  routes consume the RVV-owned statement plan before generic provider-local
+  statement assembly.
+- [OK] Added-line active-authority scan found no new legacy/source-front-door/
+  descriptor/direct-C/source-export or mirror-authority terms; exact intrinsic
+  additions are expected leaf callee assertions only.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363).
 
 ### Status
 
@@ -934,6 +959,39 @@ Added RVV-owned math operand-binding facts, rewired the selected-body provider t
   source-export or mirror-only authority terms.
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 188: Stage2 RVV elementwise arithmetic statement-plan ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV elementwise arithmetic statement-plan ownership
+**Branch**: `main`
+
+### Summary
+
+Added the RVV-owned elementwise arithmetic statement-plan boundary, rewired the selected-body provider to consume it for ordinary, scalar-broadcast, masked, and strided arithmetic routes, documented the durable spec contract, verified focused C++/lit checks and check-tianchenrv 363/363, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
