@@ -267,6 +267,59 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 - None - task complete
 
 
+## Session 193: Stage2 RVV selected-body realization route-path integration
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV selected-body realization route-path integration
+**Branch**: `main`
+
+### Summary
+
+Connected the RVV selected-body realization boundary to the production
+route-planning/provider path by making route analysis fail closed on residual
+pre-realized selected bodies and adding production registry-path coverage for
+pre-realized elementwise add and compare/select bodies.
+
+### Main Changes
+
+- Added a pre-realized-body guard at the start of
+  `analyzeRVVSelectedBodyRoute(...)` so route facts, statement plans, and
+  provider routes consume realized `setvl` / `with_vl` structure only.
+- Added focused RVV plugin coverage proving route analysis rejects
+  pre-realized bodies before realization, then
+  `registry.materializeSelectedLoweringBoundary(...)` realizes add and
+  compare/select bodies before `buildVariantEmissionPlan(...)` and
+  provider-built route construction consume them.
+- Updated the RVV plugin spec with the route-path guard contract.
+- Created and validated Trellis task
+  `05-24-stage2-rvv-selected-body-realization-route-path-integration`.
+
+### Git Commits
+
+- Pending final session commit.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-selected-body-realization-route-path-integration`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for pre-realized/explicit add and compare-select
+  fixtures, 4/4 passed
+- [OK] provider/common semantic-realization scan
+- [OK] added-line active-authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 363/363 lit
+  tests passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 187: Stage2 RVV provider facts-only operand-binding closure
 
 **Date**: 2026-05-24

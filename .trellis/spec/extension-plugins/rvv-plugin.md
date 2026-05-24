@@ -293,6 +293,10 @@ plans are validated.
   route construction.
 - Runtime-scalar route cannot derive an AVL/VL control plan -> fail closed
   before route construction.
+- Route analysis/provider sees a pre-realized elementwise/compare-select body
+  before facts are collected -> fail closed with a selected-body realization
+  diagnostic. Route facts, operand-binding facts, statement plans, and
+  provider-built routes consume realized `setvl` / `with_vl` structure only.
 
 ### 5. Good/Base/Bad Cases
 

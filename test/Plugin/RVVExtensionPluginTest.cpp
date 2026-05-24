@@ -1028,6 +1028,152 @@ module {
        "tcrv_rvv.setvl"});
 }
 
+int runPreRealizedSelectedBodyProductionRoutePathTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_pre_realized_route_path_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_route_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "vector-rhs-load", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "eq", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV pre-realized route-path module");
+  KernelOp kernel = findKernel(*module, "rvv_pre_realized_route_path_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for pre-realized route-path test"))
+    return result;
+
+  auto exerciseVariant =
+      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          llvm::StringRef expectedProviderPlanID) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    if (int result = expect(
+            tianchenrv::plugin::rvv::variantContainsPreRealizedRVVSelectedBody(
+                variant),
+            llvm::Twine("pre-realized selected body is present before route "
+                        "planning for @") +
+                variantName))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        beforeRealization =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (beforeRealization)
+      return fail(llvm::Twine("pre-realized @") + variantName +
+                  " unexpectedly reached route facts before realization");
+    if (int result = expectErrorContains(
+            beforeRealization.takeError(),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body"}))
+      return result;
+
+    mlir::OpBuilder builder(module->getContext());
+    VariantLoweringBoundaryResult boundaryResult;
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                boundaryResult),
+            llvm::Twine("production boundary realizes pre-realized @") +
+                variantName))
+      return result;
+    if (int result =
+            expect(boundaryResult.isMaterialized(),
+                   llvm::Twine("production boundary materialized for @") +
+                       variantName))
+      return result;
+    if (int result =
+            expect(countNestedOps(variant, preRealizedOpName) == 0 &&
+                       countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.with_vl") == 1,
+                   llvm::Twine("pre-realized @") + variantName +
+                       " is consumed before route facts are collected"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectSuccess(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            llvm::Twine("emission plan consumes realized @") + variantName))
+      return result;
+    if (int result = expect(plan.isSupported(),
+                            llvm::Twine("emission plan is supported for @") +
+                                variantName))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized route for @") + variantName +
+                  ": " + llvm::toString(routeDescription.takeError()));
+    if (int result = expect(
+            routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->plainCompareSelectRouteFamilyPlanID ==
+                    expectedProviderPlanID,
+            llvm::Twine("realized @") + variantName +
+                " reaches the expected provider plan"))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider builds route from realized @") +
+                variantName))
+      return result;
+    return expect(route.getForLoops().size() == 1,
+                  llvm::Twine("provider emits one statement-plan loop for @") +
+                      variantName);
+  };
+
+  if (int result = exerciseVariant(
+          "rvv_pre_route_add", "tcrv_rvv.typed_binary_pre_realized_body",
+          "rvv-elementwise-arithmetic-route-family-plan.v1"))
+    return result;
+  return exerciseVariant(
+      "rvv_pre_route_cmp_select",
+      "tcrv_rvv.typed_compare_select_pre_realized_body",
+      "rvv-plain-compare-select-route-family-plan.v1");
+}
+
 int runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
@@ -10315,6 +10461,9 @@ int main() {
     return result;
   if (int result =
           runElementwiseCompareSelectRealizationBoundaryTest(context))
+    return result;
+  if (int result =
+          runPreRealizedSelectedBodyProductionRoutePathTest(context))
     return result;
   if (int result =
           runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(context))

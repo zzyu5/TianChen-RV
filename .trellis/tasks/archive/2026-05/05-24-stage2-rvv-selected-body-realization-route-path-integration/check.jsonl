@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV authority chain, Stage 2 realization, and no descriptor/source-front-door drift"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization feeds route facts/provider path and common EmitC remains neutral"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built TCRVEmitCLowerableRoute remains the only common EmitC input"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused production-path tests and fail-closed diagnostics"}

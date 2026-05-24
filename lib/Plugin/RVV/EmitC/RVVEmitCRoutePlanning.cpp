@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -27792,6 +27793,13 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     return std::move(error);
   if (llvm::Error error = verifyRVVConstructionProtocolReady())
     return std::move(error);
+  if (variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("RVV selected-body realization boundary must run before "
+                    "route facts are collected for selected variant @") +
+        request.getVariant().getSymName() +
+        "; route planning/provider saw a pre-realized tcrv_rvv body instead "
+        "of a realized setvl/with_vl body");
 
   llvm::Expected<RVVSelectedBodyRouteSlice> slice =
       collectRVVSelectedBodyRouteSlice(request.getVariant());
