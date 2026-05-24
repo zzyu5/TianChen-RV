@@ -522,6 +522,7 @@ module {
       } : !tcrv_rvv.vl
     }
   }
+
 }
 )mlir";
 
@@ -3772,11 +3773,15 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
   using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2MemoryRouteStatementPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyComputedMaskMemoryRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodySegment2MemoryRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
@@ -4045,6 +4050,27 @@ module {
       } : !tcrv_rvv.vl
     }
   }
+
+  tcrv.exec.kernel @computed_masked_segment2_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_computed_masked_segment2_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_computed_masked_segment2_store, sew = 32 : i64, source_kernel = "computed_masked_segment2_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %field0 = tcrv_rvv.load %src0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %field1 = tcrv_rvv.load %src1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        tcrv_rvv.masked_segment2_store %dst, %mask, %field0, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
 }
 )mlir";
 
@@ -4165,9 +4191,107 @@ module {
       ++index;
     }
     return 0;
+	  };
+
+  auto expectComputedMaskSegment2MemoryStatementPlan =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef kernelName,
+          llvm::StringRef variantName, bool segment2Load, bool segment2Store,
+          std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                analysis,
+                "computed-mask segment2 statement plan provider unit test"),
+            "verify route-family plans before computed-mask segment2 "
+            "statement-plan construction"))
+      return result;
+
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, "computed-mask segment2 statement plan provider unit test");
+    if (!materializationFacts)
+      return fail("computed-mask segment2 materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto memoryFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+        analysis, "computed-mask segment2 statement plan provider unit test");
+    if (!memoryFacts)
+      return fail("computed-mask segment2 memory facts: " +
+                  llvm::toString(memoryFacts.takeError()));
+
+    llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
+        statementPlan = getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+            analysis, *materializationFacts, *memoryFacts,
+            "computed-mask segment2 statement plan provider unit test");
+    if (!statementPlan)
+      return fail("computed-mask segment2 statement-plan construction: " +
+                  llvm::toString(statementPlan.takeError()));
+    if (int result = expect(
+            statementPlan->plansSegment2MemoryRoute &&
+                !statementPlan->plansPlainSegment2DeinterleaveUnitStore &&
+                !statementPlan->plansPlainSegment2InterleaveUnitLoad &&
+                statementPlan->plansComputedMaskSegment2LoadUnitStore ==
+                    segment2Load &&
+                statementPlan->plansComputedMaskSegment2StoreUnitLoad ==
+                    segment2Store,
+            "statement plan exposes the expected computed-mask segment2 "
+            "sub-family flags"))
+      return result;
+    if (int result = expect(
+            statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    "__riscv_vsetvl_e32m1",
+            "computed-mask segment2 statement plan owns full-chunk setvl"))
+      return result;
+    if (int result =
+            expect(statementPlan->loop.bodySteps.size() ==
+                       expectedBodyCallees.size(),
+                   "computed-mask segment2 statement plan owns the expected "
+                   "loop step count"))
+      return result;
+    unsigned index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee == expected,
+              llvm::Twine("computed-mask segment2 statement-plan loop step ") +
+                  llvm::Twine(index) + " uses RVV-owned callee '" + expected +
+                  "'"))
+        return result;
+      ++index;
+    }
+
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                    VariantEmissionRole::DirectVariant),
+                route),
+            "provider consumes computed-mask segment2 statement plan"))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    "__riscv_vsetvl_e32m1" &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "provider route attaches the RVV-owned computed-mask segment2 "
+            "statement-plan steps"))
+      return result;
+    index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee == expected,
+              llvm::Twine("provider computed-mask segment2 loop step ") +
+                  llvm::Twine(index) + " matches statement-plan callee '" +
+                  expected + "'"))
+        return result;
+      ++index;
+    }
+    return 0;
   };
 
-  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarAnalysis =
+	  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarAnalysis =
       analyzeRouteInModule(*module, "runtime_scalar_masked_store_provider_kernel",
                            "rvv_runtime_scalar_masked_store");
   if (!runtimeScalarAnalysis)
@@ -4588,6 +4712,18 @@ module {
           "computed-mask segment2 remains excluded from this round's "
           "computed-mask memory statement-plan boundary"))
     return result;
+  if (int result = expectComputedMaskSegment2MemoryStatementPlan(
+          *segmentAnalysis, "computed_masked_segment2_load_provider_kernel",
+          "rvv_computed_masked_segment2_load", true, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vmslt_vv_i32m1_b32",
+           "__riscv_vcreate_v_i32m1x2",
+           "__riscv_vlseg2e32_v_i32m1x2_tumu",
+           "__riscv_vget_v_i32m1x2_i32m1",
+           "__riscv_vget_v_i32m1x2_i32m1",
+           "__riscv_vse32_v_i32m1", "__riscv_vse32_v_i32m1"}))
+    return result;
 
   stale = *segmentAnalysis;
   stale.description.segmentLoadIntrinsic = "__riscv_vle32_v_i32m1";
@@ -4600,17 +4736,87 @@ module {
 
   stale = *segmentAnalysis;
   stale.description.field0Role = "metadata-selected-field0";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
+              stale, "computed-mask memory provider unit test"),
+          {"computed-mask memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> segmentStoreAnalysis =
+      analyzeRouteInModule(*module,
+                           "computed_masked_segment2_store_provider_kernel",
+                           "rvv_computed_masked_segment2_store");
+  if (!segmentStoreAnalysis)
+    return fail("analyze segment2 computed-mask store provider route: " +
+                llvm::toString(segmentStoreAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
+              *segmentStoreAnalysis, "computed-mask memory provider unit test"),
+          "valid segment2 computed-mask store memory family provider plan"))
+    return result;
+  if (int result = expect(
+          segmentStoreAnalysis->computedMaskMemoryRouteFamilyPlan &&
+              segmentStoreAnalysis->computedMaskMemoryRouteFamilyPlan
+                  ->usesSegment2Store &&
+              segmentStoreAnalysis->computedMaskMemoryRouteFamilyPlan
+                      ->segmentStoreIntrinsic ==
+                  "__riscv_vsseg2e32_v_i32m1x2_m" &&
+              segmentStoreAnalysis->computedMaskMemoryRouteFamilyPlan
+                      ->field0Role ==
+                  "segment-field0-input-buffer",
+          "computed_masked_segment2_store plan must carry field roles and "
+          "masked segment store intrinsic"))
+    return result;
+  if (int result = expectComputedMaskSegment2MemoryStatementPlan(
+          *segmentStoreAnalysis,
+          "computed_masked_segment2_store_provider_kernel",
+          "rvv_computed_masked_segment2_store", false, true,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vmslt_vv_i32m1_b32",
+           "__riscv_vcreate_v_i32m1x2",
+           "__riscv_vsseg2e32_v_i32m1x2_m"}))
+    return result;
+
+  auto staleSegment2MaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *segmentStoreAnalysis,
+          "computed-mask segment2 stale statement-plan unit test");
+  if (!staleSegment2MaterializationFacts)
+    return fail("stale computed-mask segment2 materialization facts: " +
+                llvm::toString(staleSegment2MaterializationFacts.takeError()));
+  auto staleSegment2MemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *segmentStoreAnalysis,
+          "computed-mask segment2 stale statement-plan unit test");
+  if (!staleSegment2MemoryFacts)
+    return fail("stale computed-mask segment2 memory facts: " +
+                llvm::toString(staleSegment2MemoryFacts.takeError()));
+  auto missingSegment2PlanFacts = *staleSegment2MaterializationFacts;
+  missingSegment2PlanFacts.computedMaskMemoryPlan = nullptr;
   return expectErrorContains(
-      verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
-          stale, "computed-mask memory provider unit test"),
-      {"computed-mask memory route-family route, runtime, type",
-       "validated family plan"});
+      getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+          *segmentStoreAnalysis, missingSegment2PlanFacts,
+          *staleSegment2MemoryFacts,
+          "computed-mask segment2 stale statement-plan unit test")
+          .takeError(),
+      {"segment2 memory statement plan requires the verified computed-mask "
+       "memory route-family plan",
+       "before route statement construction"});
 }
 
 int runPlainSegment2MemoryRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2MemoryRouteStatementPlan;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodySegment2MemoryRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
@@ -4752,6 +4958,108 @@ module {
   if (!module)
     return fail("failed to parse plain segment2 memory provider test module");
 
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for plain segment2 statement plan test"))
+    return result;
+
+  auto expectPlainSegment2MemoryStatementPlan =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef kernelName,
+          llvm::StringRef variantName, bool deinterleave, bool interleave,
+          std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+                analysis, "plain segment2 statement plan provider unit test"),
+            "verify plain segment2 route-family plan before statement-plan "
+            "construction"))
+      return result;
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, "plain segment2 statement plan provider unit test");
+    if (!materializationFacts)
+      return fail("plain segment2 materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto memoryFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+        analysis, "plain segment2 statement plan provider unit test");
+    if (!memoryFacts)
+      return fail("plain segment2 memory facts: " +
+                  llvm::toString(memoryFacts.takeError()));
+
+    llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
+        statementPlan = getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+            analysis, *materializationFacts, *memoryFacts,
+            "plain segment2 statement plan provider unit test");
+    if (!statementPlan)
+      return fail("plain segment2 statement-plan construction: " +
+                  llvm::toString(statementPlan.takeError()));
+    if (int result = expect(
+            statementPlan->plansSegment2MemoryRoute &&
+                statementPlan->plansPlainSegment2DeinterleaveUnitStore ==
+                    deinterleave &&
+                statementPlan->plansPlainSegment2InterleaveUnitLoad ==
+                    interleave &&
+                !statementPlan->plansComputedMaskSegment2LoadUnitStore &&
+                !statementPlan->plansComputedMaskSegment2StoreUnitLoad,
+            "statement plan exposes the expected plain segment2 sub-family "
+            "flags"))
+      return result;
+    if (int result = expect(
+            statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    "__riscv_vsetvl_e32m1",
+            "plain segment2 statement plan owns full-chunk setvl"))
+      return result;
+    if (int result =
+            expect(statementPlan->loop.bodySteps.size() ==
+                       expectedBodyCallees.size(),
+                   "plain segment2 statement plan owns the expected loop "
+                   "step count"))
+      return result;
+    unsigned index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee == expected,
+              llvm::Twine("plain segment2 statement-plan loop step ") +
+                  llvm::Twine(index) + " uses RVV-owned callee '" + expected +
+                  "'"))
+        return result;
+      ++index;
+    }
+
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                    VariantEmissionRole::DirectVariant),
+                route),
+            "provider consumes plain segment2 statement plan"))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    "__riscv_vsetvl_e32m1" &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "provider route attaches the RVV-owned plain segment2 "
+            "statement-plan steps"))
+      return result;
+    index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee == expected,
+              llvm::Twine("provider plain segment2 loop step ") +
+                  llvm::Twine(index) + " matches statement-plan callee '" +
+                  expected + "'"))
+        return result;
+      ++index;
+    }
+    return 0;
+  };
+
   llvm::Expected<RVVSelectedBodyRouteAnalysis> deinterleaveAnalysis =
       analyzeRouteInModule(*module, "segment2_deinterleave_provider_kernel",
                            "rvv_segment2_deinterleave");
@@ -4799,6 +5107,14 @@ module {
               deinterleaveBindingFacts->runtimeElementCountABI->cName == "n",
           "plain segment2 deinterleave binding facts expose source, field "
           "outputs, and runtime count"))
+    return result;
+  if (int result = expectPlainSegment2MemoryStatementPlan(
+          *deinterleaveAnalysis, "segment2_deinterleave_provider_kernel",
+          "rvv_segment2_deinterleave", true, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vlseg2e32_v_i32m1x2",
+           "__riscv_vget_v_i32m1x2_i32m1",
+           "__riscv_vget_v_i32m1x2_i32m1", "__riscv_vse32_v_i32m1",
+           "__riscv_vse32_v_i32m1"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *deinterleaveAnalysis;
@@ -4914,6 +5230,13 @@ module {
               interleaveBindingFacts->destinationABI->cName == "dst",
           "plain segment2 interleave binding facts expose field sources and "
           "destination"))
+    return result;
+  if (int result = expectPlainSegment2MemoryStatementPlan(
+          *interleaveAnalysis, "segment2_interleave_provider_kernel",
+          "rvv_segment2_interleave", false, true,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vcreate_v_i32m1x2",
+           "__riscv_vsseg2e32_v_i32m1x2"}))
     return result;
 
   stale = *interleaveAnalysis;

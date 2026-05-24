@@ -24535,6 +24535,139 @@ llvm::Error addRVVComputedMaskMemoryStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
+  default:
+    return false;
+  }
+}
+
+llvm::Error requireRVVSegment2MemoryStatementPlanLeaf(
+    llvm::StringRef leaf, const llvm::Twine &leafName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!leaf.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " segment2 memory statement plan requires " +
+      leafName + " before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Error requireRVVSegment2MemoryStatementPlanABI(
+    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (parameter)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " segment2 memory statement plan requires bound ABI operand '" +
+      logicalName + "' before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
+getRVVSegment2MemoryStatementPlanSourceProvenance(
+    mlir::Operation *op, llvm::StringRef expectedRole,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires a materialized " +
+        expectedRole + " role op before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "', memory_form '" +
+        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+  if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
+    return std::move(error);
+
+  auto lowerable =
+      llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
+  if (!lowerable)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" +
+        op->getName().getStringRef() + "' must implement " +
+        kRVVStatementPlanEmitCLowerableOpInterfaceName +
+        " before RVV segment2 memory statement-plan construction");
+
+  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+  if (sourceRole != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" +
+        op->getName().getStringRef() + "' reports EmitC source role '" +
+        sourceRole + "' but RVV segment2 memory statement plan expected '" +
+        expectedRole + "'");
+
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
+  source.role = sourceRole.str();
+  source.opInterface = kRVVStatementPlanEmitCLowerableOpInterfaceName.str();
+  return source;
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep>
+makeRVVSegment2MemoryStatementPlanStep(
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+          callee, llvm::Twine(expectedRole) + " callee", description, context))
+    return std::move(error);
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVSegment2MemoryStatementPlanSourceProvenance(
+          op, expectedRole, description, context);
+  if (!source)
+    return source.takeError();
+
+  conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = std::move(*source);
+  step.callee = callee.str();
+  step.operands.append(operands.begin(), operands.end());
+  step.result = std::move(result);
+  return step;
+}
+
+llvm::Error addRVVSegment2MemoryStatementPlanLoopStep(
+    RVVSelectedBodySegment2MemoryRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeRVVSegment2MemoryStatementPlanStep(
+          op, expectedRole, callee, operands, description, context,
+          std::move(result));
+  if (!step)
+    return step.takeError();
+  plan.loop.bodySteps.push_back(std::move(*step));
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
@@ -26358,6 +26491,532 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
       return std::move(error);
   }
 
+  return plan;
+}
+
+llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
+getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context) {
+  RVVSelectedBodyRouteSlice &slice = analysis.slice;
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodySegment2MemoryRouteStatementPlan plan;
+  if (!isRVVSelectedBodySegment2MemoryStatementPlanConsumer(description))
+    return plan;
+
+  const bool isPlainDeinterleave =
+      description.operation ==
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  const bool isPlainInterleave =
+      description.operation ==
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+  const bool isComputedMaskSegment2Load =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isComputedMaskSegment2Store =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+  const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
+  const bool isComputedMaskSegment2 =
+      isComputedMaskSegment2Load || isComputedMaskSegment2Store;
+
+  plan.plansSegment2MemoryRoute = true;
+  plan.plansPlainSegment2DeinterleaveUnitStore = isPlainDeinterleave;
+  plan.plansPlainSegment2InterleaveUnitLoad = isPlainInterleave;
+  plan.plansComputedMaskSegment2LoadUnitStore = isComputedMaskSegment2Load;
+  plan.plansComputedMaskSegment2StoreUnitLoad = isComputedMaskSegment2Store;
+  plan.segment2MemoryPlan = materializationFacts.segment2MemoryPlan;
+  plan.computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
+
+  if (isPlainSegment2) {
+    if (!materializationFacts.segment2MemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 memory statement plan requires the verified plain "
+          "segment2 memory route-family plan before route statement "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    const RVVSelectedBodySegment2MemoryRouteFamilyPlan &segmentPlan =
+        *materializationFacts.segment2MemoryPlan;
+    if (segmentPlan.operation != description.operation ||
+        segmentPlan.memoryForm != description.memoryForm ||
+        segmentPlan.usesDeinterleaveLoad != isPlainDeinterleave ||
+        segmentPlan.usesInterleaveStore != isPlainInterleave)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 memory statement plan requires the verified plain "
+          "segment2 route-family plan classification to match the selected "
+          "operation before route statement construction");
+  }
+
+  if (isComputedMaskSegment2) {
+    if (!materializationFacts.computedMaskMemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 memory statement plan requires the verified "
+          "computed-mask memory route-family plan before route statement "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+        *materializationFacts.computedMaskMemoryPlan;
+    if (computedPlan.operation != description.operation ||
+        computedPlan.memoryForm != description.memoryForm ||
+        computedPlan.usesRuntimeScalarProducer ||
+        !computedPlan.usesVectorCompareProducer ||
+        computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
+        computedPlan.usesStoreOnly != isComputedMaskSegment2Store ||
+        computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
+        computedPlan.usesSegment2Store != isComputedMaskSegment2Store)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 memory statement plan requires the verified "
+          "computed-mask segment2 route-family plan classification to match "
+          "the selected operation before route statement construction");
+  }
+
+  if (!memoryOperandBindingFacts.bindsSegment2Memory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires segment2 memory "
+        "operand-binding facts before route statement construction");
+  if (isPlainSegment2 && !memoryOperandBindingFacts.bindsPlainSegment2Memory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires plain segment2 memory "
+        "operand-binding facts before route statement construction");
+  if (isComputedMaskSegment2 &&
+      !memoryOperandBindingFacts.bindsComputedMaskMemory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires computed-mask memory "
+        "operand-binding facts before route statement construction");
+
+  const support::RuntimeABIParameter *compareLhsABI =
+      memoryOperandBindingFacts.compareLhsABI;
+  const support::RuntimeABIParameter *compareRhsABI =
+      memoryOperandBindingFacts.compareRhsABI;
+  const support::RuntimeABIParameter *sourceABI =
+      memoryOperandBindingFacts.sourceABI;
+  const support::RuntimeABIParameter *destinationABI =
+      memoryOperandBindingFacts.destinationABI;
+  const support::RuntimeABIParameter *field0ABI =
+      memoryOperandBindingFacts.field0ABI;
+  const support::RuntimeABIParameter *field1ABI =
+      memoryOperandBindingFacts.field1ABI;
+  const support::RuntimeABIParameter *runtimeElementCountABI =
+      memoryOperandBindingFacts.runtimeElementCountABI;
+
+  if (isComputedMaskSegment2) {
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+            compareLhsABI, "cmp_lhs", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+            compareRhsABI, "cmp_rhs", description, context))
+      return std::move(error);
+  }
+  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+            sourceABI, "src", description, context))
+      return std::move(error);
+  if (isPlainInterleave || isComputedMaskSegment2Store)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+            destinationABI, "dst", description, context))
+      return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+          field0ABI, isPlainInterleave || isComputedMaskSegment2Store ? "src0"
+                                                                     : "out0",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+          field1ABI, isPlainInterleave || isComputedMaskSegment2Store ? "src1"
+                                                                     : "out1",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanABI(
+          runtimeElementCountABI, "n", description, context))
+    return std::move(error);
+
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *plainPlan =
+      materializationFacts.segment2MemoryPlan;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan *computedPlan =
+      materializationFacts.computedMaskMemoryPlan;
+  llvm::StringRef setVLIntrinsic =
+      isPlainSegment2 ? plainPlan->setVLIntrinsic : computedPlan->setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic =
+      isPlainSegment2 ? plainPlan->vectorLoadIntrinsic
+                      : computedPlan->vectorLoadIntrinsic;
+  llvm::StringRef storeIntrinsic =
+      isPlainSegment2 ? plainPlan->storeIntrinsic
+                      : computedPlan->maskedStoreIntrinsic;
+  llvm::StringRef compareIntrinsic =
+      isComputedMaskSegment2 ? computedPlan->compareIntrinsic
+                             : llvm::StringRef();
+  llvm::StringRef segmentLoadIntrinsic =
+      isPlainSegment2 ? plainPlan->segmentLoadIntrinsic
+                      : computedPlan->segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic =
+      isPlainSegment2 ? plainPlan->segmentStoreIntrinsic
+                      : computedPlan->segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic =
+      isPlainSegment2 ? plainPlan->segmentFieldExtractIntrinsic
+                      : computedPlan->segmentFieldExtractIntrinsic;
+  llvm::StringRef segmentTupleCType =
+      isPlainSegment2 ? plainPlan->segmentTupleCType
+                      : computedPlan->segmentTupleCType;
+  llvm::StringRef vectorCType =
+      isPlainSegment2 ? plainPlan->vectorCType : computedPlan->vectorCType;
+  llvm::StringRef vlCType =
+      isPlainSegment2 ? plainPlan->vlCType : computedPlan->vlCType;
+  llvm::StringRef maskCType =
+      isComputedMaskSegment2 ? computedPlan->maskCType : llvm::StringRef();
+
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+          setVLIntrinsic, "setvl callee", description, context))
+    return std::move(error);
+  if (isPlainInterleave || isComputedMaskSegment2)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+            vectorLoadIntrinsic, "vector load callee", description, context))
+      return std::move(error);
+  if (isComputedMaskSegment2)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+            compareIntrinsic, "compare callee", description, context))
+      return std::move(error);
+  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+            segmentLoadIntrinsic, "segment load callee", description, context))
+      return std::move(error);
+  if (isPlainInterleave || isComputedMaskSegment2)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+            segmentStoreIntrinsic, "segment store callee", description,
+            context))
+      return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+          segmentFieldExtractIntrinsic, "segment field/tuple callee",
+          description, context))
+    return std::move(error);
+  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+            storeIntrinsic, "field store callee", description, context))
+      return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+          segmentTupleCType, "segment tuple type", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+          vectorCType, "vector C type", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+          vlCType, "VL C type", description, context))
+    return std::move(error);
+  if (isComputedMaskSegment2)
+    if (llvm::Error error = requireRVVSegment2MemoryStatementPlanLeaf(
+            maskCType, "mask C type", description, context))
+      return std::move(error);
+
+  using conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  using conversion::emitc::TCRVEmitCCallOpaqueResult;
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
+      makeRVVSegment2MemoryStatementPlanStep(
+          slice.setvl.getOperation(), "configure", setVLIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{runtimeElementCountABI->cName,
+                                      runtimeElementCountABI->cType}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              description.emitCFullChunkVLName.str(), vlCType.str()});
+  if (!fullChunkSetVL)
+    return fullChunkSetVL.takeError();
+  plan.preLoopSteps.push_back(std::move(*fullChunkSetVL));
+
+  llvm::StringRef inductionName = description.emitCLoopInductionName;
+  llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
+  llvm::StringRef loopVLName = description.emitCLoopVLName;
+  plan.loop.inductionVarName = inductionName.str();
+  plan.loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", vlCType.str()};
+  plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
+      runtimeElementCountABI->cName, runtimeElementCountABI->cType};
+  plan.loop.step =
+      TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(), vlCType.str()};
+
+  if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+          plan, slice.setvl.getOperation(), "configure", setVLIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+              tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
+                  runtimeElementCountABI->cName, inductionName),
+              vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{loopVLName.str(), vlCType.str()}))
+    return std::move(error);
+
+  if (isPlainInterleave) {
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.lhsLoadOperation, "load", vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(field0ABI->cName) + " + " + inductionName)
+                     .str(),
+                 field0ABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{description.field0Name.str(),
+                                      vectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.rhsLoadOperation, "load", vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(field1ABI->cName) + " + " + inductionName)
+                     .str(),
+                 field1ABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{description.field1Name.str(),
+                                      vectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.segment2StoreOperation, "store",
+            segmentFieldExtractIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
+                                        vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
+                                        vectorCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"segment2_tuple",
+                                      segmentTupleCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.segment2StoreOperation, "store", segmentStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(destinationABI->cName) + " + (" +
+                  inductionName + " * 2)")
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                        segmentTupleCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context))
+      return std::move(error);
+    return plan;
+  }
+
+  if (isComputedMaskSegment2) {
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.lhsLoadOperation, "load", vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(compareLhsABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 compareLhsABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"cmp_lhs_vec", vectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.rhsLoadOperation, "load", vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(compareRhsABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 compareRhsABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"cmp_rhs_vec", vectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.field0LoadOperation, "load", vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(field0ABI->cName) + " + " + inductionName)
+                     .str(),
+                 field0ABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                isComputedMaskSegment2Load ? "field0_old_vec"
+                                           : description.field0Name.str(),
+                vectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.field1LoadOperation, "load", vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(field1ABI->cName) + " + " + inductionName)
+                     .str(),
+                 field1ABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                isComputedMaskSegment2Load ? "field1_old_vec"
+                                           : description.field1Name.str(),
+                vectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.compareOp.getOperation(), "compute", compareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"cmp_lhs_vec", vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"cmp_rhs_vec", vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      maskCType.str()}))
+      return std::move(error);
+
+    if (isComputedMaskSegment2Load) {
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.maskedSegment2LoadOperation, "load",
+              segmentStoreIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{"field0_old_vec",
+                                          vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{"field1_old_vec",
+                                          vectorCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"segment2_passthrough_tuple",
+                                        segmentTupleCType.str()}))
+        return std::move(error);
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.maskedSegment2LoadOperation, "load",
+              segmentLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                          maskCType.str()},
+               TCRVEmitCCallOpaqueOperand{"segment2_passthrough_tuple",
+                                          segmentTupleCType.str()},
+               TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(sourceABI->cName) + " + (" +
+                    inductionName + " * 2)")
+                       .str(),
+                   sourceABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"segment2_tuple",
+                                        segmentTupleCType.str()}))
+        return std::move(error);
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.maskedSegment2LoadOperation, "load",
+              segmentFieldExtractIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                          segmentTupleCType.str()},
+               TCRVEmitCCallOpaqueOperand{"0", "size_t"}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{description.field0Name.str(),
+                                        vectorCType.str()}))
+        return std::move(error);
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.maskedSegment2LoadOperation, "load",
+              segmentFieldExtractIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                          segmentTupleCType.str()},
+               TCRVEmitCCallOpaqueOperand{"1", "size_t"}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{description.field1Name.str(),
+                                        vectorCType.str()}))
+        return std::move(error);
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.field0StoreOperation, "store", storeIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(field0ABI->cName) + " + " +
+                    inductionName)
+                       .str(),
+                   field0ABI->cType},
+               TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
+                                          vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context))
+        return std::move(error);
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.field1StoreOperation, "store", storeIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(field1ABI->cName) + " + " +
+                    inductionName)
+                       .str(),
+                   field1ABI->cType},
+               TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
+                                          vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context))
+        return std::move(error);
+      return plan;
+    }
+
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.maskedSegment2StoreOperation, "store",
+            segmentFieldExtractIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
+                                        vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
+                                        vectorCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"segment2_tuple",
+                                      segmentTupleCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+            plan, slice.maskedSegment2StoreOperation, "store",
+            segmentStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(destinationABI->cName) + " + (" +
+                  inductionName + " * 2)")
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                        segmentTupleCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context))
+      return std::move(error);
+    return plan;
+  }
+
+  if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+          plan, slice.segment2LoadOperation, "load", segmentLoadIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(sourceABI->cName) + " + (" + inductionName +
+                " * 2)")
+                   .str(),
+               sourceABI->cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{"segment2_tuple",
+                                    segmentTupleCType.str()}))
+    return std::move(error);
+  if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+          plan, slice.field0MoveOperation, "compute",
+          segmentFieldExtractIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                      segmentTupleCType.str()},
+           TCRVEmitCCallOpaqueOperand{"0", "size_t"}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{description.field0Name.str(),
+                                    vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+          plan, slice.field1MoveOperation, "compute",
+          segmentFieldExtractIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                      segmentTupleCType.str()},
+           TCRVEmitCCallOpaqueOperand{"1", "size_t"}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{description.field1Name.str(),
+                                    vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+          plan, slice.field0StoreOperation, "store", storeIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(field0ABI->cName) + " + " + inductionName)
+                   .str(),
+               field0ABI->cType},
+           TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
+                                      vectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+          plan, slice.field1StoreOperation, "store", storeIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(field1ABI->cName) + " + " + inductionName)
+                   .str(),
+               field1ABI->cType},
+           TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
+                                      vectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+          description, context))
+    return std::move(error);
   return plan;
 }
 

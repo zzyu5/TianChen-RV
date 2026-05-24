@@ -459,6 +459,29 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         "computed-mask memory statement plan before generic provider-local "
         "statement assembly");
 
+  llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
+      segment2MemoryStatementPlanOrError =
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              analysis, materializationFacts, memoryOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!segment2MemoryStatementPlanOrError)
+    return segment2MemoryStatementPlanOrError.takeError();
+  RVVSelectedBodySegment2MemoryRouteStatementPlan segment2MemoryStatementPlan =
+      std::move(*segment2MemoryStatementPlanOrError);
+  if (segment2MemoryStatementPlan.plansSegment2MemoryRoute) {
+    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         segment2MemoryStatementPlan.preLoopSteps)
+      route.addCallOpaqueStep(std::move(step));
+    route.addForLoop(std::move(segment2MemoryStatementPlan.loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
+  if (isRVVSelectedBodySegmentedMemoryMovementRoute(description.operation))
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV segment2 memory provider requires the RVV-owned "
+        "segment2 memory statement plan before generic provider-local "
+        "statement assembly");
+
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
 
@@ -479,8 +502,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       &slice->falseValueABI;
   const support::RuntimeABIParameter *boundIndexABI = &slice->indexABI;
   const support::RuntimeABIParameter *boundMaskABI = &slice->maskABI;
-  const support::RuntimeABIParameter *boundField0ABI = &slice->field0ABI;
-  const support::RuntimeABIParameter *boundField1ABI = &slice->field1ABI;
   const support::RuntimeABIParameter *boundOutABI = &slice->outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
       &slice->runtimeElementCountABI;
@@ -761,24 +782,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundLHSABI = memoryOperandBindingFacts.sourceABI;
       boundIndexABI = memoryOperandBindingFacts.indexABI;
       boundOutABI = memoryOperandBindingFacts.destinationABI;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) {
-      if (!memoryOperandBindingFacts.bindsPlainSegment2Memory)
-        return makeRVVEmitCRouteProviderError(
-            "plain segment2 memory provider requires RVV-owned "
-            "operand-binding facts before route statement construction");
-      boundLHSABI = memoryOperandBindingFacts.sourceABI;
-      boundField0ABI = memoryOperandBindingFacts.field0ABI;
-      boundField1ABI = memoryOperandBindingFacts.field1ABI;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
-      if (!memoryOperandBindingFacts.bindsPlainSegment2Memory)
-        return makeRVVEmitCRouteProviderError(
-            "plain segment2 memory provider requires RVV-owned "
-            "operand-binding facts before route statement construction");
-      boundLHSABI = memoryOperandBindingFacts.field0ABI;
-      boundRHSABI = memoryOperandBindingFacts.field1ABI;
-      boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
       if (!residualOperandBindingFacts.bindsRuntimeScalarSplatStore)
@@ -892,31 +895,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
       boundSourceABI = memoryOperandBindingFacts.sourceABI;
       boundIndexABI = memoryOperandBindingFacts.indexABI;
-      boundOutABI = memoryOperandBindingFacts.destinationABI;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) {
-      if (!memoryOperandBindingFacts.bindsComputedMaskMemory ||
-          !memoryOperandBindingFacts.bindsSegment2Memory)
-        return makeRVVEmitCRouteProviderError(
-            "computed-mask segment2 memory provider requires RVV-owned "
-            "operand-binding facts before route statement construction");
-      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
-      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
-      boundSourceABI = memoryOperandBindingFacts.sourceABI;
-      boundField0ABI = memoryOperandBindingFacts.field0ABI;
-      boundField1ABI = memoryOperandBindingFacts.field1ABI;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::
-                   ComputedMaskSegment2StoreUnitLoad) {
-      if (!memoryOperandBindingFacts.bindsComputedMaskMemory ||
-          !memoryOperandBindingFacts.bindsSegment2Memory)
-        return makeRVVEmitCRouteProviderError(
-            "computed-mask segment2 memory provider requires RVV-owned "
-            "operand-binding facts before route statement construction");
-      boundLHSABI = memoryOperandBindingFacts.compareLhsABI;
-      boundRHSABI = memoryOperandBindingFacts.compareRhsABI;
-      boundField0ABI = memoryOperandBindingFacts.field0ABI;
-      boundField1ABI = memoryOperandBindingFacts.field1ABI;
       boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else {
       return makeRVVEmitCRouteProviderError(
@@ -1185,365 +1163,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}}))
-      return error;
-    route.addForLoop(std::move(loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-
-  if (isRVVSelectedBodySegmentedMemoryMovementRoute(description.operation)) {
-    const bool isSegment2Interleave =
-        description.operation ==
-        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
-    const bool isComputedMaskSegment2Load =
-        description.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
-    const bool isComputedMaskSegment2Store =
-        description.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-    if (isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
-            description.operation) &&
-        !segment2MemoryPlan)
-      return makeRVVEmitCRouteProviderError(
-          "plain segment2 memory provider requires the shared route-family "
-          "plan before materializing deinterleave or interleave routes");
-    if ((isComputedMaskSegment2Load || isComputedMaskSegment2Store) &&
-        !computedMaskMemoryPlan)
-      return makeRVVEmitCRouteProviderError(
-          "computed-mask segment2 memory provider requires the shared "
-          "computed-mask memory route-family plan before materialization");
-    if (isSegment2Interleave) {
-      if (llvm::Error error = addLoopStep(
-              slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundLHSABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundLHSABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.field0Name.str(),
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundRHSABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundRHSABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.field1Name.str(),
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->segment2StoreOperation, "store",
-              description.segmentFieldExtractIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
-                                          description.vectorCType.str()}},
-              TCRVEmitCCallOpaqueResult{"segment2_tuple",
-                                        description.segmentTupleCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->segment2StoreOperation, "store",
-              description.segmentStoreIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundOutABI->cName) + " + (" +
-                    inductionName + " * 2)")
-                       .str(),
-                   boundOutABI->cType},
-               TCRVEmitCCallOpaqueOperand{"segment2_tuple",
-                                          description.segmentTupleCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}}))
-        return error;
-      route.addForLoop(std::move(loop));
-      out = std::move(route);
-      return llvm::Error::success();
-    }
-    if (isComputedMaskSegment2Load) {
-      if (llvm::Error error = addLoopStep(
-              slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundLHSABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundLHSABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"cmp_lhs_vec",
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundRHSABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundRHSABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"cmp_rhs_vec",
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->field0LoadOperation, "load",
-              description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundField0ABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundField0ABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"field0_old_vec",
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->field1LoadOperation, "load",
-              description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundField1ABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundField1ABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"field1_old_vec",
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->compareOp.getOperation(), "compute", compareLeaf,
-              {TCRVEmitCCallOpaqueOperand{"cmp_lhs_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{"cmp_rhs_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.maskName.str(),
-                                        description.maskCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->maskedSegment2LoadOperation, "load",
-              description.segmentStoreIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{"field0_old_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{"field1_old_vec",
-                                          description.vectorCType.str()}},
-              TCRVEmitCCallOpaqueResult{"segment2_passthrough_tuple",
-                                        description.segmentTupleCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->maskedSegment2LoadOperation, "load",
-              description.segmentLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
-                                          description.maskCType.str()},
-               TCRVEmitCCallOpaqueOperand{"segment2_passthrough_tuple",
-                                          description.segmentTupleCType.str()},
-               TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundSourceABI->cName) + " + (" +
-                    inductionName + " * 2)")
-                       .str(),
-                   boundSourceABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"segment2_tuple",
-                                        description.segmentTupleCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->maskedSegment2LoadOperation, "load",
-              description.segmentFieldExtractIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
-                                          description.segmentTupleCType.str()},
-               TCRVEmitCCallOpaqueOperand{"0", "size_t"}},
-              TCRVEmitCCallOpaqueResult{description.field0Name.str(),
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->maskedSegment2LoadOperation, "load",
-              description.segmentFieldExtractIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
-                                          description.segmentTupleCType.str()},
-               TCRVEmitCCallOpaqueOperand{"1", "size_t"}},
-              TCRVEmitCCallOpaqueResult{description.field1Name.str(),
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->field0StoreOperation, "store", description.storeIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundField0ABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundField0ABI->cType},
-               TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->field1StoreOperation, "store", description.storeIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundField1ABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundField1ABI->cType},
-               TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}}))
-        return error;
-      route.addForLoop(std::move(loop));
-      out = std::move(route);
-      return llvm::Error::success();
-    }
-    if (isComputedMaskSegment2Store) {
-      if (llvm::Error error = addLoopStep(
-              slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundLHSABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundLHSABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"cmp_lhs_vec",
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundRHSABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundRHSABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{"cmp_rhs_vec",
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->field0LoadOperation, "load",
-              description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundField0ABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundField0ABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.field0Name.str(),
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->field1LoadOperation, "load",
-              description.vectorLoadIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundField1ABI->cName) + " + " +
-                    inductionName)
-                       .str(),
-                   boundField1ABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.field1Name.str(),
-                                        description.vectorCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->compareOp.getOperation(), "compute", compareLeaf,
-              {TCRVEmitCCallOpaqueOperand{"cmp_lhs_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{"cmp_rhs_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.maskName.str(),
-                                        description.maskCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->maskedSegment2StoreOperation, "store",
-              description.segmentFieldExtractIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
-                                          description.vectorCType.str()}},
-              TCRVEmitCCallOpaqueResult{"segment2_tuple",
-                                        description.segmentTupleCType.str()}))
-        return error;
-      if (llvm::Error error = addLoopStep(
-              slice->maskedSegment2StoreOperation, "store",
-              description.segmentStoreIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
-                                          description.maskCType.str()},
-               TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(boundOutABI->cName) + " + (" +
-                    inductionName + " * 2)")
-                       .str(),
-                   boundOutABI->cType},
-               TCRVEmitCCallOpaqueOperand{"segment2_tuple",
-                                          description.segmentTupleCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}}))
-        return error;
-      route.addForLoop(std::move(loop));
-      out = std::move(route);
-      return llvm::Error::success();
-    }
-    if (llvm::Error error = addLoopStep(
-            slice->segment2LoadOperation, "load",
-            description.segmentLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundLHSABI->cName) + " + (" +
-                  inductionName + " * 2)")
-                     .str(),
-                 boundLHSABI->cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"segment2_tuple",
-                                      description.segmentTupleCType.str()}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->field0MoveOperation, "compute",
-            description.segmentFieldExtractIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
-                                        description.segmentTupleCType.str()},
-             TCRVEmitCCallOpaqueOperand{"0", "size_t"}},
-            TCRVEmitCCallOpaqueResult{description.field0Name.str(),
-                                      description.vectorCType.str()}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->field1MoveOperation, "compute",
-            description.segmentFieldExtractIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{"segment2_tuple",
-                                        description.segmentTupleCType.str()},
-             TCRVEmitCCallOpaqueOperand{"1", "size_t"}},
-            TCRVEmitCCallOpaqueResult{description.field1Name.str(),
-                                      description.vectorCType.str()}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->field0StoreOperation, "store", description.storeIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundField0ABI->cName) + " + " +
-                  inductionName)
-                     .str(),
-                 boundField0ABI->cType},
-             TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->field1StoreOperation, "store", description.storeIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundField1ABI->cName) + " + " +
-                  inductionName)
-                     .str(),
-                 boundField1ABI->cType},
-             TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}}))
       return error;
     route.addForLoop(std::move(loop));
     out = std::move(route);

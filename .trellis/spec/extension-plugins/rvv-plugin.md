@@ -1352,6 +1352,141 @@ verified route-family plans
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## Segment2 Memory Statement-Plan Boundary
+
+### 1. Scope / Trigger
+
+For production-active segment2 memory movement routes,
+`RVVEmitCRouteProvider` must not locally recreate the route statement sequence
+from operation names, ABI strings, memory-form branches, mask-producer
+mirrors, field-role mirrors, or intrinsic mirrors after RVV-owned family
+plans, materialization facts, and memory operand-binding facts have been
+validated. The RVV planning layer must expose one RVV-owned statement-plan
+boundary for plain segment2 deinterleave/unit-store, plain segment2
+interleave/unit-load, computed-mask segment2 load/unit-store, and
+computed-mask segment2 store/unit-load where those routes are
+production-active.
+
+The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
+adds neutral headers, type mappings, ABI mappings, selected-boundary source
+provenance, and attaches the RVV-owned statement plan. It must not duplicate
+the included segment2 loop/setvl/field-load/field-store/compare/tuple/
+segment-load/segment-store sequence in the central provider path.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
+getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this boundary after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining the memory
+operand-binding facts for the same analysis. Non-consumer route families
+receive an empty/default statement plan.
+
+### 3. Contracts
+
+`RVVSelectedBodySegment2MemoryRouteStatementPlan` is RVV-local provider input.
+It may carry:
+
+- a pointer to the verified plain segment2 family plan or computed-mask memory
+  family plan that justifies the selected segment2 statement sequence;
+- sub-family booleans for plain deinterleave, plain interleave,
+  computed-mask segment2 load, and computed-mask segment2 store;
+- provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
+- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, compare-mask
+  producer steps for computed-mask segment2 routes, field payload or
+  passthrough loads, tuple create/extract calls, segment load/store or masked
+  segment load/store calls, field stores, and address expressions.
+
+The plan must be derived only from verified typed body/config/runtime facts,
+route materialization facts, and RVV-owned memory operand-binding facts. It is
+not a common EmitC fact, not artifact metadata, not an acceptance/status
+mirror, and not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A non segment2 memory route requests the boundary -> return an empty plan
+  without changing unrelated route-family behavior.
+- An included plain segment2 route has no verified plain segment2 family plan
+  -> fail closed before route statement construction.
+- An included computed-mask segment2 route has no verified computed-mask
+  memory family plan -> fail closed before route statement construction.
+- An included route lacks required memory operand-binding facts -> fail closed
+  before route statement construction.
+- Required ABI roles such as `src`, `dst`, `cmp_lhs`, `cmp_rhs`, `field0`,
+  `field1`, and runtime count are absent -> fail closed with the logical
+  operand name and operation/memory-form context.
+- Required materialization leaves such as `setvl`, vector load, compare,
+  segment load/store, masked segment load/store, tuple create, field extract,
+  or field store are absent -> fail closed before common EmitC.
+- Required source operation provenance for configure/load/compute/store steps
+  is absent or reports the wrong EmitC source role -> fail closed before
+  common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed segment2 `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> memory operand-binding facts -> RVV-owned statement
+  plan -> provider-built route.
+- Base: base memory, non-segment computed-mask memory, compare/select, math,
+  residual runtime scalar splat-store, and future families keep their own
+  statement construction surfaces and receive an empty segment2 memory
+  statement plan.
+- Bad: central provider code branches on `Segment2DeinterleaveUnitStore`,
+  `Segment2InterleaveUnitLoad`, `ComputedMaskSegment2LoadUnitStore`, or
+  `ComputedMaskSegment2StoreUnitLoad` to rebuild the included segment2
+  setvl/load/compare/tuple/segment/store sequence after the statement-plan
+  boundary exists.
+
+### 6. Tests Required
+
+- C++ tests for positive statement-plan construction and provider consumption
+  for plain segment2 deinterleave/unit-store, plain segment2
+  interleave/unit-load, computed-mask segment2 load/unit-store, and
+  computed-mask segment2 store/unit-load.
+- C++ fail-closed diagnostics for at least one missing or stale
+  statement-plan dependency before route statement construction.
+- C++ default/empty-plan coverage for unrelated route families.
+- Representative lit/FileCheck coverage proving existing explicit or
+  pre-realized segment2 selected-body artifacts still pass.
+- Bounded provider scan showing included segment2 memory statement sequence
+  construction is reached through the RVV-owned plan before the older generic
+  provider-local statement assembly path.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider body:
+  if operation is segment2_deinterleave/computed_masked_segment2_store,
+  locally assemble setvl/load/compare/tuple/segment/store statements from
+  operation names, memory forms, ABI strings, field roles, and intrinsic mirrors
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyRouteMaterializationFacts
+  -> RVV-owned memory operand-binding facts
+  -> RVVSelectedBodySegment2MemoryRouteStatementPlan
+  -> provider attaches plan into TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

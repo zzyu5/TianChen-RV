@@ -936,6 +936,23 @@ struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
+      nullptr;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = nullptr;
+
+  bool plansSegment2MemoryRoute = false;
+  bool plansPlainSegment2DeinterleaveUnitStore = false;
+  bool plansPlainSegment2InterleaveUnitLoad = false;
+  bool plansComputedMaskSegment2LoadUnitStore = false;
+  bool plansComputedMaskSegment2StoreUnitLoad = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -1145,6 +1162,14 @@ getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
 
 llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
 getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
+getRVVSelectedBodySegment2MemoryRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMemoryRouteOperandBindingFacts

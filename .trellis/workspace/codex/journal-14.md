@@ -1077,3 +1077,49 @@ Added an RVV-owned computed-mask memory statement-plan boundary, rewired the sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 190: Stage2 RVV segment2 memory statement-plan ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV segment2 memory statement-plan ownership
+**Branch**: `main`
+
+### Summary
+
+Moved production-active segment2 memory routes behind an RVV-owned statement-plan boundary, removed provider-local segment2 statement assembly, updated RVV plugin spec, and verified focused plugin/lit checks plus check-tianchenrv.
+
+### Main Changes
+
+- Added `RVVSelectedBodySegment2MemoryRouteStatementPlan` and
+  `getRVVSelectedBodySegment2MemoryRouteStatementPlan` for plain segment2
+  deinterleave/interleave and computed-mask segment2 load/store routes.
+- Rewired `RVVEmitCRouteProvider` to consume the RVV-owned segment2 memory
+  statement plan before generic provider-local statement assembly.
+- Removed the obsolete provider-local segment2 statement assembly and dead
+  segment2 operand-binding residue from the generic provider path.
+- Added positive and fail-closed C++ coverage plus the durable RVV plugin spec
+  section for segment2 memory statement-plan ownership.
+
+### Git Commits
+
+- Pending final session commit.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] focused lit with `--filter='(segment2|selected-boundary)'` passed 23
+  tests.
+- [OK] bounded provider scan and active-authority scans passed.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
