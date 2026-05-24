@@ -267,6 +267,55 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 - None - task complete
 
 
+## Session 197: Stage2 RVV pre-realized selected-body executable closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV pre-realized selected-body executable closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded direct pre-realized route-entry executable evidence gap by
+running the existing generated-bundle ABI path on real `ssh rvv` for
+`cmp_select` and `strided_load_unit_store`. No compiler/source change was
+needed; the completed result is real remote compile/run correctness evidence,
+not another dry-run artifact proof.
+
+### Main Changes
+
+- Created Trellis task
+  `.trellis/tasks/05-25-stage2-rvv-pre-realized-selected-body-executable-closure/`.
+- Wrote the PRD and context files with the executable closure goal, RVV
+  plugin/provider/common EmitC boundaries, and explicit non-goals.
+- Recorded non-dry-run generated-bundle evidence under
+  `artifacts/tmp/stage2-pre-realized-executable-closure/direct-pre-realized-route-entry-ssh-rvv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] Trellis context validation for the new task.
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --direct-pre-realized-route-entry` non-dry-run on `ssh rvv` for `cmp_select` and `strided_load_unit_store`.
+- [OK] Remote compile evidence: `remote_arch=riscv64`, `/usr/bin/clang`, `Ubuntu clang version 18.1.3 (1ubuntu1)`, `clang -O2 -march=rv64gcv -mabi=lp64d`.
+- [OK] Remote run evidence: `PASS op=cmp_select counts=7,16,23`.
+- [OK] Remote run evidence: `PASS op=strided_load_unit_store counts=7,16,23 stride_bytes=4,8,12`.
+- [OK] Focused dry-run lit filter for `rvv-generated-bundle-abi-e2e-direct-pre-realized-route-entry-dry-run`.
+- [OK] Fail-closed CLI checks for missing `--pre-realized-selected-body` and unsupported direct `reduce_add`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 365/365.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 193: Stage2 RVV selected-body realization route-path integration
 
 **Date**: 2026-05-24
