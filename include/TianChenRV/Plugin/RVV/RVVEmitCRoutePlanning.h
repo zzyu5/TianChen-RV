@@ -966,6 +966,27 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
+  None,
+  ElementwiseArithmetic,
+  CompareSelect,
+  BaseMemoryMovement,
+  ComputedMaskMemory,
+  Segment2Memory,
+  ComputedMaskAccumulation,
+};
+
+struct RVVSelectedBodyMigratedRouteStatementPlan {
+  RVVSelectedBodyMigratedRouteStatementPlanFamily family =
+      RVVSelectedBodyMigratedRouteStatementPlanFamily::None;
+
+  bool plansMigratedRoute = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -1194,6 +1215,19 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
+getRVVSelectedBodyMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
     llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

@@ -5599,12 +5599,22 @@ int runElementwiseArithmeticStatementPlanBoundaryTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseArithmeticRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMigratedRouteStatementPlan;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
 
@@ -5840,6 +5850,28 @@ module {
       ++index;
     }
 
+    RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+    RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+    llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
+        migratedStatementPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+            *analysis, *materializationFacts, *elementwiseFacts,
+            emptyMemoryFacts, emptyMathFacts, *residualFacts,
+            "migrated statement-plan provider-neutral unit test");
+    if (!migratedStatementPlan)
+      return fail("migrated elementwise statement-plan construction: " +
+                  llvm::toString(migratedStatementPlan.takeError()));
+    if (int result = expect(
+            migratedStatementPlan->plansMigratedRoute &&
+                migratedStatementPlan->family ==
+                    RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                        ElementwiseArithmetic &&
+                migratedStatementPlan->preLoopSteps.size() == 1 &&
+                migratedStatementPlan->loop.bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "migrated statement-plan boundary exposes elementwise arithmetic "
+            "as one provider-neutral plan"))
+      return result;
+
     KernelOp kernel = findKernel(*module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);
     TCRVEmitCLowerableRoute route;
@@ -5945,6 +5977,29 @@ module {
                           "unrelated route families receive an empty "
                           "elementwise arithmetic statement plan"))
     return result;
+  RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
+  tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+          emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+  tianchenrv::plugin::rvv::RVVSelectedBodyResidualRouteOperandBindingFacts
+      emptyResidualFacts;
+  auto emptyMigratedPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      unrelated, emptyMaterializationFacts, emptyElementwiseFacts,
+      emptyMemoryFacts, emptyMathFacts, emptyResidualFacts,
+      "migrated statement-plan empty unit test");
+  if (!emptyMigratedPlan)
+    return fail("unrelated migrated statement-plan empty result: " +
+                llvm::toString(emptyMigratedPlan.takeError()));
+  if (int result = expect(
+          !emptyMigratedPlan->plansMigratedRoute &&
+              emptyMigratedPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::None &&
+              emptyMigratedPlan->preLoopSteps.empty() &&
+              emptyMigratedPlan->loop.bodySteps.empty(),
+          "unrelated route families receive an empty migrated statement plan"))
+    return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> addAnalysis =
       analyzeRouteInModule(*module, "stmt_add_kernel", "rvv_add");
@@ -5979,11 +6034,21 @@ module {
                 llvm::toString(addResidualFacts.takeError()));
   auto staleMaterializationFacts = *addMaterializationFacts;
   staleMaterializationFacts.elementwiseArithmeticPlan = nullptr;
-  return expectErrorContains(
+  if (int result = expectErrorContains(
       getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
           *addAnalysis, staleMaterializationFacts, *addElementwiseFacts,
           *addResidualFacts,
           "elementwise arithmetic statement plan stale dependency unit test")
+          .takeError(),
+      {"elementwise arithmetic statement plan requires the verified "
+       "elementwise arithmetic route-family plan",
+       "before route statement construction"}))
+    return result;
+  return expectErrorContains(
+      getRVVSelectedBodyMigratedRouteStatementPlan(
+          *addAnalysis, staleMaterializationFacts, *addElementwiseFacts,
+          emptyMemoryFacts, emptyMathFacts, *addResidualFacts,
+          "migrated statement-plan stale dependency unit test")
           .takeError(),
       {"elementwise arithmetic statement plan requires the verified "
        "elementwise arithmetic route-family plan",
@@ -7677,12 +7742,22 @@ int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan;
   using tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
@@ -7894,6 +7969,30 @@ module {
         return result;
       ++index;
     }
+
+    RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        emptyElementwiseFacts;
+    RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+    RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+    auto migratedStatementPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+        analysis, *materializationFacts, emptyElementwiseFacts,
+        emptyMemoryFacts, *mathFacts, emptyResidualFacts,
+        "migrated computed-mask accumulation statement-plan unit test");
+    if (!migratedStatementPlan)
+      return fail("migrated computed-mask accumulation statement-plan "
+                  "construction: " +
+                  llvm::toString(migratedStatementPlan.takeError()));
+    if (int result = expect(
+            migratedStatementPlan->plansMigratedRoute &&
+                migratedStatementPlan->family ==
+                    RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                        ComputedMaskAccumulation &&
+                migratedStatementPlan->preLoopSteps.size() == 1 &&
+                migratedStatementPlan->loop.bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "migrated statement-plan boundary exposes computed-mask "
+            "accumulation as one provider-neutral plan"))
+      return result;
 
     KernelOp kernel = findKernel(module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);

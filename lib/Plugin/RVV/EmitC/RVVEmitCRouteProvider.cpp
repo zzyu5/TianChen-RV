@@ -132,30 +132,6 @@ bool isRVVSelectedBodyComputedMaskIndexedScatterStoreRoute(
                    ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
-bool isRVVSelectedBodyComputedMaskMemoryStatementPlanRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
-         op ==
-             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
-         op ==
-             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedGatherLoadUnitStore ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedScatterStoreUnitLoad;
-}
-
-bool isRVVSelectedBodySegmentedMemoryMovementRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore ||
-         op == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
-         op ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-}
-
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::UnitLoadStridedStore ||
@@ -362,149 +338,23 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return withVLSource.takeError();
   route.addSourceOpProvenance(std::move(*withVLSource));
 
-  llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
-      elementwiseArithmeticStatementPlanOrError =
-          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
-              analysis, materializationFacts,
-              elementwiseSelectOperandBindingFacts,
-              residualOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!elementwiseArithmeticStatementPlanOrError)
-    return elementwiseArithmeticStatementPlanOrError.takeError();
-  RVVSelectedBodyElementwiseArithmeticRouteStatementPlan
-      elementwiseArithmeticStatementPlan =
-          std::move(*elementwiseArithmeticStatementPlanOrError);
-  if (elementwiseArithmeticStatementPlan.plansElementwiseArithmeticRoute) {
+  llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
+      migratedStatementPlanOrError = getRVVSelectedBodyMigratedRouteStatementPlan(
+          analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+          memoryOperandBindingFacts, mathOperandBindingFacts,
+          residualOperandBindingFacts, "selected RVV EmitC route construction");
+  if (!migratedStatementPlanOrError)
+    return migratedStatementPlanOrError.takeError();
+  RVVSelectedBodyMigratedRouteStatementPlan migratedStatementPlan =
+      std::move(*migratedStatementPlanOrError);
+  if (migratedStatementPlan.plansMigratedRoute) {
     for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         elementwiseArithmeticStatementPlan.preLoopSteps)
+         migratedStatementPlan.preLoopSteps)
       route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(elementwiseArithmeticStatementPlan.loop));
+    route.addForLoop(std::move(migratedStatementPlan.loop));
     out = std::move(route);
     return llvm::Error::success();
   }
-
-  llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
-      compareSelectStatementPlanOrError =
-          getRVVSelectedBodyCompareSelectRouteStatementPlan(
-              analysis, materializationFacts,
-              elementwiseSelectOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!compareSelectStatementPlanOrError)
-    return compareSelectStatementPlanOrError.takeError();
-  RVVSelectedBodyCompareSelectRouteStatementPlan compareSelectStatementPlan =
-      std::move(*compareSelectStatementPlanOrError);
-  if (compareSelectStatementPlan.plansCompareSelectRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         compareSelectStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(compareSelectStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-  if (isRVVSelectedBodyCompareSelectRoute(description.operation))
-    return makeRVVEmitCRouteProviderError(
-        "selected RVV compare/select provider requires the RVV-owned "
-        "compare/select statement plan before generic provider-local "
-        "statement assembly");
-
-  llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
-      baseMemoryMovementStatementPlanOrError =
-          getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
-              analysis, materializationFacts, memoryOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!baseMemoryMovementStatementPlanOrError)
-    return baseMemoryMovementStatementPlanOrError.takeError();
-  RVVSelectedBodyBaseMemoryMovementRouteStatementPlan
-      baseMemoryMovementStatementPlan =
-          std::move(*baseMemoryMovementStatementPlanOrError);
-  if (baseMemoryMovementStatementPlan.plansBaseMemoryMovementRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         baseMemoryMovementStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(baseMemoryMovementStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-  if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
-          description.operation))
-    return makeRVVEmitCRouteProviderError(
-        "selected RVV base memory movement provider requires the RVV-owned "
-        "base memory movement statement plan before generic provider-local "
-        "statement assembly");
-
-  llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
-      computedMaskMemoryStatementPlanOrError =
-          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
-              analysis, materializationFacts, memoryOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!computedMaskMemoryStatementPlanOrError)
-    return computedMaskMemoryStatementPlanOrError.takeError();
-  RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
-      computedMaskMemoryStatementPlan =
-          std::move(*computedMaskMemoryStatementPlanOrError);
-  if (computedMaskMemoryStatementPlan.plansComputedMaskMemoryRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         computedMaskMemoryStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(computedMaskMemoryStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-  if (isRVVSelectedBodyComputedMaskMemoryStatementPlanRoute(
-          description.operation))
-    return makeRVVEmitCRouteProviderError(
-        "selected RVV computed-mask memory provider requires the RVV-owned "
-        "computed-mask memory statement plan before generic provider-local "
-        "statement assembly");
-
-  llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
-      segment2MemoryStatementPlanOrError =
-          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
-              analysis, materializationFacts, memoryOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!segment2MemoryStatementPlanOrError)
-    return segment2MemoryStatementPlanOrError.takeError();
-  RVVSelectedBodySegment2MemoryRouteStatementPlan segment2MemoryStatementPlan =
-      std::move(*segment2MemoryStatementPlanOrError);
-  if (segment2MemoryStatementPlan.plansSegment2MemoryRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         segment2MemoryStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(segment2MemoryStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-  if (isRVVSelectedBodySegmentedMemoryMovementRoute(description.operation))
-    return makeRVVEmitCRouteProviderError(
-        "selected RVV segment2 memory provider requires the RVV-owned "
-        "segment2 memory statement plan before generic provider-local "
-        "statement assembly");
-
-  llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
-      computedMaskAccumulationStatementPlanOrError =
-          getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!computedMaskAccumulationStatementPlanOrError)
-    return computedMaskAccumulationStatementPlanOrError.takeError();
-  RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan
-      computedMaskAccumulationStatementPlan =
-          std::move(*computedMaskAccumulationStatementPlanOrError);
-  if (computedMaskAccumulationStatementPlan
-          .plansComputedMaskAccumulationRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         computedMaskAccumulationStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(computedMaskAccumulationStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-  if (isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
-          description.operation))
-    return makeRVVEmitCRouteProviderError(
-        "selected RVV computed-mask accumulation provider requires the "
-        "RVV-owned computed-mask accumulation statement plan before generic "
-        "provider-local statement assembly");
 
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;

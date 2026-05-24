@@ -1620,6 +1620,105 @@ verified computed-mask accumulation family plan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## Migrated Statement-Plan Provider Consumption Boundary
+
+### 1. Scope / Trigger
+
+After elementwise arithmetic, compare/select, base memory, computed-mask
+memory, segment2 memory, and computed-mask accumulation have their own
+RVV-owned statement plans, the selected-body RVV provider must consume those
+migrated families through one shared provider-neutral boundary.
+
+`RVVEmitCRouteProvider` remains the owner that instantiates
+`TCRVEmitCLowerableRoute`, records neutral headers/type mappings/ABI mappings,
+preserves selected-boundary source provenance, and attaches returned
+provider-ready statements. It must not manually sequence each migrated family
+statement-plan getter in the central provider body and must not locally rebuild
+migrated family statements from operation names, ABI strings, route ids,
+intrinsic mirrors, mask/address/accumulator mirrors, or artifact metadata.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
+getRVVSelectedBodyMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+The provider must call this boundary after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining the
+elementwise/select, memory, math, and residual operand-binding facts for the
+same analysis.
+
+### 3. Contracts
+
+`RVVSelectedBodyMigratedRouteStatementPlan` is RVV-local provider input. It
+may carry:
+
+- a migrated family tag for exactly one matched family or `None` for unrelated
+  routes;
+- provider-ready full-chunk `setvl` pre-loop steps;
+- one provider-ready `TCRVEmitCForLoop` that was produced by the owning family
+  statement-plan builder;
+- source operation provenance and ABI/VL/mask/address/accumulator/source facts
+  preserved by the family-specific plan.
+
+This aggregate boundary is not a common EmitC fact, not artifact metadata, not
+an acceptance/status mirror, and not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A migrated-family route lacks its valid family statement plan -> fail closed
+  before generic provider-local statement assembly and before common EmitC.
+- More than one migrated family claims the same selected route -> fail closed
+  before route statement construction.
+- A non-migrated or unrelated route requests the boundary -> return an
+  empty/default migrated statement plan and leave the older route surface
+  unchanged.
+- Required family-specific plan dependencies remain checked by the owning
+  family statement-plan builder; the aggregate boundary must not weaken those
+  diagnostics.
+
+### 5. Good/Base/Bad Cases
+
+- Good: verified route-family plans -> materialization facts -> RVV-owned
+  operand-binding facts -> `RVVSelectedBodyMigratedRouteStatementPlan` ->
+  provider attaches returned statements into `TCRVEmitCLowerableRoute`.
+- Base: standalone reductions, plain MAcc, widening/conversion/dot routes, and
+  residual runtime scalar splat-store remain outside this migrated aggregate
+  until their statement plans become migrated owners.
+- Bad: provider body manually calls each migrated family statement-plan getter
+  and carries family-specific fallback diagnostics.
+- Bad: provider body branches on migrated operation names to rebuild
+  setvl/load/splat/compare/mask/store/accumulator statements after this shared
+  boundary exists.
+
+### 6. Tests Required
+
+- Focused C++ tests for positive aggregate-boundary construction and provider
+  consumption across representative migrated families.
+- Focused C++ fail-closed diagnostics for at least one missing or stale
+  migrated statement-plan dependency through the aggregate boundary.
+- C++ default/empty-plan coverage for unrelated route families.
+- Bounded provider scan showing migrated-family statement-plan consumption is
+  reached through the aggregate boundary and that the provider no longer
+  manually sequences the six family-specific statement-plan getters.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

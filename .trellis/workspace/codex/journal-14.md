@@ -981,7 +981,20 @@ Added the RVV-owned elementwise arithmetic statement-plan boundary, rewired the 
 
 ### Main Changes
 
-(Add details)
+- Added `RVVSelectedBodyMigratedRouteStatementPlan` and
+  `getRVVSelectedBodyMigratedRouteStatementPlan` as the shared RVV-owned
+  consumption boundary for migrated elementwise arithmetic, compare/select,
+  base memory, computed-mask memory, segment2 memory, and computed-mask
+  accumulation statement plans.
+- Rewired `RVVEmitCRouteProvider` to call the aggregate boundary once, attach
+  returned pre-loop/loop statements, and return before the older generic
+  provider-local statement assembly path.
+- Added focused C++ coverage for aggregate-boundary positive construction,
+  empty/default unrelated routes, and stale/missing plan fail-closed behavior.
+- Documented the durable aggregate migrated statement-plan consumption
+  boundary in the RVV plugin spec.
+- Archived the Trellis task under
+  `.trellis/tasks/archive/2026-05/05-24-stage2-rvv-statement-plan-provider-neutral-closure`.
 
 ### Git Commits
 
@@ -1028,7 +1041,18 @@ Added RVV-owned compare/select statement plans, rewired provider consumption wit
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-statement-plan-provider-neutral-closure`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Bounded provider scan found only the aggregate migrated
+  statement-plan boundary call in `RVVEmitCRouteProvider.cpp`, with no direct
+  family-specific statement-plan getter calls.
+- [OK] Active-authority scans over added non-spec C++/task lines found no new
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority additions.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363 lit
+  tests passed)
 
 ### Status
 
@@ -1115,6 +1139,39 @@ Moved production-active segment2 memory routes behind an RVV-owned statement-pla
 - [OK] bounded provider scan and active-authority scans passed.
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 191: Stage2 RVV statement-plan provider-neutral closure
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV statement-plan provider-neutral closure
+**Branch**: `main`
+
+### Summary
+
+Added one RVV-owned aggregate migrated statement-plan consumption boundary, rewired RVVEmitCRouteProvider to consume it once, documented the contract, and verified focused plugin checks plus check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
