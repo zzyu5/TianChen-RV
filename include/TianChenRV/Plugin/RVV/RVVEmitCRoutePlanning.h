@@ -855,6 +855,25 @@ llvm::Error
 verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+struct RVVSelectedBodyRouteFamilyProviderOwner {
+  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
+  using ProviderPlanVerifier = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanVerifier verifyProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyRouteFamilyProviderOwner>
+getRVVSelectedBodyRouteFamilyProviderOwners();
+
+bool isRVVSelectedBodyRouteFamilyProviderConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 
 llvm::Expected<const support::RuntimeABIParameter *>

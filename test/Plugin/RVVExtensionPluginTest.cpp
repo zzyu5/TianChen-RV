@@ -2381,6 +2381,163 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
        "add"});
 }
 
+int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteFamilyProviderOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyRouteFamilyProviderConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyRouteFamilyProviderOwner>
+      owners = getRVVSelectedBodyRouteFamilyProviderOwners();
+  if (int result = expect(
+          owners.size() == 5,
+          "top-level route-family provider owner registry has exactly five "
+          "active owner entries"))
+    return result;
+  if (int result = expect(
+          owners[0].familyName == "memory" &&
+              owners[1].familyName ==
+                  "reduction/accumulation/contraction" &&
+              owners[2].familyName == "elementwise/select" &&
+              owners[3].familyName == "runtime scalar splat-store" &&
+              owners[4].familyName == "widening conversion",
+          "top-level route-family provider owner registry preserves explicit "
+          "provider verifier ownership"))
+    return result;
+  for (const auto &owner : owners) {
+    if (int result = expect(
+            owner.isConsumer != nullptr &&
+                owner.verifyProviderPlan != nullptr,
+            "top-level route-family provider owner entries carry consumer and "
+            "verifier hooks"))
+      return result;
+  }
+  if (int result = expect(
+          owners[0].isConsumer(
+              RVVSelectedBodyOperationKind::StridedLoadUnitStore) &&
+              !owners[0].isConsumer(RVVSelectedBodyOperationKind::Add),
+          "top-level memory owner classification remains isolated"))
+    return result;
+  if (int result = expect(
+          owners[1].isConsumer(RVVSelectedBodyOperationKind::WideningMAccAdd) &&
+              !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add),
+          "top-level math-cluster owner classification remains isolated"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(RVVSelectedBodyOperationKind::Add) &&
+              !owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::WidenI32ToI64),
+          "top-level elementwise/select owner classification remains "
+          "isolated"))
+    return result;
+  if (int result = expect(
+          owners[3].isConsumer(
+              RVVSelectedBodyOperationKind::RuntimeI32SplatStore) &&
+              !owners[3].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastAdd),
+          "top-level runtime splat-store owner classification remains "
+          "isolated"))
+    return result;
+  if (int result = expect(
+          owners[4].isConsumer(RVVSelectedBodyOperationKind::WidenI32ToI64) &&
+              !owners[4].isConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+          "top-level widening conversion owner classification remains "
+          "isolated"))
+    return result;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+        RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::Add,
+        RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+        RVVSelectedBodyOperationKind::WidenI32ToI64}) {
+    if (int result = expect(
+            isRVVSelectedBodyRouteFamilyProviderConsumer(op),
+            "top-level route-family provider consumer predicate is registry "
+            "backed across all active owner boundaries"))
+      return result;
+  }
+  if (int result = expect(
+          !isRVVSelectedBodyRouteFamilyProviderConsumer(
+              RVVSelectedBodyOperationKind::MAccAdd),
+          "unowned legacy MAcc route remains outside the top-level provider "
+          "owner boundary"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingMemoryPlan;
+  missingMemoryPlan.description.operation =
+      RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingMemoryPlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the base memory movement route-family plan",
+           "strided_load_unit_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingMathPlan;
+  missingMathPlan.description.operation =
+      RVVSelectedBodyOperationKind::WideningMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingMathPlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the contraction route-family plan",
+           "widening_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingElementwisePlan;
+  missingElementwisePlan.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingElementwisePlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the elementwise arithmetic route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeSplatPlan;
+  missingRuntimeSplatPlan.description.operation =
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingRuntimeSplatPlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the runtime scalar splat-store route-family plan",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingWideningPlan;
+  missingWideningPlan.description.operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingWideningPlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the widening conversion route-family plan",
+           "widen_i32_to_i64"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeSplatNonConsumer;
+  staleRuntimeSplatNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
+  staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  return expectErrorContains(
+      verifyRVVSelectedBodyRouteFamilyProviderPlans(
+          staleRuntimeSplatNonConsumer,
+          "top-level route-family provider owner registry unit test"),
+      {"must not carry a runtime scalar splat-store route-family plan",
+       "widen_i32_to_i64"});
+}
+
 int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
@@ -6982,6 +7139,8 @@ int main() {
     return result;
   if (int result =
           runReductionAccumulationContractionRouteFamilyOwnerRegistryTest())
+    return result;
+  if (int result = runTopLevelRouteFamilyProviderOwnerRegistryTest())
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;

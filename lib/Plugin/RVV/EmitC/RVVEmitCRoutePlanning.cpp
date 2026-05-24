@@ -20949,6 +20949,51 @@ verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+llvm::ArrayRef<RVVSelectedBodyRouteFamilyProviderOwner>
+getRVVSelectedBodyRouteFamilyProviderOwners() {
+  static const RVVSelectedBodyRouteFamilyProviderOwner owners[] = {
+      {"memory", isRVVSelectedBodyMemoryRouteFamilyConsumer,
+       verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans},
+      {"reduction/accumulation/contraction",
+       isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer,
+       verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans},
+      {"elementwise/select",
+       isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer,
+       verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans},
+      {"runtime scalar splat-store",
+       isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer,
+       verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans},
+      {"widening conversion",
+       isRVVSelectedBodyWideningConversionRouteFamilyConsumer,
+       verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyRouteFamilyProviderConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  for (const RVVSelectedBodyRouteFamilyProviderOwner &owner :
+       getRVVSelectedBodyRouteFamilyProviderOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
+}
+
+llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  for (const RVVSelectedBodyRouteFamilyProviderOwner &owner :
+       getRVVSelectedBodyRouteFamilyProviderOwners()) {
+    if (!owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete top-level route-family provider owner "
+          "registry entry");
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {

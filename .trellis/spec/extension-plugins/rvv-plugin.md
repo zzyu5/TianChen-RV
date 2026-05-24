@@ -279,6 +279,26 @@ fail closed when:
   mirrors, or `RouteOperandBindingPlan` closure no longer match the validated
   plan.
 
+When multiple cluster or standalone family verifier boundaries are active, the
+production selected-body RVV provider should consume one top-level owner
+registry rather than manually sequencing verifier calls in the provider body.
+That top-level registry is still dispatch structure only. Its durable API
+shape is:
+
+```text
+getRVVSelectedBodyRouteFamilyProviderOwners()
+isRVVSelectedBodyRouteFamilyProviderConsumer(RVVSelectedBodyOperationKind)
+verifyRVVSelectedBodyRouteFamilyProviderPlans(RVVSelectedBodyRouteAnalysis, context)
+```
+
+Each top-level owner entry exposes the same contract as a cluster owner:
+family name, consumer predicate, and provider-plan verifier. Entries may point
+to aggregate cluster verifiers, such as memory or elementwise/select, or to a
+standalone mature family verifier, such as runtime scalar splat-store or
+widening conversion. The top-level verifier must preserve the underlying
+missing-plan, stale-plan, mirror, runtime ABI, and binding-closure diagnostics;
+it must not replace sub-family verification or merge family semantics.
+
 The registry is dispatch/locality structure only. It must not merge family
 semantics: mask producer/source facts, segment field roles, stride/index facts,
 inactive-lane contracts, dtype/config facts, runtime ABI order, and intrinsic
@@ -291,6 +311,10 @@ Required tests for a new or changed owner registry:
 - C++ tests for registry membership, owner names, consumer classification,
   missing-plan diagnostics, stale-plan diagnostics, and aggregate verifier
   dispatch;
+- for a top-level provider owner registry, C++ tests must also prove that
+  production-owned entries include every active aggregate or standalone
+  provider verifier boundary and that production construction calls the
+  top-level aggregate verifier;
 - representative lit/FileCheck coverage showing existing explicit or
   pre-realized selected-body artifacts still flow from typed `tcrv_rvv` bodies;
 - at least one fail-closed typed-body mismatch diagnostic before

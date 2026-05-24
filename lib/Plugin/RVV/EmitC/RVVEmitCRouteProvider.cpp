@@ -277,24 +277,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.standaloneReductionRouteFamilyPlan
               ? &*analysis.standaloneReductionRouteFamilyPlan
               : nullptr;
-  if (llvm::Error error = verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+  if (llvm::Error error = verifyRVVSelectedBodyRouteFamilyProviderPlans(
           analysis, "selected RVV EmitC route construction"))
-    return error;
-  if (llvm::Error error =
-          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
-              analysis, "selected RVV EmitC route construction"))
-    return error;
-  if (llvm::Error error =
-          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
-              analysis, "selected RVV EmitC route construction"))
-    return error;
-  if (llvm::Error error =
-          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
-              analysis, "selected RVV EmitC route construction"))
-    return error;
-  if (llvm::Error error =
-          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
-              analysis, "selected RVV EmitC route construction"))
     return error;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;

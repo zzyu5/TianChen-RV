@@ -643,3 +643,53 @@ Extracted the reduction/accumulation/contraction route-family owner registry, re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 183: Stage2 RVV top-level route-family provider verifier closure
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV top-level route-family provider verifier closure
+**Branch**: `main`
+
+### Summary
+
+Closed the selected-body RVV provider verifier at one top-level
+route-family owner registry. Production route construction now calls one
+aggregate verifier that dispatches to the existing memory, elementwise/select,
+reduction/accumulation/contraction, runtime scalar splat-store, and widening
+conversion verifier boundaries.
+
+### Main Changes
+
+- Added `RVVSelectedBodyRouteFamilyProviderOwner` and the top-level
+  `getRVVSelectedBodyRouteFamilyProviderOwners()` registry.
+- Added top-level aggregate consumer/provider verifier APIs:
+  `isRVVSelectedBodyRouteFamilyProviderConsumer()` and
+  `verifyRVVSelectedBodyRouteFamilyProviderPlans()`.
+- Rewired `RVVEmitCRouteProvider.cpp` to consume the top-level aggregate
+  verifier instead of manually sequencing five verifier calls.
+- Added C++ coverage for top-level registry membership, owner names, non-null
+  hooks, classification, missing-plan dispatch, and stale-plan dispatch.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the durable
+  top-level provider owner registry contract and required tests.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-top-level-route-family-provider-verifier`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit from `build/test`: 6/6 selected RVV artifact/negative tests
+  passed.
+- [OK] Added-line active-authority scan over touched RVV planning/provider/test
+  files found no new legacy/source-front-door/descriptor/mirror-authority terms.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

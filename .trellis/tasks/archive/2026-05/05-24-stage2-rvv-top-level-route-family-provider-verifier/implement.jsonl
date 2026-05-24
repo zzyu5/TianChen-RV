@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, and Stage1/Stage2 boundaries for this provider verifier closure."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, route-family owner boundary, provider-owned legality/plan verification, and common EmitC neutrality rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC materialization boundary for selected RVV routes."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface ownership rules and fail-closed RVV route authority constraints."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin locality rules for keeping route-provider semantics in RVV plugin code rather than common/core paths."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and FileCheck evidence for route-provider API and aggregate verifier changes."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for plugin-owned route provider output and avoiding common/core RVV semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for preserving typed tcrv_rvv body authority and avoiding high-level compute or core dialect drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-memory-route-family-owner-registry/prd.md", "reason": "Prior memory cluster owner registry pattern and aggregate provider verifier evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-elementwise-select-route-family-owner-registry/prd.md", "reason": "Prior elementwise/select owner registry pattern and production provider rewiring evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-reduction-accumulation-contraction-owner-registry/prd.md", "reason": "Prior math cluster owner registry pattern and latest aggregate provider verifier extraction evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-scalar-broadcast-splat-store-route-family-ownership/prd.md", "reason": "Runtime scalar splat-store family verifier boundary that remains a standalone top-level owner."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-widening-conversion-route-family-ownership/prd.md", "reason": "Widening conversion family verifier boundary that remains a standalone top-level owner."}
