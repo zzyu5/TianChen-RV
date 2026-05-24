@@ -897,15 +897,15 @@ def TypedMAccPreRealizedBodyOp
   let description = [{
     Carries the RVV plugin-local pre-realized selected body for the bounded
     multiply-accumulate route. The op is nested directly in a selected
-    tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs,
-    accumulator input, out, and runtime n/AVL together with selected operation
-    kind, memory form, accumulator role/layout, result layout, and compile-time
-    RVV config facts.
+    tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs or
+    rhs scalar, accumulator input, out, and runtime n/AVL together with selected
+    operation kind, memory form, accumulator role/layout, result layout, and
+    compile-time RVV config facts.
 
     This op is not a matmul route, contraction framework, descriptor,
     source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
-    plugin must first realize it into explicit setvl/with_vl/load/load/
+    plugin must first realize it into explicit setvl/with_vl/load/load-or-splat/
     accumulator-load/macc/store tcrv_rvv body structure before the existing
     provider may construct a TCRVEmitCLowerableRoute.
   }];

@@ -1792,7 +1792,9 @@ class OpExpectation:
     @property
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
-            self.is_cmp_select or self.is_strided_load_unit_store
+            self.is_cmp_select
+            or self.is_strided_load_unit_store
+            or self.is_scalar_broadcast_macc_add
         )
 
     @property
@@ -3406,6 +3408,18 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_macc_add",
         function_name="tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add",
+    ),
+    "scalar_broadcast_macc_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["scalar_broadcast_macc_add"],
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-macc-add.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_scalar_broadcast_macc_add",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_"
+            "pre_realized_body_rvv_scalar_broadcast_macc_add"
+        ),
     ),
     "computed_masked_macc_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_masked_macc_add"],
@@ -15400,7 +15414,8 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
                 "pre-realized cmp_select/cmp_select_sle and "
-                f"strided_load_unit_store fixtures; got {unsupported_direct}"
+                "strided_load_unit_store/scalar_broadcast_macc_add "
+                f"fixtures; got {unsupported_direct}"
             )
     return [
         replace(
@@ -17488,7 +17503,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
-            "reduce_add/macc_add/strided_add/"
+            "reduce_add/macc_add/scalar_broadcast_macc_add/strided_add/"
             "strided_load_unit_store/"
             "unit_load_strided_store/indexed_gather_unit_store/"
             "indexed_scatter_unit_load/"
@@ -17520,8 +17535,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "with --pre-realized-selected-body, skip the public selected "
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded cmp_select/"
-            "cmp_select_sle or strided_load_unit_store fixtures before "
-            "target bundle export"
+            "cmp_select_sle, strided_load_unit_store, or "
+            "scalar_broadcast_macc_add fixtures before target bundle export"
         ),
     )
     parser.add_argument(

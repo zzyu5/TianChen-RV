@@ -312,7 +312,11 @@ bool isPreRealizedStandaloneReduceResultLayout(llvm::StringRef layout) {
 }
 
 bool isPreRealizedMAccOpKind(llvm::StringRef opKind) {
-  return opKind == "macc_add";
+  return opKind == "macc_add" || opKind == "scalar_broadcast_macc_add";
+}
+
+bool isPreRealizedScalarBroadcastMAccOpKind(llvm::StringRef opKind) {
+  return opKind == "scalar_broadcast_macc_add";
 }
 
 bool isPreRealizedComputedMaskMAccOpKind(llvm::StringRef opKind) {
@@ -321,7 +325,19 @@ bool isPreRealizedComputedMaskMAccOpKind(llvm::StringRef opKind) {
 }
 
 bool isPreRealizedMAccMemoryForm(llvm::StringRef memoryForm) {
-  return memoryForm == "vector-rhs-load";
+  return memoryForm == "vector-rhs-load" ||
+         memoryForm == "rhs-scalar-broadcast-macc";
+}
+
+bool isPreRealizedScalarBroadcastMAccMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "rhs-scalar-broadcast-macc";
+}
+
+bool isPreRealizedScalarBroadcastMAccBody(llvm::StringRef opKind,
+                                          llvm::StringRef memoryForm) {
+  return isPreRealizedScalarBroadcastMAccOpKind(opKind) ||
+         isPreRealizedScalarBroadcastMAccMemoryForm(memoryForm);
 }
 
 bool isPreRealizedComputedMaskMAccMemoryForm(llvm::StringRef memoryForm) {
@@ -772,9 +788,18 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
 }
 
+bool isPreRealizedRVVScalarBroadcastMAccRouteEntryOp(mlir::Operation *op) {
+  auto body = llvm::dyn_cast<tcrv::rvv::TypedMAccPreRealizedBodyOp>(op);
+  if (!body)
+    return false;
+  return isPreRealizedScalarBroadcastMAccOpKind(body.getOpKind()) &&
+         isPreRealizedScalarBroadcastMAccMemoryForm(body.getMemoryForm());
+}
+
 bool isPreRealizedRVVRouteEntrySelectedBodyOp(mlir::Operation *op) {
   return isPreRealizedRVVElementwiseCompareSelectClusterOp(op) ||
-         isPreRealizedRVVBaseMemoryMovementRouteEntryOp(op);
+         isPreRealizedRVVBaseMemoryMovementRouteEntryOp(op) ||
+         isPreRealizedRVVScalarBroadcastMAccRouteEntryOp(op);
 }
 
 llvm::Expected<mlir::Operation *>
@@ -2374,11 +2399,26 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
   if (!isPreRealizedMAccOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected macc body currently supports only "
-        "op_kind 'macc_add'");
+        "op_kind 'macc_add' or 'scalar_broadcast_macc_add'");
   if (!isPreRealizedMAccMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected macc body currently supports only "
-        "memory_form 'vector-rhs-load'");
+        "memory_form 'vector-rhs-load' or 'rhs-scalar-broadcast-macc'");
+  bool scalarBroadcastMAcc = isPreRealizedScalarBroadcastMAccBody(
+      body.getOpKind(), body.getMemoryForm());
+  if (scalarBroadcastMAcc &&
+      (!isPreRealizedScalarBroadcastMAccOpKind(body.getOpKind()) ||
+       !isPreRealizedScalarBroadcastMAccMemoryForm(body.getMemoryForm())))
+    return makeRVVPluginError(
+        "pre-realized RVV selected scalar-broadcast macc body requires "
+        "op_kind 'scalar_broadcast_macc_add' paired with memory_form "
+        "'rhs-scalar-broadcast-macc'");
+  if (!scalarBroadcastMAcc &&
+      (body.getOpKind() != "macc_add" ||
+       body.getMemoryForm() != "vector-rhs-load"))
+    return makeRVVPluginError(
+        "pre-realized RVV selected macc body requires op_kind 'macc_add' "
+        "paired with memory_form 'vector-rhs-load'");
   if (!isPreRealizedMAccAccumulatorRole(body.getAccumulatorRole()))
     return makeRVVPluginError(
         "pre-realized RVV selected macc body currently supports only "
@@ -2407,10 +2447,12 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
           support::RuntimeABIParameterRole::LHSInputBuffer);
   if (!lhs)
     return lhs.takeError();
+  support::RuntimeABIParameterRole rhsRole =
+      scalarBroadcastMAcc ? support::RuntimeABIParameterRole::RHSScalarValue
+                          : support::RuntimeABIParameterRole::RHSInputBuffer;
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedRuntimeABIValue(
-          body.getRhs(), "pre-realized RVV macc rhs operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
+          body.getRhs(), "pre-realized RVV macc rhs operand", rhsRole);
   if (!rhs)
     return rhs.takeError();
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
@@ -5685,7 +5727,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
   if (!isPreRealizedMAccOpKind(opKind))
     return makeRVVPluginError(
         "pre-realized RVV selected-body macc realization supports only "
-        "op_kind 'macc_add'");
+        "op_kind 'macc_add' or 'scalar_broadcast_macc_add'");
 
   mlir::OperationState state(loc, "tcrv_rvv.macc");
   state.addOperands({lhs, rhs, accumulator, vl});
@@ -6799,9 +6841,9 @@ realizePreRealizedRVVRouteEntrySelectedBody(
   if (!isPreRealizedRVVRouteEntrySelectedBodyOp(*bodyOp))
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
-        "pre-realized elementwise/compare-select or base memory movement "
-        "tcrv_rvv bodies; selected body belongs to another RVV realization "
-        "family");
+        "pre-realized elementwise/compare-select, base memory movement, or "
+        "scalar-broadcast macc tcrv_rvv bodies; selected body belongs to "
+        "another RVV realization family");
 
   return realizePreRealizedRVVSelectedBody(request);
 }
@@ -7621,8 +7663,27 @@ realizePreRealizedRVVSelectedBody(
     mlir::Location loc = maccBody->getLoc();
     builder.setInsertionPoint(maccBody.getOperation());
 
+    bool scalarBroadcastMAcc = isPreRealizedScalarBroadcastMAccBody(
+        maccBody.getOpKind(), maccBody.getMemoryForm());
+    std::optional<RVVRuntimeAVLVLControlPlan> runtimeControlPlan;
+    if (scalarBroadcastMAcc) {
+      llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
+          deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+              variant, maccBody.getN(), tcrv::rvv::getRVVFirstSliceSEWBits(),
+              tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy(),
+              "lhs,rhs_scalar,acc,out,n",
+              "pre-realized RVV scalar-broadcast macc selected-body "
+              "realization");
+      if (!plan)
+        return plan.takeError();
+      runtimeControlPlan = *plan;
+    }
+
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, maccBody.getN(),
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan
+                                ? runtimeControlPlan->runtimeAVLValue
+                                : maccBody.getN(),
                             tcrv::rvv::getRVVFirstSliceSEWBits(),
                             tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy()));
     tcrv::rvv::WithVLOp withVL =
@@ -7636,16 +7697,28 @@ realizePreRealizedRVVSelectedBody(
     auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, maccBody.getLhs(), setvl.getVl(),
         tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
-    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maccBody.getRhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    mlir::Value rhsValue;
+    if (scalarBroadcastMAcc) {
+      auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+          createRealizedGenericSplat(builder, loc, maccBody.getRhs(),
+                                     setvl.getVl(),
+                                     tcrv::rvv::getRVVFirstSliceSEWBits(),
+                                     tcrv::rvv::getRVVLMULM1()));
+      rhsValue = rhsSplat.getBroadcast();
+    } else {
+      auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+          builder, loc, maccBody.getRhs(), setvl.getVl(),
+          tcrv::rvv::getRVVFirstSliceSEWBits(),
+          tcrv::rvv::getRVVLMULM1()));
+      rhsValue = rhsLoad.getLoaded();
+    }
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, maccBody.getAcc(), setvl.getVl(),
             tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     llvm::Expected<mlir::Operation *> compute = createRealizedGenericMAccCompute(
         builder, loc, maccBody.getOpKind(), maccBody.getAccumulatorLayout(),
-        maccBody.getResultLayout(), lhsLoad.getLoaded(), rhsLoad.getLoaded(),
+        maccBody.getResultLayout(), lhsLoad.getLoaded(), rhsValue,
         accumulatorLoad.getLoaded(), setvl.getVl());
     if (!compute)
       return compute.takeError();

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide RVV-first authority chain, Stage 2 selected-body realization scope, and no legacy i32/source-front-door authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization, route-entry bridge, provider route, runtime AVL/VL, artifacts, and mirror-only metadata rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute materialization contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck, generated-bundle, artifact mirror, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Implementation checklist for keeping selected-body realization semantics inside the RVV plugin."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Implementation checklist for keeping this work at low-level RVV execution body level rather than high-level compute IR."}

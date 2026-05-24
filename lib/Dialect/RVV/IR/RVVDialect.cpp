@@ -901,7 +901,7 @@ bool isSupportedTypedStandaloneReducePreRealizedResultLayout(
 }
 
 bool isSupportedTypedMAccPreRealizedBodyOpKind(llvm::StringRef opKind) {
-  return opKind == "macc_add";
+  return opKind == "macc_add" || opKind == "scalar_broadcast_macc_add";
 }
 
 bool isSupportedTypedComputedMaskMAccPreRealizedBodyOpKind(
@@ -915,7 +915,14 @@ bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyOpKind(
 }
 
 bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
-  return memoryForm == "vector-rhs-load";
+  return memoryForm == "vector-rhs-load" ||
+         memoryForm == "rhs-scalar-broadcast-macc";
+}
+
+bool isTypedMAccPreRealizedScalarBroadcast(llvm::StringRef opKind,
+                                           llvm::StringRef memoryForm) {
+  return opKind == "scalar_broadcast_macc_add" ||
+         memoryForm == "rhs-scalar-broadcast-macc";
 }
 
 bool isSupportedTypedComputedMaskMAccPreRealizedMemoryForm(
@@ -4329,12 +4336,27 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
 
   if (!isSupportedTypedMAccPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
-           << "currently supports only op_kind \"macc_add\" for the "
-              "bounded selected-body macc realization hook";
+           << "currently supports only op_kind \"macc_add\" or "
+              "\"scalar_broadcast_macc_add\" for the bounded selected-body "
+              "macc realization hook";
   if (!isSupportedTypedMAccPreRealizedMemoryForm(getMemoryForm()))
     return emitOpError()
-           << "currently supports only memory_form \"vector-rhs-load\" for "
-              "the bounded selected-body macc realization hook";
+           << "currently supports only memory_form \"vector-rhs-load\" or "
+              "\"rhs-scalar-broadcast-macc\" for the bounded selected-body "
+              "macc realization hook";
+  bool scalarBroadcastMAcc =
+      isTypedMAccPreRealizedScalarBroadcast(getOpKind(), getMemoryForm());
+  if (scalarBroadcastMAcc &&
+      (getOpKind() != "scalar_broadcast_macc_add" ||
+       getMemoryForm() != "rhs-scalar-broadcast-macc"))
+    return emitOpError()
+           << "requires op_kind \"scalar_broadcast_macc_add\" to pair with "
+              "memory_form \"rhs-scalar-broadcast-macc\"";
+  if (!scalarBroadcastMAcc &&
+      (getOpKind() != "macc_add" || getMemoryForm() != "vector-rhs-load"))
+    return emitOpError()
+           << "requires op_kind \"macc_add\" to pair with memory_form "
+              "\"vector-rhs-load\"";
   if (!isSupportedTypedMAccPreRealizedAccumulatorRole(getAccumulatorRole()))
     return emitOpError()
            << "currently supports only accumulator_role "
@@ -4366,10 +4388,17 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
           op, getLhs(), "lhs",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
-  if (mlir::failed(verifyRuntimeABIValueOperandRole(
-          op, getRhs(), "rhs",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
-    return mlir::failure();
+  if (scalarBroadcastMAcc) {
+    if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+            op, getRhs(), "rhs scalar",
+            {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+      return mlir::failure();
+  } else {
+    if (mlir::failed(verifyRuntimeABIValueOperandRole(
+            op, getRhs(), "rhs",
+            {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+      return mlir::failure();
+  }
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getAcc(), "accumulator",
           {tianchenrv::support::RuntimeABIParameterRole::
@@ -4387,10 +4416,12 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
     return emitOpError()
            << "requires lhs operand C type 'const int32_t *' to match typed "
               "macc source dtype";
-  if (!rhsBinding || rhsBinding.getCType() != "const int32_t *")
-    return emitOpError()
-           << "requires rhs operand C type 'const int32_t *' to match typed "
-              "macc source dtype";
+  llvm::StringRef expectedRHSCType =
+      scalarBroadcastMAcc ? "int32_t" : "const int32_t *";
+  if (!rhsBinding || rhsBinding.getCType() != expectedRHSCType)
+    return emitOpError() << "requires rhs operand C type '"
+                         << expectedRHSCType
+                         << "' to match typed macc source dtype";
   if (!accBinding || accBinding.getCType() != "const int32_t *")
     return emitOpError()
            << "requires accumulator operand C type 'const int32_t *' to match "
