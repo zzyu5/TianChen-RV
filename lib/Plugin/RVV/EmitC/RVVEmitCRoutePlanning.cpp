@@ -24392,6 +24392,149 @@ llvm::Error addRVVBaseMemoryMovementStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
+  default:
+    return false;
+  }
+}
+
+llvm::Error requireRVVComputedMaskMemoryStatementPlanLeaf(
+    llvm::StringRef leaf, const llvm::Twine &leafName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!leaf.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " computed-mask memory statement plan requires " + leafName +
+      " before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Error requireRVVComputedMaskMemoryStatementPlanABI(
+    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (parameter)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " computed-mask memory statement plan requires bound ABI operand '" +
+      logicalName + "' before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
+getRVVComputedMaskMemoryStatementPlanSourceProvenance(
+    mlir::Operation *op, llvm::StringRef expectedRole,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires a materialized " +
+        expectedRole + " role op before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "', memory_form '" +
+        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+  if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
+    return std::move(error);
+
+  auto lowerable =
+      llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
+  if (!lowerable)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" +
+        op->getName().getStringRef() + "' must implement " +
+        kRVVStatementPlanEmitCLowerableOpInterfaceName +
+        " before RVV computed-mask memory statement-plan construction");
+
+  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+  if (sourceRole != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" +
+        op->getName().getStringRef() + "' reports EmitC source role '" +
+        sourceRole + "' but RVV computed-mask memory statement plan expected '" +
+        expectedRole + "'");
+
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
+  source.role = sourceRole.str();
+  source.opInterface = kRVVStatementPlanEmitCLowerableOpInterfaceName.str();
+  return source;
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep>
+makeRVVComputedMaskMemoryStatementPlanStep(
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+          callee, llvm::Twine(expectedRole) + " callee", description, context))
+    return std::move(error);
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVComputedMaskMemoryStatementPlanSourceProvenance(
+          op, expectedRole, description, context);
+  if (!source)
+    return source.takeError();
+
+  conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = std::move(*source);
+  step.callee = callee.str();
+  step.operands.append(operands.begin(), operands.end());
+  step.result = std::move(result);
+  return step;
+}
+
+llvm::Error addRVVComputedMaskMemoryStatementPlanLoopStep(
+    RVVSelectedBodyComputedMaskMemoryRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeRVVComputedMaskMemoryStatementPlanStep(
+          op, expectedRole, callee, operands, description, context,
+          std::move(result));
+  if (!step)
+    return step.takeError();
+  plan.loop.bodySteps.push_back(std::move(*step));
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
@@ -25736,6 +25879,486 @@ getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
       " base memory movement statement plan has no statement sequence for "
       "operation '" +
       stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+}
+
+llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
+getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context) {
+  RVVSelectedBodyRouteSlice &slice = analysis.slice;
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyComputedMaskMemoryRouteStatementPlan plan;
+  if (!isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(description))
+    return plan;
+
+  const bool isRuntimeScalarStore =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
+  const bool isRuntimeScalarLoadStore =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  const bool isRuntimeScalar =
+      isRuntimeScalarStore || isRuntimeScalarLoadStore;
+  const bool isUnitLoadStore =
+      description.operation == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+  const bool isStridedStore =
+      description.operation == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+  const bool isStridedLoad =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
+  const bool isIndexedGather =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+  const bool isIndexedScatter =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isLoadMerge =
+      isRuntimeScalarLoadStore || isUnitLoadStore || isStridedLoad ||
+      isIndexedGather;
+  const bool isStoreOnly =
+      isRuntimeScalarStore || isStridedStore || isIndexedScatter;
+
+  plan.plansComputedMaskMemoryRoute = true;
+  plan.plansRuntimeScalarComputedMaskStore = isRuntimeScalarStore;
+  plan.plansRuntimeScalarComputedMaskLoadStore = isRuntimeScalarLoadStore;
+  plan.plansComputedMaskUnitLoadStore = isUnitLoadStore;
+  plan.plansComputedMaskStridedStore = isStridedStore;
+  plan.plansComputedMaskStridedLoadUnitStore = isStridedLoad;
+  plan.plansComputedMaskIndexedGatherLoadUnitStore = isIndexedGather;
+  plan.plansComputedMaskIndexedScatterStoreUnitLoad = isIndexedScatter;
+  plan.computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
+
+  if (!materializationFacts.computedMaskMemoryPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires the verified "
+        "computed-mask memory route-family plan before route statement "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+      *materializationFacts.computedMaskMemoryPlan;
+  if (computedPlan.operation != description.operation ||
+      computedPlan.memoryForm != description.memoryForm ||
+      computedPlan.usesRuntimeScalarProducer != isRuntimeScalar ||
+      computedPlan.usesVectorCompareProducer != !isRuntimeScalar ||
+      computedPlan.usesStoreOnly != isStoreOnly ||
+      computedPlan.usesLoadMerge != isLoadMerge ||
+      computedPlan.usesIndexedGather != isIndexedGather ||
+      computedPlan.usesIndexedScatter != isIndexedScatter ||
+      computedPlan.usesSegment2Load || computedPlan.usesSegment2Store)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires the verified route "
+        "family plan classification to match the selected non-segment "
+        "computed-mask memory operation before route statement construction");
+  if (!memoryOperandBindingFacts.bindsComputedMaskMemory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires computed-mask memory "
+        "operand-binding facts before route statement construction");
+  if (isRuntimeScalar &&
+      !memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires runtime-scalar "
+        "computed-mask memory operand-binding facts before route statement "
+        "construction");
+  if (memoryOperandBindingFacts.bindsSegment2Memory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan excludes segment2 memory "
+        "operand-binding facts in this round");
+
+  const support::RuntimeABIParameter *compareLhsABI =
+      memoryOperandBindingFacts.compareLhsABI;
+  const support::RuntimeABIParameter *compareRhsABI =
+      memoryOperandBindingFacts.compareRhsABI;
+  const support::RuntimeABIParameter *rhsScalarABI =
+      memoryOperandBindingFacts.rhsScalarABI;
+  const support::RuntimeABIParameter *sourceABI =
+      memoryOperandBindingFacts.sourceABI;
+  const support::RuntimeABIParameter *destinationABI =
+      memoryOperandBindingFacts.destinationABI;
+  const support::RuntimeABIParameter *indexABI =
+      memoryOperandBindingFacts.indexABI;
+  const support::RuntimeABIParameter *runtimeElementCountABI =
+      memoryOperandBindingFacts.runtimeElementCountABI;
+  const support::RuntimeABIParameter *sourceStrideABI =
+      memoryOperandBindingFacts.sourceStrideABI;
+  const support::RuntimeABIParameter *destinationStrideABI =
+      memoryOperandBindingFacts.destinationStrideABI;
+
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+          compareLhsABI, "cmp_lhs", description, context))
+    return std::move(error);
+  if (isRuntimeScalar) {
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+            rhsScalarABI, "rhs_scalar", description, context))
+      return std::move(error);
+  } else if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+                 compareRhsABI, "cmp_rhs", description, context)) {
+    return std::move(error);
+  }
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+          sourceABI, "src", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+          destinationABI, isIndexedScatter || isStridedStore ? "dst" : "out",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+          runtimeElementCountABI, "n", description, context))
+    return std::move(error);
+  if (isStridedLoad)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+            sourceStrideABI, "src_stride_bytes", description, context))
+      return std::move(error);
+  if (isStridedStore)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+            destinationStrideABI, "dst_stride_bytes", description, context))
+      return std::move(error);
+  if (isIndexed)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+            indexABI, "index", description, context))
+      return std::move(error);
+
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+          computedPlan.setVLIntrinsic, "setvl callee", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+          computedPlan.vectorLoadIntrinsic, "vector load callee", description,
+          context))
+    return std::move(error);
+  if (isRuntimeScalar)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.rhsScalarSplatIntrinsic, "rhs scalar splat callee",
+            description, context))
+      return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+          computedPlan.compareIntrinsic, "compare callee", description, context))
+    return std::move(error);
+  if (isLoadMerge)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.maskedLoadIntrinsic, "masked load callee", description,
+            context))
+      return std::move(error);
+  if (isRuntimeScalarStore || isLoadMerge)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.maskedStoreIntrinsic, "store callee", description,
+            context))
+      return std::move(error);
+  if (isStridedStore)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.stridedStoreIntrinsic, "strided store callee",
+            description, context))
+      return std::move(error);
+  if (isIndexed) {
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.indexLoadIntrinsic, "index load callee", description,
+            context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.indexScaleIntrinsic, "index scale callee", description,
+            context))
+      return std::move(error);
+  }
+  if (isIndexedScatter)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.indexedStoreIntrinsic, "indexed store callee",
+            description, context))
+      return std::move(error);
+
+  using conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  using conversion::emitc::TCRVEmitCCallOpaqueResult;
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
+      makeRVVComputedMaskMemoryStatementPlanStep(
+          slice.setvl.getOperation(), "configure", computedPlan.setVLIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{runtimeElementCountABI->cName,
+                                      runtimeElementCountABI->cType}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              description.emitCFullChunkVLName.str(),
+              materializationFacts.vlCType.str()});
+  if (!fullChunkSetVL)
+    return fullChunkSetVL.takeError();
+  plan.preLoopSteps.push_back(std::move(*fullChunkSetVL));
+
+  llvm::StringRef inductionName = description.emitCLoopInductionName;
+  llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
+  llvm::StringRef loopVLName = description.emitCLoopVLName;
+  plan.loop.inductionVarName = inductionName.str();
+  plan.loop.lowerBound =
+      TCRVEmitCCallOpaqueOperand{"0", materializationFacts.vlCType.str()};
+  plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
+      runtimeElementCountABI->cName, runtimeElementCountABI->cType};
+  plan.loop.step = TCRVEmitCCallOpaqueOperand{
+      fullChunkVLName.str(), materializationFacts.vlCType.str()};
+
+  if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+          plan, slice.setvl.getOperation(), "configure",
+          computedPlan.setVLIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+              tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
+                  runtimeElementCountABI->cName, inductionName),
+              materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{loopVLName.str(),
+                                    materializationFacts.vlCType.str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+          plan, slice.lhsLoadOperation, "load", computedPlan.vectorLoadIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(compareLhsABI->cName) + " + " + inductionName)
+                   .str(),
+               compareLhsABI->cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              "lhs_vec", materializationFacts.resultVectorCType.str()}))
+    return std::move(error);
+
+  if (isIndexed) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.indexLoadOperation, "load",
+            computedPlan.indexLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(indexABI->cName) + " + " + inductionName)
+                     .str(),
+                 indexABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"index_vec",
+                                      computedPlan.indexVectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan,
+            isIndexedScatter ? slice.maskedIndexedStoreOperation
+                             : slice.maskedIndexedLoadOperation,
+            isIndexedScatter ? "store" : "load",
+            computedPlan.indexScaleIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"index_vec",
+                                        computedPlan.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"4", "uint32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"byte_offsets",
+                                      computedPlan.indexVectorCType.str()}))
+      return std::move(error);
+  }
+
+  if (isRuntimeScalar) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.rhsLoadOperation, "load",
+            computedPlan.rhsScalarSplatIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{rhsScalarABI->cName,
+                                        rhsScalarABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "rhs_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  } else if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+                 plan, slice.rhsLoadOperation, "load",
+                 computedPlan.vectorLoadIntrinsic,
+                 {TCRVEmitCCallOpaqueOperand{
+                      (llvm::StringRef(compareRhsABI->cName) + " + " +
+                       inductionName)
+                          .str(),
+                      compareRhsABI->cType},
+                  TCRVEmitCCallOpaqueOperand{
+                      loopVLName.str(), materializationFacts.vlCType.str()}},
+                 description, context,
+                 TCRVEmitCCallOpaqueResult{
+                     "rhs_vec", materializationFacts.resultVectorCType.str()})) {
+    return std::move(error);
+  }
+
+  if (isStoreOnly) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.sourceLoadOperation, "load",
+            computedPlan.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(sourceABI->cName) + " + " + inductionName)
+                     .str(),
+                 sourceABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "source_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  } else if (isLoadMerge) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.accumulatorLoadOperation, "load",
+            computedPlan.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(destinationABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "old_dst_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  }
+
+  if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+          plan, slice.compareOp.getOperation(), "compute",
+          computedPlan.compareIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{
+               "lhs_vec", materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{
+               "rhs_vec", materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                    materializationFacts.maskCType.str()}))
+    return std::move(error);
+
+  if (isIndexedGather) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.maskedIndexedLoadOperation, "load",
+            computedPlan.maskedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "old_dst_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{sourceABI->cName, sourceABI->cType},
+             TCRVEmitCCallOpaqueOperand{"byte_offsets",
+                                        computedPlan.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                description.resultName.str(),
+                materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  } else if (isStridedLoad) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.maskedStridedLoadOperation, "load",
+            computedPlan.maskedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "old_dst_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 ("(const int32_t *)((const uint8_t *)" +
+                  llvm::StringRef(sourceABI->cName) + " + (" + inductionName +
+                  " * " + sourceStrideABI->cName + "))")
+                     .str(),
+                 sourceABI->cType},
+             TCRVEmitCCallOpaqueOperand{sourceStrideABI->cName, "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                description.resultName.str(),
+                materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  } else if (isLoadMerge) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.maskedLoadOperation, "load",
+            computedPlan.maskedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "old_dst_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(sourceABI->cName) + " + " + inductionName)
+                     .str(),
+                 sourceABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                description.resultName.str(),
+                materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  }
+
+  if (isStridedStore) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.storeOperation, "store",
+            computedPlan.stridedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 ("(int32_t *)((uint8_t *)" +
+                  llvm::StringRef(destinationABI->cName) + " + (" +
+                  inductionName + " * " + destinationStrideABI->cName + "))")
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{destinationStrideABI->cName,
+                                        "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{
+                 "source_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context))
+      return std::move(error);
+  } else if (isIndexedScatter) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.maskedIndexedStoreOperation, "store",
+            computedPlan.indexedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{destinationABI->cName,
+                                        destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{"byte_offsets",
+                                        computedPlan.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "source_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context))
+      return std::move(error);
+  } else if (isRuntimeScalarStore) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.storeOperation, "store", computedPlan.maskedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(destinationABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{
+                 "source_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context))
+      return std::move(error);
+  } else if (isLoadMerge) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.storeOperation, "store", computedPlan.maskedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(destinationABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{
+                 description.resultName.str(),
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context))
+      return std::move(error);
+  }
+
+  return plan;
 }
 
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(

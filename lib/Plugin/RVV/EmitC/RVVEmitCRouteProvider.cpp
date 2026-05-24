@@ -134,6 +134,21 @@ bool isRVVSelectedBodyComputedMaskIndexedScatterStoreRoute(
                    ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
+bool isRVVSelectedBodyComputedMaskMemoryStatementPlanRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+         op ==
+             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
+         op ==
+             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad;
+}
+
 bool isRVVSelectedBodySegmentedMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore ||
@@ -417,6 +432,31 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return makeRVVEmitCRouteProviderError(
         "selected RVV base memory movement provider requires the RVV-owned "
         "base memory movement statement plan before generic provider-local "
+        "statement assembly");
+
+  llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
+      computedMaskMemoryStatementPlanOrError =
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              analysis, materializationFacts, memoryOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!computedMaskMemoryStatementPlanOrError)
+    return computedMaskMemoryStatementPlanOrError.takeError();
+  RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+      computedMaskMemoryStatementPlan =
+          std::move(*computedMaskMemoryStatementPlanOrError);
+  if (computedMaskMemoryStatementPlan.plansComputedMaskMemoryRoute) {
+    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         computedMaskMemoryStatementPlan.preLoopSteps)
+      route.addCallOpaqueStep(std::move(step));
+    route.addForLoop(std::move(computedMaskMemoryStatementPlan.loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
+  if (isRVVSelectedBodyComputedMaskMemoryStatementPlanRoute(
+          description.operation))
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV computed-mask memory provider requires the RVV-owned "
+        "computed-mask memory statement plan before generic provider-local "
         "statement assembly");
 
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;

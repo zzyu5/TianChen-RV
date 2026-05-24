@@ -991,7 +991,11 @@ Added the RVV-owned elementwise arithmetic statement-plan boundary, rewired the 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit/FileCheck filter for computed-mask memory and selected-boundary fixtures, 22/22 passed
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 363/363 lit tests passed
 
 ### Status
 
@@ -1021,6 +1025,46 @@ Added RVV-owned compare/select statement plans, rewired provider consumption wit
 | Hash | Message |
 |------|---------|
 | `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 189: Stage2 RVV computed-mask memory statement-plan ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV computed-mask memory statement-plan ownership
+**Branch**: `main`
+
+### Summary
+
+Added an RVV-owned computed-mask memory statement-plan boundary, rewired the selected-body provider to consume it for non-segment computed-mask memory routes, updated plugin spec, and validated focused plus full TianChen-RV checks.
+
+### Main Changes
+
+- Added `RVVSelectedBodyComputedMaskMemoryRouteStatementPlan` and `getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(...)` for non-segment computed-mask memory routes.
+- Rewired `RVVEmitCRouteProvider` to attach the RVV-owned computed-mask memory plan before generic provider-local statement assembly.
+- Covered runtime-scalar computed-mask store/load-store, unit load/store, strided store, strided load/unit-store, indexed gather/unit-store, and indexed scatter/unit-load in C++ provider tests.
+- Added fail-closed coverage for a missing computed-mask memory statement-plan dependency and empty-plan coverage for excluded segment2 computed-mask memory.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the durable computed-mask memory statement-plan contract.
+- Checks: focused C++ build/test passed; focused lit filter passed 22 tests; `git diff --check` passed; `check-tianchenrv` passed 363/363 lit tests.
+- Note: this session record was written before the final manual commit so the repository can keep this task as one coherent commit; the final hash is reported in the session close-out.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
 
 ### Testing
 

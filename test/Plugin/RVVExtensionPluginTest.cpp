@@ -3769,8 +3769,14 @@ module {
 
 int runComputedMaskMemoryRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyComputedMaskMemoryRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
@@ -3787,6 +3793,8 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
       getRVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
@@ -3872,9 +3880,9 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @runtime_scalar_masked_store_provider_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_runtime_scalar_masked_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>} {
+	  tcrv.exec.kernel @runtime_scalar_masked_store_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_runtime_scalar_masked_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -3888,12 +3896,72 @@ module {
         %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
         tcrv_rvv.masked_store %dst, %mask, %src_vec, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", memory_form = "masked-unit-store"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
-    }
-  }
+	    }
+	  }
 
-  tcrv.exec.kernel @computed_masked_strided_load_provider_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_computed_masked_strided_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+	  tcrv.exec.kernel @runtime_scalar_masked_load_store_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_runtime_scalar_masked_load_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+	      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+	      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+	      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+	      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_scalar_masked_load_store, sew = 32 : i64, source_kernel = "runtime_scalar_masked_load_store_provider_kernel", status = "selected-lowering-boundary"} {
+	        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %old = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+	        %loaded = tcrv_rvv.masked_load %src, %mask, %old, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", memory_form = "masked-unit-load"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+	      } : !tcrv_rvv.vl
+	    }
+	  }
+
+	  tcrv.exec.kernel @computed_masked_unit_load_store_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_computed_masked_unit_load_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+	      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+	      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+	      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_computed_masked_unit_load_store, sew = 32 : i64, source_kernel = "computed_masked_unit_load_store_provider_kernel", status = "selected-lowering-boundary"} {
+	        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %old = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+	        %loaded = tcrv_rvv.masked_load %src, %mask, %old, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", memory_form = "masked-unit-load"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+	      } : !tcrv_rvv.vl
+	    }
+	  }
+
+	  tcrv.exec.kernel @computed_masked_strided_store_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_computed_masked_strided_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+	      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+	      %dst_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "dst_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "destination-byte-stride"} : index
+	      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+	      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_computed_masked_strided_store, sew = 32 : i64, source_kernel = "computed_masked_strided_store_provider_kernel", status = "selected-lowering-boundary"} {
+	        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %src_vec = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+	        tcrv_rvv.masked_strided_store %dst, %mask, %src_vec, %dst_stride_bytes, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", memory_form = "masked-strided-store", stride_unit = "byte"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, index, !tcrv_rvv.vl
+	      } : !tcrv_rvv.vl
+	    }
+	  }
+
+	  tcrv.exec.kernel @computed_masked_strided_load_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_computed_masked_strided_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -3931,12 +3999,33 @@ module {
         %loaded = tcrv_rvv.masked_indexed_load %src, %indices, %mask, %old_dst, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", index_eew = 32 : i64, memory_form = "masked-indexed-load", offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
-    }
-  }
+	    }
+	  }
 
-  tcrv.exec.kernel @computed_masked_segment2_load_provider_kernel {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_computed_masked_segment2_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+	  tcrv.exec.kernel @computed_masked_indexed_scatter_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_computed_masked_indexed_scatter attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+	      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+	      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+	      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+	      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_computed_masked_indexed_scatter, sew = 32 : i64, source_kernel = "computed_masked_indexed_scatter_provider_kernel", status = "selected-lowering-boundary"} {
+	        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %payload = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+	        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.index_vector<i32, "m1">
+	        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+	        tcrv_rvv.masked_indexed_store %dst, %indices, %mask, %payload, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", index_eew = 32 : i64, index_uniqueness = "unique", memory_form = "masked-indexed-store", offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+	      } : !tcrv_rvv.vl
+	    }
+	  }
+
+	  tcrv.exec.kernel @computed_masked_segment2_load_provider_kernel {
+	    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+	    tcrv.exec.variant @rvv_computed_masked_segment2_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -3962,6 +4051,121 @@ module {
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return fail("failed to parse computed-mask memory provider test module");
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for computed-mask memory statement plan test"))
+    return result;
+
+  auto expectComputedMaskMemoryStatementPlan =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef kernelName,
+          llvm::StringRef variantName, bool runtimeScalarStore,
+          bool runtimeScalarLoadStore, bool unitLoadStore, bool stridedStore,
+          bool stridedLoad, bool indexedGather, bool indexedScatter,
+          std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                analysis,
+                "computed-mask memory statement plan provider unit test"),
+            "verify route-family plans before computed-mask memory "
+            "statement-plan construction"))
+      return result;
+
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, "computed-mask memory statement plan provider unit test");
+    if (!materializationFacts)
+      return fail("computed-mask memory statement-plan materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto memoryFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+        analysis, "computed-mask memory statement plan provider unit test");
+    if (!memoryFacts)
+      return fail("computed-mask memory statement-plan memory facts: " +
+                  llvm::toString(memoryFacts.takeError()));
+
+    llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
+        statementPlan =
+            getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+                analysis, *materializationFacts, *memoryFacts,
+                "computed-mask memory statement plan provider unit test");
+    if (!statementPlan)
+      return fail("computed-mask memory statement-plan construction: " +
+                  llvm::toString(statementPlan.takeError()));
+    if (int result = expect(
+            statementPlan->plansComputedMaskMemoryRoute &&
+                statementPlan->plansRuntimeScalarComputedMaskStore ==
+                    runtimeScalarStore &&
+                statementPlan->plansRuntimeScalarComputedMaskLoadStore ==
+                    runtimeScalarLoadStore &&
+                statementPlan->plansComputedMaskUnitLoadStore == unitLoadStore &&
+                statementPlan->plansComputedMaskStridedStore == stridedStore &&
+                statementPlan->plansComputedMaskStridedLoadUnitStore ==
+                    stridedLoad &&
+                statementPlan->plansComputedMaskIndexedGatherLoadUnitStore ==
+                    indexedGather &&
+                statementPlan
+                        ->plansComputedMaskIndexedScatterStoreUnitLoad ==
+                    indexedScatter,
+            "statement plan exposes the expected computed-mask memory "
+            "sub-family flags"))
+      return result;
+    if (int result = expect(
+            statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    "__riscv_vsetvl_e32m1",
+            "computed-mask memory statement plan owns the full-chunk setvl "
+            "call before the loop"))
+      return result;
+    if (int result =
+            expect(statementPlan->loop.bodySteps.size() ==
+                       expectedBodyCallees.size(),
+                   "computed-mask memory statement plan owns the expected "
+                   "loop step count"))
+      return result;
+    unsigned index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee == expected,
+              llvm::Twine("computed-mask memory statement plan loop step ") +
+                  llvm::Twine(index) + " uses RVV-owned callee '" + expected +
+                  "'"))
+        return result;
+      ++index;
+    }
+
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                    VariantEmissionRole::DirectVariant),
+                route),
+            "provider consumes computed-mask memory statement plan"))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    "__riscv_vsetvl_e32m1" &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "provider route attaches the RVV-owned computed-mask memory "
+            "statement-plan steps"))
+      return result;
+    index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee == expected,
+              llvm::Twine("provider computed-mask memory route loop step ") +
+                  llvm::Twine(index) + " matches statement-plan callee '" +
+                  expected + "'"))
+        return result;
+      ++index;
+    }
+    return 0;
+  };
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarAnalysis =
       analyzeRouteInModule(*module, "runtime_scalar_masked_store_provider_kernel",
@@ -4008,6 +4212,70 @@ module {
               runtimeScalarBindingFacts->runtimeElementCountABI->cName == "n",
           "runtime-scalar computed-mask memory binding facts expose compare, "
           "scalar, payload, destination, and runtime operands"))
+    return result;
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *runtimeScalarAnalysis, "runtime_scalar_masked_store_provider_kernel",
+          "rvv_runtime_scalar_masked_store", true, false, false, false, false,
+          false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmsle_vv_i32m1_b32", "__riscv_vse32_v_i32m1_m"}))
+    return result;
+
+  auto runtimeScalarMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeScalarAnalysis,
+          "computed-mask memory statement plan missing dependency test");
+  if (!runtimeScalarMaterializationFacts)
+    return fail("runtime-scalar computed-mask materialization facts: " +
+                llvm::toString(runtimeScalarMaterializationFacts.takeError()));
+  runtimeScalarMaterializationFacts->computedMaskMemoryPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarBindingFacts,
+              "computed-mask memory statement plan missing dependency test")
+              .takeError(),
+          {"computed-mask memory statement plan requires the verified "
+           "computed-mask memory route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarLoadStoreAnalysis =
+      analyzeRouteInModule(*module,
+                           "runtime_scalar_masked_load_store_provider_kernel",
+                           "rvv_runtime_scalar_masked_load_store");
+  if (!runtimeScalarLoadStoreAnalysis)
+    return fail(
+        "analyze runtime-scalar computed-mask load-store provider route: " +
+        llvm::toString(runtimeScalarLoadStoreAnalysis.takeError()));
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *runtimeScalarLoadStoreAnalysis,
+          "runtime_scalar_masked_load_store_provider_kernel",
+          "rvv_runtime_scalar_masked_load_store", false, true, false, false,
+          false, false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmsle_vv_i32m1_b32", "__riscv_vle32_v_i32m1_tumu",
+           "__riscv_vse32_v_i32m1"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> unitLoadStoreAnalysis =
+      analyzeRouteInModule(*module,
+                           "computed_masked_unit_load_store_provider_kernel",
+                           "rvv_computed_masked_unit_load_store");
+  if (!unitLoadStoreAnalysis)
+    return fail("analyze computed-mask unit load-store provider route: " +
+                llvm::toString(unitLoadStoreAnalysis.takeError()));
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *unitLoadStoreAnalysis,
+          "computed_masked_unit_load_store_provider_kernel",
+          "rvv_computed_masked_unit_load_store", false, false, true, false,
+          false, false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmslt_vv_i32m1_b32", "__riscv_vle32_v_i32m1_tumu",
+           "__riscv_vse32_v_i32m1"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleMissingUse = *runtimeScalarAnalysis;
@@ -4086,9 +4354,24 @@ module {
           {"route operand binding mirror summary", "stale"}))
     return result;
 
-  llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedAnalysis =
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedStoreAnalysis =
       analyzeRouteInModule(*module,
-                           "computed_masked_strided_load_provider_kernel",
+                           "computed_masked_strided_store_provider_kernel",
+                           "rvv_computed_masked_strided_store");
+  if (!stridedStoreAnalysis)
+    return fail("analyze strided-store computed-mask memory provider route: " +
+                llvm::toString(stridedStoreAnalysis.takeError()));
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *stridedStoreAnalysis, "computed_masked_strided_store_provider_kernel",
+          "rvv_computed_masked_strided_store", false, false, false, true,
+          false, false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmslt_vv_i32m1_b32", "__riscv_vsse32_v_i32m1_m"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedAnalysis =
+      analyzeRouteInModule(*module, "computed_masked_strided_load_provider_kernel",
                            "rvv_computed_masked_strided_load");
   if (!stridedAnalysis)
     return fail("analyze strided computed-mask memory provider route: " +
@@ -4129,6 +4412,15 @@ module {
               stridedBindingFacts->sourceStrideABI->cName == "src_stride_bytes",
           "computed-mask strided memory binding facts expose compare, source, "
           "destination, and stride operands"))
+    return result;
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *stridedAnalysis, "computed_masked_strided_load_provider_kernel",
+          "rvv_computed_masked_strided_load", false, false, false, false, true,
+          false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmslt_vv_i32m1_b32", "__riscv_vlse32_v_i32m1_tumu",
+           "__riscv_vse32_v_i32m1"}))
     return result;
 
   stale = *stridedAnalysis;
@@ -4188,6 +4480,16 @@ module {
           "computed-mask indexed memory binding facts expose source, index, "
           "and destination operands"))
     return result;
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *indexedAnalysis, "computed_masked_indexed_gather_provider_kernel",
+          "rvv_computed_masked_indexed_gather", false, false, false, false,
+          false, true, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_u32m1", "__riscv_vmul_vx_u32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmslt_vv_i32m1_b32", "__riscv_vluxei32_v_i32m1_tumu",
+           "__riscv_vse32_v_i32m1"}))
+    return result;
 
   stale = *indexedAnalysis;
   stale.description.offsetUnit = "byte";
@@ -4205,6 +4507,24 @@ module {
               stale, "computed-mask memory provider unit test"),
           {"computed-mask memory route-family route, runtime, type",
            "validated family plan"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> indexedScatterAnalysis =
+      analyzeRouteInModule(*module,
+                           "computed_masked_indexed_scatter_provider_kernel",
+                           "rvv_computed_masked_indexed_scatter");
+  if (!indexedScatterAnalysis)
+    return fail("analyze indexed scatter computed-mask memory provider route: " +
+                llvm::toString(indexedScatterAnalysis.takeError()));
+  if (int result = expectComputedMaskMemoryStatementPlan(
+          *indexedScatterAnalysis,
+          "computed_masked_indexed_scatter_provider_kernel",
+          "rvv_computed_masked_indexed_scatter", false, false, false, false,
+          false, false, true,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_u32m1", "__riscv_vmul_vx_u32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmslt_vv_i32m1_b32", "__riscv_vsoxei32_v_i32m1_m"}))
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> segmentAnalysis =
@@ -4248,6 +4568,25 @@ module {
               segmentBindingFacts->field1ABI->cName == "out1",
           "computed-mask segment2 memory binding facts expose compare, source, "
           "and field operands"))
+    return result;
+  auto segmentMaterializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *segmentAnalysis, "computed-mask memory segment2 exclusion unit test");
+  if (!segmentMaterializationFacts)
+    return fail("segment2 computed-mask materialization facts: " +
+                llvm::toString(segmentMaterializationFacts.takeError()));
+  auto segmentStatementPlan =
+      getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+          *segmentAnalysis, *segmentMaterializationFacts, *segmentBindingFacts,
+          "computed-mask memory segment2 exclusion unit test");
+  if (!segmentStatementPlan)
+    return fail("segment2 computed-mask statement-plan exclusion: " +
+                llvm::toString(segmentStatementPlan.takeError()));
+  if (int result = expect(
+          !segmentStatementPlan->plansComputedMaskMemoryRoute &&
+              segmentStatementPlan->preLoopSteps.empty() &&
+              segmentStatementPlan->loop.bodySteps.empty(),
+          "computed-mask segment2 remains excluded from this round's "
+          "computed-mask memory statement-plan boundary"))
     return result;
 
   stale = *segmentAnalysis;

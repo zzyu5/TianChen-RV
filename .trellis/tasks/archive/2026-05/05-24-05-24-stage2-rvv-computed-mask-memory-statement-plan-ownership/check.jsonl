@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the implementation preserves global architecture, Stage2 RVV scope, and red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-owned computed-mask memory statement planning, memory binding, and provider boundary compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider-built routes remain the only lowering authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check C++ and lit/FileCheck coverage, RVV evidence boundary, and no legacy route-authority drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-base-memory-statement-plan-ownership/prd.md", "reason": "Compare validation and provider-consumption acceptance against the immediately prior memory statement-plan task."}
