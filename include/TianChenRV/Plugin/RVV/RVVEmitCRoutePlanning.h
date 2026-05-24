@@ -884,6 +884,23 @@ struct RVVSelectedBodyElementwiseArithmeticRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyCompareSelectRouteStatementPlan {
+  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
+      *plainCompareSelectPlan = nullptr;
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
+      *computedMaskSelectPlan = nullptr;
+
+  bool plansCompareSelectRoute = false;
+  bool plansPlainCompareSelect = false;
+  bool plansComputedMaskSelect = false;
+  bool plansRuntimeScalarComputedMaskSelect = false;
+  bool plansRuntimeScalarDualCompareMaskAndSelect = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -1073,6 +1090,14 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
         &elementwiseSelectOperandBindingFacts,
     const RVVSelectedBodyResidualRouteOperandBindingFacts
         &residualOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
+getRVVSelectedBodyCompareSelectRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
     llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

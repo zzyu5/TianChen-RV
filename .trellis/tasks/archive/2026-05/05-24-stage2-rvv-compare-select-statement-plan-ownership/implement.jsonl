@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage authority chain, and source-of-truth constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed-body authority, route-family owner boundaries, materialization facts, operand-binding facts, and statement-plan ownership boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck evidence expectations for RVV provider changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-elementwise-arithmetic-statement-plan-ownership/prd.md", "reason": "Previous completed elementwise arithmetic statement-plan boundary and continuation pattern."}

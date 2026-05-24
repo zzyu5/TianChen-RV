@@ -942,6 +942,137 @@ verified route-family plans
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## Compare/Select Statement-Plan Boundary
+
+### 1. Scope / Trigger
+
+For mature selected-body compare/select routes, `RVVEmitCRouteProvider` must
+not locally recreate the route statement sequence from operation names, ABI
+strings, or memory-form branches after RVV-owned family plans,
+materialization facts, and operand-binding facts have been validated. The RVV
+planning layer must expose one RVV-owned statement-plan boundary for plain
+compare-select, computed-mask select, runtime-scalar computed-mask select, and
+runtime-scalar dual compare-mask-and-select where those routes are
+production-active.
+
+The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
+adds neutral headers, type mappings, ABI mappings, selected-boundary source
+provenance, and attaches the RVV-owned statement plan. It must not duplicate
+the included compare/select loop/setvl/load/splat/compare/mask-and/select/store
+sequence in the central provider path.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
+getRVVSelectedBodyCompareSelectRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this boundary after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining the
+elementwise/select operand-binding facts for the same analysis. Non-consumer
+route families receive an empty/default statement plan.
+
+### 3. Contracts
+
+`RVVSelectedBodyCompareSelectRouteStatementPlan` is RVV-local provider input.
+It may carry:
+
+- pointers to the verified plain compare-select and computed-mask select
+  family plans that justify the statement sequence;
+- sub-family booleans for plain compare-select, computed-mask select,
+  runtime-scalar computed-mask select, and runtime-scalar dual
+  compare-mask-and-select;
+- provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
+- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, load/splat steps,
+  compare and optional secondary-compare/mask-and steps, select/merge step,
+  and store step.
+
+The plan must be derived only from verified typed body/config/runtime facts,
+route materialization facts, and RVV-owned elementwise/select operand-binding
+facts. It is not a common EmitC fact, not artifact metadata, not an
+acceptance/status mirror, and not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A non compare/select route requests the boundary -> return an empty plan
+  without changing unrelated route-family behavior.
+- An included compare/select route has no matching verified plain
+  compare-select or computed-mask select family plan -> fail closed before
+  route statement construction.
+- An included route lacks the required elementwise/select operand-binding
+  facts -> fail closed before route statement construction.
+- Required ABI roles such as `lhs`, `rhs`, `cmp_lhs`, `cmp_rhs`,
+  `rhs_scalar`, `cmp_lhs_b`, `rhs_scalar_b`, `true_value`, `false_value`,
+  `out`, or runtime count are absent -> fail closed with the logical operand
+  name and operation/memory-form context.
+- Required materialization leaves such as `setvl`, vector load, runtime scalar
+  splat, compare, secondary compare, mask-and, select, or store are absent ->
+  fail closed before common EmitC.
+- Required source operation provenance for configure/load/compute/store steps
+  is absent or reports the wrong EmitC source role -> fail closed before common
+  EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed compare/select `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> elementwise/select operand-binding facts ->
+  RVV-owned statement plan -> provider-built route.
+- Base: memory, math, residual runtime scalar splat-store, and future
+  families keep their own statement construction surfaces and receive an empty
+  compare/select statement plan.
+- Bad: central provider code branches on `CmpSelect`,
+  `ComputedMaskSelect`, `RuntimeScalarCompareSelect`, or
+  `RuntimeScalarDualCompareMaskAndSelect` to rebuild the included
+  compare/select setvl/load/splat/compare/mask-and/select/store sequence after
+  the statement-plan boundary exists.
+
+### 6. Tests Required
+
+- C++ tests for positive statement-plan construction and provider consumption
+  for plain compare-select, computed-mask select, runtime-scalar computed-mask
+  select, and runtime-scalar dual compare-mask-and-select.
+- C++ fail-closed diagnostics for at least one missing or stale
+  statement-plan dependency before route statement construction.
+- C++ default/empty-plan coverage for unrelated route families.
+- Representative lit/FileCheck coverage proving existing explicit,
+  pre-realized, and selected-boundary compare/select artifacts still pass.
+- Bounded provider scan showing included compare/select statement sequence
+  construction is reached through the RVV-owned plan before the older generic
+  provider-local statement assembly path.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider body:
+  if operation is cmp_select/computed_mask_select/runtime_scalar_cmp_select,
+  locally assemble setvl/load/splat/compare/mask-and/select/store statements
+  from operation names, memory forms, and ABI strings
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyRouteMaterializationFacts
+  -> RVV-owned elementwise/select operand-binding facts
+  -> RVVSelectedBodyCompareSelectRouteStatementPlan
+  -> provider attaches plan into TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

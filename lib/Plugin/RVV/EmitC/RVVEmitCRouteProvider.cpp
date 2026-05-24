@@ -23,7 +23,9 @@ constexpr llvm::StringLiteral
 bool isRVVSelectedBodyCompareSelectRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::CmpSelect ||
          op == RVVSelectedBodyOperationKind::ComputedMaskSelect ||
-         op == RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+         op == RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarDualCompareMaskAndSelect;
 }
 
 bool isRVVSelectedBodyMaskedArithmeticRoute(RVVSelectedBodyOperationKind op) {
@@ -367,6 +369,30 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     out = std::move(route);
     return llvm::Error::success();
   }
+
+  llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
+      compareSelectStatementPlanOrError =
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              analysis, materializationFacts,
+              elementwiseSelectOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!compareSelectStatementPlanOrError)
+    return compareSelectStatementPlanOrError.takeError();
+  RVVSelectedBodyCompareSelectRouteStatementPlan compareSelectStatementPlan =
+      std::move(*compareSelectStatementPlanOrError);
+  if (compareSelectStatementPlan.plansCompareSelectRoute) {
+    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         compareSelectStatementPlan.preLoopSteps)
+      route.addCallOpaqueStep(std::move(step));
+    route.addForLoop(std::move(compareSelectStatementPlan.loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
+  if (isRVVSelectedBodyCompareSelectRoute(description.operation))
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV compare/select provider requires the RVV-owned "
+        "compare/select statement plan before generic provider-local "
+        "statement assembly");
 
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;

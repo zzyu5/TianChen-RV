@@ -1000,3 +1000,36 @@ Added the RVV-owned elementwise arithmetic statement-plan boundary, rewired the 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 188: Stage2 RVV compare/select statement-plan ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV compare/select statement-plan ownership
+**Branch**: `main`
+
+### Summary
+
+Added RVV-owned compare/select statement plans, rewired provider consumption with fail-closed fallback, documented the boundary, and verified focused C++/lit plus check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
