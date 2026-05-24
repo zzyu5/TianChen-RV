@@ -715,6 +715,103 @@ verified route-family plans
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Residual Operand-Binding Facts Boundary
+
+### 1. Scope / Trigger
+
+For the remaining mature selected-body routes that are not owned by the
+elementwise/select, memory, or math operand-binding facts boundaries,
+`RVVEmitCRouteProvider` must not locally recreate logical operand to
+materialized-use binding rules in the central provider prelude. After
+provider-plan verification, the RVV planning layer must expose one RVV-owned
+residual operand-binding facts boundary for masked elementwise arithmetic,
+strided elementwise add, and runtime scalar splat-store.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
+getRVVSelectedBodyResidualRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must consume these facts after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining the elementwise/select,
+memory, and math operand-binding facts for the same analysis.
+
+### 3. Contracts
+
+`RVVSelectedBodyResidualRouteOperandBindingFacts` is RVV-local provider input.
+It may carry:
+
+- the verified `RouteOperandBindingPlan` pointer used for binding closure;
+- residual route booleans for masked elementwise arithmetic, strided
+  elementwise add, and runtime scalar splat-store;
+- bound runtime ABI parameters for lhs/rhs/output, runtime scalar RHS,
+  runtime element count, and lhs/rhs/output stride roles.
+
+These facts are consumed only to assign provider-local `RuntimeABIParameter`
+pointers before building `TCRVEmitCLowerableRoute` statements. They are not
+common EmitC facts, not artifact metadata, and not route support state.
+
+### 4. Validation & Error Matrix
+
+- A non-residual route requests the boundary -> return default empty facts
+  without changing unrelated family binding.
+- A residual route has no matching elementwise arithmetic or runtime scalar
+  splat-store family plan -> fail closed before statement construction.
+- A residual route has a stale route-shape marker, such as masked versus
+  strided elementwise classification or runtime scalar splat-store memory form
+  mismatch -> fail closed before statement construction.
+- A required logical operand lacks the expected materialized use -> fail closed
+  with the logical operand, materialized use, and residual binding context.
+- Header mirror, loop-control, setvl AVL, compare producer, masked
+  passthrough, stride address, scalar splat, store, or runtime count uses are
+  missing from the binding plan -> fail closed before common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed residual `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> residual operand-binding facts -> provider-built
+  route.
+- Base: elementwise/select, memory, and math route families keep their own
+  binding surfaces and receive empty residual binding facts.
+- Bad: central provider branches manually enumerate the residual
+  masked/strided/splat logical operand and materialized-use tables.
+
+### 6. Tests Required
+
+- C++ tests for masked elementwise arithmetic, strided elementwise add, and
+  runtime scalar splat-store binding facts.
+- C++ fail-closed diagnostics for at least one missing or stale materialized
+  use in the residual cluster.
+- Representative lit/FileCheck coverage proving existing explicit or
+  pre-realized residual selected-body artifacts still pass.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider prelude:
+  if operation is masked_add, strided_add, or runtime_i32_splat_store,
+  bind residual logical operands here
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyResidualRouteOperandBindingFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

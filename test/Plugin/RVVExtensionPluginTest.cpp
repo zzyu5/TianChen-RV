@@ -7769,6 +7769,170 @@ int runRouteOperandBindingPlanValidationTest() {
            "output-stride"}))
     return result;
 
+  auto makeResidualAnalysis =
+      [&](RVVSelectedBodyOperationKind operation, llvm::StringRef abiOrder,
+          const RVVRouteOperandBindingPlan &bindingPlan) {
+        tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis analysis;
+        analysis.description = makeClosureDescription(operation, abiOrder,
+                                                      bindingPlan);
+        analysis.routeOperandBindingPlan = bindingPlan;
+        return analysis;
+      };
+  auto getResidualFacts =
+      [](tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis &analysis)
+      -> llvm::Expected<tianchenrv::plugin::rvv::
+                            RVVSelectedBodyResidualRouteOperandBindingFacts> {
+    return tianchenrv::plugin::rvv::
+        getRVVSelectedBodyResidualRouteOperandBindingFacts(
+            analysis, "residual operand binding facts unit test");
+  };
+
+  RVVRouteOperandBindingPlan maskedAddPlan;
+  maskedAddPlan.planID = "rvv-route-operand-binding:masked_add.v1";
+  addBinding(maskedAddPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "load-base", "compare-lhs-call", "masked-add-lhs-call",
+              "masked-merge-passthrough-call"});
+  addBinding(maskedAddPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "load-base", "compare-rhs-call",
+              "masked-add-rhs-call"});
+  addBinding(maskedAddPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store-base", "header"});
+  addBinding(maskedAddPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop-control", "header"});
+  auto maskedAddAnalysis = makeResidualAnalysis(
+      RVVSelectedBodyOperationKind::MaskedAdd, "lhs,rhs,out,n",
+      maskedAddPlan);
+  maskedAddAnalysis.elementwiseArithmeticRouteFamilyPlan.emplace();
+  maskedAddAnalysis.elementwiseArithmeticRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::MaskedAdd;
+  maskedAddAnalysis.elementwiseArithmeticRouteFamilyPlan
+      ->usesMaskedArithmetic = true;
+  llvm::Expected<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyResidualRouteOperandBindingFacts>
+      maskedAddFacts = getResidualFacts(maskedAddAnalysis);
+  if (!maskedAddFacts)
+    return fail("masked add residual binding facts: " +
+                llvm::toString(maskedAddFacts.takeError()));
+  if (int result = expect(maskedAddFacts->bindsMaskedElementwiseArithmetic &&
+                              maskedAddFacts->lhsABI->cName == "lhs" &&
+                              maskedAddFacts->rhsABI->cName == "rhs" &&
+                              maskedAddFacts->outABI->cName == "out" &&
+                              maskedAddFacts->runtimeElementCountABI->cName ==
+                                  "n",
+                          "masked add residual binding facts expose compare, "
+                          "active arithmetic, passthrough, output, and runtime "
+                          "count roles"))
+    return result;
+
+  RVVRouteOperandBindingPlan staleMaskedAdd = maskedAddPlan;
+  bool removedMaskedPassthrough = false;
+  for (RVVRouteOperandBinding &binding : staleMaskedAdd.bindings) {
+    if (binding.logicalOperand != "lhs")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "masked-merge-passthrough-call")
+        continue;
+      binding.materializedUses.erase(it);
+      removedMaskedPassthrough = true;
+      break;
+    }
+  }
+  if (int result = expect(removedMaskedPassthrough,
+                          "test setup removes masked passthrough use"))
+    return result;
+  auto staleMaskedAddAnalysis = makeResidualAnalysis(
+      RVVSelectedBodyOperationKind::MaskedAdd, "lhs,rhs,out,n",
+      staleMaskedAdd);
+  staleMaskedAddAnalysis.elementwiseArithmeticRouteFamilyPlan =
+      maskedAddAnalysis.elementwiseArithmeticRouteFamilyPlan;
+  if (int result = expectErrorContains(
+          getResidualFacts(staleMaskedAddAnalysis).takeError(),
+          {"lhs", "masked-merge-passthrough-call",
+           "masked elementwise inactive passthrough operand"}))
+    return result;
+
+  auto stridedAddAnalysis =
+      makeResidualAnalysis(RVVSelectedBodyOperationKind::StridedAdd,
+                           "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride",
+                           stridedAddPlan);
+  stridedAddAnalysis.elementwiseArithmeticRouteFamilyPlan.emplace();
+  stridedAddAnalysis.elementwiseArithmeticRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::StridedAdd;
+  stridedAddAnalysis.elementwiseArithmeticRouteFamilyPlan->usesStridedInputs =
+      true;
+  auto stridedAddFacts = getResidualFacts(stridedAddAnalysis);
+  if (!stridedAddFacts)
+    return fail("strided add residual binding facts: " +
+                llvm::toString(stridedAddFacts.takeError()));
+  if (int result =
+          expect(stridedAddFacts->bindsStridedElementwiseAdd &&
+                     stridedAddFacts->lhsABI->cName == "lhs" &&
+                     stridedAddFacts->rhsABI->cName == "rhs" &&
+                     stridedAddFacts->outABI->cName == "out" &&
+                     stridedAddFacts->lhsStrideABI->cName == "lhs_stride" &&
+                     stridedAddFacts->rhsStrideABI->cName == "rhs_stride" &&
+                     stridedAddFacts->outStrideABI->cName == "out_stride",
+                 "strided add residual binding facts expose vector and stride "
+                 "operands"))
+    return result;
+
+  RVVRouteOperandBindingPlan runtimeSplatPlan;
+  runtimeSplatPlan.planID =
+      "rvv-route-operand-binding:runtime_i32_splat_store.v1";
+  addBinding(runtimeSplatPlan, "rhs_scalar",
+             makeTargetExportABIParameter(
+                 "rhs_scalar", "int32_t",
+                 RuntimeABIParameterRole::RHSScalarValue),
+             {"runtime-abi-mirror", "runtime-scalar-splat-call",
+              "header-mirror"});
+  addBinding(runtimeSplatPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base",
+              "header-mirror"});
+  addBinding(runtimeSplatPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control",
+              "header-mirror"});
+  auto runtimeSplatAnalysis = makeResidualAnalysis(
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore, "rhs_scalar,out,n",
+      runtimeSplatPlan);
+  runtimeSplatAnalysis.description.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+          RuntimeScalarSplatStore;
+  runtimeSplatAnalysis.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
+  runtimeSplatAnalysis.runtimeScalarSplatStoreRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  runtimeSplatAnalysis.runtimeScalarSplatStoreRouteFamilyPlan->memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+          RuntimeScalarSplatStore;
+  auto runtimeSplatFacts = getResidualFacts(runtimeSplatAnalysis);
+  if (!runtimeSplatFacts)
+    return fail("runtime splat-store residual binding facts: " +
+                llvm::toString(runtimeSplatFacts.takeError()));
+  if (int result =
+          expect(runtimeSplatFacts->bindsRuntimeScalarSplatStore &&
+                     runtimeSplatFacts->rhsScalarABI->cName == "rhs_scalar" &&
+                     runtimeSplatFacts->outABI->cName == "out" &&
+                     runtimeSplatFacts->runtimeElementCountABI->cName == "n",
+                 "runtime splat-store residual binding facts expose scalar, "
+                 "output, and runtime count operands"))
+    return result;
+
   auto makeMathAnalysis =
       [&](RVVSelectedBodyOperationKind operation, llvm::StringRef abiOrder,
           const RVVRouteOperandBindingPlan &bindingPlan) {

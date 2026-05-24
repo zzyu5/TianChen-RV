@@ -847,6 +847,24 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   const support::RuntimeABIParameter *rhsStrideABI = nullptr;
 };
 
+struct RVVSelectedBodyResidualRouteOperandBindingFacts {
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+
+  bool bindsResidualCluster = false;
+  bool bindsMaskedElementwiseArithmetic = false;
+  bool bindsStridedElementwiseAdd = false;
+  bool bindsRuntimeScalarSplatStore = false;
+
+  const support::RuntimeABIParameter *lhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
+  const support::RuntimeABIParameter *outABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+  const support::RuntimeABIParameter *lhsStrideABI = nullptr;
+  const support::RuntimeABIParameter *rhsStrideABI = nullptr;
+  const support::RuntimeABIParameter *outStrideABI = nullptr;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -1022,6 +1040,10 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
 
 llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
 getRVVSelectedBodyMathRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
+getRVVSelectedBodyResidualRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

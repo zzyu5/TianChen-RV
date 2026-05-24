@@ -260,6 +260,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return mathOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMathRouteOperandBindingFacts
       &mathOperandBindingFacts = *mathOperandBindingFactsOrError;
+  llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
+      residualOperandBindingFactsOrError =
+          getRVVSelectedBodyResidualRouteOperandBindingFacts(
+              analysis, "selected RVV EmitC route construction");
+  if (!residualOperandBindingFactsOrError)
+    return residualOperandBindingFactsOrError.takeError();
+  const RVVSelectedBodyResidualRouteOperandBindingFacts
+      &residualOperandBindingFacts = *residualOperandBindingFactsOrError;
 
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
@@ -393,6 +401,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     } else if (mathOperandBindingFacts.bindsMathCluster) {
       boundRuntimeElementCountABI =
           mathOperandBindingFacts.runtimeElementCountABI;
+    } else if (residualOperandBindingFacts.bindsResidualCluster) {
+      boundRuntimeElementCountABI =
+          residualOperandBindingFacts.runtimeElementCountABI;
     } else {
       llvm::Expected<const support::RuntimeABIParameter *> boundN =
           getRequiredBinding(bindingPlan, "n", "setvl-avl",
@@ -530,79 +541,25 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundRHSABI = mathOperandBindingFacts.rhsABI;
       boundOutABI = mathOperandBindingFacts.outABI;
     } else if (isRVVSelectedBodyMaskedArithmeticRoute(description.operation)) {
-      llvm::StringRef materializedUsePrefix =
-          description.operation == RVVSelectedBodyOperationKind::MaskedSub
-              ? "masked-sub"
-          : description.operation == RVVSelectedBodyOperationKind::MaskedMul
-              ? "masked-mul"
-              : "masked-add";
-      std::string maskedLHSUse = (materializedUsePrefix + "-lhs-call").str();
-      std::string maskedRHSUse = (materializedUsePrefix + "-rhs-call").str();
-      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
-                                          "masked elementwise lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "compare-lhs-call",
-              "masked elementwise compare lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", maskedLHSUse, "masked elementwise active lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "masked-merge-passthrough-call",
-              "masked elementwise inactive passthrough operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
-                                          "masked elementwise rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "compare-rhs-call",
-              "masked elementwise compare rhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", maskedRHSUse, "masked elementwise active rhs operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
-                                          "masked elementwise output store"))
-        return error;
+      if (!residualOperandBindingFacts.bindsMaskedElementwiseArithmetic)
+        return makeRVVEmitCRouteProviderError(
+            "masked elementwise provider requires RVV-owned residual "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = residualOperandBindingFacts.lhsABI;
+      boundRHSABI = residualOperandBindingFacts.rhsABI;
+      boundOutABI = residualOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::StridedAdd) {
-      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "lhs-load-base",
-                                          "strided_add lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "binary-lhs-call", "strided_add lhs compute operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "rhs-load-base",
-                                          "strided_add rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "binary-rhs-call", "strided_add rhs compute operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
-                                          "strided_add output store"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundLHSStrideABI, "lhs_stride", "lhs-load-stride",
-                          "strided_add lhs stride operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs_stride", "lhs-byte-addr", "strided_add lhs byte address"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSStrideABI, "rhs_stride", "rhs-load-stride",
-                          "strided_add rhs stride operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_stride", "rhs-byte-addr", "strided_add rhs byte address"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutStrideABI, "out_stride", "store-stride",
-                          "strided_add output stride operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out_stride", "out-byte-addr", "strided_add output byte address"))
-        return error;
+      if (!residualOperandBindingFacts.bindsStridedElementwiseAdd)
+        return makeRVVEmitCRouteProviderError(
+            "strided_add provider requires RVV-owned residual operand-binding "
+            "facts before route statement construction");
+      boundLHSABI = residualOperandBindingFacts.lhsABI;
+      boundRHSABI = residualOperandBindingFacts.rhsABI;
+      boundOutABI = residualOperandBindingFacts.outABI;
+      boundLHSStrideABI = residualOperandBindingFacts.lhsStrideABI;
+      boundRHSStrideABI = residualOperandBindingFacts.rhsStrideABI;
+      boundOutStrideABI = residualOperandBindingFacts.outStrideABI;
     } else if (description.operation == RVVSelectedBodyOperationKind::MAccAdd) {
       if (!mathOperandBindingFacts.bindsPlainMAcc)
         return makeRVVEmitCRouteProviderError(
@@ -765,19 +722,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
-      llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
-          getRequiredBinding(bindingPlan, "rhs_scalar",
-                             "runtime-scalar-splat-call",
-                             "runtime scalar splat-store scalar operand");
-      if (!rhsScalar)
-        return rhsScalar.takeError();
-      boundRHSABI = *rhsScalar;
-      llvm::Expected<const support::RuntimeABIParameter *> out =
-          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
-                             "runtime scalar splat-store output store operand");
-      if (!out)
-        return out.takeError();
-      boundOutABI = *out;
+      if (!residualOperandBindingFacts.bindsRuntimeScalarSplatStore)
+        return makeRVVEmitCRouteProviderError(
+            "runtime scalar splat-store provider requires RVV-owned residual "
+            "operand-binding facts before route statement construction");
+      boundRHSABI = residualOperandBindingFacts.rhsScalarABI;
+      boundOutABI = residualOperandBindingFacts.outABI;
     } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
       if (!elementwiseSelectOperandBindingFacts

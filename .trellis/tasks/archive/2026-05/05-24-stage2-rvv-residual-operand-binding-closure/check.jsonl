@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation remains within TianChen-RV Stage2 RVV authority and non-goal boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-owned residual operand-binding facts stay plugin-local and fail closed before provider statement construction."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and route payload remains provider-built."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/FileCheck coverage and evidence claims are appropriate."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-math-operand-binding-surface-ownership/prd.md", "reason": "Check this task only covers the residual continuation paths left out of the math task."}

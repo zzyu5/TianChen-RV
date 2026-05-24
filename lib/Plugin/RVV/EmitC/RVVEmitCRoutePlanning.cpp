@@ -23717,6 +23717,268 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
   }
 }
 
+static bool isRVVSelectedBodyResidualRouteOperandBindingFactsConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
+             description.operation) ||
+         description.operation == RVVSelectedBodyOperationKind::StridedAdd ||
+         isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+             description.operation);
+}
+
+llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
+getRVVSelectedBodyResidualRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyResidualRouteOperandBindingFacts facts;
+  if (!isRVVSelectedBodyResidualRouteOperandBindingFactsConsumer(description))
+    return facts;
+
+  facts.bindingPlan = &analysis.routeOperandBindingPlan;
+  facts.bindsResidualCluster = true;
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, description, context))
+    return std::move(error);
+
+  const RVVRouteOperandBindingPlan &bindingPlan =
+      analysis.routeOperandBindingPlan;
+  auto bindOperand =
+      [&](const support::RuntimeABIParameter *&target,
+          llvm::StringRef logicalOperand, llvm::StringRef materializedUse,
+          llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    target = *parameter;
+    return llvm::Error::success();
+  };
+  auto requireOperandUse = [&](llvm::StringRef logicalOperand,
+                               llvm::StringRef materializedUse,
+                               llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    return llvm::Error::success();
+  };
+  auto bindRuntimeCount =
+      [&](llvm::StringRef loopUse, llvm::StringRef headerUse,
+          llvm::StringRef routeName) -> llvm::Error {
+    if (llvm::Error error =
+            bindOperand(facts.runtimeElementCountABI, "n", "setvl-avl",
+                        (llvm::Twine(routeName) +
+                         " runtime AVL/control operand")
+                            .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("n", loopUse,
+                              (llvm::Twine(routeName) +
+                               " runtime loop-control operand")
+                                  .str()))
+      return error;
+    if (llvm::Error error =
+            requireOperandUse("n", headerUse,
+                              (llvm::Twine(routeName) +
+                               " runtime header mirror")
+                                  .str()))
+      return error;
+    return llvm::Error::success();
+  };
+  auto requireFamilyPlan = [&](bool hasPlan,
+                               llvm::StringRef familyName) -> llvm::Error {
+    if (hasPlan)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires the " + familyName +
+        " route-family plan before binding residual operands for " +
+        stringifyRVVSelectedBodyOperationKind(description.operation));
+  };
+  auto requirePlanFlag = [&](bool flag, llvm::StringRef message) -> llvm::Error {
+    if (flag)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(llvm::Twine(context) + " " + message);
+  };
+
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
+          description.operation)) {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.elementwiseArithmeticRouteFamilyPlan.has_value(),
+            "elementwise arithmetic"))
+      return std::move(error);
+    const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan =
+        *analysis.elementwiseArithmeticRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesMaskedArithmetic && !plan.usesStridedInputs,
+            "masked elementwise arithmetic route requires a masked "
+            "elementwise arithmetic family plan before binding residual "
+            "operands"))
+      return std::move(error);
+    facts.bindsMaskedElementwiseArithmetic = true;
+    llvm::StringRef materializedUsePrefix =
+        description.operation == RVVSelectedBodyOperationKind::MaskedSub
+            ? "masked-sub"
+        : description.operation == RVVSelectedBodyOperationKind::MaskedMul
+            ? "masked-mul"
+            : "masked-add";
+    std::string maskedLHSUse = (materializedUsePrefix + "-lhs-call").str();
+    std::string maskedRHSUse = (materializedUsePrefix + "-rhs-call").str();
+
+    if (llvm::Error error = bindOperand(
+            facts.lhsABI, "lhs", "load-base",
+            "masked elementwise lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "compare-lhs-call",
+            "masked elementwise compare lhs operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", maskedLHSUse, "masked elementwise active lhs operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "masked-merge-passthrough-call",
+            "masked elementwise inactive passthrough operand"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.rhsABI, "rhs", "load-base",
+            "masked elementwise rhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs", "compare-rhs-call",
+            "masked elementwise compare rhs operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs", maskedRHSUse, "masked elementwise active rhs operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store-base",
+                        "masked elementwise output store"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header", "masked elementwise output header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop-control", "header", "masked elementwise"))
+      return std::move(error);
+    return facts;
+  }
+
+  if (description.operation == RVVSelectedBodyOperationKind::StridedAdd) {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.elementwiseArithmeticRouteFamilyPlan.has_value(),
+            "elementwise arithmetic"))
+      return std::move(error);
+    const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan =
+        *analysis.elementwiseArithmeticRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.usesStridedInputs && !plan.usesMaskedArithmetic,
+            "strided_add route requires a strided elementwise arithmetic "
+            "family plan before binding residual operands"))
+      return std::move(error);
+    facts.bindsStridedElementwiseAdd = true;
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "lhs", "lhs-load-base",
+                        "strided_add lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "binary-lhs-call", "strided_add lhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, "rhs", "rhs-load-base",
+                        "strided_add rhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs", "binary-rhs-call", "strided_add rhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store-base",
+                        "strided_add output store"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "header",
+                              "strided_add output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount("loop-control", "header",
+                                             "strided_add"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.lhsStrideABI, "lhs_stride", "lhs-load-stride",
+                        "strided_add lhs stride operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs_stride", "lhs-byte-addr", "strided_add lhs byte address"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs_stride", "header",
+                              "strided_add lhs stride header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsStrideABI, "rhs_stride", "rhs-load-stride",
+                        "strided_add rhs stride operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs_stride", "rhs-byte-addr", "strided_add rhs byte address"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs_stride", "header",
+                              "strided_add rhs stride header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outStrideABI, "out_stride", "store-stride",
+                        "strided_add output stride operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out_stride", "out-byte-addr", "strided_add output byte address"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out_stride", "header",
+                              "strided_add output stride header mirror"))
+      return std::move(error);
+    return facts;
+  }
+
+  if (isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+          description.operation)) {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.runtimeScalarSplatStoreRouteFamilyPlan.has_value(),
+            "runtime scalar splat-store"))
+      return std::move(error);
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan =
+        *analysis.runtimeScalarSplatStoreRouteFamilyPlan;
+    if (llvm::Error error = requirePlanFlag(
+            plan.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
+            "runtime_i32_splat_store route requires a runtime scalar "
+            "splat-store family plan before binding residual operands"))
+      return std::move(error);
+    facts.bindsRuntimeScalarSplatStore = true;
+    if (llvm::Error error = bindOperand(
+            facts.rhsScalarABI, "rhs_scalar", "runtime-scalar-splat-call",
+            "runtime scalar splat-store scalar operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs_scalar", "header-mirror",
+            "runtime scalar splat-store scalar header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.outABI, "out", "materialized-store-base",
+            "runtime scalar splat-store output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header-mirror",
+            "runtime scalar splat-store output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindRuntimeCount(
+            "loop-control", "header-mirror", "runtime scalar splat-store"))
+      return std::move(error);
+    return facts;
+  }
+
+  return facts;
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {
