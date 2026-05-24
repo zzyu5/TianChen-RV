@@ -1974,6 +1974,92 @@ class OpExpectation:
     def is_widen_i16_to_i32(self) -> bool:
         return self.kind == "widen_i16_to_i32"
 
+    @property
+    def is_widening_conversion(self) -> bool:
+        return self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32
+
+    @property
+    def has_conversion_sew_policy_boundary(self) -> bool:
+        return self.is_widen_i16_to_i32
+
+    @property
+    def conversion_source_element_c_type(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return "int16_t"
+        if self.is_widen_i32_to_i64:
+            return "int32_t"
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
+    @property
+    def conversion_source_element_type(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return "i16"
+        if self.is_widen_i32_to_i64:
+            return "i32"
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
+    @property
+    def conversion_source_sew(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return "16"
+        if self.is_widen_i32_to_i64:
+            return "32"
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
+    @property
+    def conversion_source_lmul(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return "mf2"
+        if self.is_widen_i32_to_i64:
+            return "m1"
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
+    @property
+    def conversion_source_vector_c_type(self) -> str:
+        return (
+            f"vint{self.conversion_source_sew}"
+            f"{self.conversion_source_lmul}_t"
+        )
+
+    @property
+    def conversion_source_vector_type(self) -> str:
+        return (
+            f'!tcrv_rvv.vector<{self.conversion_source_element_type}, '
+            f'"{self.conversion_source_lmul}">'
+        )
+
+    @property
+    def conversion_source_load_intrinsic(self) -> str:
+        return (
+            f"__riscv_vle{self.conversion_source_sew}_v_"
+            f"{self.conversion_source_element_type}"
+            f"{self.conversion_source_lmul}"
+        )
+
+    @property
+    def conversion_intrinsic(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return "__riscv_vwcvt_x_x_v_i32m1"
+        if self.is_widen_i32_to_i64:
+            return "__riscv_vwcvt_x_x_v_i64m2"
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
+    @property
+    def conversion_relation(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return WIDEN_I16_TO_I32_CONVERSION_RELATION
+        if self.is_widen_i32_to_i64:
+            return WIDENING_CONVERSION_RELATION
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
+    @property
+    def conversion_kind(self) -> str:
+        if self.is_widen_i16_to_i32:
+            return "sign_extend_widen_vf2"
+        if self.is_widen_i32_to_i64:
+            return "widen_i32_to_i64"
+        raise EvidenceError(f"{self.kind} is not a widening conversion route")
+
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
     "add": OpExpectation(
@@ -4617,6 +4703,30 @@ COMPARE_SELECT_PREDICATE_METADATA_KEYS = (
     "tcrv_rvv.destination_memory_form",
     "tcrv_rvv.select_layout",
 )
+CONVERSION_SEW_POLICY_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.widening_conversion_route_family_plan",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.source_sew",
+    "tcrv_rvv.source_lmul",
+    "tcrv_rvv.dest_sew",
+    "tcrv_rvv.dest_lmul",
+    "tcrv_rvv.conversion_relation",
+)
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
     "binary self-check",
@@ -6695,6 +6805,7 @@ def verify_emitted_rvv_cpp(
     runtime_avl_vl_boundary: dict[str, Any] = {}
     mask_tail_policy_boundary: dict[str, Any] = {}
     compare_select_predicate_boundary: dict[str, Any] = {}
+    conversion_sew_policy_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -6744,6 +6855,36 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = compare_select_predicate_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.has_conversion_sew_policy_boundary:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.conversion_source_load_intrinsic,
+            expectation.conversion_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            expectation.conversion_source_vector_c_type,
+            "emitted RVV C/C++ widening conversion source vector C type",
+        )
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ widening conversion result vector C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ widening conversion intrinsic spelling",
+            )
+        conversion_sew_policy_boundary = (
+            extract_widening_conversion_emitc_boundary(text, expectation)
+        )
+        runtime_avl_vl_boundary = conversion_sew_policy_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.is_masked_unit_store:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -6785,6 +6926,113 @@ def verify_emitted_rvv_cpp(
         "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
         "mask_tail_policy_boundary": mask_tail_policy_boundary,
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
+        "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
+    }
+
+
+def extract_widening_conversion_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    source_element_c_type = re.escape(expectation.conversion_source_element_c_type)
+    result_element_c_type = re.escape(expectation.element_c_type)
+    source_vector_c_type = re.escape(expectation.conversion_source_vector_c_type)
+    result_vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {source_element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+        rf"{result_element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ widening conversion ABI parameters",
+    )
+    lhs = signature.group("lhs")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ widening conversion full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ widening conversion runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ widening conversion remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    source_load = require_regex(
+        text,
+        rf"const {source_element_c_type}\* (?P<lhs_ptr>v[0-9]+) = "
+        rf"{lhs} \+ {offset};\s*"
+        rf"{source_vector_c_type} (?P<source_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.conversion_source_load_intrinsic)}"
+        rf"\((?P=lhs_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ widening conversion source load",
+    )
+    source_vec = source_load.group("source_vec")
+    conversion = require_regex(
+        text,
+        rf"{result_vector_c_type} (?P<converted>v[0-9]+) = "
+        rf"{re.escape(expectation.conversion_intrinsic)}"
+        rf"\({source_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ widening conversion intrinsic",
+    )
+    converted = conversion.group("converted")
+    store = require_regex(
+        text,
+        rf"{result_element_c_type}\* (?P<out_ptr>v[0-9]+) = "
+        rf"{out} \+ {offset};\s*"
+        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"\((?P=out_ptr), {converted}, {loop_vl}\);",
+        "emitted RVV C/C++ widening conversion store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "lhs_abi_parameter": lhs,
+        "out_abi_parameter": out,
+        "lhs_pointer": source_load.group("lhs_ptr"),
+        "out_pointer": store.group("out_ptr"),
+        "source_vector": source_vec,
+        "source_vector_c_type": expectation.conversion_source_vector_c_type,
+        "result_vector": converted,
+        "result_vector_c_type": expectation.rvv_vector_c_type,
+        "conversion_kind": expectation.conversion_kind,
+        "conversion_relation": expectation.conversion_relation,
+        "source_sew": expectation.conversion_source_sew,
+        "source_lmul": expectation.conversion_source_lmul,
+        "dest_sew": expectation.sew,
+        "dest_lmul": expectation.lmul,
+        "source_load_intrinsic": expectation.conversion_source_load_intrinsic,
+        "conversion_intrinsic": expectation.conversion_intrinsic,
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "conversion_uses_loaded_source": True,
+        "conversion_uses_loop_vl": True,
+        "store_uses_converted_result": True,
     }
 
 
@@ -7230,6 +7478,11 @@ def verify_materialized_selected_body(
     if expectation.is_cmp_select:
         compare_select_predicate_boundary = (
             extract_plain_cmp_select_materialized_boundary(text, expectation)
+        )
+    conversion_sew_policy_boundary: dict[str, Any] = {}
+    if expectation.has_conversion_sew_policy_boundary:
+        conversion_sew_policy_boundary = (
+            extract_widening_conversion_materialized_boundary(text, expectation)
         )
     if expectation.is_widen_i32_to_i64:
         require_contains(
@@ -9203,6 +9456,47 @@ def verify_materialized_selected_body(
         "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
         "mask_tail_policy_boundary": mask_tail_policy_boundary,
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
+        "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
+    }
+
+
+def extract_widening_conversion_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    require_contains(
+        text,
+        expectation.conversion_source_vector_type,
+        "materialized selected-body MLIR widening conversion source vector type",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR widening conversion result vector type",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.widening_convert",
+        "materialized selected-body MLIR widening conversion op",
+    )
+    require_contains(
+        text,
+        f'kind = "{expectation.conversion_kind}"',
+        "materialized selected-body MLIR widening conversion kind",
+    )
+    return {
+        "source_vector_type": expectation.conversion_source_vector_type,
+        "result_vector_type": (
+            f'!tcrv_rvv.vector<{expectation.element_type}, '
+            f'"{expectation.lmul}">'
+        ),
+        "conversion_op": "tcrv_rvv.widening_convert",
+        "conversion_kind": expectation.conversion_kind,
+        "conversion_relation": expectation.conversion_relation,
+        "source_sew": expectation.conversion_source_sew,
+        "source_lmul": expectation.conversion_source_lmul,
+        "dest_sew": expectation.sew,
+        "dest_lmul": expectation.lmul,
+        "runtime_vl": "tcrv_rvv.setvl -> tcrv_rvv.with_vl",
     }
 
 
@@ -14608,6 +14902,36 @@ def compare_select_predicate_metadata_from_bundle(
     return metadata
 
 
+def conversion_sew_policy_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "conversion/SEW evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in CONVERSION_SEW_POLICY_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object conversion/SEW metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header conversion/SEW metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def runtime_avl_vl_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -14729,6 +15053,62 @@ def compare_select_predicate_boundary_summary(
         },
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_predicate_authority": True,
+    }
+
+
+def conversion_sew_policy_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.has_conversion_sew_policy_boundary:
+        return {}
+    return {
+        "source": (
+            "typed tcrv_rvv widening conversion body/config -> RVV "
+            "realization -> route-family facts -> math operand-binding facts "
+            "-> RVV-owned statement plan -> emitted widening conversion "
+            "intrinsics"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv conversion body/config/runtime "
+            "facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "conversion_kind": expectation.conversion_kind,
+        "conversion_relation": expectation.conversion_relation,
+        "source_type_policy": {
+            "element_type": expectation.conversion_source_element_type,
+            "element_c_type": expectation.conversion_source_element_c_type,
+            "sew": expectation.conversion_source_sew,
+            "lmul": expectation.conversion_source_lmul,
+            "vector_c_type": expectation.conversion_source_vector_c_type,
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "vector_c_type": expectation.rvv_vector_c_type,
+        },
+        "materialized_body": materialized_checks.get(
+            "conversion_sew_policy_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "conversion_sew_policy_boundary", {}
+        ),
+        "route_metadata": conversion_sew_policy_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_conversion_authority": True,
     }
 
 
@@ -14857,6 +15237,18 @@ def run_one_op_e2e(
         if expectation.is_cmp_select:
             evidence["compare_select_predicate_boundary"] = (
                 compare_select_predicate_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
+        if expectation.has_conversion_sew_policy_boundary:
+            evidence["conversion_sew_policy_boundary"] = (
+                conversion_sew_policy_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"
@@ -15309,6 +15701,9 @@ def root_op_result_summary(
         ),
         "compare_select_predicate_boundary": result.get(
             "compare_select_predicate_boundary", {}
+        ),
+        "conversion_sew_policy_boundary": result.get(
+            "conversion_sew_policy_boundary", {}
         ),
         "typed_config_artifact_closure": result.get(
             "typed_config_artifact_closure", {}

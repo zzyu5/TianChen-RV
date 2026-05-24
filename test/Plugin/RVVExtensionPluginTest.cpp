@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <iterator>
 #include <string>
 #include <utility>
 
@@ -6966,6 +6967,229 @@ module {
        "before route statement construction"});
 }
 
+int runWideningConversionStatementPlanBoundaryTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyWideningConversionRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRouteFamilyProviderPlans;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @stmt_widen_i16_to_i32_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_widen_i16_to_i32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_widen_i16_to_i32, sew = 32 : i64, source_kernel = "stmt_widen_i16_to_i32_kernel", status = "selected-lowering-boundary"} {
+        %source = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %widened = tcrv_rvv.widening_convert %source, %vl {kind = "sign_extend_widen_vf2"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %widened, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse widening conversion statement-plan module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
+      analyzeRouteInModule(*module, "stmt_widen_i16_to_i32_kernel",
+                           "rvv_widen_i16_to_i32");
+  if (!analysis)
+    return fail("analyze widening conversion statement-plan route: " +
+                llvm::toString(analysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              *analysis,
+              "widening conversion statement plan provider unit test"),
+          "verify widening conversion route-family plans before "
+          "statement-plan construction"))
+    return result;
+
+  auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *analysis, "widening conversion statement plan provider unit test");
+  if (!materializationFacts)
+    return fail("widening conversion statement-plan materialization facts: " +
+                llvm::toString(materializationFacts.takeError()));
+  auto mathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *analysis, "widening conversion statement plan provider unit test");
+  if (!mathFacts)
+    return fail("widening conversion statement-plan math facts: " +
+                llvm::toString(mathFacts.takeError()));
+
+  auto statementPlan = getRVVSelectedBodyWideningConversionRouteStatementPlan(
+      *analysis, *materializationFacts, *mathFacts,
+      "widening conversion statement plan provider unit test");
+  if (!statementPlan)
+    return fail("widening conversion statement-plan construction: " +
+                llvm::toString(statementPlan.takeError()));
+  if (int result = expect(
+          statementPlan->plansWideningConversionRoute &&
+              statementPlan->plansWidenI16ToI32 &&
+              statementPlan->wideningConversionPlan ==
+                  materializationFacts->wideningConversionPlan,
+          "statement plan exposes the expected widen_i16_to_i32 sub-family "
+          "and route-family plan"))
+    return result;
+  if (int result = expect(
+          statementPlan->preLoopSteps.size() == 1 &&
+              statementPlan->preLoopSteps.front().callee ==
+                  "__riscv_vsetvl_e32m1",
+          "widening conversion statement plan owns the full-chunk setvl call "
+          "before the loop"))
+    return result;
+  const char *expectedBodyCallees[] = {
+      "__riscv_vsetvl_e32m1", "__riscv_vle16_v_i16mf2",
+      "__riscv_vwcvt_x_x_v_i32m1", "__riscv_vse32_v_i32m1"};
+  if (int result = expect(
+          statementPlan->loop.bodySteps.size() ==
+              std::size(expectedBodyCallees),
+          "widening conversion statement plan owns the expected loop step "
+          "count"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            statementPlan->loop.bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("widening conversion statement plan loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+  auto migratedStatementPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      *analysis, *materializationFacts, emptyElementwiseFacts, emptyMemoryFacts,
+      *mathFacts, emptyResidualFacts,
+      "migrated widening conversion statement-plan unit test");
+  if (!migratedStatementPlan)
+    return fail("migrated widening conversion statement-plan construction: " +
+                llvm::toString(migratedStatementPlan.takeError()));
+  if (int result = expect(
+          migratedStatementPlan->plansMigratedRoute &&
+              migratedStatementPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                      WideningConversion &&
+              migratedStatementPlan->preLoopSteps.size() == 1 &&
+              migratedStatementPlan->loop.bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "migrated statement-plan boundary exposes widening conversion as "
+          "one provider-neutral plan"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for widening conversion statement plan test"))
+    return result;
+  KernelOp kernel = findKernel(*module, "stmt_widen_i16_to_i32_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_widen_i16_to_i32");
+  TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "provider consumes widening conversion statement plan"))
+    return result;
+  if (int result = expect(
+          route.getCallOpaqueSteps().size() == 1 &&
+              route.getCallOpaqueSteps().front().callee ==
+                  "__riscv_vsetvl_e32m1" &&
+              route.getForLoops().size() == 1 &&
+              route.getForLoops().front().bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "provider route attaches the RVV-owned widening conversion "
+          "statement-plan steps"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            route.getForLoops().front().bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("provider route widening conversion loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  auto staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.wideningConversionPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyWideningConversionRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "widening conversion statement plan stale dependency unit test")
+              .takeError(),
+          {"widening conversion statement plan requires the verified "
+           "widening conversion route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyWideningConversionRouteStatementPlan(
+              *analysis, *materializationFacts, emptyMathFacts,
+              "widening conversion statement plan stale dependency unit test")
+              .takeError(),
+          {"widening conversion statement plan requires widening conversion "
+           "math operand-binding facts",
+           "before route statement construction"}))
+    return result;
+
+  staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.elementwiseComputeLeaf = "";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyWideningConversionRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "widening conversion statement plan stale dependency unit test")
+              .takeError(),
+          {"widening conversion statement plan requires conversion callee",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis unrelated;
+  unrelated.description.operation = RVVSelectedBodyOperationKind::Add;
+  auto emptyPlan = getRVVSelectedBodyWideningConversionRouteStatementPlan(
+      unrelated, {}, {},
+      "widening conversion statement plan empty unit test");
+  if (!emptyPlan)
+    return fail("unrelated widening conversion statement-plan empty result: " +
+                llvm::toString(emptyPlan.takeError()));
+  return expect(!emptyPlan->plansWideningConversionRoute &&
+                    emptyPlan->preLoopSteps.empty() &&
+                    emptyPlan->loop.bodySteps.empty(),
+                "unrelated route families receive an empty widening "
+                "conversion statement plan");
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -10758,6 +10982,9 @@ int main() {
           runElementwiseArithmeticStatementPlanBoundaryTest(context))
     return result;
   if (int result = runCompareSelectStatementPlanBoundaryTest(context))
+    return result;
+  if (int result =
+          runWideningConversionStatementPlanBoundaryTest(context))
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

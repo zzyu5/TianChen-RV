@@ -10,6 +10,7 @@
 
 # ROOT: "input_mode": "pre-realized-selected-body"
 # ROOT: "widen_i16_to_i32"
+# ROOT: "conversion_sew_policy_boundary"
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
@@ -66,6 +67,32 @@
 # WIDEN-DAG: "typed_compute_op": "tcrv_rvv.widening_convert"
 # WIDEN-DAG: "memory_form": "unit-stride-conversion"
 # WIDEN-DAG: "lmul": "m1"
+# WIDEN-DAG: "conversion_sew_policy_boundary"
+# WIDEN-DAG: "authority": "provider-derived typed tcrv_rvv conversion body/config/runtime facts"
+# WIDEN-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# WIDEN-DAG: "conversion_kind": "sign_extend_widen_vf2"
+# WIDEN-DAG: "conversion_relation": "signed-i16mf2-to-i32m1"
+# WIDEN-DAG: "source_type_policy"
+# WIDEN-DAG: "element_type": "i16"
+# WIDEN-DAG: "element_c_type": "int16_t"
+# WIDEN-DAG: "sew": "16"
+# WIDEN-DAG: "lmul": "mf2"
+# WIDEN-DAG: "vector_c_type": "vint16mf2_t"
+# WIDEN-DAG: "result_type_policy"
+# WIDEN-DAG: "element_type": "i32"
+# WIDEN-DAG: "element_c_type": "int32_t"
+# WIDEN-DAG: "sew": "32"
+# WIDEN-DAG: "lmul": "m1"
+# WIDEN-DAG: "vector_c_type": "vint32m1_t"
+# WIDEN-DAG: "source_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">"
+# WIDEN-DAG: "result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+# WIDEN-DAG: "source_load_intrinsic": "__riscv_vle16_v_i16mf2"
+# WIDEN-DAG: "conversion_intrinsic": "__riscv_vwcvt_x_x_v_i32m1"
+# WIDEN-DAG: "store_intrinsic": "__riscv_vse32_v_i32m1"
+# WIDEN-DAG: "conversion_uses_loaded_source": true
+# WIDEN-DAG: "conversion_uses_loop_vl": true
+# WIDEN-DAG: "store_uses_converted_result": true
+# WIDEN-DAG: "runtime_counts_are_execution_cases_not_conversion_authority": true
 # WIDEN-DAG: "status": "dry_run_success"
 
 # HARNESS: int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);

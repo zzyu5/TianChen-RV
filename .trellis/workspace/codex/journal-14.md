@@ -1845,3 +1845,38 @@ Closed the pre-realized cmp_select predicate boundary through generated-bundle e
 ### Next Steps
 
 - None - task complete
+
+
+## Session 203: Stage2 RVV conversion SEW policy route closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV conversion SEW policy route closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded pre-realized RVV widen_i16_to_i32 conversion/SEW policy route with RVV-owned statement-plan consumption, generated-bundle evidence, ssh rvv correctness, and archived Trellis state.
+
+### Main Changes
+
+- Added the bounded RVV widening-conversion statement-plan API and wired `widen_i16_to_i32` into the migrated provider statement-plan boundary.
+- Extended generated-bundle evidence with `conversion_sew_policy_boundary` for typed source/result SEW/LMUL policy, emitted load/convert/store intrinsics, mirror-only metadata, and runtime-count non-authority.
+- Added focused plugin fail-closed coverage, dry-run FileCheck evidence, and testing-spec guidance for conversion/SEW evidence.
+- Verified py_compile, plugin test build/run, generated-bundle self-test, focused dry-run/FileCheck, real ssh rvv counts 7/16/23, authority scan, git diff --check, and check-tianchenrv 365/365.
+
+
+### Git Commits
+
+pending-final-session-commit
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

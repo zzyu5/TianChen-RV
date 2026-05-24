@@ -285,6 +285,116 @@ typed body/config/runtime compare/select facts
   -> mirror metadata plus executable harness evidence
 ```
 
+## Conversion/SEW Policy Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use conversion/SEW policy generated-bundle evidence whenever an RVV
+generated-bundle test claims route-supported or executable conversion behavior
+for a typed `tcrv_rvv` path. This evidence is for bounded conversion routes
+such as widening integer conversion; it must not be generalized into broad
+dtype/LMUL clone matrices or one-op-per-intrinsic wrapper growth.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key such as:
+
+```json
+"conversion_sew_policy_boundary": {
+  "authority": "provider-derived typed tcrv_rvv conversion body/config/runtime facts",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "conversion_kind": "widen_signed_integer",
+  "conversion_relation": "widening",
+  "source_type_policy": {"element_type": "i16", "sew": "16", "lmul": "mf2"},
+  "result_type_policy": {"element_type": "i32", "sew": "32", "lmul": "m1"},
+  "materialized_body": {},
+  "emitted_cpp": {},
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_conversion_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of conversion route support.
+- `artifact_metadata_role` must make mirror-only status explicit.
+- `conversion_kind` and `conversion_relation` must come from the typed
+  conversion op and RVV plugin route-family facts, not from route ids, test
+  names, artifact names, ABI strings, or harness constants.
+- `source_type_policy` and `result_type_policy` must identify element type,
+  SEW, LMUL, and vector type facts consumed by the provider route. These facts
+  may be mirrored in generated artifacts only after provider route construction.
+- `materialized_body` must prove the selected typed body was consumed into
+  realized `setvl`, `with_vl`, source `load`, conversion op, and `store`
+  structure.
+- `emitted_cpp` must prove generated RVV C/C++ uses the expected setvl, source
+  load, conversion, and store intrinsic forms with runtime loop VL operands.
+- Runtime counts are execution cases only. They must not define conversion kind,
+  source/result dtype, SEW, LMUL, intrinsic spelling, route support, or artifact
+  authority.
+
+### 4. Validation & Error Matrix
+
+- Missing realized conversion op or inconsistent source/result vector type
+  policy -> evidence failure.
+- Generated C/C++ omits the source load, conversion intrinsic, store intrinsic,
+  runtime loop VL, or uses a result type not produced by the conversion ->
+  evidence failure.
+- Object/header mirror metadata disagree on conversion kind, relation,
+  source/result dtype, SEW, LMUL, runtime AVL/VL, or provider-supported mirror ->
+  evidence failure.
+- Unsupported widening, narrowing, sign/unsigned, float/integer, or LMUL policy
+  combinations must fail closed with targeted diagnostics before common EmitC
+  chooses conversion semantics.
+- Descriptor, direct-C/source-export, route-id, artifact-name, ABI-string, or
+  test-name residue is required to explain conversion semantics -> evidence
+  failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries conversion and source/result type-policy
+  facts -> RVV plugin validates or realizes those facts -> route-family,
+  operand-binding, and statement-plan facts feed provider emission -> evidence
+  mirrors the facts and harness checks converted lane values.
+- Base: non-conversion routes omit `conversion_sew_policy_boundary` and keep
+  ordinary runtime AVL/VL, typed-config, or family-specific evidence.
+- Bad: evidence infers conversion kind, source/result dtype, SEW, LMUL, or
+  intrinsic spelling from route id, ABI string, artifact name, exact intrinsic
+  spelling alone, or harness expected expression.
+
+### 6. Tests Required
+
+- lit/FileCheck for the generated-bundle dry-run must check representative
+  `conversion_sew_policy_boundary` fields and mirror metadata.
+- Provider or C++ API tests must check route-family facts, operand-binding
+  facts, and statement-plan facts before common EmitC materialization when
+  textual MLIR cannot fully prove the boundary.
+- Runtime RVV claims must include `ssh rvv` output and harness checks across
+  multiple runtime counts that exercise full-vector and tail-vector execution.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact metadata says conversion_kind=widen_signed_integer
+  -> claim conversion route support
+```
+
+Correct:
+
+```text
+typed body/config/runtime conversion facts
+  -> RVV plugin legality/realization
+  -> route-family facts + operand-binding facts + statement plan
+  -> provider-built conversion route
+  -> common EmitC
+  -> mirror metadata plus executable harness evidence
+```
+
 ## Direct Pre-Realized Route-Entry Generated-Bundle Evidence
 
 ### 1. Scope / Trigger
