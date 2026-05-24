@@ -235,11 +235,16 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return materializationFactsOrError.takeError();
   const RVVSelectedBodyRouteMaterializationFacts &materializationFacts =
       *materializationFactsOrError;
+  llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
+      elementwiseSelectOperandBindingFactsOrError =
+          getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+              analysis, "selected RVV EmitC route construction");
+  if (!elementwiseSelectOperandBindingFactsOrError)
+    return elementwiseSelectOperandBindingFactsOrError.takeError();
+  const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      &elementwiseSelectOperandBindingFacts =
+          *elementwiseSelectOperandBindingFactsOrError;
 
-  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
-      *plainCompareSelectPlan = materializationFacts.plainCompareSelectPlan;
-  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
-      *computedMaskSelectPlan = materializationFacts.computedMaskSelectPlan;
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
   const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
@@ -369,12 +374,17 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVRouteOperandBindingPlan &bindingPlan =
       analysis.routeOperandBindingPlan;
   {
-    llvm::Expected<const support::RuntimeABIParameter *> boundN =
-        getRequiredBinding(bindingPlan, "n", "setvl-avl",
-                           "runtime AVL/control operand");
-    if (!boundN)
-      return boundN.takeError();
-    boundRuntimeElementCountABI = *boundN;
+    if (elementwiseSelectOperandBindingFacts.bindsElementwiseSelectCluster) {
+      boundRuntimeElementCountABI =
+          elementwiseSelectOperandBindingFacts.runtimeElementCountABI;
+    } else {
+      llvm::Expected<const support::RuntimeABIParameter *> boundN =
+          getRequiredBinding(bindingPlan, "n", "setvl-avl",
+                             "runtime AVL/control operand");
+      if (!boundN)
+        return boundN.takeError();
+      boundRuntimeElementCountABI = *boundN;
+    }
 
     auto bindOperand =
         [&](const support::RuntimeABIParameter *&target,
@@ -459,199 +469,77 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (description.operation == RVVSelectedBodyOperationKind::Add ||
         description.operation == RVVSelectedBodyOperationKind::Sub ||
         description.operation == RVVSelectedBodyOperationKind::Mul) {
-      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
-                                          "ordinary binary lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "binary-lhs-call", "ordinary binary lhs compute operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
-                                          "ordinary binary rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "binary-rhs-call", "ordinary binary rhs compute operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
-                                          "ordinary binary output store"))
-        return error;
+      if (elementwiseSelectOperandBindingFacts
+              .bindsOrdinaryElementwiseArithmetic) {
+        boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
+        boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
+        boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
+      } else {
+        if (llvm::Error error =
+                bindOperand(boundLHSABI, "lhs", "load-base",
+                            "binary lhs load operand"))
+          return error;
+        if (llvm::Error error = requireOperandUse(
+                "lhs", "binary-lhs-call", "binary lhs compute operand"))
+          return error;
+        if (llvm::Error error =
+                bindOperand(boundRHSABI, "rhs", "load-base",
+                            "binary rhs load operand"))
+          return error;
+        if (llvm::Error error = requireOperandUse(
+                "rhs", "binary-rhs-call", "binary rhs compute operand"))
+          return error;
+        if (llvm::Error error =
+                bindOperand(boundOutABI, "out", "store-base",
+                            "binary output store"))
+          return error;
+      }
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::CmpSelect) {
-      if (!plainCompareSelectPlan)
+      if (!elementwiseSelectOperandBindingFacts.bindsPlainCompareSelect)
         return makeRVVEmitCRouteProviderError(
-            "cmp_select provider requires the plain compare-select "
-            "route-family plan before binding operands");
-      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
-                                          "cmp_select lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "compare-lhs-call", "cmp_select compare lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "select-true-call", "cmp_select true-value operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
-                                          "cmp_select rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "compare-rhs-call", "cmp_select compare rhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs", "select-false-call", "cmp_select false-value operand"))
-        return error;
-      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
-                                          "cmp_select output store"))
-        return error;
+            "plain compare-select provider requires RVV-owned operand-binding "
+            "facts before route statement construction");
+      boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
+      boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
+      boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ComputedMaskSelect) {
-      if (!computedMaskSelectPlan ||
-          !computedMaskSelectPlan->usesVectorCompareProducer)
+      if (!elementwiseSelectOperandBindingFacts.bindsComputedMaskSelect)
         return makeRVVEmitCRouteProviderError(
-            "computed_mask_select provider requires the shared select "
-            "route-family plan with a vector compare producer before binding "
-            "operands");
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "cmp_lhs", "cmp-lhs",
-                          "computed_mask_select compare lhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "cmp-call",
-              "computed_mask_select compare lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "hdr",
-              "computed_mask_select compare lhs header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "cmp_rhs", "cmp-rhs",
-                          "computed_mask_select compare rhs load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "cmp-call",
-              "computed_mask_select compare rhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "hdr",
-              "computed_mask_select compare rhs header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundTrueValueABI, "true_value", "true-load",
-                          "computed_mask_select true-value load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "true_value", "sel-true",
-              "computed_mask_select selected true-value operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundFalseValueABI, "false_value", "false-load",
-                          "computed_mask_select false-value load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "false_value", "sel-false",
-              "computed_mask_select selected false-value operand"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "store",
-                          "computed_mask_select output store"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "out", "hdr",
-              "computed_mask_select output header mirror"))
-        return error;
+            "computed-mask select provider requires RVV-owned operand-binding "
+            "facts before route statement construction");
+      boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
+      boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
+      boundTrueValueABI = elementwiseSelectOperandBindingFacts.trueValueABI;
+      boundFalseValueABI = elementwiseSelectOperandBindingFacts.falseValueABI;
+      boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (description.operation ==
                    RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
                description.operation == RVVSelectedBodyOperationKind::
                                             RuntimeScalarDualCompareMaskAndSelect) {
-      if (!computedMaskSelectPlan ||
-          !computedMaskSelectPlan->usesRuntimeScalarProducer)
-        return makeRVVEmitCRouteProviderError(
-            "runtime scalar computed-mask select provider requires the shared "
-            "select route-family plan with a runtime scalar producer before "
-            "binding operands");
       const bool isDual =
           description.operation == RVVSelectedBodyOperationKind::
                                        RuntimeScalarDualCompareMaskAndSelect;
-      if (computedMaskSelectPlan->usesDualCompareMaskAnd != isDual)
+      if (!elementwiseSelectOperandBindingFacts
+               .bindsRuntimeScalarComputedMaskSelect ||
+          elementwiseSelectOperandBindingFacts
+                  .bindsRuntimeScalarDualCompareMaskAndSelect != isDual)
         return makeRVVEmitCRouteProviderError(
-            "runtime scalar computed-mask select provider found a stale "
-            "single/dual marker in the shared select route-family plan");
-      const llvm::StringRef routeName =
-          isDual ? "runtime_scalar_dual_cmp_mask_and_select"
-                 : "runtime_scalar_cmp_select";
-      const llvm::StringRef primaryLHS = isDual ? "cmp_lhs_a" : "lhs";
-      const llvm::StringRef primaryRHS =
-          isDual ? "rhs_scalar_a" : "rhs_scalar";
-
-      if (llvm::Error error = bindOperand(
-              boundLHSABI, primaryLHS, "materialized-load-base",
-              (llvm::Twine(routeName) + " compare lhs load operand").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              primaryLHS, "compare-lhs-call",
-              (llvm::Twine(routeName) + " compare lhs operand").str()))
-        return error;
-      if (isDual)
-        if (llvm::Error error = requireOperandUse(
-                primaryLHS, "mask-and-lhs-call",
-                (llvm::Twine(routeName) + " mask-and lhs provenance").str()))
-          return error;
-      if (llvm::Error error = bindOperand(
-              boundRHSABI, primaryRHS, "scalar-broadcast-rhs-call",
-              (llvm::Twine(routeName) + " scalar threshold splat").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              primaryRHS, "compare-rhs-call",
-              (llvm::Twine(routeName) + " compare rhs operand").str()))
-        return error;
+            "runtime scalar computed-mask select provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
+      boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
       if (isDual) {
-        if (llvm::Error error = bindOperand(
-                boundSecondaryCompareLHSABI, "cmp_lhs_b",
-                "materialized-secondary-load-base",
-                (llvm::Twine(routeName) + " compare lhs B load operand").str()))
-          return error;
-        if (llvm::Error error = requireOperandUse(
-                "cmp_lhs_b", "secondary-compare-lhs-call",
-                (llvm::Twine(routeName) + " compare B lhs operand").str()))
-          return error;
-        if (llvm::Error error = requireOperandUse(
-                "cmp_lhs_b", "mask-and-rhs-call",
-                (llvm::Twine(routeName) + " mask-and rhs provenance").str()))
-          return error;
-        if (llvm::Error error = bindOperand(
-                boundSecondaryCompareRHSScalarABI, "rhs_scalar_b",
-                "secondary-scalar-broadcast-rhs-call",
-                (llvm::Twine(routeName) + " scalar threshold B splat").str()))
-          return error;
-        if (llvm::Error error = requireOperandUse(
-                "rhs_scalar_b", "secondary-compare-rhs-call",
-                (llvm::Twine(routeName) + " compare B rhs operand").str()))
-          return error;
+        boundSecondaryCompareLHSABI =
+            elementwiseSelectOperandBindingFacts.secondaryCompareLhsABI;
+        boundSecondaryCompareRHSScalarABI =
+            elementwiseSelectOperandBindingFacts
+                .secondaryCompareRhsScalarABI;
       }
-      if (llvm::Error error = bindOperand(
-              boundTrueValueABI, "true_value", "materialized-true-load-base",
-              (llvm::Twine(routeName) + " true-value load operand").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "true_value", "select-true-call",
-              (llvm::Twine(routeName) + " selected true-value operand").str()))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundFalseValueABI, "false_value",
-              "materialized-false-load-base",
-              (llvm::Twine(routeName) + " false-value load operand").str()))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "false_value", "select-false-call",
-              (llvm::Twine(routeName) + " selected false-value operand").str()))
-        return error;
-      if (llvm::Error error = bindOperand(
-              boundOutABI, "out", "materialized-store-base",
-              (llvm::Twine(routeName) + " output store").str()))
-        return error;
-      if (isDual)
-        if (llvm::Error error = requireOperandUse(
-                "out", "header-mirror",
-                (llvm::Twine(routeName) + " output header mirror").str()))
-          return error;
+      boundTrueValueABI = elementwiseSelectOperandBindingFacts.trueValueABI;
+      boundFalseValueABI = elementwiseSelectOperandBindingFacts.falseValueABI;
+      boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
       if (llvm::Error error =
@@ -1566,41 +1454,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundOutABI = *out;
     } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
-      llvm::Expected<const support::RuntimeABIParameter *> lhs =
-          getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
-                             "scalar broadcast lhs load operand");
-      if (!lhs)
-        return lhs.takeError();
-      boundLHSABI = *lhs;
-      if (llvm::Error error = requireOperandUse(
-              "lhs", "header-mirror",
-              "scalar broadcast lhs header mirror operand"))
-        return error;
-      llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
-          getRequiredBinding(bindingPlan, "rhs_scalar",
-                             "scalar-broadcast-rhs-call",
-                             "scalar broadcast RHS scalar operand");
-      if (!rhsScalar)
-        return rhsScalar.takeError();
-      boundRHSABI = *rhsScalar;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_scalar", "header-mirror",
-              "scalar broadcast RHS scalar header mirror operand"))
-        return error;
-      llvm::Expected<const support::RuntimeABIParameter *> out =
-          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
-                             "scalar broadcast output store operand");
-      if (!out)
-        return out.takeError();
-      boundOutABI = *out;
-      if (llvm::Error error = requireOperandUse(
-              "out", "header-mirror",
-              "scalar broadcast output header mirror operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "n", "header-mirror",
-              "scalar broadcast runtime count header mirror operand"))
-        return error;
+      if (!elementwiseSelectOperandBindingFacts
+               .bindsScalarBroadcastElementwise)
+        return makeRVVEmitCRouteProviderError(
+            "scalar-broadcast elementwise provider requires RVV-owned "
+            "operand-binding facts before route statement construction");
+      boundLHSABI = elementwiseSelectOperandBindingFacts.lhsABI;
+      boundRHSABI = elementwiseSelectOperandBindingFacts.rhsABI;
+      boundOutABI = elementwiseSelectOperandBindingFacts.outABI;
     } else if (emitsComputedMaskStandaloneReduction) {
       const bool isRuntimeScalarThreshold =
           emitsRuntimeScalarComputedMaskStandaloneReduction;

@@ -229,15 +229,7 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 
 ### Main Changes
 
-- Added the reduction/accumulation/contraction owner registry for contraction,
-  standalone reduction, and computed-mask accumulation provider-plan verifiers.
-- Rewired RVV selected-body EmitC route construction to consume the aggregate
-  math-cluster verifier instead of manually sequencing the three per-family
-  verifiers.
-- Added C++ coverage for owner membership, aggregate consumer classification,
-  missing-plan rejection, and stale-plan rejection.
-- Finished and archived Trellis task
-  `05-23-stage2-rvv-reduction-accumulation-contraction-owner-registry`.
+(Add details)
 
 ### Git Commits
 
@@ -668,7 +660,16 @@ Extracted the reduction/accumulation/contraction route-family owner registry, re
 
 ### Main Changes
 
-(Add details)
+- Added `RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts` and the
+  `getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts()` planning API.
+- Rewired `RVVEmitCRouteProvider.cpp` so mature elementwise/select route
+  branches consume RVV-owned operand-binding facts rather than rebuilding their
+  logical operand/materialized-use table in the provider prelude.
+- Added C++ coverage for ordinary elementwise, scalar-broadcast elementwise,
+  plain compare-select, computed-mask select, runtime-scalar computed-mask
+  select, and a stale false-value materialized-use diagnostic.
+- Documented the durable operand-binding facts boundary in the RVV plugin spec
+  and archived the completed Trellis task.
 
 ### Git Commits
 
@@ -738,6 +739,58 @@ conversion verifier boundaries.
 - [OK] Added-line active-authority scan over touched RVV planning/provider/test
   files found no new legacy/source-front-door/descriptor/mirror-authority terms.
 - [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 179: Stage2 RVV elementwise/select operand-binding surface ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV elementwise/select operand-binding surface ownership
+**Branch**: `main`
+
+### Summary
+
+Added RVV-owned elementwise/select operand-binding facts, rewired the selected-body provider to consume them, documented the boundary, verified focused tests and check-tianchenrv, and archived the task.
+
+### Main Changes
+
+- Added `RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts` and the
+  `getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts()` planning API.
+- Rewired `RVVEmitCRouteProvider.cpp` so mature elementwise/select route
+  branches consume RVV-owned operand-binding facts rather than rebuilding their
+  logical operand/materialized-use table in the provider prelude.
+- Added C++ coverage for ordinary elementwise, scalar-broadcast elementwise,
+  plain compare-select, computed-mask select, runtime-scalar computed-mask
+  select, and a stale false-value materialized-use diagnostic.
+- Documented the durable operand-binding facts boundary in the RVV plugin spec
+  and archived the completed Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-elementwise-select-operand-binding-surface-ownership`
+- [OK] `git diff --check`
+- [OK] Added-line active-authority scan over touched RVV planning/provider/test
+  files found no new legacy i32/source-front-door/descriptor/direct-C/
+  source-export or mirror-only authority terms.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit/FileCheck from `build/test`: 14/14 representative
+  elementwise/select artifact and selected-boundary negative tests passed.
 - [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
 
 ### Status

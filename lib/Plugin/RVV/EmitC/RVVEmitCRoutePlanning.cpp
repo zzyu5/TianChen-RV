@@ -21309,6 +21309,456 @@ getRVVSelectedBodyRouteMaterializationFacts(
   return facts;
 }
 
+static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::Mul:
+    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  case RVVSelectedBodyOperationKind::CmpSelect:
+  case RVVSelectedBodyOperationKind::ComputedMaskSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return true;
+  case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    return description.memoryForm == RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
+  default:
+    return false;
+  }
+}
+
+llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
+getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts facts;
+  if (!isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
+          description))
+    return facts;
+
+  facts.bindingPlan = &analysis.routeOperandBindingPlan;
+  facts.bindsElementwiseSelectCluster = true;
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, description, context))
+    return std::move(error);
+
+  const RVVRouteOperandBindingPlan &bindingPlan =
+      analysis.routeOperandBindingPlan;
+  auto bindOperand =
+      [&](const support::RuntimeABIParameter *&target,
+          llvm::StringRef logicalOperand, llvm::StringRef materializedUse,
+          llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    target = *parameter;
+    return llvm::Error::success();
+  };
+  auto requireOperandUse = [&](llvm::StringRef logicalOperand,
+                               llvm::StringRef materializedUse,
+                               llvm::StringRef bindingContext) -> llvm::Error {
+    llvm::Expected<const support::RuntimeABIParameter *> parameter =
+        getRVVRouteOperandBindingParameter(bindingPlan, logicalOperand,
+                                           materializedUse, bindingContext);
+    if (!parameter)
+      return parameter.takeError();
+    return llvm::Error::success();
+  };
+  auto bindRuntimeCount = [&]() -> llvm::Error {
+    if (llvm::Error error =
+            bindOperand(facts.runtimeElementCountABI, "n", "setvl-avl",
+                        "elementwise/select runtime AVL/control operand"))
+      return error;
+    return llvm::Error::success();
+  };
+  auto requireFamilyPlan = [&](bool hasPlan,
+                               llvm::StringRef familyName) -> llvm::Error {
+    if (hasPlan)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires the " + familyName +
+        " route-family plan before binding elementwise/select operands for " +
+        stringifyRVVSelectedBodyOperationKind(description.operation));
+  };
+
+  if (llvm::Error error = bindRuntimeCount())
+    return std::move(error);
+
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::Mul:
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.elementwiseArithmeticRouteFamilyPlan.has_value(),
+            "elementwise arithmetic"))
+      return std::move(error);
+    facts.bindsOrdinaryElementwiseArithmetic = true;
+    if (llvm::Error error = bindOperand(
+            facts.lhsABI, "lhs", "load-base",
+            "ordinary elementwise lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "binary-lhs-call",
+                              "ordinary elementwise lhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.rhsABI, "rhs", "load-base",
+            "ordinary elementwise rhs load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("rhs", "binary-rhs-call",
+                              "ordinary elementwise rhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.outABI, "out", "store-base",
+            "ordinary elementwise output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header", "ordinary elementwise output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "loop-control",
+            "ordinary elementwise runtime loop-control operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "header", "ordinary elementwise runtime header mirror"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.scalarBroadcastElementwiseRouteFamilyPlan.has_value(),
+            "scalar-broadcast elementwise"))
+      return std::move(error);
+    facts.bindsScalarBroadcastElementwise = true;
+    if (llvm::Error error = bindOperand(
+            facts.lhsABI, "lhs", "materialized-load-base",
+            "scalar-broadcast elementwise lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "scalar-broadcast-lhs-call",
+            "scalar-broadcast elementwise lhs compute operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "header-mirror",
+                              "scalar-broadcast elementwise lhs header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, "rhs_scalar",
+                        "scalar-broadcast-rhs-call",
+                        "scalar-broadcast elementwise RHS scalar operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs_scalar", "header-mirror",
+            "scalar-broadcast elementwise RHS scalar header mirror"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.outABI, "out", "materialized-store-base",
+            "scalar-broadcast elementwise output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header-mirror",
+            "scalar-broadcast elementwise output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "loop-control",
+            "scalar-broadcast elementwise runtime loop-control operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "header-mirror",
+            "scalar-broadcast elementwise runtime header mirror"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::CmpSelect:
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.plainCompareSelectRouteFamilyPlan.has_value(),
+            "plain compare-select"))
+      return std::move(error);
+    facts.bindsPlainCompareSelect = true;
+    if (llvm::Error error = bindOperand(
+            facts.lhsABI, "lhs", "load-base",
+            "plain compare-select lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "compare-lhs-call",
+            "plain compare-select compare lhs operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "lhs", "select-true-call",
+            "plain compare-select true-value operand"))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.rhsABI, "rhs", "load-base",
+            "plain compare-select rhs load operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs", "compare-rhs-call",
+            "plain compare-select compare rhs operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs", "select-false-call",
+            "plain compare-select false-value operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store-base",
+                        "plain compare-select output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "header", "plain compare-select output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "loop-control",
+            "plain compare-select runtime loop-control operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "header", "plain compare-select runtime header mirror"))
+      return std::move(error);
+    return facts;
+
+  case RVVSelectedBodyOperationKind::ComputedMaskSelect: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.computedMaskSelectRouteFamilyPlan.has_value(),
+            "computed-mask select"))
+      return std::move(error);
+    const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan =
+        *analysis.computedMaskSelectRouteFamilyPlan;
+    if (!plan.usesVectorCompareProducer)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed_mask_select requires a vector compare producer plan "
+          "before binding elementwise/select operands");
+    facts.bindsComputedMaskSelect = true;
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "cmp_lhs", "cmp-lhs",
+                        "computed-mask select compare lhs load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("cmp_lhs", "cmp-call",
+                              "computed-mask select compare lhs operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("cmp_lhs", "hdr",
+                              "computed-mask select compare lhs header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, "cmp_rhs", "cmp-rhs",
+                        "computed-mask select compare rhs load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("cmp_rhs", "cmp-call",
+                              "computed-mask select compare rhs operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("cmp_rhs", "hdr",
+                              "computed-mask select compare rhs header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.trueValueABI, "true_value", "true-load",
+                        "computed-mask select true-value load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("true_value", "sel-true",
+                              "computed-mask select true-value operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("true_value", "hdr",
+                              "computed-mask select true-value header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.falseValueABI, "false_value", "false-load",
+                        "computed-mask select false-value load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("false_value", "sel-false",
+                              "computed-mask select false-value operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("false_value", "hdr",
+                              "computed-mask select false-value header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store",
+                        "computed-mask select output store operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "out", "hdr", "computed-mask select output header mirror"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "loop", "computed-mask select runtime loop operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "n", "hdr", "computed-mask select runtime header mirror"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.computedMaskSelectRouteFamilyPlan.has_value(),
+            "computed-mask select"))
+      return std::move(error);
+    const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan =
+        *analysis.computedMaskSelectRouteFamilyPlan;
+    if (!plan.usesRuntimeScalarProducer)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask select requires a runtime scalar "
+          "producer plan before binding elementwise/select operands");
+    const bool isDual =
+        description.operation ==
+        RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+    if (plan.usesDualCompareMaskAnd != isDual)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " found a stale runtime scalar computed-mask select single/dual "
+          "marker before binding elementwise/select operands");
+    facts.bindsRuntimeScalarComputedMaskSelect = true;
+    facts.bindsRuntimeScalarDualCompareMaskAndSelect = isDual;
+
+    const llvm::StringRef routeName =
+        isDual ? "runtime scalar dual computed-mask select"
+               : "runtime scalar computed-mask select";
+    const llvm::StringRef primaryLHS = isDual ? "cmp_lhs_a" : "lhs";
+    const llvm::StringRef primaryRHS =
+        isDual ? "rhs_scalar_a" : "rhs_scalar";
+
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, primaryLHS, "materialized-load-base",
+                        (llvm::Twine(routeName) + " lhs load operand").str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse(primaryLHS, "compare-lhs-call",
+                              (llvm::Twine(routeName) + " lhs compare operand")
+                                  .str()))
+      return std::move(error);
+    if (isDual) {
+      if (llvm::Error error = requireOperandUse(
+              primaryLHS, "mask-and-lhs-call",
+              (llvm::Twine(routeName) + " mask-and lhs operand").str()))
+        return std::move(error);
+    } else if (llvm::Error error = requireOperandUse(
+                   primaryLHS, "header-mirror",
+                   (llvm::Twine(routeName) + " lhs header mirror").str())) {
+      return std::move(error);
+    }
+
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, primaryRHS,
+                        "scalar-broadcast-rhs-call",
+                        (llvm::Twine(routeName) + " scalar splat operand")
+                            .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse(primaryRHS, "compare-rhs-call",
+                              (llvm::Twine(routeName) + " rhs compare operand")
+                                  .str()))
+      return std::move(error);
+    if (!isDual) {
+      if (llvm::Error error = requireOperandUse(
+              primaryRHS, "header-mirror",
+              (llvm::Twine(routeName) + " rhs header mirror").str()))
+        return std::move(error);
+    }
+
+    if (isDual) {
+      if (llvm::Error error =
+              bindOperand(facts.secondaryCompareLhsABI, "cmp_lhs_b",
+                          "materialized-secondary-load-base",
+                          (llvm::Twine(routeName) +
+                           " secondary lhs load operand")
+                              .str()))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs_b", "secondary-compare-lhs-call",
+              (llvm::Twine(routeName) + " secondary lhs compare operand")
+                  .str()))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs_b", "mask-and-rhs-call",
+              (llvm::Twine(routeName) + " mask-and rhs operand").str()))
+        return std::move(error);
+      if (llvm::Error error = bindOperand(
+              facts.secondaryCompareRhsScalarABI, "rhs_scalar_b",
+              "secondary-scalar-broadcast-rhs-call",
+              (llvm::Twine(routeName) + " secondary scalar splat operand")
+                  .str()))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar_b", "secondary-compare-rhs-call",
+              (llvm::Twine(routeName) + " secondary rhs compare operand").str()))
+        return std::move(error);
+    }
+
+    if (llvm::Error error = bindOperand(
+            facts.trueValueABI, "true_value", "materialized-true-load-base",
+            (llvm::Twine(routeName) + " true-value load operand").str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("true_value", "select-true-call",
+                              (llvm::Twine(routeName) +
+                               " selected true-value operand")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("true_value", "header-mirror",
+                              (llvm::Twine(routeName) +
+                               " true-value header mirror")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error = bindOperand(
+            facts.falseValueABI, "false_value", "materialized-false-load-base",
+            (llvm::Twine(routeName) + " false-value load operand").str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("false_value", "select-false-call",
+                              (llvm::Twine(routeName) +
+                               " selected false-value operand")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("false_value", "header-mirror",
+                              (llvm::Twine(routeName) +
+                               " false-value header mirror")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "materialized-store-base",
+                        (llvm::Twine(routeName) + " output store operand")
+                            .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "header-mirror",
+                              (llvm::Twine(routeName) + " output header mirror")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("n", "loop-control",
+                              (llvm::Twine(routeName) + " runtime loop-control "
+                                                       "operand")
+                                  .str()))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("n", "header-mirror",
+                              (llvm::Twine(routeName) + " runtime header mirror")
+                                  .str()))
+      return std::move(error);
+    return facts;
+  }
+  default:
+    return facts;
+  }
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {

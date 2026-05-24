@@ -416,6 +416,100 @@ verified route-family plans
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Elementwise/Select Operand-Binding Facts Boundary
+
+### 1. Scope / Trigger
+
+For mature elementwise/select selected-body routes, `RVVEmitCRouteProvider`
+must not locally recreate logical operand to materialized-use binding rules in
+the central provider prelude. After provider-plan verification, the RVV
+planning layer must expose one RVV-owned operand-binding facts boundary for
+ordinary elementwise arithmetic, scalar-broadcast elementwise, plain
+compare-select, computed-mask select, and runtime-scalar computed-mask select.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
+getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must consume these facts after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)` and after
+obtaining route materialization facts for the same analysis.
+
+### 3. Contracts
+
+`RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts` is RVV-local
+provider input. It may carry:
+
+- the verified `RouteOperandBindingPlan` pointer used for binding closure;
+- cluster and sub-family booleans for ordinary elementwise arithmetic,
+  scalar-broadcast elementwise, plain compare-select, computed-mask select,
+  runtime-scalar computed-mask select, and the single versus dual runtime
+  scalar shape;
+- bound runtime ABI parameters for lhs/rhs, optional secondary compare lhs and
+  scalar rhs, true/false value inputs, output, and runtime element count.
+
+These facts are consumed only to assign provider-local `RuntimeABIParameter`
+pointers before building `TCRVEmitCLowerableRoute` statements. They are not
+common EmitC facts, not artifact metadata, and not route support state.
+
+### 4. Validation & Error Matrix
+
+- A non elementwise/select route requests the boundary -> return default empty
+  facts without changing unrelated family binding.
+- An elementwise/select consumer has no matching family plan -> fail closed
+  before statement construction.
+- Runtime-scalar computed-mask select has a stale single/dual marker -> fail
+  closed before statement construction.
+- A required logical operand lacks the expected materialized use -> fail closed
+  with the logical operand, materialized use, and route-family binding context.
+- Header mirror, loop-control, setvl AVL, load, compute, select, or store uses
+  are missing from the binding plan -> fail closed before common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed `tcrv_rvv` body -> family plan verifier -> materialization facts
+  -> elementwise/select operand-binding facts -> provider-built route.
+- Base: non elementwise/select route families keep their own binding surface
+  and receive empty elementwise/select binding facts.
+- Bad: central provider branches manually enumerate the mature
+  elementwise/select logical operand and materialized-use table.
+
+### 6. Tests Required
+
+- C++ tests for ordinary elementwise arithmetic, scalar-broadcast
+  elementwise, plain compare-select, computed-mask select, and runtime-scalar
+  computed-mask select binding facts.
+- C++ fail-closed diagnostics for at least one missing or stale materialized
+  use in the elementwise/select cluster.
+- Representative lit/FileCheck coverage proving existing explicit or
+  pre-realized elementwise/select selected-body artifacts still pass.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider prelude:
+  if operation is cmp_select or scalar_broadcast_add, bind lhs/rhs/out here
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

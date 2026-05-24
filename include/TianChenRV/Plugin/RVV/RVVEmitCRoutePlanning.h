@@ -772,6 +772,27 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef maskedMergeLeaf;
 };
 
+struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+
+  bool bindsElementwiseSelectCluster = false;
+  bool bindsOrdinaryElementwiseArithmetic = false;
+  bool bindsScalarBroadcastElementwise = false;
+  bool bindsPlainCompareSelect = false;
+  bool bindsComputedMaskSelect = false;
+  bool bindsRuntimeScalarComputedMaskSelect = false;
+  bool bindsRuntimeScalarDualCompareMaskAndSelect = false;
+
+  const support::RuntimeABIParameter *lhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *secondaryCompareLhsABI = nullptr;
+  const support::RuntimeABIParameter *secondaryCompareRhsScalarABI = nullptr;
+  const support::RuntimeABIParameter *trueValueABI = nullptr;
+  const support::RuntimeABIParameter *falseValueABI = nullptr;
+  const support::RuntimeABIParameter *outABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -935,6 +956,10 @@ llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
 
 llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
 getRVVSelectedBodyRouteMaterializationFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
+getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
