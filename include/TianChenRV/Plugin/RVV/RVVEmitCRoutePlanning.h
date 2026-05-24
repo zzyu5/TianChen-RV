@@ -956,6 +956,7 @@ struct RVVSelectedBodyPlainMAccRouteStatementPlan {
 
   bool plansPlainMAccRoute = false;
   bool plansMAccAdd = false;
+  bool plansScalarBroadcastMAccAdd = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;

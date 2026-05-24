@@ -533,6 +533,26 @@ getRVVSelectedBodyScalarBroadcastRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
@@ -1320,6 +1340,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 5>
+      scalarBroadcastMAccExpected =
+          getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         scalarBroadcastMAccExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeSplatExpected =
       getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, runtimeSplatExpected))
@@ -1408,7 +1435,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "int32_t scalar-broadcast route; lhs, out, n for the bounded i32-to-i64 "
       "or i16-to-i32 widening conversion routes; lhs, rhs, acc, out, n for "
       "the bounded i32 multiply-add accumulator, i16 widening "
-      "multiply-accumulate, or unit-stride dot-reduction route; lhs, acc, "
+      "multiply-accumulate, or unit-stride dot-reduction route; lhs, "
+      "rhs_scalar, acc, out, n for the bounded scalar-broadcast "
+      "multiply-add accumulator composition route; lhs, acc, "
       "out, n for the bounded standalone i32 scalar "
       "add-reduction route; cmp_lhs, cmp_rhs, src, acc, out, n for the bounded "
       "computed-mask standalone i32 scalar add-reduction route; lhs, rhs, acc, "

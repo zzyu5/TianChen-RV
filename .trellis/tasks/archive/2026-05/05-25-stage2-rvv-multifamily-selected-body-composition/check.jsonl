@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that final work remains inside current RVV Stage 2 and does not revive Stage 1 legacy route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check plugin-owned legality, statement planning, route provider, runtime VL, and mirror-only artifact evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and only consumes provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, generated-bundle evidence, and direct ssh rvv evidence satisfy the testing contract."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no RVV semantics moved into core/common orchestration."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute frontend or dtype-prefixed helper route was introduced."}
+{"file": "build/bin/tcrv-opt", "reason": "Passed focused PLAN and HEADER FileCheck runs for explicit-selected-body-artifact-scalar-broadcast-macc-add.mlir."}
+{"file": "build/bin/tcrv-translate", "reason": "Passed focused target-header artifact export FileCheck for scalar_broadcast_macc_add runtime ABI and mirror metadata."}
+{"file": "test/Conversion/EmitC/rvv-generic-stage2-scalar-broadcast-macc-materialization.mlir", "reason": "Passed focused EmitC materialization FileCheck for vsetvl, lhs load, RHS scalar splat, accumulator load, vmacc, and store order."}
+{"file": "test/Conversion/EmitC/rvv-generic-stage2-scalar-broadcast-macc-negative.mlir", "reason": "Passed focused not/FileCheck fail-closed diagnostic for invalid macc producer/consumer wiring."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed --self-test, scalar_broadcast_macc_add dry-run, and real ssh rvv compile/run for counts 0,7,16,23 with rhs scalars -37 and 91."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Passed ninja -C build TianChenRVRVVEmitCRouteProvider tcrv-opt tcrv-translate and ninja -C build tianchenrv-construction-protocol-common-test after self-repair."}
+{"file": "test/Plugin/ConstructionProtocolCommonTest.cpp", "reason": "Self-repaired failed construction-protocol-common.test by teaching the shared construction protocol test the scalar_broadcast_macc_add tcrv_rvv.macc/splat/accumulator ABI contract; rerun passed."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Passed ninja -C build check-tianchenrv with 371 tests passing."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Passed git diff --check and bounded rg scan over touched RVV planning/provider/target/script/fixture files; only expected guard strings and pre-existing legacy-test mentions remained."}

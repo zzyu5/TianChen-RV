@@ -1669,6 +1669,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "computed_masked_macc_add";
     const bool isRuntimeScalarComputedMaskMAccRoute =
         route.operationMnemonic == "runtime_scalar_cmp_masked_macc_add";
+    const bool isScalarBroadcastMAccRoute =
+        route.operationMnemonic == "scalar_broadcast_macc_add";
     const bool isMaskedElementwiseRoute =
         route.operationMnemonic == "masked_add" ||
         route.operationMnemonic == "masked_sub" ||
@@ -1691,7 +1693,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.masked_standalone_reduce";
     else if (isMaskedElementwiseRoute)
       executableComputeOp = "tcrv_rvv.masked_binary";
-    else if (route.operationMnemonic == "macc_add")
+    else if (route.operationMnemonic == "macc_add" ||
+             isScalarBroadcastMAccRoute)
       executableComputeOp = "tcrv_rvv.macc";
     else if (isComputedMaskMAccRoute ||
              isRuntimeScalarComputedMaskMAccRoute)
@@ -1788,6 +1791,7 @@ int runRVVCommonValidationTest() {
                    "runtime_scalar_cmp_masked_load_store") {
       rhsSourceOp = "tcrv_rvv.compare";
     } else if (isScalarBroadcastElementwiseRoute ||
+               isScalarBroadcastMAccRoute ||
                isRuntimeScalarCompareSelectRoute ||
                route.operationMnemonic == "runtime_i32_splat_store") {
       rhsSourceOp = "tcrv_rvv.splat";
@@ -1802,7 +1806,8 @@ int runRVVCommonValidationTest() {
                   llvm::toString(steps.takeError()));
     const bool hasMaskProducer = route.operationMnemonic == "cmp_select" ||
                                  isMaskedElementwiseRoute;
-    const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
+    const bool hasAccumulatorLoad =
+        route.operationMnemonic == "macc_add" || isScalarBroadcastMAccRoute;
     const bool hasStridedMemory = route.operationMnemonic == "strided_add";
     const bool hasStridedMemoryMovement =
         route.operationMnemonic == "strided_load_unit_store";
@@ -2043,6 +2048,12 @@ int runRVVCommonValidationTest() {
     } else if (route.operationMnemonic == "macc_add") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "scalar_broadcast_macc_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "computed_masked_macc_add") {

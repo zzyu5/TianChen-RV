@@ -63,6 +63,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "reduce_add",
     *MASKED_ELEMENTWISE_OP_KINDS,
     "macc_add",
+    "scalar_broadcast_macc_add",
     "computed_masked_macc_add",
     "runtime_scalar_cmp_masked_macc_add",
     "widening_macc_add",
@@ -132,6 +133,19 @@ PLAIN_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
 MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+SCALAR_BROADCAST_MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,acc,out,n"
+SCALAR_BROADCAST_MACC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-scalar-broadcast-macc-add-leaf-profile.v1"
+)
+SCALAR_BROADCAST_MACC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-scalar-broadcast-macc-add-composition-plan-validated"
+)
+SCALAR_BROADCAST_MACC_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+SCALAR_BROADCAST_MACC_C_TYPE_MAPPING = (
+    "vl:size_t,lhs/acc:signed-e32m1,rhs_scalar:i32,result:signed-e32m1"
+)
 COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
 COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT = (
     "unit-stride-compare-lhs-rhs-accumulator-masked-macc-output-runtime-abi"
@@ -297,6 +311,17 @@ MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:macc_add.v1;"
     "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;"
     "rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-load-base|macc-rhs-call;"
+    "acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:scalar_broadcast_macc_add.v1"
+)
+SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:scalar_broadcast_macc_add.v1;"
+    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|macc-rhs-call;"
     "acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;"
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
@@ -1381,7 +1406,7 @@ class OpExpectation:
 
     @property
     def macc_compute_intrinsic(self) -> str:
-        if not self.is_macc_add:
+        if not (self.is_macc_add or self.is_scalar_broadcast_macc_add):
             raise EvidenceError(
                 f"{self.kind} has no plain multiply-accumulate intrinsic expectation"
             )
@@ -1536,6 +1561,12 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "const int32_t *acc, int32_t *out, size_t n);"
             )
+        if self.is_scalar_broadcast_macc_add:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "int32_t rhs_scalar, const int32_t *acc, "
+                "int32_t *out, size_t n);"
+            )
         if self.is_computed_mask_standalone_reduce:
             return (
                 f"void {self.function_name}(const int32_t *cmp_lhs, "
@@ -1654,6 +1685,8 @@ class OpExpectation:
             return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
         if self.is_macc_add:
             return EXPECTED_MACC_RUNTIME_PARAMETERS
+        if self.is_scalar_broadcast_macc_add:
+            return EXPECTED_SCALAR_BROADCAST_MACC_RUNTIME_PARAMETERS
         if self.is_computed_masked_macc_add:
             return EXPECTED_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_computed_masked_macc_add:
@@ -1728,6 +1761,8 @@ class OpExpectation:
             return RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER
         if self.is_macc_add:
             return MACC_ADD_RUNTIME_ABI_ORDER
+        if self.is_scalar_broadcast_macc_add:
+            return SCALAR_BROADCAST_MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_computed_masked_macc_add:
             return COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_runtime_scalar_computed_masked_macc_add:
@@ -1821,6 +1856,10 @@ class OpExpectation:
     @property
     def is_macc_add(self) -> bool:
         return self.kind == "macc_add"
+
+    @property
+    def is_scalar_broadcast_macc_add(self) -> bool:
+        return self.kind == "scalar_broadcast_macc_add"
 
     @property
     def is_computed_masked_macc_add(self) -> bool:
@@ -2626,6 +2665,27 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="(int32_t)(((index % 3) == 0) ? -((int32_t)(index % 5) + 2) : ((int32_t)(index % 5) + 2))",
         source_initializer="(int32_t)(((index % 2) == 0) ? (17 - (int32_t)(index % 9)) : -(17 - (int32_t)(index % 9)))",
         expected_expression="(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]))",
+    ),
+    "scalar_broadcast_macc_add": OpExpectation(
+        kind="scalar_broadcast_macc_add",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-artifact-scalar-broadcast-macc-add.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_scalar_broadcast_macc_add",
+        external_abi_name="rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_scalar_broadcast_macc_add_kernel_"
+            "explicit_selected_body_rvv_scalar_broadcast_macc_add"
+        ),
+        emitc_route="rvv-generic-scalar-broadcast-macc-add-emitc-route",
+        typed_compute_op="tcrv_rvv.macc",
+        memory_form="rhs-scalar-broadcast-macc",
+        lhs_initializer="(int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 1) : -((int32_t)(index % 7) + 1))",
+        rhs_initializer="(int32_t)-37",
+        source_initializer="(int32_t)(((index % 2) == 0) ? (17 - (int32_t)(index % 9)) : -(17 - (int32_t)(index % 9)))",
+        expected_expression="(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs_scalar))",
     ),
     "computed_masked_macc_add": OpExpectation(
         kind="computed_masked_macc_add",
@@ -4403,6 +4463,23 @@ EXPECTED_MACC_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[2],
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
+EXPECTED_SCALAR_BROADCAST_MACC_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "rhs_scalar",
+        "c_type": "int32_t",
+        "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
 EXPECTED_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS = (
     EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[0],
     EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[1],
@@ -4673,6 +4750,7 @@ MASK_TAIL_POLICY_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.tail_policy",
     "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
     "tcrv_rvv.memory_form",
     "tcrv_rvv.runtime_abi_order",
     "tcrv_rvv.route_operand_binding_plan",
@@ -4774,6 +4852,10 @@ MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.runtime_avl_source",
     "tcrv_rvv.route_operand_binding_plan",
     "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
     "tcrv_rvv.macc_accumulator_layout",
     "tcrv_rvv.macc_result_layout",
     "tcrv_rvv.runtime_abi_order",
@@ -5368,6 +5450,29 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_scalar_broadcast_macc_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.target_leaf_profile": (
+                    SCALAR_BROADCAST_MACC_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    SCALAR_BROADCAST_MACC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    SCALAR_BROADCAST_MACC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": SCALAR_BROADCAST_MACC_C_TYPE_MAPPING,
+                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
     if expectation.is_runtime_scalar_splat_store:
         per_op_metadata.update(
             {
@@ -5424,6 +5529,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
     if (
         expectation.is_scalar_broadcast_elementwise
+        or expectation.is_scalar_broadcast_macc_add
         or expectation.is_runtime_scalar_splat_store
         or expectation.is_standalone_reduce
         or expectation.is_computed_mask_standalone_reduce
@@ -6964,14 +7070,17 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = reduction_accumulation_boundary[
             "runtime_avl_vl_control"
         ]
-    if expectation.is_macc_add:
+    if expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
             expectation.setvl_intrinsic,
             expectation.unit_load_intrinsic,
+            "__riscv_vmv_v_x_i32m1",
             expectation.macc_compute_intrinsic,
             expectation.unit_store_intrinsic,
         ]
+        if expectation.is_macc_add:
+            intrinsics.remove("__riscv_vmv_v_x_i32m1")
         require_contains(
             text,
             vector_c_type,
@@ -7276,18 +7385,33 @@ def extract_plain_macc_emitc_boundary(
     code = re.sub(r"^[ \t]*//[^\n]*(?:\n|$)", "", text, flags=re.MULTILINE)
     element_c_type = re.escape(expectation.element_c_type)
     vector_c_type = re.escape(expectation.rvv_vector_c_type)
-    signature = require_regex(
-        code,
-        rf"extern \"C\" void {re.escape(expectation.function_name)}"
-        rf"\(const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
-        rf"const {element_c_type}\s*\*\s*(?P<rhs>v[0-9]+), "
-        rf"const {element_c_type}\s*\*\s*(?P<acc>v[0-9]+), "
-        rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
-        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
-        "emitted RVV C/C++ macc_add ABI parameters",
-    )
+    if expectation.is_scalar_broadcast_macc_add:
+        signature = require_regex(
+            code,
+            rf"extern \"C\" void {re.escape(expectation.function_name)}"
+            rf"\(const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+            rf"{element_c_type}\s*(?P<rhs_scalar>v[0-9]+), "
+            rf"const {element_c_type}\s*\*\s*(?P<acc>v[0-9]+), "
+            rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+            r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+            "emitted RVV C/C++ scalar_broadcast_macc_add ABI parameters",
+        )
+        rhs = ""
+        rhs_scalar = signature.group("rhs_scalar")
+    else:
+        signature = require_regex(
+            code,
+            rf"extern \"C\" void {re.escape(expectation.function_name)}"
+            rf"\(const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+            rf"const {element_c_type}\s*\*\s*(?P<rhs>v[0-9]+), "
+            rf"const {element_c_type}\s*\*\s*(?P<acc>v[0-9]+), "
+            rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+            r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+            "emitted RVV C/C++ macc_add ABI parameters",
+        )
+        rhs = signature.group("rhs")
+        rhs_scalar = ""
     lhs = signature.group("lhs")
-    rhs = signature.group("rhs")
     acc = signature.group("acc")
     out = signature.group("out")
     runtime_n = signature.group("runtime_n")
@@ -7326,16 +7450,28 @@ def extract_plain_macc_emitc_boundary(
         "emitted RVV C/C++ macc_add lhs load",
     )
     lhs_vec = lhs_load.group("lhs_vec")
-    rhs_load = require_regex(
-        code,
-        rf"const {element_c_type}\* (?P<rhs_ptr>v[0-9]+) = "
-        rf"{rhs} \+ {offset};\s*"
-        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
-        rf"{re.escape(expectation.unit_load_intrinsic)}"
-        rf"\((?P=rhs_ptr), {loop_vl}\);",
-        "emitted RVV C/C++ macc_add rhs load",
-    )
-    rhs_vec = rhs_load.group("rhs_vec")
+    rhs_ptr = ""
+    if expectation.is_scalar_broadcast_macc_add:
+        rhs_splat = require_regex(
+            code,
+            rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+            r"__riscv_vmv_v_x_i32m1"
+            rf"\({rhs_scalar}, {loop_vl}\);",
+            "emitted RVV C/C++ scalar_broadcast_macc_add RHS splat",
+        )
+        rhs_vec = rhs_splat.group("rhs_vec")
+    else:
+        rhs_load = require_regex(
+            code,
+            rf"const {element_c_type}\* (?P<rhs_ptr>v[0-9]+) = "
+            rf"{rhs} \+ {offset};\s*"
+            rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+            rf"{re.escape(expectation.unit_load_intrinsic)}"
+            rf"\((?P=rhs_ptr), {loop_vl}\);",
+            "emitted RVV C/C++ macc_add rhs load",
+        )
+        rhs_vec = rhs_load.group("rhs_vec")
+        rhs_ptr = rhs_load.group("rhs_ptr")
     accumulator_load = require_regex(
         code,
         rf"const {element_c_type}\* (?P<acc_ptr>v[0-9]+) = "
@@ -7378,10 +7514,11 @@ def extract_plain_macc_emitc_boundary(
         },
         "lhs_abi_parameter": lhs,
         "rhs_abi_parameter": rhs,
+        "rhs_scalar_abi_parameter": rhs_scalar,
         "accumulator_abi_parameter": acc,
         "out_abi_parameter": out,
         "lhs_pointer": lhs_load.group("lhs_ptr"),
-        "rhs_pointer": rhs_load.group("rhs_ptr"),
+        "rhs_pointer": rhs_ptr,
         "accumulator_pointer": accumulator_load.group("acc_ptr"),
         "out_pointer": store.group("out_ptr"),
         "lhs_vector": lhs_vec,
@@ -7394,11 +7531,17 @@ def extract_plain_macc_emitc_boundary(
         "result_layout": MACC_ADD_RESULT_LAYOUT,
         "setvl_intrinsic": expectation.setvl_intrinsic,
         "load_intrinsic": expectation.unit_load_intrinsic,
+        "rhs_splat_intrinsic": (
+            "__riscv_vmv_v_x_i32m1"
+            if expectation.is_scalar_broadcast_macc_add
+            else ""
+        ),
         "macc_intrinsic": expectation.macc_compute_intrinsic,
         "store_intrinsic": expectation.unit_store_intrinsic,
         "macc_operand_order": "acc,lhs,rhs,vl",
         "macc_uses_loaded_accumulator": True,
-        "macc_uses_loaded_lhs_rhs": True,
+        "macc_uses_loaded_lhs_rhs": not expectation.is_scalar_broadcast_macc_add,
+        "macc_uses_scalar_broadcast_rhs": expectation.is_scalar_broadcast_macc_add,
         "macc_uses_loop_vl": True,
         "store_uses_macc_result": True,
         "store_advances_by_loop_induction": True,
@@ -9514,7 +9657,18 @@ def verify_materialized_selected_body(
             "result_binding": "output-buffer lane0 scalar result",
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
-    if expectation.is_macc_add:
+    if expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add:
+        if expectation.is_scalar_broadcast_macc_add:
+            require_contains(
+                text,
+                "tcrv_rvv.splat",
+                "materialized selected-body MLIR scalar-broadcast macc RHS splat",
+            )
+            require_contains(
+                text,
+                'role = "rhs-scalar-value"',
+                "materialized selected-body MLIR scalar-broadcast macc RHS scalar ABI role",
+            )
         require_contains(
             text,
             'role = "accumulator-input-buffer"',
@@ -9552,11 +9706,16 @@ def verify_materialized_selected_body(
             "result_layout": MACC_ADD_RESULT_LAYOUT,
             "selected_source_abi": {
                 "lhs": "lhs-input-buffer",
-                "rhs": "rhs-input-buffer",
+                "rhs": (
+                    "rhs-scalar-value"
+                    if expectation.is_scalar_broadcast_macc_add
+                    else "rhs-input-buffer"
+                ),
                 "acc": "accumulator-input-buffer",
                 "out": "output-buffer",
                 "n": "runtime-element-count",
             },
+            "rhs_scalar_broadcast": expectation.is_scalar_broadcast_macc_add,
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
     if expectation.is_computed_masked_macc_add:
@@ -13833,6 +13992,126 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_scalar_broadcast_macc_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n, int32_t rhs_scalar) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 5;
+  if (alloc_n == 5 && n == 0)
+    alloc_n = 6;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d\\n", n, rhs_scalar);
+    free(lhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs_scalar, acc, out, n);
+
+  size_t positive_products = 0;
+  size_t negative_products = 0;
+  size_t positive_lhs = 0;
+  size_t negative_lhs = 0;
+  size_t positive_accumulators = 0;
+  size_t negative_accumulators = 0;
+  size_t nonzero_accumulators = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t product = (int32_t)lhs[index] * rhs_scalar;
+    int32_t expected = {expectation.expected_expression};
+    if (product > 0)
+      ++positive_products;
+    if (product < 0)
+      ++negative_products;
+    if (lhs[index] > 0)
+      ++positive_lhs;
+    if (lhs[index] < 0)
+      ++negative_lhs;
+    if (acc[index] > 0)
+      ++positive_accumulators;
+    if (acc[index] < 0)
+      ++negative_accumulators;
+    if (acc[index] != 0)
+      ++nonzero_accumulators;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs_scalar=%d acc=%d product=%d\\n",
+              n, index, out[index], expected, lhs[index], rhs_scalar, acc[index], product);
+      free(lhs);
+      free(acc);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d rhs_scalar=%d\\n",
+              n, index, out[index], {expectation.out_initializer}, rhs_scalar);
+      free(lhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 3 && (positive_products == 0 || negative_products == 0 ||
+                positive_lhs == 0 || negative_lhs == 0 ||
+                positive_accumulators == 0 || negative_accumulators == 0 ||
+                nonzero_accumulators == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu rhs_scalar=%d positive_products=%zu negative_products=%zu positive_lhs=%zu negative_lhs=%zu positive_accumulators=%zu negative_accumulators=%zu nonzero_accumulators=%zu\\n",
+            n, rhs_scalar, positive_products, negative_products, positive_lhs,
+            negative_lhs, positive_accumulators, negative_accumulators,
+            nonzero_accumulators);
+    free(lhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(lhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d scalar_broadcast_macc explicit_accumulator signed_products tail_preserved\\n",
+         n, rhs_scalar);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
+    for (size_t index = 0; index < count_count; ++index) {{
+      int status = run_case(counts[index], rhs_scalar_values[scalar_index]);
+      if (status != 0)
+        return status;
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_macc_add:
         return f"""
 #include <stddef.h>
@@ -15667,12 +15946,38 @@ def multiply_accumulate_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if not expectation.is_macc_add:
+    if not (expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add):
         return {}
+    rhs_source = (
+        "runtime scalar tcrv_rvv.splat"
+        if expectation.is_scalar_broadcast_macc_add
+        else "typed RHS vector load"
+    )
+    selected_rhs_role = (
+        "rhs-scalar-value"
+        if expectation.is_scalar_broadcast_macc_add
+        else "rhs-input-buffer"
+    )
+    loop_callees = [
+        expectation.setvl_intrinsic,
+        expectation.unit_load_intrinsic,
+    ]
+    if expectation.is_scalar_broadcast_macc_add:
+        loop_callees.append("__riscv_vmv_v_x_i32m1")
+    else:
+        loop_callees.append(expectation.unit_load_intrinsic)
+    loop_callees.extend(
+        [
+            expectation.unit_load_intrinsic,
+            expectation.macc_compute_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+    )
     return {
         "source": (
-            "typed tcrv_rvv.macc body/config -> math operand-binding facts -> "
-            "RVV-owned plain MAcc statement plan -> emitted vmacc operands"
+            f"typed tcrv_rvv.macc body/config with {rhs_source} -> math "
+            "operand-binding facts -> RVV-owned plain MAcc statement plan -> "
+            "emitted vmacc operands"
         ),
         "authority": (
             "provider-derived typed tcrv_rvv multiply-accumulate "
@@ -15702,7 +16007,7 @@ def multiply_accumulate_boundary_summary(
         },
         "selected_source_abi": {
             "lhs": "lhs-input-buffer",
-            "rhs": "rhs-input-buffer",
+            "rhs": selected_rhs_role,
             "acc": "accumulator-input-buffer",
             "out": "output-buffer",
             "n": "runtime-element-count",
@@ -15710,14 +16015,8 @@ def multiply_accumulate_boundary_summary(
         "statement_plan": {
             "family": "plain MAcc",
             "pre_loop_callees": [expectation.setvl_intrinsic],
-            "loop_callees": [
-                expectation.setvl_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.macc_compute_intrinsic,
-                expectation.unit_store_intrinsic,
-            ],
+            "loop_callees": loop_callees,
+            "rhs_source": rhs_source,
             "macc_operand_order": "acc,lhs,rhs,vl",
             "store_pointer": "out + loop_induction",
         },
@@ -15777,6 +16076,7 @@ def run_one_op_e2e(
     }
     if (
         expectation.is_scalar_broadcast_elementwise
+        or expectation.is_scalar_broadcast_macc_add
         or expectation.is_runtime_scalar_splat_store
         or expectation.is_runtime_scalar_compare_select
         or expectation.is_runtime_scalar_dual_compare_mask_and_select
@@ -15898,7 +16198,7 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_macc_add:
+        if expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add:
             evidence["multiply_accumulate_boundary"] = (
                 multiply_accumulate_boundary_summary(
                     expectation=expectation,
@@ -15935,6 +16235,7 @@ def run_one_op_e2e(
         }
         if (
             expectation.is_scalar_broadcast_elementwise
+            or expectation.is_scalar_broadcast_macc_add
             or expectation.is_runtime_scalar_splat_store
             or expectation.is_runtime_scalar_compare_select
             or expectation.is_runtime_scalar_dual_compare_mask_and_select
@@ -16042,9 +16343,9 @@ def run_one_op_e2e(
             evidence["harness"]["inactive_lane_contract"] = (
                 "masked-off lanes must preserve the explicit passthrough vector"
             )
-        if expectation.is_macc_add:
+        if expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add:
             evidence["harness"]["accumulator_contract"] = (
-                "macc_add cases use an explicit accumulator input buffer and "
+                f"{expectation.kind} cases use an explicit accumulator input buffer and "
                 "a separate output destination"
             )
             evidence["harness"]["tail_lane_contract"] = (
@@ -16438,6 +16739,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         expectations = selected_expectations(args)
         has_runtime_scalar_operand = any(
             expectation.is_scalar_broadcast_elementwise
+            or expectation.is_scalar_broadcast_macc_add
             or expectation.is_runtime_scalar_splat_store
             or expectation.is_runtime_scalar_compare_select
             or expectation.is_runtime_scalar_dual_compare_mask_and_select
@@ -16464,7 +16766,8 @@ def run_e2e(args: argparse.Namespace) -> int:
         if args.rhs_scalar and not has_runtime_scalar_operand:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
-                "scalar_broadcast_add/sub/mul, runtime_i32_splat_store, or "
+                "scalar_broadcast_add/sub/mul, scalar_broadcast_macc_add, "
+                "runtime_i32_splat_store, or "
                 "runtime_scalar_cmp_select/runtime_scalar_cmp_masked_store/"
                 "runtime_scalar_dual_cmp_mask_and_select/"
                 "runtime_scalar_cmp_masked_load_store/"
@@ -16738,6 +17041,7 @@ def run_self_test() -> int:
                 )
             if (
                 expectation.is_scalar_broadcast_elementwise
+                or expectation.is_scalar_broadcast_macc_add
                 or expectation.is_runtime_scalar_splat_store
                 or expectation.is_runtime_scalar_compare_select
                 or expectation.is_runtime_scalar_dual_compare_mask_and_select
@@ -16843,6 +17147,17 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask macc "
                     "mask, accumulator passthrough, or arithmetic coverage"
+                )
+            if expectation.is_scalar_broadcast_macc_add and (
+                "scalar_broadcast_macc" not in harness
+                or "rhs_scalar_values" not in harness
+                or "lhs, rhs_scalar, acc, out, n" not in harness
+                or "(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs_scalar))"
+                not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost scalar-broadcast macc "
+                    "runtime scalar, accumulator, or arithmetic coverage"
                 )
             if expectation.is_runtime_scalar_computed_masked_macc_add and (
                 "runtime_scalar_computed_mask_macc" not in harness
@@ -17268,6 +17583,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=[],
         help=(
             "runtime RHS scalar value for scalar_broadcast_add/sub/mul, "
+            "scalar_broadcast_macc_add, "
             "runtime_i32_splat_store, runtime_scalar_cmp_select, or "
             "runtime_scalar_dual_cmp_mask_and_select, or "
             "runtime_scalar_cmp_masked_store/"

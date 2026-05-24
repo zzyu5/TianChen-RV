@@ -471,6 +471,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-macc-add-emitc-route",
      "rvv-generic-macc-add-callable-c-abi.v1",
      "rvv-generic-macc-add-callable-c-abi"},
+    {"scalar_broadcast_macc_add",
+     "tcrv_rvv.macc",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-scalar-broadcast-macc-add-emitc-route",
+     "rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1",
+     "rvv-generic-scalar-broadcast-macc-add-callable-c-abi"},
     {"computed_masked_macc_add",
      "tcrv_rvv.masked_macc",
      "rvv.role.compute.generic_vector",
@@ -782,7 +788,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 50)
+          .size() != 51)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
@@ -796,7 +802,7 @@ llvm::Error verifySelectedBodyRoutes() {
         "computed_mask_standalone_reduce_max, "
         "runtime_scalar_cmp_masked_standalone_reduce_add, "
         "masked_add, masked_sub, masked_mul, "
-        "macc_add, computed_masked_macc_add, "
+        "macc_add, scalar_broadcast_macc_add, computed_masked_macc_add, "
         "runtime_scalar_cmp_masked_macc_add, widening_macc_add, "
         "widening_dot_reduce_add, "
         "strided_input_widening_dot_reduce_add, "
@@ -944,6 +950,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
                                    route->operationMnemonic == "masked_sub" ||
                                    route->operationMnemonic == "masked_mul";
   const bool isMAccAdd = route->operationMnemonic == "macc_add";
+  const bool isScalarBroadcastMAccAdd =
+      route->operationMnemonic == "scalar_broadcast_macc_add";
   const bool isComputedMaskedMAccAdd =
       route->operationMnemonic == "computed_masked_macc_add";
   const bool isRuntimeScalarComputedMaskedMAccAdd =
@@ -1052,7 +1060,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV masked elementwise construction requires generic "
         "tcrv_rvv.masked_binary");
-  if (isMAccAdd && typedComputeOpName != "tcrv_rvv.macc")
+  if ((isMAccAdd || isScalarBroadcastMAccAdd) &&
+      typedComputeOpName != "tcrv_rvv.macc")
     return makeRVVConstructionError(
         "RVV multiply-accumulate construction requires generic "
         "tcrv_rvv.macc");
@@ -1166,8 +1175,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isReduction &&
       !isStandaloneReduction && !isComputedMaskStandaloneReduction &&
       !isRuntimeScalarComputedMaskStandaloneReduction &&
-      !isMaskedElementwise && !isMAccAdd && !isComputedMaskedMAccAdd &&
-      !isRuntimeScalarComputedMaskedMAccAdd &&
+      !isMaskedElementwise && !isMAccAdd && !isScalarBroadcastMAccAdd &&
+      !isComputedMaskedMAccAdd && !isRuntimeScalarComputedMaskedMAccAdd &&
       !isWideningMAccAdd &&
       !isWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
@@ -1236,6 +1245,12 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV generic scalar-broadcast elementwise construction requires "
         "explicit RHS runtime scalar splat");
+  if (isScalarBroadcastMAccAdd &&
+      rhsSourceOperationName != "tcrv_rvv.splat")
+    return makeRVVConstructionError(
+        "RVV generic scalar-broadcast multiply-accumulate construction "
+        "requires explicit RHS runtime scalar splat feeding the macc RHS "
+        "operand");
   if (isRuntimeScalarSplatStore && rhsSourceOperationName != "tcrv_rvv.splat")
     return makeRVVConstructionError(
         "RVV runtime scalar splat-store construction requires explicit RHS "
@@ -1271,7 +1286,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "requires explicit RHS runtime scalar splat feeding compare-produced "
         "mask, source payload load, scalar accumulator seed, and scalar store "
         "roles");
-  if (!isScalarBroadcastElementwise && !isRuntimeScalarSplatStore &&
+  if (!isScalarBroadcastElementwise && !isScalarBroadcastMAccAdd &&
+      !isRuntimeScalarSplatStore &&
       !isRuntimeScalarCompareSelect &&
       !isRuntimeScalarDualCompareMaskAndSelect &&
       !isRuntimeScalarComputedMaskStore &&
@@ -1281,12 +1297,13 @@ buildRVVSelectedBodyExecutableRoleSteps(
       rhsSourceOperationName == "tcrv_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar splat memory form is only supported by "
-        "scalar_broadcast_add/sub/mul, runtime_i32_splat_store, "
+        "scalar_broadcast_add/sub/mul, scalar_broadcast_macc_add, "
+        "runtime_i32_splat_store, "
 	        "runtime_scalar_cmp_select, "
 	        "runtime_scalar_dual_cmp_mask_and_select, "
 	        "runtime_scalar_cmp_masked_store, or "
         "runtime_scalar_cmp_masked_load_store, or "
-        "runtime_scalar_cmp_masked_macc_add, or "
+        "runtime_scalar_cmp_masked_macc_add, "
         "runtime_scalar_cmp_masked_standalone_reduce_add in "
         "this bounded slice");
   if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
@@ -2139,6 +2156,47 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "rhs_load", 8});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "accumulator_load", 9});
+    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 10});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 11});
+    return steps;
+  }
+  if (isScalarBroadcastMAccAdd) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_scalar", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "acc", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 4});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     5});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "lhs_load", 7});
+    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_scalar_splat", 8});
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "accumulator_load", 9});
@@ -3579,6 +3637,12 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(maccParameters.begin(),
                                        maccParameters.end());
+    } else if (route.operationMnemonic == "scalar_broadcast_macc_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
+          tcrv::rvv::
+              getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
+      routeRuntimeABIParameters.append(maccParameters.begin(),
+                                       maccParameters.end());
     } else if (route.operationMnemonic == "computed_masked_macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 7> maskedMAccParameters =
           tcrv::rvv::getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
@@ -3810,7 +3874,9 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " masked elementwise cannot use generic tcrv_rvv.binary");
-  if (usesGenericBinary && route->operationMnemonic == "macc_add")
+  if (usesGenericBinary && (route->operationMnemonic == "macc_add" ||
+                            route->operationMnemonic ==
+                                "scalar_broadcast_macc_add"))
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " multiply-accumulate cannot use generic tcrv_rvv.binary");
@@ -3967,6 +4033,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  route->operationMnemonic == "masked_sub" ||
                  route->operationMnemonic == "masked_mul" ||
                  route->operationMnemonic == "macc_add" ||
+                 route->operationMnemonic == "scalar_broadcast_macc_add" ||
                  route->operationMnemonic == "computed_masked_macc_add" ||
                  route->operationMnemonic ==
                      "runtime_scalar_cmp_masked_macc_add" ||
@@ -4201,6 +4268,10 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
   } else if (route->operationMnemonic == "macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
         tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+    expectedParameters.append(maccParameters.begin(), maccParameters.end());
+  } else if (route->operationMnemonic == "scalar_broadcast_macc_add") {
+    llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
+        tcrv::rvv::getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
     expectedParameters.append(maccParameters.begin(), maccParameters.end());
   } else if (route->operationMnemonic == "computed_masked_macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> maskedMAccParameters =
@@ -4586,7 +4657,9 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return makeRVVConstructionError(
         "selected-body masked elementwise cannot use generic "
         "tcrv_rvv.binary");
-  if (usesGenericBinary && expected.operationMnemonic == "macc_add")
+  if (usesGenericBinary && (expected.operationMnemonic == "macc_add" ||
+                            expected.operationMnemonic ==
+                                "scalar_broadcast_macc_add"))
     return makeRVVConstructionError(
         "selected-body multiply-accumulate cannot use generic "
         "tcrv_rvv.binary");
@@ -4725,6 +4798,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "masked_sub" ||
                  expected.operationMnemonic == "masked_mul" ||
                  expected.operationMnemonic == "macc_add" ||
+                 expected.operationMnemonic == "scalar_broadcast_macc_add" ||
                  expected.operationMnemonic == "computed_masked_macc_add" ||
                  expected.operationMnemonic ==
                      "runtime_scalar_cmp_masked_macc_add" ||

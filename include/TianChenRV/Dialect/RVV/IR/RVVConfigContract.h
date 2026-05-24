@@ -111,6 +111,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyI64RuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
