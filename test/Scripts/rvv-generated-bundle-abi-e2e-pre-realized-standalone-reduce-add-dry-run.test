@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-standalone-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
@@ -36,8 +36,32 @@
 # REDUCE-DAG: "value": "lhs,acc,out,n"
 # REDUCE-DAG: "key": "tcrv_rvv.runtime_control_plan"
 # REDUCE-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
+# REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
+# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_route_family_plan"
+# REDUCE-DAG: "value": "rvv-standalone-reduction-route-family-plan.v1"
+# REDUCE-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# REDUCE-DAG: "value": "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
+# REDUCE-DAG: "key": "tcrv_rvv.reduction_accumulator_layout"
+# REDUCE-DAG: "value": "scalar-i32-seed-lane0-from-accumulator-input"
+# REDUCE-DAG: "key": "tcrv_rvv.reduction_result_layout"
+# REDUCE-DAG: "value": "store-standalone-reduction-lane0-to-output-scalar"
+# REDUCE-DAG: "key": "tcrv_rvv.reduction_store_vl"
+# REDUCE-DAG: "value": "1"
 # REDUCE-DAG: "typed_compute_op": "tcrv_rvv.standalone_reduce"
 # REDUCE-DAG: "memory_form": "unit-stride-standalone-reduction"
+# REDUCE-DAG: "reduction_accumulation_boundary": {
+# REDUCE-DAG: "authority": "provider-derived typed tcrv_rvv reduction/accumulation body/config/runtime facts"
+# REDUCE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# REDUCE-DAG: "reduction_kind": "add"
+# REDUCE-DAG: "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+# REDUCE-DAG: "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input"
+# REDUCE-DAG: "result_layout": "store-standalone-reduction-lane0-to-output-scalar"
+# REDUCE-DAG: "reduction_store_vl": "1"
+# REDUCE-DAG: "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
+# REDUCE-DAG: "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1"
+# REDUCE-DAG: "seed_store_initializes_empty_count_result": true
+# REDUCE-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # REDUCE-DAG: "status": "dry_run_success"
 
 # HARNESS: int32_t expected = seed;
@@ -45,4 +69,5 @@
 # HARNESS: acc[0] = seed;
 # HARNESS: tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add(lhs, acc, out, n);
 # HARNESS: tail_preserved
+# HARNESS: const size_t counts[] = {0, 7, 16, 23};
 # HARNESS: seeds=-11,17

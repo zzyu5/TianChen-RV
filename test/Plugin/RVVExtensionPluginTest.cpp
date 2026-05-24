@@ -7190,6 +7190,267 @@ module {
                 "conversion statement plan");
 }
 
+int runStandaloneReductionStatementPlanBoundaryTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyStandaloneReductionRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRouteFamilyProviderPlans;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @stmt_standalone_reduce_add_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_standalone_reduce_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_standalone_reduce_add, sew = 32 : i64, source_kernel = "stmt_standalone_reduce_add_kernel", status = "selected-lowering-boundary"} {
+        %input = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %reduced = tcrv_rvv.standalone_reduce %input, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse standalone reduction statement-plan module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
+      analyzeRouteInModule(*module, "stmt_standalone_reduce_add_kernel",
+                           "rvv_standalone_reduce_add");
+  if (!analysis)
+    return fail("analyze standalone reduction statement-plan route: " +
+                llvm::toString(analysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              *analysis,
+              "standalone reduction statement plan provider unit test"),
+          "verify standalone reduction route-family plans before "
+          "statement-plan construction"))
+    return result;
+
+  auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *analysis, "standalone reduction statement plan provider unit test");
+  if (!materializationFacts)
+    return fail("standalone reduction statement-plan materialization facts: " +
+                llvm::toString(materializationFacts.takeError()));
+  auto mathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *analysis, "standalone reduction statement plan provider unit test");
+  if (!mathFacts)
+    return fail("standalone reduction statement-plan math facts: " +
+                llvm::toString(mathFacts.takeError()));
+
+  auto statementPlan = getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+      *analysis, *materializationFacts, *mathFacts,
+      "standalone reduction statement plan provider unit test");
+  if (!statementPlan)
+    return fail("standalone reduction statement-plan construction: " +
+                llvm::toString(statementPlan.takeError()));
+  if (int result = expect(
+          statementPlan->plansStandaloneReductionRoute &&
+              statementPlan->plansStandaloneReduceAdd &&
+              statementPlan->standaloneReductionPlan ==
+                  materializationFacts->standaloneReductionPlan,
+          "statement plan exposes the expected standalone_reduce_add "
+          "sub-family and route-family plan"))
+    return result;
+
+  const char *expectedPreLoopCallees[] = {
+      "__riscv_vsetvl_e32m1", "__riscv_vmv_v_x_i32m1",
+      "__riscv_vse32_v_i32m1"};
+  if (int result = expect(
+          statementPlan->preLoopSteps.size() ==
+              std::size(expectedPreLoopCallees),
+          "standalone reduction statement plan owns the expected pre-loop "
+          "seed initialization step count"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedPreLoopCallees);
+       ++index) {
+    if (int result = expect(
+            statementPlan->preLoopSteps[index].callee ==
+                expectedPreLoopCallees[index],
+            llvm::Twine("standalone reduction statement plan pre-loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedPreLoopCallees[index] + "'"))
+      return result;
+  }
+
+  const char *expectedBodyCallees[] = {
+      "__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+      "__riscv_vmv_v_x_i32m1", "__riscv_vredsum_vs_i32m1_i32m1",
+      "__riscv_vse32_v_i32m1"};
+  if (int result = expect(
+          statementPlan->loop.bodySteps.size() ==
+              std::size(expectedBodyCallees),
+          "standalone reduction statement plan owns the expected loop step "
+          "count"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            statementPlan->loop.bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("standalone reduction statement plan loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+  auto migratedStatementPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      *analysis, *materializationFacts, emptyElementwiseFacts, emptyMemoryFacts,
+      *mathFacts, emptyResidualFacts,
+      "migrated standalone reduction statement-plan unit test");
+  if (!migratedStatementPlan)
+    return fail("migrated standalone reduction statement-plan construction: " +
+                llvm::toString(migratedStatementPlan.takeError()));
+  if (int result = expect(
+          migratedStatementPlan->plansMigratedRoute &&
+              migratedStatementPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                      StandaloneReduction &&
+              migratedStatementPlan->preLoopSteps.size() ==
+                  std::size(expectedPreLoopCallees) &&
+              migratedStatementPlan->loop.bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "migrated statement-plan boundary exposes standalone reduction as "
+          "one provider-neutral plan"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for standalone reduction statement plan test"))
+    return result;
+  KernelOp kernel = findKernel(*module, "stmt_standalone_reduce_add_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_standalone_reduce_add");
+  TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "provider consumes standalone reduction statement plan"))
+    return result;
+  if (int result = expect(
+          route.getCallOpaqueSteps().size() ==
+              std::size(expectedPreLoopCallees) &&
+              route.getForLoops().size() == 1 &&
+              route.getForLoops().front().bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "provider route attaches the RVV-owned standalone reduction "
+          "statement-plan steps"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedPreLoopCallees);
+       ++index) {
+    if (int result = expect(
+            route.getCallOpaqueSteps()[index].callee ==
+                expectedPreLoopCallees[index],
+            llvm::Twine("provider route standalone reduction pre-loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedPreLoopCallees[index] + "'"))
+      return result;
+  }
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            route.getForLoops().front().bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("provider route standalone reduction loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  auto staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.standaloneReductionPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "standalone reduction statement plan stale dependency unit test")
+              .takeError(),
+          {"standalone reduction statement plan requires the verified "
+           "standalone reduction route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+              *analysis, *materializationFacts, emptyMathFacts,
+              "standalone reduction statement plan stale dependency unit test")
+              .takeError(),
+          {"standalone reduction statement plan requires standalone reduction "
+           "math operand-binding facts",
+           "before route statement construction"}))
+    return result;
+
+  staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.scalarSeedSplatLeaf = "";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "standalone reduction statement plan stale dependency unit test")
+              .takeError(),
+          {"standalone reduction statement plan requires scalar seed splat "
+           "callee",
+           "before route statement construction"}))
+    return result;
+
+  staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.contractionComputeLeaf = "";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "standalone reduction statement plan stale dependency unit test")
+              .takeError(),
+          {"standalone reduction statement plan requires reduction callee",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis unrelated;
+  unrelated.description.operation = RVVSelectedBodyOperationKind::Add;
+  auto emptyPlan = getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+      unrelated, {}, {},
+      "standalone reduction statement plan empty unit test");
+  if (!emptyPlan)
+    return fail("unrelated standalone reduction statement-plan empty result: " +
+                llvm::toString(emptyPlan.takeError()));
+  return expect(!emptyPlan->plansStandaloneReductionRoute &&
+                    emptyPlan->preLoopSteps.empty() &&
+                    emptyPlan->loop.bodySteps.empty(),
+                "unrelated route families receive an empty standalone "
+                "reduction statement plan");
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -10985,6 +11246,9 @@ int main() {
     return result;
   if (int result =
           runWideningConversionStatementPlanBoundaryTest(context))
+    return result;
+  if (int result =
+          runStandaloneReductionStatementPlanBoundaryTest(context))
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

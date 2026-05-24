@@ -1211,7 +1211,18 @@ Added RVV-owned compare/select statement plans, rewired provider consumption wit
 
 ### Main Changes
 
-(Add details)
+- Added the bounded standalone-reduction statement-plan API and migrated
+  `standalone_reduce_add` into provider consumption before generic
+  provider-local statement assembly.
+- Added focused plugin fail-closed coverage for missing standalone route-family
+  facts, math operand-binding facts, scalar seed splat, reduction leaf callee,
+  and unrelated operation handling.
+- Extended generated-bundle evidence with `reduction_accumulation_boundary` for
+  typed materialized body facts, emitted seed/load/splat/vredsum/store
+  operands, mirror-only metadata, store VL 1, empty-count seed behavior, and
+  runtime-count non-authority.
+- Tightened the pre-realized standalone-reduce dry-run FileCheck fixture for
+  reduction/accumulation metadata and counts `0,7,16,23`.
 
 ### Git Commits
 
@@ -1272,7 +1283,22 @@ Added an RVV-owned computed-mask memory statement-plan boundary, rewired the sel
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-reduction-accumulation-route-closure`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused dry-run generated-bundle evidence for pre-realized
+  `standalone_reduce_add`, counts `0,7,16,23`
+- [OK] focused lit test
+  `Scripts/rvv-generated-bundle-abi-e2e-pre-realized-standalone-reduce-add-dry-run.test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2 &&
+  build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] real `ssh rvv` generated-bundle ABI/e2e for counts `0,7,16,23` and
+  seeds `-11,17`
+- [OK] bounded diff scan found no newly added positive legacy i32,
+  descriptor/source-front-door/source-artifact, route-id, artifact-name, or
+  harness-only authority
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 365/365 passed
 
 ### Status
 
@@ -1868,6 +1894,39 @@ Closed the bounded pre-realized RVV widen_i16_to_i32 conversion/SEW policy route
 ### Git Commits
 
 pending-final-session-commit
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 204: Stage2 RVV reduction accumulation route closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV reduction accumulation route closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded pre-realized RVV standalone_reduce_add reduction/accumulation route with RVV-owned statement-plan consumption, reduction_accumulation_boundary generated-bundle evidence, ssh rvv correctness for counts 0/7/16/23, and archived Trellis state.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
 
 ### Testing
 
