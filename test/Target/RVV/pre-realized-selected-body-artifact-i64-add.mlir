@@ -47,6 +47,7 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.binary"}
 // PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.element_type", value = "i64"}
 // PLAN-SAME: {key = "tcrv_rvv.sew", value = "64"}
 // PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m1"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew64-lmul-m1"}
@@ -62,4 +63,5 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_i64_add
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER: tianchenrv.rvv.element_type: i64
 // HEADER: void tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);

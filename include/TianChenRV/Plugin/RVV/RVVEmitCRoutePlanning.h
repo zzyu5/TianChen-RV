@@ -192,6 +192,29 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter outStrideABI;
 };
 
+struct RVVSelectedBodyTypedConfigFacts {
+  llvm::StringRef factsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef indexVectorTypeName;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef indexVectorCType;
+  llvm::StringRef maskCType;
+  llvm::StringRef vlCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+
+  bool hasFacts() const { return !factsID.empty(); }
+};
+
 struct RVVSelectedBodyContractionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -686,6 +709,7 @@ struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
+  RVVSelectedBodyTypedConfigFacts typedConfigFacts;
   RVVRouteOperandBindingPlan routeOperandBindingPlan;
   std::optional<RVVSelectedBodyContractionRouteFamilyPlan>
       contractionRouteFamilyPlan;
@@ -715,6 +739,8 @@ struct RVVSelectedBodyRouteAnalysis {
 };
 
 struct RVVSelectedBodyRouteMaterializationFacts {
+  RVVSelectedBodyTypedConfigFacts typedConfigFacts;
+
   const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
   const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan
       *elementwiseArithmeticPlan = nullptr;

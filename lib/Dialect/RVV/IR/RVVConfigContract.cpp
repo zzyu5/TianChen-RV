@@ -417,6 +417,7 @@ getRVVSelectedBodyConfigArtifactMetadata() {
   static const support::ArtifactMetadataEntry kMetadata[] = {
       {"tcrv_rvv.config_contract",
        kRVVSelectedBodyM1ConfigVLContract.configContractID},
+      {"tcrv_rvv.element_type", "i32"},
       {"tcrv_rvv.sew", "32"},
       {"tcrv_rvv.lmul", kRVVSelectedBodyM1ConfigVLContract.lmul},
       {"tcrv_rvv.tail_policy", "agnostic"},

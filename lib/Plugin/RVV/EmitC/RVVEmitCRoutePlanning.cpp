@@ -9802,6 +9802,188 @@ llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy) {
   llvm_unreachable("unknown RVV mask policy");
 }
 
+llvm::Expected<llvm::StringRef>
+getRVVSelectedBodyElementTypeNameForSEW(std::int64_t sew,
+                                        llvm::StringRef context) {
+  if (sew == tcrv::rvv::getRVVSEW16Bits())
+    return llvm::StringRef("i16");
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return llvm::StringRef("i32");
+  if (sew == tcrv::rvv::getRVVSEW64Bits())
+    return llvm::StringRef("i64");
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " typed config facts require a supported integer element type for SEW " +
+      llvm::Twine(sew));
+}
+
+llvm::Expected<RVVSelectedBodyTypedConfigFacts>
+deriveRVVSelectedBodyTypedConfigFacts(
+    const tcrv::rvv::RVVCompileTimeConfig &config,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    llvm::StringRef context) {
+  if (configProfile.sew != config.sew || configProfile.lmul != config.lmul)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " typed config facts require the provider config profile to mirror "
+        "realized tcrv_rvv.setvl SEW/LMUL");
+  if (!config.policy)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " typed config facts require an explicit realized RVV policy");
+  if (!configProfile.configContract)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " typed config facts require a selected-body config contract");
+  if (configProfile.vectorTypeName.empty() ||
+      configProfile.vectorCType.empty() || configProfile.vlCType.empty() ||
+      configProfile.setVLIntrinsic.empty() ||
+      configProfile.vectorLoadIntrinsic.empty() ||
+      configProfile.storeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " typed config facts require provider-derived vector type, C type, "
+        "VL type, setvl, load, and store leaves");
+
+  llvm::Expected<llvm::StringRef> elementTypeName =
+      getRVVSelectedBodyElementTypeNameForSEW(config.sew, context);
+  if (!elementTypeName)
+    return elementTypeName.takeError();
+
+  RVVSelectedBodyTypedConfigFacts facts;
+  facts.factsID = "rvv-selected-body-typed-config-facts.v1";
+  facts.elementTypeName = *elementTypeName;
+  facts.elementBitWidth = config.sew;
+  facts.sew = config.sew;
+  facts.lmul = config.lmul;
+  facts.tailPolicy = stringifyRVVTailPolicy(config.policy.getTail());
+  facts.maskPolicy = stringifyRVVMaskPolicy(config.policy.getMask());
+  facts.configContractID = configProfile.configContract->configContractID;
+  facts.vectorTypeName = configProfile.vectorTypeName;
+  facts.indexVectorTypeName = configProfile.indexVectorTypeName;
+  facts.maskTypeName = configProfile.maskTypeName;
+  facts.vectorCType = configProfile.vectorCType;
+  facts.indexVectorCType = configProfile.indexVectorCType;
+  facts.maskCType = configProfile.maskCType;
+  facts.vlCType = configProfile.vlCType;
+  facts.setVLIntrinsic = configProfile.setVLIntrinsic;
+  facts.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  facts.storeIntrinsic = configProfile.storeIntrinsic;
+  return facts;
+}
+
+llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
+    const RVVSelectedBodyTypedConfigFacts &facts,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!facts.hasFacts()) {
+    if (description.configContractID.empty())
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires RVV selected-body typed config facts before provider "
+        "materialization");
+  }
+
+  auto requireText = [&](llvm::StringRef field,
+                         llvm::StringRef value) -> llvm::Error {
+    if (!value.empty())
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " typed config facts require non-empty " +
+        field);
+  };
+  auto requireMatch = [&](llvm::StringRef field, llvm::StringRef actual,
+                          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " typed config facts " + field +
+        " must mirror provider-derived route description value '" + expected +
+        "' but was '" + actual + "'");
+  };
+  auto requireIntMatch = [&](llvm::StringRef field, std::int64_t actual,
+                             std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " typed config facts " + field +
+        " must mirror provider-derived route description value " +
+        llvm::Twine(expected) + " but was " + llvm::Twine(actual));
+  };
+
+  if (llvm::Error error = requireText("facts id", facts.factsID))
+    return error;
+  if (llvm::Error error = requireText("element type", facts.elementTypeName))
+    return error;
+  if (llvm::Error error =
+          requireMatch("element type", facts.elementTypeName,
+                       description.elementTypeName))
+    return error;
+  if (llvm::Error error = requireIntMatch("element bit width",
+                                          facts.elementBitWidth,
+                                          description.sew))
+    return error;
+  if (llvm::Error error = requireIntMatch("SEW", facts.sew, description.sew))
+    return error;
+  if (llvm::Error error = requireMatch("LMUL", facts.lmul, description.lmul))
+    return error;
+  if (llvm::Error error =
+          requireMatch("tail policy", facts.tailPolicy,
+                       description.tailPolicy))
+    return error;
+  if (llvm::Error error =
+          requireMatch("mask policy", facts.maskPolicy,
+                       description.maskPolicy))
+    return error;
+  if (llvm::Error error =
+          requireMatch("config contract", facts.configContractID,
+                       description.configContractID))
+    return error;
+  if (!description.vectorTypeName.empty())
+    if (llvm::Error error =
+            requireMatch("vector type", facts.vectorTypeName,
+                         description.vectorTypeName))
+      return error;
+  if (!description.vectorCType.empty())
+    if (llvm::Error error = requireMatch("vector C type", facts.vectorCType,
+                                         description.vectorCType))
+      return error;
+  if (!description.indexVectorTypeName.empty())
+    if (llvm::Error error =
+            requireMatch("index vector type", facts.indexVectorTypeName,
+                         description.indexVectorTypeName))
+      return error;
+  if (!description.indexVectorCType.empty())
+    if (llvm::Error error =
+            requireMatch("index vector C type", facts.indexVectorCType,
+                         description.indexVectorCType))
+      return error;
+  if (!description.maskTypeName.empty())
+    if (llvm::Error error = requireMatch("mask type", facts.maskTypeName,
+                                         description.maskTypeName))
+      return error;
+  if (!description.maskCType.empty())
+    if (llvm::Error error = requireMatch("mask C type", facts.maskCType,
+                                         description.maskCType))
+      return error;
+  if (!description.vlCType.empty())
+    if (llvm::Error error =
+            requireMatch("VL C type", facts.vlCType, description.vlCType))
+      return error;
+  if (!description.setVLIntrinsic.empty())
+    if (llvm::Error error =
+            requireMatch("setvl intrinsic", facts.setVLIntrinsic,
+                         description.setVLIntrinsic))
+      return error;
+  if (!description.vectorLoadIntrinsic.empty())
+    if (llvm::Error error =
+            requireMatch("vector-load intrinsic", facts.vectorLoadIntrinsic,
+                         description.vectorLoadIntrinsic))
+      return error;
+  return llvm::Error::success();
+}
+
 const RVVSelectedBodyConstructionRoute &
 getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
   const RVVSelectedBodyOperationProfile &profile =
@@ -21003,6 +21185,11 @@ getRVVSelectedBodyRouteMaterializationFacts(
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
   RVVSelectedBodyRouteMaterializationFacts facts;
+  facts.typedConfigFacts = analysis.typedConfigFacts;
+  if (llvm::Error error = verifyRVVSelectedBodyTypedConfigFactsMirror(
+          facts.typedConfigFacts, description, context))
+    return std::move(error);
+
   facts.contractionPlan = analysis.contractionRouteFamilyPlan
                               ? &*analysis.contractionRouteFamilyPlan
                               : nullptr;
@@ -28254,6 +28441,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       deriveRVVSelectedBodyRouteProfile(analysis.description);
   if (!routeProfile)
     return routeProfile.takeError();
+  llvm::Expected<RVVSelectedBodyTypedConfigFacts> typedConfigFacts =
+      deriveRVVSelectedBodyTypedConfigFacts(
+          config, routeProfile->config,
+          "selected RVV route analysis typed config boundary");
+  if (!typedConfigFacts)
+    return typedConfigFacts.takeError();
+  analysis.typedConfigFacts = *typedConfigFacts;
+  analysis.description.elementTypeName =
+      analysis.typedConfigFacts.elementTypeName;
+
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
           routeProfile->operation.operationMnemonic);
@@ -29194,6 +29391,14 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   if (llvm::Error error = requireRouteDescriptionField(
           context, "config contract", description.configContractID,
           configContract.configContractID))
+    return error;
+  llvm::Expected<llvm::StringRef> expectedElementType =
+      getRVVSelectedBodyElementTypeNameForSEW(description.sew, context);
+  if (!expectedElementType)
+    return expectedElementType.takeError();
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "element type", description.elementTypeName,
+          *expectedElementType))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "runtime VL contract", description.runtimeVLContractID,
@@ -32154,6 +32359,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
   llvm::SmallVector<support::ArtifactMetadataEntry, 16> metadata;
   metadata.push_back(
       {"tcrv_rvv.config_contract", description.configContractID});
+  metadata.push_back({"tcrv_rvv.element_type", description.elementTypeName});
   metadata.push_back({"tcrv_rvv.sew", llvm::Twine(description.sew).str()});
   metadata.push_back({"tcrv_rvv.lmul", description.lmul});
   metadata.push_back({"tcrv_rvv.tail_policy", description.tailPolicy});

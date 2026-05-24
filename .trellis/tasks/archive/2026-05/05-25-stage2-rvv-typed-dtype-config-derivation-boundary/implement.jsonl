@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV and RVV-first authority invariants for dtype/config ownership"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned dtype/config, selected-body realization, route provider, statement-plan, and artifact mirror contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and TCRVEmitCLowerableRoute authority boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck and RVV evidence requirements"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR/TableGen/CMake implementation stack boundary"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added RVVSelectedBodyTypedConfigFacts to route analysis and materialization facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived and verified typed config facts from realized RVV config/profile before provider materialization"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Threaded element type mirror through provider route descriptions"}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Mirrored element type in static RVV config artifact metadata"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added arithmetic/memory typed config materialization tests and stale fact fail-closed coverage"}

@@ -558,7 +558,7 @@ int runI32M1ConfigVLContractAPITest() {
   llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata =
       tianchenrv::tcrv::rvv::getRVVSelectedBodyConfigArtifactMetadata();
   if (int result =
-          expect(metadata.size() == 19,
+          expect(metadata.size() == 20,
                  "contract exposes complete artifact metadata vector"))
     return result;
   if (int result = expectSuccess(
@@ -567,7 +567,7 @@ int runI32M1ConfigVLContractAPITest() {
           "verify shared RVV artifact metadata contract"))
     return result;
 
-  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 19>
+  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 20>
       staleMetadata(metadata.begin(), metadata.end());
   staleMetadata[0].value = "stale-config";
   if (int result = expectFailure(

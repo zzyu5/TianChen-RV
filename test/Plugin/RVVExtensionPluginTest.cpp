@@ -131,6 +131,53 @@ analyzeRouteInModule(mlir::ModuleOp module, llvm::StringRef kernelName,
           VariantEmissionRole::DirectVariant));
 }
 
+int expectTypedConfigFacts(
+    const tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis &analysis,
+    llvm::StringRef elementTypeName, std::int64_t sew,
+    llvm::StringRef lmul, llvm::StringRef vectorTypeName,
+    llvm::StringRef vectorCType, llvm::StringRef setVLIntrinsic,
+    llvm::StringRef loadIntrinsic, llvm::StringRef storeIntrinsic,
+    llvm::StringRef context) {
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  const auto &facts = analysis.typedConfigFacts;
+  if (int result =
+          expect(facts.hasFacts(), llvm::Twine(context) +
+                                       " exposes typed config facts"))
+    return result;
+  if (int result = expect(
+          facts.elementTypeName == elementTypeName &&
+              facts.elementBitWidth == sew && facts.sew == sew &&
+              facts.lmul == lmul && facts.vectorTypeName == vectorTypeName &&
+              facts.vectorCType == vectorCType &&
+              facts.setVLIntrinsic == setVLIntrinsic &&
+              facts.vectorLoadIntrinsic == loadIntrinsic &&
+              facts.storeIntrinsic == storeIntrinsic,
+          llvm::Twine(context) +
+              " derives element type, SEW, LMUL, vector C type, and "
+              "intrinsic leaves from realized typed RVV config"))
+    return result;
+
+  std::string materializationContext =
+      (llvm::Twine(context) + " materialization facts").str();
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts>
+      materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+          analysis, materializationContext);
+  if (!materializationFacts)
+    return fail(llvm::Twine(context) + " materialization facts: " +
+                llvm::toString(materializationFacts.takeError()));
+  return expect(materializationFacts->typedConfigFacts.hasFacts() &&
+                    materializationFacts->typedConfigFacts.elementTypeName ==
+                        elementTypeName &&
+                    materializationFacts->typedConfigFacts.vectorCType ==
+                        vectorCType &&
+                    materializationFacts->typedConfigFacts.setVLIntrinsic ==
+                        setVLIntrinsic,
+                llvm::Twine(context) +
+                    " preserves typed config facts into provider "
+                    "materialization facts");
+}
+
 mlir::Operation *findFirstNestedOp(VariantOp variant, llvm::StringRef name) {
   mlir::Operation *found = nullptr;
   if (!variant)
@@ -3190,6 +3237,7 @@ int runElementwiseSelectOperandBindingFactsBoundaryTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -3352,6 +3400,22 @@ module {
   if (!addAnalysis)
     return fail("analyze ordinary elementwise binding facts route: " +
                 llvm::toString(addAnalysis.takeError()));
+  if (int result = expectTypedConfigFacts(
+          *addAnalysis, "i32", 32, "m1", "!tcrv_rvv.vector<i32, \"m1\">",
+          "vint32m1_t", "__riscv_vsetvl_e32m1",
+          "__riscv_vle32_v_i32m1", "__riscv_vse32_v_i32m1",
+          "ordinary elementwise add typed config facts"))
+    return result;
+  RVVSelectedBodyRouteAnalysis staleTypedConfigFacts = *addAnalysis;
+  staleTypedConfigFacts.typedConfigFacts.vectorCType = "metadata_i32_vec";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteMaterializationFacts(
+              staleTypedConfigFacts,
+              "ordinary elementwise stale typed config facts unit test")
+              .takeError(),
+          {"typed config facts vector C type",
+           "provider-derived route description value 'vint32m1_t'"}))
+    return result;
   RVVSelectedBodyRouteAnalysis staleAddUse = *addAnalysis;
   bool removedAddUse = false;
   for (tianchenrv::plugin::rvv::RVVRouteOperandBinding &binding :
@@ -3839,6 +3903,13 @@ module {
   if (!stridedLoadAnalysis)
     return fail("analyze strided_load_unit_store provider route: " +
                 llvm::toString(stridedLoadAnalysis.takeError()));
+  if (int result = expectTypedConfigFacts(
+          *stridedLoadAnalysis, "i32", 32, "m1",
+          "!tcrv_rvv.vector<i32, \"m1\">", "vint32m1_t",
+          "__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+          "__riscv_vse32_v_i32m1",
+          "strided_load_unit_store typed config facts"))
+    return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
               *stridedLoadAnalysis, "base memory provider unit test"),

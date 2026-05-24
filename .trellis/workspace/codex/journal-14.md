@@ -1419,3 +1419,47 @@ Carried bounded pre-realized RVV route-entry fixtures through direct target arti
 ### Next Steps
 
 - None - task complete
+
+
+## Session 197: Stage2 RVV typed dtype/config derivation boundary
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV typed dtype/config derivation boundary
+**Branch**: `main`
+
+### Summary
+
+Added RVV plugin-owned typed config facts from realized selected-body config into route analysis, provider materialization, and artifact mirrors with focused fail-closed coverage.
+
+### Main Changes
+
+- Added `RVVSelectedBodyTypedConfigFacts` to RVV route analysis/materialization facts and verified it before provider statement-plan exposure.
+- Mirrored `element_type` through RVV provider route descriptions and target artifact metadata after route construction.
+- Added focused arithmetic/memory typed config tests, stale materialization fact rejection, representative artifact FileCheck coverage, and RVV dialect metadata synchronization.
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-typed-dtype-config-derivation-boundary`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] focused lit filter for `pre-realized-selected-body-artifact-(cmp-select|strided-load-unit-store|i64-add)` from `build/test`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-dialect-test -j2`
+- [OK] focused lit filter for `rvv-dialect` from `build/test`
+- [OK] `rtk git diff --check`
+- [OK] bounded legacy/source-front-door/descriptor/metadata-authority scan over touched RVV files; hits were existing negative fail-closed fixtures only
+- [OK] `rtk cmake --build build --target check-tianchenrv -j2`
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Status
+
+[OK] Completed and archived. No new runtime/correctness/performance claim; no new `ssh rvv` evidence required.
+
+### Next Steps
+
+- None - task complete

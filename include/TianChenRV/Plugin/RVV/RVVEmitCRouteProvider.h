@@ -116,6 +116,7 @@ enum class RVVSelectedBodyMemoryForm {
 struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef elementTypeName;
   std::int64_t sew = 0;
   llvm::StringRef lmul;
   llvm::StringRef tailPolicy;
