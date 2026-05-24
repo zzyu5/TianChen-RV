@@ -224,270 +224,79 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   RVVSelectedBodyRouteSlice *slice = &analysis.slice;
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
-  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan =
-      analysis.contractionRouteFamilyPlan
-          ? &*analysis.contractionRouteFamilyPlan
-          : nullptr;
-  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
-      *scalarBroadcastPlan =
-          analysis.scalarBroadcastElementwiseRouteFamilyPlan
-              ? &*analysis.scalarBroadcastElementwiseRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
-      *runtimeSplatStorePlan =
-          analysis.runtimeScalarSplatStoreRouteFamilyPlan
-              ? &*analysis.runtimeScalarSplatStoreRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
-      *plainCompareSelectPlan =
-          analysis.plainCompareSelectRouteFamilyPlan
-              ? &*analysis.plainCompareSelectRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyWideningConversionRouteFamilyPlan
-      *wideningConversionPlan =
-          analysis.wideningConversionRouteFamilyPlan
-              ? &*analysis.wideningConversionRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
-      *baseMemoryMovementPlan =
-          analysis.baseMemoryMovementRouteFamilyPlan
-              ? &*analysis.baseMemoryMovementRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
-      *computedMaskSelectPlan =
-          analysis.computedMaskSelectRouteFamilyPlan
-              ? &*analysis.computedMaskSelectRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
-      *computedMaskMemoryPlan =
-          analysis.computedMaskMemoryRouteFamilyPlan
-              ? &*analysis.computedMaskMemoryRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
-      analysis.segment2MemoryRouteFamilyPlan
-          ? &*analysis.segment2MemoryRouteFamilyPlan
-          : nullptr;
-  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
-      *computedMaskAccumulationPlan =
-          analysis.computedMaskAccumulationRouteFamilyPlan
-              ? &*analysis.computedMaskAccumulationRouteFamilyPlan
-              : nullptr;
-  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
-      *standaloneReductionPlan =
-          analysis.standaloneReductionRouteFamilyPlan
-              ? &*analysis.standaloneReductionRouteFamilyPlan
-              : nullptr;
   if (llvm::Error error = verifyRVVSelectedBodyRouteFamilyProviderPlans(
           analysis, "selected RVV EmitC route construction"))
     return error;
+  llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
+      materializationFactsOrError =
+          getRVVSelectedBodyRouteMaterializationFacts(
+              analysis, "selected RVV EmitC route construction");
+  if (!materializationFactsOrError)
+    return materializationFactsOrError.takeError();
+  const RVVSelectedBodyRouteMaterializationFacts &materializationFacts =
+      *materializationFactsOrError;
+
+  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
+      *plainCompareSelectPlan = materializationFacts.plainCompareSelectPlan;
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
+      *computedMaskSelectPlan = materializationFacts.computedMaskSelectPlan;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
+      materializationFacts.segment2MemoryPlan;
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+      *computedMaskAccumulationPlan =
+          materializationFacts.computedMaskAccumulationPlan;
+
   const bool emitsContractionDotReduction =
-      contractionPlan && contractionPlan->usesDotReduction;
+      materializationFacts.emitsContractionDotReduction;
   const bool emitsContractionWideningMAcc =
-      contractionPlan && contractionPlan->usesWideningMAcc;
+      materializationFacts.emitsContractionWideningMAcc;
   const bool emitsComputedMaskContraction =
-      contractionPlan && contractionPlan->usesComputedMask;
+      materializationFacts.emitsComputedMaskContraction;
   const bool emitsStridedInputContraction =
-      contractionPlan && contractionPlan->usesStridedInputs;
-  const bool emitsStandaloneReduction = standaloneReductionPlan != nullptr;
+      materializationFacts.emitsStridedInputContraction;
+  const bool emitsStandaloneReduction =
+      materializationFacts.emitsStandaloneReduction;
   const bool emitsComputedMaskStandaloneReduction =
-      standaloneReductionPlan && standaloneReductionPlan->usesComputedMask;
+      materializationFacts.emitsComputedMaskStandaloneReduction;
   const bool emitsRuntimeScalarComputedMaskStandaloneReduction =
-      standaloneReductionPlan &&
-      standaloneReductionPlan->usesRuntimeScalarThreshold;
-  const bool emitsWideningConversion = wideningConversionPlan != nullptr;
+      materializationFacts
+          .emitsRuntimeScalarComputedMaskStandaloneReduction;
+  const bool emitsWideningConversion =
+      materializationFacts.emitsWideningConversion;
   const bool emitsPlainStandaloneReduction =
-      standaloneReductionPlan && !standaloneReductionPlan->usesComputedMask;
-  const bool emitsComputedMaskAccumulation =
-      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
-          description.operation);
-  if (emitsComputedMaskAccumulation &&
-      !computedMaskAccumulationPlan)
-    return makeRVVEmitCRouteProviderError(
-        "computed-mask accumulation route requires the shared accumulation "
-        "route-family plan before provider materialization");
-  llvm::StringRef vlCType =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->vlCType
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->vlCType
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->vlCType
-      : baseMemoryMovementPlan
-          ? baseMemoryMovementPlan->vlCType
-      : contractionPlan
-          ? contractionPlan->vlCType
-          : (standaloneReductionPlan ? standaloneReductionPlan->vlCType
-                                     : description.vlCType);
+      materializationFacts.emitsPlainStandaloneReduction;
+
+  llvm::StringRef vlCType = materializationFacts.vlCType;
   llvm::StringRef resultVectorTypeName =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->vectorTypeName
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->vectorTypeName
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->vectorTypeName
-      : baseMemoryMovementPlan
-          ? baseMemoryMovementPlan->vectorTypeName
-      : contractionPlan ? contractionPlan->resultVectorTypeName
-      : standaloneReductionPlan ? standaloneReductionPlan->vectorTypeName
-                      : description.vectorTypeName;
-  llvm::StringRef resultVectorCType =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->vectorCType
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->vectorCType
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->vectorCType
-      : baseMemoryMovementPlan
-          ? baseMemoryMovementPlan->vectorCType
-      : contractionPlan ? contractionPlan->resultVectorCType
-      : standaloneReductionPlan ? standaloneReductionPlan->vectorCType
-                      : description.vectorCType;
+      materializationFacts.resultVectorTypeName;
+  llvm::StringRef resultVectorCType = materializationFacts.resultVectorCType;
   llvm::StringRef sourceVectorTypeName =
-      contractionPlan ? contractionPlan->sourceVectorTypeName
-                      : description.sourceVectorTypeName;
-  llvm::StringRef sourceVectorCType =
-      contractionPlan ? contractionPlan->sourceVectorCType
-                      : description.sourceVectorCType;
-  llvm::StringRef maskTypeName =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->maskTypeName
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->maskTypeName
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->maskTypeName
-      : baseMemoryMovementPlan
-          ? baseMemoryMovementPlan->maskTypeName
-      : contractionPlan ? contractionPlan->maskTypeName : description.maskTypeName;
-  llvm::StringRef maskCType =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->maskCType
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->maskCType
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->maskCType
-      : baseMemoryMovementPlan
-          ? baseMemoryMovementPlan->maskCType
-      : contractionPlan ? contractionPlan->maskCType : description.maskCType;
-  llvm::StringRef setVLLeaf = description.setVLIntrinsic;
-  if (computedMaskAccumulationPlan)
-    setVLLeaf = computedMaskAccumulationPlan->setVLIntrinsic;
-  else if (plainCompareSelectPlan)
-    setVLLeaf = plainCompareSelectPlan->setVLIntrinsic;
-  else if (computedMaskSelectPlan)
-    setVLLeaf = computedMaskSelectPlan->setVLIntrinsic;
-  else if (contractionPlan)
-    setVLLeaf = contractionPlan->setVLIntrinsic;
-  else if (scalarBroadcastPlan)
-    setVLLeaf = scalarBroadcastPlan->setVLIntrinsic;
-  else if (runtimeSplatStorePlan)
-    setVLLeaf = runtimeSplatStorePlan->setVLIntrinsic;
-  else if (baseMemoryMovementPlan)
-    setVLLeaf = baseMemoryMovementPlan->setVLIntrinsic;
-  else if (computedMaskMemoryPlan)
-    setVLLeaf = computedMaskMemoryPlan->setVLIntrinsic;
-  else if (standaloneReductionPlan)
-    setVLLeaf = standaloneReductionPlan->setVLIntrinsic;
-  llvm::StringRef sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
-  if (computedMaskAccumulationPlan)
-    sourceLoadLeaf = computedMaskAccumulationPlan->vectorLoadIntrinsic;
-  else if (plainCompareSelectPlan)
-    sourceLoadLeaf = plainCompareSelectPlan->vectorLoadIntrinsic;
-  else if (computedMaskSelectPlan)
-    sourceLoadLeaf = computedMaskSelectPlan->vectorLoadIntrinsic;
-  else if (contractionPlan)
-    sourceLoadLeaf = contractionPlan->sourceVectorLoadIntrinsic;
-  else if (scalarBroadcastPlan)
-    sourceLoadLeaf = scalarBroadcastPlan->vectorLoadIntrinsic;
-  else if (baseMemoryMovementPlan)
-    sourceLoadLeaf = baseMemoryMovementPlan->vectorLoadIntrinsic;
-  else if (computedMaskMemoryPlan)
-    sourceLoadLeaf = computedMaskMemoryPlan->vectorLoadIntrinsic;
-  else if (standaloneReductionPlan)
-    sourceLoadLeaf = standaloneReductionPlan->vectorLoadIntrinsic;
-  llvm::StringRef vectorLoadLeaf =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->vectorLoadIntrinsic
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->vectorLoadIntrinsic
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->vectorLoadIntrinsic
-      : scalarBroadcastPlan
-          ? scalarBroadcastPlan->vectorLoadIntrinsic
-      : baseMemoryMovementPlan
-          ? baseMemoryMovementPlan->vectorLoadIntrinsic
-      : computedMaskMemoryPlan
-          ? computedMaskMemoryPlan->vectorLoadIntrinsic
-      : (standaloneReductionPlan ? standaloneReductionPlan->vectorLoadIntrinsic
-                                 : description.vectorLoadIntrinsic);
+      materializationFacts.sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType = materializationFacts.sourceVectorCType;
+  llvm::StringRef maskTypeName = materializationFacts.maskTypeName;
+  llvm::StringRef maskCType = materializationFacts.maskCType;
+  llvm::StringRef setVLLeaf = materializationFacts.setVLLeaf;
+  llvm::StringRef sourceLoadLeaf = materializationFacts.sourceLoadLeaf;
+  llvm::StringRef vectorLoadLeaf = materializationFacts.vectorLoadLeaf;
   llvm::StringRef stridedSourceLoadLeaf =
-      baseMemoryMovementPlan && !baseMemoryMovementPlan->stridedLoadIntrinsic.empty()
-          ? baseMemoryMovementPlan->stridedLoadIntrinsic
-      : contractionPlan ? contractionPlan->stridedLoadIntrinsic
-                        : description.stridedLoadIntrinsic;
-  llvm::StringRef storeLeaf = description.storeIntrinsic;
-  if (computedMaskAccumulationPlan)
-    storeLeaf = computedMaskAccumulationPlan->storeIntrinsic;
-  else if (plainCompareSelectPlan)
-    storeLeaf = plainCompareSelectPlan->storeIntrinsic;
-  else if (computedMaskSelectPlan)
-    storeLeaf = computedMaskSelectPlan->storeIntrinsic;
-  else if (contractionPlan)
-    storeLeaf = contractionPlan->storeIntrinsic;
-  else if (scalarBroadcastPlan)
-    storeLeaf = scalarBroadcastPlan->storeIntrinsic;
-  else if (runtimeSplatStorePlan)
-    storeLeaf = runtimeSplatStorePlan->storeIntrinsic;
-  else if (baseMemoryMovementPlan)
-    storeLeaf = baseMemoryMovementPlan->storeIntrinsic;
-  else if (computedMaskMemoryPlan)
-    storeLeaf = computedMaskMemoryPlan->maskedStoreIntrinsic;
-  else if (standaloneReductionPlan)
-    storeLeaf = standaloneReductionPlan->storeIntrinsic;
+      materializationFacts.stridedSourceLoadLeaf;
+  llvm::StringRef storeLeaf = materializationFacts.storeLeaf;
   llvm::StringRef contractionComputeLeaf =
-      contractionPlan ? contractionPlan->contractionComputeIntrinsic
-      : standaloneReductionPlan ? standaloneReductionPlan->reductionIntrinsic
-                                : description.intrinsic;
+      materializationFacts.contractionComputeLeaf;
   llvm::StringRef elementwiseComputeLeaf =
-      scalarBroadcastPlan ? scalarBroadcastPlan->arithmeticIntrinsic
-                          : description.intrinsic;
+      materializationFacts.elementwiseComputeLeaf;
   llvm::StringRef wideningProductLeaf =
-      contractionPlan ? contractionPlan->wideningProductIntrinsic
-                      : description.wideningProductIntrinsic;
+      materializationFacts.wideningProductLeaf;
   llvm::StringRef maskedWideningProductLeaf =
-      contractionPlan ? contractionPlan->maskedWideningProductIntrinsic
-                      : description.maskedWideningProductIntrinsic;
+      materializationFacts.maskedWideningProductLeaf;
   llvm::StringRef scalarSeedSplatLeaf =
-      contractionPlan ? contractionPlan->scalarSeedSplatIntrinsic
-      : standaloneReductionPlan ? standaloneReductionPlan->scalarSeedSplatIntrinsic
-                                : description.scalarSeedSplatIntrinsic;
+      materializationFacts.scalarSeedSplatLeaf;
   llvm::StringRef rhsScalarBroadcastLeaf =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->rhsScalarSplatIntrinsic
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->rhsScalarSplatIntrinsic
-      : scalarBroadcastPlan ? scalarBroadcastPlan->rhsScalarSplatIntrinsic
-      : runtimeSplatStorePlan ? runtimeSplatStorePlan->rhsScalarSplatIntrinsic
-      : computedMaskMemoryPlan
-          ? computedMaskMemoryPlan->rhsScalarSplatIntrinsic
-                          : description.rhsBroadcastIntrinsic;
-  llvm::StringRef compareLeaf =
-      computedMaskAccumulationPlan
-          ? computedMaskAccumulationPlan->compareIntrinsic
-      : plainCompareSelectPlan
-          ? plainCompareSelectPlan->compareIntrinsic
-      : computedMaskSelectPlan
-          ? computedMaskSelectPlan->compareIntrinsic
-      : contractionPlan ? contractionPlan->compareIntrinsic
-      : computedMaskMemoryPlan
-          ? computedMaskMemoryPlan->compareIntrinsic
-      : emitsComputedMaskStandaloneReduction
-          ? standaloneReductionPlan->compareIntrinsic
-          : description.compareIntrinsic;
-  llvm::StringRef maskedMergeLeaf =
-      contractionPlan ? contractionPlan->maskedMergeIntrinsic
-      : emitsComputedMaskStandaloneReduction
-          ? standaloneReductionPlan->maskedMergeIntrinsic
-          : description.maskedMergeIntrinsic;
+      materializationFacts.rhsScalarBroadcastLeaf;
+  llvm::StringRef compareLeaf = materializationFacts.compareLeaf;
+  llvm::StringRef maskedMergeLeaf = materializationFacts.maskedMergeLeaf;
 
   if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
           analysis.routeOperandBindingPlan, description,
@@ -497,36 +306,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
-  if (contractionPlan || scalarBroadcastPlan || runtimeSplatStorePlan ||
-      plainCompareSelectPlan || baseMemoryMovementPlan ||
-      computedMaskSelectPlan ||
-      computedMaskMemoryPlan ||
-      computedMaskAccumulationPlan || standaloneReductionPlan) {
-    llvm::ArrayRef<llvm::StringRef> requiredHeaders =
-        computedMaskAccumulationPlan
-            ? llvm::ArrayRef<llvm::StringRef>(
-                  computedMaskAccumulationPlan->requiredHeaders)
-        : plainCompareSelectPlan
-            ? llvm::ArrayRef<llvm::StringRef>(
-                  plainCompareSelectPlan->requiredHeaders)
-        : computedMaskSelectPlan
-            ? llvm::ArrayRef<llvm::StringRef>(
-                  computedMaskSelectPlan->requiredHeaders)
-        : contractionPlan ? llvm::ArrayRef<llvm::StringRef>(
-                              contractionPlan->requiredHeaders)
-        : scalarBroadcastPlan ? llvm::ArrayRef<llvm::StringRef>(
-                                    scalarBroadcastPlan->requiredHeaders)
-        : runtimeSplatStorePlan ? llvm::ArrayRef<llvm::StringRef>(
-                                      runtimeSplatStorePlan->requiredHeaders)
-        : baseMemoryMovementPlan
-            ? llvm::ArrayRef<llvm::StringRef>(
-                  baseMemoryMovementPlan->requiredHeaders)
-        : computedMaskMemoryPlan
-            ? llvm::ArrayRef<llvm::StringRef>(
-                  computedMaskMemoryPlan->requiredHeaders)
-                              : llvm::ArrayRef<llvm::StringRef>(
-                                    standaloneReductionPlan->requiredHeaders);
-    for (llvm::StringRef header : requiredHeaders)
+  if (!materializationFacts.requiredHeaders.empty()) {
+    for (llvm::StringRef header : materializationFacts.requiredHeaders)
       route.addHeader(header);
   } else {
     route.addHeader("stddef.h");

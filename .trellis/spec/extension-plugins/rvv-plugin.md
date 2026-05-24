@@ -322,6 +322,100 @@ Required tests for a new or changed owner registry:
 - runtime `ssh rvv` evidence only when emitted target sequence, ABI, or
   materialized operands changed.
 
+## Route Materialization Facts Boundary
+
+### 1. Scope / Trigger
+
+After the top-level route-family provider verifier accepts a selected-body
+analysis, RVV provider construction must obtain route materialization facts
+from one RVV-owned boundary instead of recreating family-specific type,
+header, intrinsic, mask/VL, and route-shape choices in the central provider
+prelude.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
+getRVVSelectedBodyRouteMaterializationFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)` before
+consuming these facts.
+
+### 3. Contracts
+
+`RVVSelectedBodyRouteMaterializationFacts` is RVV-local provider input. It may
+carry:
+
+- pointers to the validated family plans present in
+  `RVVSelectedBodyRouteAnalysis`;
+- route-shape booleans derived from those plans, such as widening conversion,
+  contraction dot reduction, computed-mask accumulation, and standalone
+  reduction;
+- provider-owned required headers;
+- VL/result/source/mask type names and C type strings;
+- selected `setvl`, load, store, compute, compare, merge, splat, widening, and
+  source-load intrinsic leaves.
+
+These facts are consumed to build `TCRVEmitCLowerableRoute`. They are not
+common EmitC facts, not artifact metadata authority, and not acceptance state.
+They must remain derived from verified typed body/config/runtime facts and
+their owning family plans.
+
+### 4. Validation & Error Matrix
+
+- Top-level verifier rejects missing plan for a route-family consumer ->
+  materialization facts must not be consumed.
+- Top-level verifier rejects stale plan on a non-consumer -> materialization
+  facts must not be consumed.
+- A route requiring computed-mask accumulation has no shared accumulation plan
+  -> `getRVVSelectedBodyRouteMaterializationFacts` fails closed before
+  provider materialization.
+- Mirrors, route ids, artifact names, or status fields disagree with the
+  verified family plan -> provider verification fails before common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed `tcrv_rvv` body -> family plan verifier -> materialization facts
+  -> provider-built `TCRVEmitCLowerableRoute`.
+- Base: ordinary elementwise or memory route uses description/default facts
+  only when no more-specific family plan owns that fact.
+- Bad: central provider code manually chooses RVV C types or intrinsics from
+  operation names, route ids, artifacts, status fields, or common EmitC logic.
+
+### 6. Tests Required
+
+- C++ tests for representative materialization facts across memory,
+  elementwise/select, math, runtime scalar splat-store, and widening conversion
+  families.
+- C++ fail-closed diagnostic for a computed-mask accumulation route without
+  the required shared accumulation plan.
+- Representative lit/FileCheck coverage proving existing selected-body
+  artifact materialization still passes.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider prelude:
+  if operation is memory/select/math/... choose headers/types/intrinsics here
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyRouteMaterializationFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority, stack, and RVV-first stage order invariants after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV materialization facts remain plugin-local and typed-body/config/runtime-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC stays neutral and the provider owns route payload/type/header/intrinsic facts."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-top-level-route-family-provider-verifier/prd.md", "reason": "Check compatibility with the just-closed aggregate provider verifier boundary."}

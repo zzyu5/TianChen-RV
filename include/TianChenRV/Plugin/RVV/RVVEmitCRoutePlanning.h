@@ -713,6 +713,65 @@ struct RVVSelectedBodyRouteAnalysis {
       standaloneReductionRouteFamilyPlan;
 };
 
+struct RVVSelectedBodyRouteMaterializationFacts {
+  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
+  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan
+      *elementwiseArithmeticPlan = nullptr;
+  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
+      *scalarBroadcastPlan = nullptr;
+  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
+      *runtimeScalarSplatStorePlan = nullptr;
+  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
+      *plainCompareSelectPlan = nullptr;
+  const RVVSelectedBodyWideningConversionRouteFamilyPlan
+      *wideningConversionPlan = nullptr;
+  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
+      *baseMemoryMovementPlan = nullptr;
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
+      *computedMaskSelectPlan = nullptr;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = nullptr;
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
+      nullptr;
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+      *computedMaskAccumulationPlan = nullptr;
+  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
+      *standaloneReductionPlan = nullptr;
+
+  bool emitsContractionDotReduction = false;
+  bool emitsContractionWideningMAcc = false;
+  bool emitsComputedMaskContraction = false;
+  bool emitsStridedInputContraction = false;
+  bool emitsStandaloneReduction = false;
+  bool emitsComputedMaskStandaloneReduction = false;
+  bool emitsRuntimeScalarComputedMaskStandaloneReduction = false;
+  bool emitsWideningConversion = false;
+  bool emitsPlainStandaloneReduction = false;
+  bool emitsComputedMaskAccumulation = false;
+
+  llvm::ArrayRef<llvm::StringRef> requiredHeaders;
+  llvm::StringRef vlCType;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLLeaf;
+  llvm::StringRef sourceLoadLeaf;
+  llvm::StringRef vectorLoadLeaf;
+  llvm::StringRef stridedSourceLoadLeaf;
+  llvm::StringRef storeLeaf;
+  llvm::StringRef contractionComputeLeaf;
+  llvm::StringRef elementwiseComputeLeaf;
+  llvm::StringRef wideningProductLeaf;
+  llvm::StringRef maskedWideningProductLeaf;
+  llvm::StringRef scalarSeedSplatLeaf;
+  llvm::StringRef rhsScalarBroadcastLeaf;
+  llvm::StringRef compareLeaf;
+  llvm::StringRef maskedMergeLeaf;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -872,6 +931,10 @@ bool isRVVSelectedBodyRouteFamilyProviderConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
+getRVVSelectedBodyRouteMaterializationFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

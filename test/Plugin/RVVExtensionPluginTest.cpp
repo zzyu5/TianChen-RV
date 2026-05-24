@@ -2538,6 +2538,237 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
        "widen_i32_to_i64"});
 }
 
+int runRouteMaterializationFactsBoundaryTest() {
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
+
+  {
+    RVVSelectedBodyRouteAnalysis analysis;
+    analysis.description.operation =
+        RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+    analysis.description.vlCType = "fallback-vl";
+    analysis.description.vectorTypeName = "fallback-vector";
+    analysis.description.vectorCType = "fallback-vector-c";
+    analysis.description.stridedLoadIntrinsic = "fallback-strided-load";
+    auto &plan = analysis.baseMemoryMovementRouteFamilyPlan.emplace();
+    plan.operation = RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+    plan.memoryForm = RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+    plan.requiredHeaders = {"stddef.h", "stdint.h", "riscv_vector.h"};
+    plan.vlCType = "memory-vl";
+    plan.vectorTypeName = "memory-vector";
+    plan.vectorCType = "memory-vector-c";
+    plan.setVLIntrinsic = "memory-setvl";
+    plan.vectorLoadIntrinsic = "memory-load";
+    plan.stridedLoadIntrinsic = "memory-strided-load";
+    plan.storeIntrinsic = "memory-store";
+
+    llvm::Expected<RVVSelectedBodyRouteMaterializationFacts> facts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            analysis, "materialization facts memory unit test");
+    if (!facts)
+      return fail("materialization facts memory unit test: " +
+                  llvm::toString(facts.takeError()));
+    if (int result =
+            expect(facts->baseMemoryMovementPlan == &plan,
+                   "materialization facts preserve memory family plan owner"))
+      return result;
+    if (int result = expect(facts->vlCType == "memory-vl" &&
+                                facts->resultVectorTypeName ==
+                                    "memory-vector" &&
+                                facts->resultVectorCType ==
+                                    "memory-vector-c" &&
+                                facts->setVLLeaf == "memory-setvl" &&
+                                facts->vectorLoadLeaf == "memory-load" &&
+                                facts->stridedSourceLoadLeaf ==
+                                    "memory-strided-load" &&
+                                facts->storeLeaf == "memory-store",
+                            "materialization facts choose memory type and "
+                            "intrinsic leaves from the route-family plan"))
+      return result;
+    if (int result =
+            expect(facts->requiredHeaders.size() == 3 &&
+                       facts->requiredHeaders[2] == "riscv_vector.h",
+                   "materialization facts expose provider-owned headers"))
+      return result;
+  }
+
+  {
+    RVVSelectedBodyRouteAnalysis analysis;
+    analysis.description.operation =
+        RVVSelectedBodyOperationKind::ComputedMaskSelect;
+    auto &plan = analysis.computedMaskSelectRouteFamilyPlan.emplace();
+    plan.operation = RVVSelectedBodyOperationKind::ComputedMaskSelect;
+    plan.requiredHeaders = {"select.h"};
+    plan.vlCType = "select-vl";
+    plan.vectorTypeName = "select-vector";
+    plan.vectorCType = "select-vector-c";
+    plan.maskTypeName = "select-mask";
+    plan.maskCType = "select-mask-c";
+    plan.setVLIntrinsic = "select-setvl";
+    plan.vectorLoadIntrinsic = "select-load";
+    plan.rhsScalarSplatIntrinsic = "select-splat";
+    plan.compareIntrinsic = "select-compare";
+    plan.selectIntrinsic = "select-leaf";
+    plan.storeIntrinsic = "select-store";
+
+    llvm::Expected<RVVSelectedBodyRouteMaterializationFacts> facts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            analysis, "materialization facts select unit test");
+    if (!facts)
+      return fail("materialization facts select unit test: " +
+                  llvm::toString(facts.takeError()));
+    if (int result =
+            expect(facts->computedMaskSelectPlan == &plan,
+                   "materialization facts preserve select family plan owner"))
+      return result;
+    if (int result = expect(facts->vlCType == "select-vl" &&
+                                facts->maskTypeName == "select-mask" &&
+                                facts->maskCType == "select-mask-c" &&
+                                facts->compareLeaf == "select-compare" &&
+                                facts->rhsScalarBroadcastLeaf ==
+                                    "select-splat" &&
+                                facts->storeLeaf == "select-store",
+                            "materialization facts choose select mask and "
+                            "compare facts from the route-family plan"))
+      return result;
+  }
+
+  {
+    RVVSelectedBodyRouteAnalysis analysis;
+    analysis.description.operation =
+        RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+    auto &plan = analysis.contractionRouteFamilyPlan.emplace();
+    plan.operation = RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+    plan.usesDotReduction = true;
+    plan.requiredHeaders = {"math.h"};
+    plan.vlCType = "math-vl";
+    plan.resultVectorTypeName = "math-result-vector";
+    plan.resultVectorCType = "math-result-vector-c";
+    plan.sourceVectorTypeName = "math-source-vector";
+    plan.sourceVectorCType = "math-source-vector-c";
+    plan.setVLIntrinsic = "math-setvl";
+    plan.sourceVectorLoadIntrinsic = "math-source-load";
+    plan.storeIntrinsic = "math-store";
+    plan.contractionComputeIntrinsic = "math-reduce";
+    plan.wideningProductIntrinsic = "math-widen-product";
+    plan.scalarSeedSplatIntrinsic = "math-seed-splat";
+
+    llvm::Expected<RVVSelectedBodyRouteMaterializationFacts> facts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            analysis, "materialization facts math unit test");
+    if (!facts)
+      return fail("materialization facts math unit test: " +
+                  llvm::toString(facts.takeError()));
+    if (int result =
+            expect(facts->contractionPlan == &plan &&
+                       facts->emitsContractionDotReduction,
+                   "materialization facts preserve math shape owner and flag"))
+      return result;
+    if (int result =
+            expect(facts->sourceVectorTypeName == "math-source-vector" &&
+                       facts->sourceVectorCType == "math-source-vector-c" &&
+                       facts->sourceLoadLeaf == "math-source-load" &&
+                       facts->contractionComputeLeaf == "math-reduce" &&
+                       facts->wideningProductLeaf == "math-widen-product" &&
+                       facts->scalarSeedSplatLeaf == "math-seed-splat",
+                   "materialization facts choose math source and compute "
+                   "leaves from the route-family plan"))
+      return result;
+  }
+
+  {
+    RVVSelectedBodyRouteAnalysis analysis;
+    analysis.description.operation =
+        RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+    auto &plan = analysis.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
+    plan.operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+    plan.requiredHeaders = {"runtime-splat.h"};
+    plan.vlCType = "runtime-vl";
+    plan.vectorTypeName = "runtime-vector";
+    plan.vectorCType = "runtime-vector-c";
+    plan.setVLIntrinsic = "runtime-setvl";
+    plan.rhsScalarSplatIntrinsic = "runtime-splat";
+    plan.storeIntrinsic = "runtime-store";
+
+    llvm::Expected<RVVSelectedBodyRouteMaterializationFacts> facts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            analysis, "materialization facts runtime splat unit test");
+    if (!facts)
+      return fail("materialization facts runtime splat unit test: " +
+                  llvm::toString(facts.takeError()));
+    if (int result =
+            expect(facts->runtimeScalarSplatStorePlan == &plan,
+                   "materialization facts preserve runtime splat owner"))
+      return result;
+    if (int result =
+            expect(facts->setVLLeaf == "runtime-setvl" &&
+                       facts->rhsScalarBroadcastLeaf == "runtime-splat" &&
+                       facts->storeLeaf == "runtime-store",
+                   "materialization facts choose runtime splat leaves from "
+                   "the route-family plan"))
+      return result;
+  }
+
+  {
+    RVVSelectedBodyRouteAnalysis analysis;
+    analysis.description.operation = RVVSelectedBodyOperationKind::WidenI16ToI32;
+    analysis.description.intrinsic = "fallback-convert";
+    auto &plan = analysis.wideningConversionRouteFamilyPlan.emplace();
+    plan.operation = RVVSelectedBodyOperationKind::WidenI16ToI32;
+    plan.requiredHeaders = {"widen.h"};
+    plan.vlCType = "widen-vl";
+    plan.sourceVectorTypeName = "widen-source-vector";
+    plan.sourceVectorCType = "widen-source-vector-c";
+    plan.sourceVectorLoadIntrinsic = "widen-source-load";
+    plan.resultVectorTypeName = "widen-result-vector";
+    plan.resultVectorCType = "widen-result-vector-c";
+    plan.setVLIntrinsic = "widen-setvl";
+    plan.conversionIntrinsic = "widen-convert";
+    plan.storeIntrinsic = "widen-store";
+
+    llvm::Expected<RVVSelectedBodyRouteMaterializationFacts> facts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            analysis, "materialization facts widening conversion unit test");
+    if (!facts)
+      return fail("materialization facts widening conversion unit test: " +
+                  llvm::toString(facts.takeError()));
+    if (int result =
+            expect(facts->wideningConversionPlan == &plan &&
+                       facts->emitsWideningConversion,
+                   "materialization facts preserve widening conversion owner "
+                   "and shape flag"))
+      return result;
+    if (int result =
+            expect(facts->vlCType == "widen-vl" &&
+                       facts->sourceVectorTypeName ==
+                           "widen-source-vector" &&
+                       facts->resultVectorTypeName ==
+                           "widen-result-vector" &&
+                       facts->sourceLoadLeaf == "widen-source-load" &&
+                       facts->elementwiseComputeLeaf == "widen-convert" &&
+                       facts->storeLeaf == "widen-store",
+                   "materialization facts choose widening conversion type and "
+                   "intrinsic leaves from the route-family plan"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis missingAccumulation;
+  missingAccumulation.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  return expectErrorContains(
+      getRVVSelectedBodyRouteMaterializationFacts(
+          missingAccumulation,
+          "materialization facts computed-mask accumulation unit test")
+          .takeError(),
+      {"computed-mask accumulation route requires the shared accumulation "
+       "route-family plan",
+       "materialization facts computed-mask accumulation unit test"});
+}
+
 int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
@@ -7141,6 +7372,8 @@ int main() {
           runReductionAccumulationContractionRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runTopLevelRouteFamilyProviderOwnerRegistryTest())
+    return result;
+  if (int result = runRouteMaterializationFactsBoundaryTest())
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;

@@ -258,6 +258,60 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 - None - task complete
 
 
+## Session 184: Stage2 RVV selected-body route materialization facts ownership
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV selected-body route materialization facts ownership
+**Branch**: `main`
+
+### Summary
+
+Introduced an explicit RVV-owned materialization-facts boundary between
+aggregate route-family provider verification and provider-built
+`TCRVEmitCLowerableRoute`. The production provider now consumes typed
+plan-derived facts for headers, type mappings, intrinsic leaves, and route
+shape booleans instead of choosing those facts in the central provider prelude.
+
+### Main Changes
+
+- Added `RVVSelectedBodyRouteMaterializationFacts` and
+  `getRVVSelectedBodyRouteMaterializationFacts()`.
+- Rewired `RVVEmitCRouteProvider.cpp` to verify top-level family plans and then
+  consume materialization facts from the RVV planning API.
+- Added C++ coverage for memory, elementwise/select, math, runtime scalar
+  splat-store, widening conversion, and computed-mask accumulation fail-closed
+  facts.
+- Updated the RVV plugin spec with the materialization-facts boundary contract.
+- Archived the Trellis task after quality gates passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-24-stage2-rvv-selected-body-route-materialization-facts-ownership`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit from `build/test`: 6/6 selected RVV artifact/negative tests
+  passed.
+- [OK] Added-line active-authority scan over touched RVV planning/provider/test
+  files found no new legacy/source-front-door/descriptor/mirror-authority terms.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 182: Stage2 RVV memory route-family owner registry extraction
 
 **Date**: 2026-05-23

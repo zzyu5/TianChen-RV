@@ -20994,6 +20994,321 @@ llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
+getRVVSelectedBodyRouteMaterializationFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyRouteMaterializationFacts facts;
+  facts.contractionPlan = analysis.contractionRouteFamilyPlan
+                              ? &*analysis.contractionRouteFamilyPlan
+                              : nullptr;
+  facts.elementwiseArithmeticPlan =
+      analysis.elementwiseArithmeticRouteFamilyPlan
+          ? &*analysis.elementwiseArithmeticRouteFamilyPlan
+          : nullptr;
+  facts.scalarBroadcastPlan =
+      analysis.scalarBroadcastElementwiseRouteFamilyPlan
+          ? &*analysis.scalarBroadcastElementwiseRouteFamilyPlan
+          : nullptr;
+  facts.runtimeScalarSplatStorePlan =
+      analysis.runtimeScalarSplatStoreRouteFamilyPlan
+          ? &*analysis.runtimeScalarSplatStoreRouteFamilyPlan
+          : nullptr;
+  facts.plainCompareSelectPlan = analysis.plainCompareSelectRouteFamilyPlan
+                                     ? &*analysis.plainCompareSelectRouteFamilyPlan
+                                     : nullptr;
+  facts.wideningConversionPlan =
+      analysis.wideningConversionRouteFamilyPlan
+          ? &*analysis.wideningConversionRouteFamilyPlan
+          : nullptr;
+  facts.baseMemoryMovementPlan =
+      analysis.baseMemoryMovementRouteFamilyPlan
+          ? &*analysis.baseMemoryMovementRouteFamilyPlan
+          : nullptr;
+  facts.computedMaskSelectPlan =
+      analysis.computedMaskSelectRouteFamilyPlan
+          ? &*analysis.computedMaskSelectRouteFamilyPlan
+          : nullptr;
+  facts.computedMaskMemoryPlan =
+      analysis.computedMaskMemoryRouteFamilyPlan
+          ? &*analysis.computedMaskMemoryRouteFamilyPlan
+          : nullptr;
+  facts.segment2MemoryPlan = analysis.segment2MemoryRouteFamilyPlan
+                                 ? &*analysis.segment2MemoryRouteFamilyPlan
+                                 : nullptr;
+  facts.computedMaskAccumulationPlan =
+      analysis.computedMaskAccumulationRouteFamilyPlan
+          ? &*analysis.computedMaskAccumulationRouteFamilyPlan
+          : nullptr;
+  facts.standaloneReductionPlan =
+      analysis.standaloneReductionRouteFamilyPlan
+          ? &*analysis.standaloneReductionRouteFamilyPlan
+          : nullptr;
+
+  facts.emitsContractionDotReduction =
+      facts.contractionPlan && facts.contractionPlan->usesDotReduction;
+  facts.emitsContractionWideningMAcc =
+      facts.contractionPlan && facts.contractionPlan->usesWideningMAcc;
+  facts.emitsComputedMaskContraction =
+      facts.contractionPlan && facts.contractionPlan->usesComputedMask;
+  facts.emitsStridedInputContraction =
+      facts.contractionPlan && facts.contractionPlan->usesStridedInputs;
+  facts.emitsStandaloneReduction = facts.standaloneReductionPlan != nullptr;
+  facts.emitsComputedMaskStandaloneReduction =
+      facts.standaloneReductionPlan &&
+      facts.standaloneReductionPlan->usesComputedMask;
+  facts.emitsRuntimeScalarComputedMaskStandaloneReduction =
+      facts.standaloneReductionPlan &&
+      facts.standaloneReductionPlan->usesRuntimeScalarThreshold;
+  facts.emitsWideningConversion = facts.wideningConversionPlan != nullptr;
+  facts.emitsPlainStandaloneReduction =
+      facts.standaloneReductionPlan &&
+      !facts.standaloneReductionPlan->usesComputedMask;
+  facts.emitsComputedMaskAccumulation =
+      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+          description.operation);
+  if (facts.emitsComputedMaskAccumulation &&
+      !facts.computedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation route requires the shared accumulation "
+        "route-family plan before provider materialization");
+
+  facts.vlCType =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->vlCType
+      : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->vlCType
+      : facts.computedMaskSelectPlan ? facts.computedMaskSelectPlan->vlCType
+      : facts.wideningConversionPlan ? facts.wideningConversionPlan->vlCType
+      : facts.baseMemoryMovementPlan ? facts.baseMemoryMovementPlan->vlCType
+      : facts.contractionPlan ? facts.contractionPlan->vlCType
+      : facts.standaloneReductionPlan ? facts.standaloneReductionPlan->vlCType
+                                      : description.vlCType;
+  facts.resultVectorTypeName =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->vectorTypeName
+      : facts.plainCompareSelectPlan
+          ? facts.plainCompareSelectPlan->vectorTypeName
+      : facts.computedMaskSelectPlan
+          ? facts.computedMaskSelectPlan->vectorTypeName
+      : facts.wideningConversionPlan
+          ? facts.wideningConversionPlan->resultVectorTypeName
+      : facts.baseMemoryMovementPlan
+          ? facts.baseMemoryMovementPlan->vectorTypeName
+      : facts.contractionPlan ? facts.contractionPlan->resultVectorTypeName
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->vectorTypeName
+          : description.vectorTypeName;
+  facts.resultVectorCType =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->vectorCType
+      : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->vectorCType
+      : facts.computedMaskSelectPlan
+          ? facts.computedMaskSelectPlan->vectorCType
+      : facts.wideningConversionPlan
+          ? facts.wideningConversionPlan->resultVectorCType
+      : facts.baseMemoryMovementPlan
+          ? facts.baseMemoryMovementPlan->vectorCType
+      : facts.contractionPlan ? facts.contractionPlan->resultVectorCType
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->vectorCType
+          : description.vectorCType;
+  facts.sourceVectorTypeName =
+      facts.wideningConversionPlan
+          ? facts.wideningConversionPlan->sourceVectorTypeName
+      : facts.contractionPlan ? facts.contractionPlan->sourceVectorTypeName
+                              : description.sourceVectorTypeName;
+  facts.sourceVectorCType =
+      facts.wideningConversionPlan
+          ? facts.wideningConversionPlan->sourceVectorCType
+      : facts.contractionPlan ? facts.contractionPlan->sourceVectorCType
+                              : description.sourceVectorCType;
+  facts.maskTypeName =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->maskTypeName
+      : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->maskTypeName
+      : facts.computedMaskSelectPlan
+          ? facts.computedMaskSelectPlan->maskTypeName
+      : facts.baseMemoryMovementPlan
+          ? facts.baseMemoryMovementPlan->maskTypeName
+      : facts.contractionPlan ? facts.contractionPlan->maskTypeName
+                              : description.maskTypeName;
+  facts.maskCType =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->maskCType
+      : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->maskCType
+      : facts.computedMaskSelectPlan ? facts.computedMaskSelectPlan->maskCType
+      : facts.baseMemoryMovementPlan ? facts.baseMemoryMovementPlan->maskCType
+      : facts.contractionPlan ? facts.contractionPlan->maskCType
+                              : description.maskCType;
+
+  facts.setVLLeaf = description.setVLIntrinsic;
+  if (facts.computedMaskAccumulationPlan)
+    facts.setVLLeaf = facts.computedMaskAccumulationPlan->setVLIntrinsic;
+  else if (facts.plainCompareSelectPlan)
+    facts.setVLLeaf = facts.plainCompareSelectPlan->setVLIntrinsic;
+  else if (facts.computedMaskSelectPlan)
+    facts.setVLLeaf = facts.computedMaskSelectPlan->setVLIntrinsic;
+  else if (facts.contractionPlan)
+    facts.setVLLeaf = facts.contractionPlan->setVLIntrinsic;
+  else if (facts.scalarBroadcastPlan)
+    facts.setVLLeaf = facts.scalarBroadcastPlan->setVLIntrinsic;
+  else if (facts.runtimeScalarSplatStorePlan)
+    facts.setVLLeaf = facts.runtimeScalarSplatStorePlan->setVLIntrinsic;
+  else if (facts.wideningConversionPlan)
+    facts.setVLLeaf = facts.wideningConversionPlan->setVLIntrinsic;
+  else if (facts.baseMemoryMovementPlan)
+    facts.setVLLeaf = facts.baseMemoryMovementPlan->setVLIntrinsic;
+  else if (facts.computedMaskMemoryPlan)
+    facts.setVLLeaf = facts.computedMaskMemoryPlan->setVLIntrinsic;
+  else if (facts.standaloneReductionPlan)
+    facts.setVLLeaf = facts.standaloneReductionPlan->setVLIntrinsic;
+
+  facts.sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
+  if (facts.computedMaskAccumulationPlan)
+    facts.sourceLoadLeaf =
+        facts.computedMaskAccumulationPlan->vectorLoadIntrinsic;
+  else if (facts.plainCompareSelectPlan)
+    facts.sourceLoadLeaf = facts.plainCompareSelectPlan->vectorLoadIntrinsic;
+  else if (facts.computedMaskSelectPlan)
+    facts.sourceLoadLeaf = facts.computedMaskSelectPlan->vectorLoadIntrinsic;
+  else if (facts.contractionPlan)
+    facts.sourceLoadLeaf = facts.contractionPlan->sourceVectorLoadIntrinsic;
+  else if (facts.scalarBroadcastPlan)
+    facts.sourceLoadLeaf = facts.scalarBroadcastPlan->vectorLoadIntrinsic;
+  else if (facts.wideningConversionPlan)
+    facts.sourceLoadLeaf =
+        facts.wideningConversionPlan->sourceVectorLoadIntrinsic;
+  else if (facts.baseMemoryMovementPlan)
+    facts.sourceLoadLeaf = facts.baseMemoryMovementPlan->vectorLoadIntrinsic;
+  else if (facts.computedMaskMemoryPlan)
+    facts.sourceLoadLeaf = facts.computedMaskMemoryPlan->vectorLoadIntrinsic;
+  else if (facts.standaloneReductionPlan)
+    facts.sourceLoadLeaf = facts.standaloneReductionPlan->vectorLoadIntrinsic;
+
+  facts.vectorLoadLeaf =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->vectorLoadIntrinsic
+      : facts.plainCompareSelectPlan
+          ? facts.plainCompareSelectPlan->vectorLoadIntrinsic
+      : facts.computedMaskSelectPlan
+          ? facts.computedMaskSelectPlan->vectorLoadIntrinsic
+      : facts.scalarBroadcastPlan
+          ? facts.scalarBroadcastPlan->vectorLoadIntrinsic
+      : facts.wideningConversionPlan
+          ? facts.wideningConversionPlan->sourceVectorLoadIntrinsic
+      : facts.baseMemoryMovementPlan
+          ? facts.baseMemoryMovementPlan->vectorLoadIntrinsic
+      : facts.computedMaskMemoryPlan
+          ? facts.computedMaskMemoryPlan->vectorLoadIntrinsic
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->vectorLoadIntrinsic
+          : description.vectorLoadIntrinsic;
+  facts.stridedSourceLoadLeaf =
+      facts.baseMemoryMovementPlan &&
+              !facts.baseMemoryMovementPlan->stridedLoadIntrinsic.empty()
+          ? facts.baseMemoryMovementPlan->stridedLoadIntrinsic
+      : facts.contractionPlan ? facts.contractionPlan->stridedLoadIntrinsic
+                              : description.stridedLoadIntrinsic;
+
+  facts.storeLeaf = description.storeIntrinsic;
+  if (facts.computedMaskAccumulationPlan)
+    facts.storeLeaf = facts.computedMaskAccumulationPlan->storeIntrinsic;
+  else if (facts.plainCompareSelectPlan)
+    facts.storeLeaf = facts.plainCompareSelectPlan->storeIntrinsic;
+  else if (facts.computedMaskSelectPlan)
+    facts.storeLeaf = facts.computedMaskSelectPlan->storeIntrinsic;
+  else if (facts.contractionPlan)
+    facts.storeLeaf = facts.contractionPlan->storeIntrinsic;
+  else if (facts.scalarBroadcastPlan)
+    facts.storeLeaf = facts.scalarBroadcastPlan->storeIntrinsic;
+  else if (facts.runtimeScalarSplatStorePlan)
+    facts.storeLeaf = facts.runtimeScalarSplatStorePlan->storeIntrinsic;
+  else if (facts.wideningConversionPlan)
+    facts.storeLeaf = facts.wideningConversionPlan->storeIntrinsic;
+  else if (facts.baseMemoryMovementPlan)
+    facts.storeLeaf = facts.baseMemoryMovementPlan->storeIntrinsic;
+  else if (facts.computedMaskMemoryPlan)
+    facts.storeLeaf = facts.computedMaskMemoryPlan->maskedStoreIntrinsic;
+  else if (facts.standaloneReductionPlan)
+    facts.storeLeaf = facts.standaloneReductionPlan->storeIntrinsic;
+
+  facts.contractionComputeLeaf =
+      facts.contractionPlan ? facts.contractionPlan->contractionComputeIntrinsic
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->reductionIntrinsic
+          : description.intrinsic;
+  facts.elementwiseComputeLeaf =
+      facts.wideningConversionPlan
+          ? facts.wideningConversionPlan->conversionIntrinsic
+      : facts.scalarBroadcastPlan ? facts.scalarBroadcastPlan->arithmeticIntrinsic
+                                  : description.intrinsic;
+  facts.wideningProductLeaf =
+      facts.contractionPlan ? facts.contractionPlan->wideningProductIntrinsic
+                            : description.wideningProductIntrinsic;
+  facts.maskedWideningProductLeaf =
+      facts.contractionPlan
+          ? facts.contractionPlan->maskedWideningProductIntrinsic
+          : description.maskedWideningProductIntrinsic;
+  facts.scalarSeedSplatLeaf =
+      facts.contractionPlan ? facts.contractionPlan->scalarSeedSplatIntrinsic
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->scalarSeedSplatIntrinsic
+          : description.scalarSeedSplatIntrinsic;
+  facts.rhsScalarBroadcastLeaf =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->rhsScalarSplatIntrinsic
+      : facts.computedMaskSelectPlan
+          ? facts.computedMaskSelectPlan->rhsScalarSplatIntrinsic
+      : facts.scalarBroadcastPlan ? facts.scalarBroadcastPlan->rhsScalarSplatIntrinsic
+      : facts.runtimeScalarSplatStorePlan
+          ? facts.runtimeScalarSplatStorePlan->rhsScalarSplatIntrinsic
+      : facts.computedMaskMemoryPlan
+          ? facts.computedMaskMemoryPlan->rhsScalarSplatIntrinsic
+          : description.rhsBroadcastIntrinsic;
+  facts.compareLeaf =
+      facts.computedMaskAccumulationPlan
+          ? facts.computedMaskAccumulationPlan->compareIntrinsic
+      : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->compareIntrinsic
+      : facts.computedMaskSelectPlan
+          ? facts.computedMaskSelectPlan->compareIntrinsic
+      : facts.contractionPlan ? facts.contractionPlan->compareIntrinsic
+      : facts.computedMaskMemoryPlan
+          ? facts.computedMaskMemoryPlan->compareIntrinsic
+      : facts.emitsComputedMaskStandaloneReduction
+          ? facts.standaloneReductionPlan->compareIntrinsic
+          : description.compareIntrinsic;
+  facts.maskedMergeLeaf =
+      facts.contractionPlan ? facts.contractionPlan->maskedMergeIntrinsic
+      : facts.emitsComputedMaskStandaloneReduction
+          ? facts.standaloneReductionPlan->maskedMergeIntrinsic
+          : description.maskedMergeIntrinsic;
+
+  if (facts.computedMaskAccumulationPlan)
+    facts.requiredHeaders = facts.computedMaskAccumulationPlan->requiredHeaders;
+  else if (facts.plainCompareSelectPlan)
+    facts.requiredHeaders = facts.plainCompareSelectPlan->requiredHeaders;
+  else if (facts.computedMaskSelectPlan)
+    facts.requiredHeaders = facts.computedMaskSelectPlan->requiredHeaders;
+  else if (facts.contractionPlan)
+    facts.requiredHeaders = facts.contractionPlan->requiredHeaders;
+  else if (facts.scalarBroadcastPlan)
+    facts.requiredHeaders = facts.scalarBroadcastPlan->requiredHeaders;
+  else if (facts.runtimeScalarSplatStorePlan)
+    facts.requiredHeaders = facts.runtimeScalarSplatStorePlan->requiredHeaders;
+  else if (facts.wideningConversionPlan)
+    facts.requiredHeaders = facts.wideningConversionPlan->requiredHeaders;
+  else if (facts.baseMemoryMovementPlan)
+    facts.requiredHeaders = facts.baseMemoryMovementPlan->requiredHeaders;
+  else if (facts.computedMaskMemoryPlan)
+    facts.requiredHeaders = facts.computedMaskMemoryPlan->requiredHeaders;
+  else if (facts.standaloneReductionPlan)
+    facts.requiredHeaders = facts.standaloneReductionPlan->requiredHeaders;
+
+  return facts;
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {
