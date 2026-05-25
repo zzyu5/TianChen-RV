@@ -1,5 +1,5 @@
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-masked-macc-add --overwrite --op-kind computed_masked_macc_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-masked-macc-add --overwrite --op-kind computed_masked_macc_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/computed-masked-macc-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/computed-masked-macc-add/computed_masked_macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/computed-masked-macc-add/computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c
@@ -38,6 +38,14 @@
 # MACC-DAG: "value": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "key": "tcrv_rvv.inactive_lane_contract"
 # MACC-DAG: "value": "masked-macc-false-lanes-preserve-accumulator"
+# MACC-DAG: "computed_masked_macc_boundary"
+# MACC-DAG: "active_lane_contract": "accumulator + lhs * rhs where compare mask is true"
+# MACC-DAG: "compare_predicate_kind": "slt"
+# MACC-DAG: "mask_role": "predicate-mask-produced-by-compare"
+# MACC-DAG: "mask_source": "compare-produced-mask-same-vl-scope"
+# MACC-DAG: "macc_operand_order": "acc,lhs,rhs,vl"
+# MACC-DAG: "merge_operand_order": "acc,active_macc,mask,vl"
+# MACC-DAG: "runtime_counts_are_execution_cases_not_macc_or_mask_authority": true
 # MACC-DAG: "typed_compute_op": "tcrv_rvv.masked_macc"
 # MACC-DAG: "status": "dry_run_success"
 
@@ -51,3 +59,5 @@
 # HARNESS: inactive_acc_preserved
 # HARNESS: add_only_distinguishing
 # HARNESS: mul_only_distinguishing
+# HARNESS: const size_t counts[] = {0, 7, 16, 23};
+# HARNESS: PASS op=computed_masked_macc_add counts=0,7,16,23

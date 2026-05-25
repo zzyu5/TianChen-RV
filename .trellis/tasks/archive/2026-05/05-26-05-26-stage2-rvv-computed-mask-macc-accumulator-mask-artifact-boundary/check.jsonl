@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-computed-mask-macc-accumulator-mask-artifact-boundary/prd.md", "reason": "Verify final changes against selected route scope, non-goals, and acceptance criteria."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider-owned computed-mask MAcc family, route-control, statement-plan, artifact mirror, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-built route contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle, mask/tail, sentinel, and ssh-rvv evidence quality."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Check implementation remains in the compiler stack and Python stays tooling-only."}

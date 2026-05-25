@@ -174,6 +174,123 @@ typed body/config/runtime mask facts
   -> mirror metadata plus executable harness evidence
 ```
 
+## Computed-Mask MAcc Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use computed-mask MAcc generated-bundle evidence whenever an RVV
+generated-bundle test claims executable multiply-accumulate correctness under a
+compare-produced mask. This evidence is required when active lanes compute
+`acc + lhs * rhs` and inactive lanes preserve an explicit pass-through value
+for a route-supported typed `tcrv_rvv` path.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key such as:
+
+```json
+"computed_masked_macc_boundary": {
+  "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "compare_predicate_kind": "slt",
+  "mask_role_source": {
+    "role": "predicate-mask-produced-by-compare",
+    "source": "compare-lhs-rhs-same-vl-scope",
+    "memory_form": "computed-mask"
+  },
+  "active_lane_contract": "out[i] = acc[i] + lhs[i] * rhs[i]",
+  "inactive_lane_contract": "out[i] preserves accumulator/pass-through",
+  "selected_abi_roles": {},
+  "statement_plan": {},
+  "materialized_body": {},
+  "emitted_cpp": {},
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_macc_or_mask_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of route support.
+- `compare_predicate_kind`, mask role/source, mask memory form, MAcc operation,
+  accumulator layout, result layout, dtype, SEW, LMUL, policy, and runtime
+  AVL/VL must be mirrored from provider-validated route facts.
+- `selected_abi_roles` must identify compare operands, payload operands,
+  accumulator input, output, and runtime `n` in the selected ABI order.
+- `statement_plan` and `emitted_cpp` must prove the compare mask, active MAcc,
+  merge/pass-through, store, loop induction, and runtime VL operands use the
+  provider-selected operand bindings.
+- `materialized_body` must prove the typed or pre-realized selected body was
+  consumed into the realized `tcrv_rvv` body before route construction.
+- `route_metadata` may mirror provider/export metadata only after provider
+  route construction. It must not be used as route authority.
+- Runtime counts are execution cases only. They must not define mask predicate,
+  accumulator layout, MAcc operation, dtype, route support, or artifact
+  authority.
+
+### 4. Validation & Error Matrix
+
+- Missing compare-mask producer facts -> evidence failure.
+- Missing payload lhs/rhs, accumulator, output, or runtime `n` ABI role ->
+  evidence failure.
+- Generated C/C++ omits runtime VL in compare, MAcc, merge, or store sequence
+  -> evidence failure.
+- Generated C/C++ uses MAcc operands in an order that does not match the
+  provider-owned operand-binding facts -> evidence failure.
+- Generated C/C++ stores active MAcc directly and drops inactive
+  pass-through/merge semantics -> evidence failure.
+- Descriptor, direct-C/source-export, route-id, artifact-name, ABI-string,
+  script, test-name, common EmitC, or legacy i32 residue is required to explain
+  mask, accumulator, or MAcc semantics -> evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries compare-mask, payload, accumulator,
+  result-layout, policy, and runtime facts -> RVV plugin realizes or validates
+  those facts -> provider emits computed-mask MAcc route -> evidence mirrors
+  the facts and harness checks active lanes, inactive pass-through, and tail
+  preservation.
+- Base: plain MAcc routes omit `computed_masked_macc_boundary` and keep their
+  own accumulator/runtime generated-bundle evidence.
+- Bad: evidence infers predicate kind, accumulator behavior, operand order, or
+  inactive-lane behavior from route id, ABI string, artifact name, exact
+  intrinsic spelling, script constants, or harness constants.
+
+### 6. Tests Required
+
+- lit/FileCheck for the generated-bundle dry-run must check representative
+  `computed_masked_macc_boundary` fields and mirror metadata.
+- Target artifact tests must check provider-owned predicate, mask role/source,
+  accumulator/result layout, runtime AVL/VL, typed config, ABI roles, and
+  provider-supported mirror fields before relying on generated artifacts.
+- Runtime RVV claims must include `ssh rvv` output over multiple runtime counts,
+  including `n=0`, at least one tail case, and mixed active/inactive mask cases.
+- Harness checks must distinguish `acc + lhs * rhs` from add-only or mul-only
+  behavior on active lanes and must verify inactive accumulator/pass-through and
+  tail sentinel preservation.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact name or route id says computed_masked_macc_add
+  -> harness expects masked MAcc behavior
+```
+
+Correct:
+
+```text
+typed body/config/runtime compare-mask and accumulator facts
+  -> RVV plugin legality/realization
+  -> provider-built computed-mask MAcc route
+  -> common EmitC
+  -> mirror metadata plus executable harness evidence
+```
+
 ## Compare/Select Predicate Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

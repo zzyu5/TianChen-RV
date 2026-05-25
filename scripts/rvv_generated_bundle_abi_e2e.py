@@ -4948,6 +4948,41 @@ MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.macc_result_layout",
     "tcrv_rvv.runtime_abi_order",
 )
+COMPUTED_MASKED_MACC_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.compare_predicate_kind",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.accumulation_route_family_plan",
+    "tcrv_rvv.accumulation_compute_suffix",
+    "tcrv_rvv.accumulation_mask_producer_source",
+    "tcrv_rvv.accumulation_accumulator_contract",
+    "tcrv_rvv.accumulation_result_contract",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.mask_role",
+    "tcrv_rvv.mask_source",
+    "tcrv_rvv.mask_memory_form",
+    "tcrv_rvv.inactive_lane_contract",
+    "tcrv_rvv.masked_passthrough_layout",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
+    "tcrv_rvv.indexed_memory_layout",
+    "tcrv_rvv.macc_accumulator_layout",
+    "tcrv_rvv.macc_result_layout",
+)
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
     "binary self-check",
@@ -7077,6 +7112,7 @@ def verify_emitted_rvv_cpp(
     conversion_sew_policy_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
+    computed_masked_macc_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -7210,6 +7246,41 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = multiply_accumulate_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_computed_masked_macc_add:
+        vector_c_type = expectation.rvv_vector_c_type
+        computed_macc_intrinsic = (
+            f"__riscv_vmacc_vv_{expectation.element_type}{expectation.lmul}"
+        )
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.compare_intrinsic,
+            computed_macc_intrinsic,
+            expectation.select_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ computed-mask MAcc vector C type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ computed-mask MAcc mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ computed-mask MAcc intrinsic spelling",
+            )
+        computed_masked_macc_boundary = (
+            extract_computed_masked_macc_emitc_boundary(text, expectation)
+        )
+        runtime_avl_vl_boundary = computed_masked_macc_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.is_masked_unit_store:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -7254,6 +7325,7 @@ def verify_emitted_rvv_cpp(
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
+        "computed_masked_macc_boundary": computed_masked_macc_boundary,
     }
 
 
@@ -7656,6 +7728,166 @@ def extract_plain_macc_emitc_boundary(
         "macc_uses_scalar_broadcast_rhs": expectation.is_scalar_broadcast_macc_add,
         "macc_uses_loop_vl": True,
         "store_uses_macc_result": True,
+        "store_advances_by_loop_induction": True,
+    }
+
+
+def extract_computed_masked_macc_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    mask_c_type = re.escape(expectation.rvv_mask_c_type)
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {element_c_type}\s*\*\s*(?P<cmp_lhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<cmp_rhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<rhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<acc>v[0-9]+), "
+        rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ computed-mask MAcc ABI signature",
+    )
+    cmp_lhs = signature.group("cmp_lhs")
+    cmp_rhs = signature.group("cmp_rhs")
+    lhs = signature.group("lhs")
+    rhs = signature.group("rhs")
+    acc = signature.group("acc")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    load_intrinsic = re.escape(expectation.unit_load_intrinsic)
+    compare_intrinsic = re.escape(expectation.compare_intrinsic)
+    macc_intrinsic = re.escape(
+        f"__riscv_vmacc_vv_{expectation.element_type}{expectation.lmul}"
+    )
+    merge_intrinsic = re.escape(expectation.select_intrinsic)
+    store_intrinsic = re.escape(expectation.unit_store_intrinsic)
+
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ computed-mask MAcc full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ computed-mask MAcc runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ computed-mask MAcc loop setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+
+    def load_vector(parameter: str, role: str) -> tuple[str, str]:
+        loaded = require_regex(
+            text,
+            rf"const {element_c_type}\* (?P<ptr>v[0-9]+) = "
+            rf"{parameter} \+ {offset};\s*"
+            rf"{vector_c_type} (?P<vec>v[0-9]+) = "
+            rf"{load_intrinsic}\((?P=ptr), {loop_vl}\);",
+            f"emitted RVV C/C++ computed-mask MAcc {role} load",
+        )
+        return loaded.group("ptr"), loaded.group("vec")
+
+    cmp_lhs_ptr, cmp_lhs_vec = load_vector(cmp_lhs, "compare lhs")
+    cmp_rhs_ptr, cmp_rhs_vec = load_vector(cmp_rhs, "compare rhs")
+    lhs_ptr, lhs_vec = load_vector(lhs, "payload lhs")
+    rhs_ptr, rhs_vec = load_vector(rhs, "payload rhs")
+    acc_ptr, acc_vec = load_vector(acc, "accumulator")
+
+    compare = require_regex(
+        text,
+        rf"{mask_c_type} (?P<mask>v[0-9]+) = {compare_intrinsic}"
+        rf"\({cmp_lhs_vec}, {cmp_rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ computed-mask MAcc compare producer",
+    )
+    mask = compare.group("mask")
+    active_macc = require_regex(
+        text,
+        rf"{vector_c_type} (?P<active>v[0-9]+) = {macc_intrinsic}"
+        rf"\({acc_vec}, {lhs_vec}, {rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ computed-mask MAcc active computation",
+    )
+    active_vec = active_macc.group("active")
+    merge = require_regex(
+        text,
+        rf"{vector_c_type} (?P<result>v[0-9]+) = {merge_intrinsic}"
+        rf"\({acc_vec}, {active_vec}, {mask}, {loop_vl}\);",
+        "emitted RVV C/C++ computed-mask MAcc inactive-lane merge",
+    )
+    result_vec = merge.group("result")
+    store = require_regex(
+        text,
+        rf"{element_c_type}\* (?P<out_ptr>v[0-9]+) = "
+        rf"{out} \+ {offset};\s*"
+        rf"{store_intrinsic}\((?P=out_ptr), {result_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ computed-mask MAcc result store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "cmp_lhs_abi_parameter": cmp_lhs,
+        "cmp_rhs_abi_parameter": cmp_rhs,
+        "lhs_abi_parameter": lhs,
+        "rhs_abi_parameter": rhs,
+        "accumulator_abi_parameter": acc,
+        "out_abi_parameter": out,
+        "compare_lhs_pointer": cmp_lhs_ptr,
+        "compare_rhs_pointer": cmp_rhs_ptr,
+        "lhs_pointer": lhs_ptr,
+        "rhs_pointer": rhs_ptr,
+        "accumulator_pointer": acc_ptr,
+        "out_pointer": store.group("out_ptr"),
+        "compare_lhs_vector": cmp_lhs_vec,
+        "compare_rhs_vector": cmp_rhs_vec,
+        "lhs_vector": lhs_vec,
+        "rhs_vector": rhs_vec,
+        "accumulator_vector": acc_vec,
+        "mask_vector": mask,
+        "active_macc_vector": active_vec,
+        "result_vector": result_vec,
+        "vector_c_type": expectation.rvv_vector_c_type,
+        "mask_c_type": expectation.rvv_mask_c_type,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+        "result_layout": MACC_ADD_RESULT_LAYOUT,
+        "setvl_intrinsic": expectation.setvl_intrinsic,
+        "load_intrinsic": expectation.unit_load_intrinsic,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "macc_intrinsic": f"__riscv_vmacc_vv_{expectation.element_type}{expectation.lmul}",
+        "masked_merge_intrinsic": expectation.select_intrinsic,
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "macc_operand_order": "acc,lhs,rhs,vl",
+        "merge_operand_order": "acc,active_macc,mask,vl",
+        "inactive_lanes_preserve_accumulator": True,
+        "store_uses_merged_result": True,
         "store_advances_by_loop_induction": True,
     }
 
@@ -8110,6 +8342,7 @@ def verify_materialized_selected_body(
         )
     reduction_accumulation_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
+    computed_masked_macc_boundary: dict[str, Any] = {}
     if expectation.is_widen_i32_to_i64:
         require_contains(
             text,
@@ -9896,6 +10129,31 @@ def verify_materialized_selected_body(
             "tcrv_rvv.masked_move",
             "materialized selected-body MLIR computed-mask macc route",
         )
+        computed_masked_macc_boundary = {
+            "typed_compute_op": "tcrv_rvv.masked_macc",
+            "compare_producer": "tcrv_rvv.compare",
+            "compare_predicate_kind": expectation.compare_predicate_kind,
+            "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+            "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+            "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+            "source_vector_type": expectation.rvv_vector_type,
+            "lhs_element_type": expectation.element_type,
+            "rhs_element_type": expectation.element_type,
+            "accumulator_element_type": expectation.element_type,
+            "result_element_type": expectation.element_type,
+            "accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+            "result_layout": MACC_ADD_RESULT_LAYOUT,
+            "selected_source_abi": {
+                "cmp_lhs": "lhs-input-buffer",
+                "cmp_rhs": "rhs-input-buffer",
+                "lhs": "dot-lhs-input-buffer",
+                "rhs": "dot-rhs-input-buffer",
+                "acc": "accumulator-input-buffer",
+                "out": "output-buffer",
+                "n": "runtime-element-count",
+            },
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_runtime_scalar_computed_masked_macc_add:
         require_contains(
             text,
@@ -10143,6 +10401,7 @@ def verify_materialized_selected_body(
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
+        "computed_masked_macc_boundary": computed_masked_macc_boundary,
     }
 
 
@@ -15898,6 +16157,36 @@ def multiply_accumulate_metadata_from_bundle(
     return metadata
 
 
+def computed_masked_macc_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "computed-mask MAcc evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in COMPUTED_MASKED_MACC_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object computed-mask MAcc metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header computed-mask MAcc metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def runtime_avl_vl_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -16624,6 +16913,108 @@ def multiply_accumulate_boundary_summary(
     }
 
 
+def computed_masked_macc_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_computed_masked_macc_add:
+        return {}
+    computed_macc_intrinsic = (
+        f"__riscv_vmacc_vv_{expectation.element_type}{expectation.lmul}"
+    )
+    return {
+        "source": (
+            "typed tcrv_rvv.masked_macc body/config/runtime facts -> "
+            "computed-mask accumulation family plan -> math operand-binding "
+            "facts -> route-control provider plan -> RVV-owned statement plan "
+            "-> emitted compare, active MAcc, merge, and store"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv computed-mask "
+            "multiply-accumulate body/config/runtime facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "macc_kind": "add",
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "inactive_lane_contract": COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT,
+        "masked_passthrough_layout": COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT,
+        "active_lane_contract": "accumulator + lhs * rhs where compare mask is true",
+        "source_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+            "mask_c_type": expectation.rvv_mask_c_type,
+        },
+        "accumulator_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+            "abi_role": "accumulator-input-buffer",
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "layout": MACC_ADD_RESULT_LAYOUT,
+            "abi_role": "output-buffer",
+        },
+        "selected_source_abi": {
+            "cmp_lhs": "lhs-input-buffer",
+            "cmp_rhs": "rhs-input-buffer",
+            "lhs": "dot-lhs-input-buffer",
+            "rhs": "dot-rhs-input-buffer",
+            "acc": "accumulator-input-buffer",
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        },
+        "statement_plan": {
+            "family": "computed-mask accumulation MAcc",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.compare_intrinsic,
+                computed_macc_intrinsic,
+                expectation.select_intrinsic,
+                expectation.unit_store_intrinsic,
+            ],
+            "compare_operand_order": "cmp_lhs,cmp_rhs,vl",
+            "macc_operand_order": "acc,lhs,rhs,vl",
+            "merge_operand_order": "acc,active_macc,mask,vl",
+            "store_pointer": "out + loop_induction",
+        },
+        "materialized_body": materialized_checks.get(
+            "computed_masked_macc_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "computed_masked_macc_boundary", {}
+        ),
+        "route_metadata": computed_masked_macc_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "empty_count_behavior": "runtime loop skipped; output tail sentinel preserved",
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_macc_or_mask_authority": True,
+    }
+
+
 def run_one_op_e2e(
     *,
     args: argparse.Namespace,
@@ -16800,6 +17191,18 @@ def run_one_op_e2e(
         if expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add:
             evidence["multiply_accumulate_boundary"] = (
                 multiply_accumulate_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
+        if expectation.is_computed_masked_macc_add:
+            evidence["computed_masked_macc_boundary"] = (
+                computed_masked_macc_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"
@@ -17267,6 +17670,9 @@ def root_op_result_summary(
         ),
         "multiply_accumulate_boundary": result.get(
             "multiply_accumulate_boundary", {}
+        ),
+        "computed_masked_macc_boundary": result.get(
+            "computed_masked_macc_boundary", {}
         ),
         "typed_config_artifact_closure": result.get(
             "typed_config_artifact_closure", {}

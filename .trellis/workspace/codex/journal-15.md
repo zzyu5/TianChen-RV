@@ -1660,3 +1660,50 @@ Closed plain macc_add provider-owned accumulator/runtime/artifact boundary with 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 234: Stage2 RVV computed-mask MAcc accumulator mask artifact boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask MAcc accumulator mask artifact boundary
+**Branch**: `main`
+
+### Summary
+
+Closed computed_masked_macc_add generated-bundle evidence with provider-owned mask, accumulator, runtime, route mirror, artifact, explicit/pre-realized ssh rvv correctness, testing spec contract, and check-tianchenrv 380/380.
+
+### Main Changes
+
+- Added `computed_masked_macc_boundary` generated-bundle evidence for the
+  vector-compare `computed_masked_macc_add` path.
+- Verified selected ABI roles `cmp_lhs`, `cmp_rhs`, `lhs`, `rhs`, `acc`,
+  `out`, and `n`, predicate `slt`, active MAcc operand order, inactive
+  accumulator/pass-through merge, runtime AVL/VL use, and mirror-only route
+  metadata.
+- Extended explicit and pre-realized dry-run checks, target artifact checks,
+  and the testing spec contract for computed-mask MAcc evidence.
+
+### Git Commits
+
+(Included in the final task commit.)
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] explicit and pre-realized computed-mask MAcc generated-bundle dry-runs
+  with runtime counts 0,7,16,23.
+- [OK] `ssh rvv` explicit and pre-realized computed-mask MAcc generated-bundle
+  executions with active/inactive/tail correctness over counts 0,7,16,23.
+- [OK] plain `macc_add` and `computed_mask_standalone_reduce_add` dry-run
+  non-regressions.
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 380/380.
+- [OK] `git diff --check`, task validate, and bounded authority scan.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
