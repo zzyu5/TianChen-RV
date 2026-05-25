@@ -11061,16 +11061,100 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteProviderOwners;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyDirectContractionRouteProviderConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::support::RuntimeABIParameterRole;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyDirectContractionRouteProviderOwner>
+      directOwners = getRVVSelectedBodyDirectContractionRouteProviderOwners();
+  if (int result = expect(
+          directOwners.size() == 1 &&
+              directOwners.front().familyName == "direct-provider contraction" &&
+              directOwners.front().isConsumer != nullptr &&
+              directOwners.front().buildStatementPlan != nullptr,
+          "direct contraction route-provider owner registry has exactly one "
+          "complete owner entry"))
+    return result;
+
+  struct DirectContractionCase {
+    RVVSelectedBodyOperationKind operation;
+    RVVSelectedBodyMemoryForm memoryForm;
+  };
+  const DirectContractionCase directContractionCases[] = {
+      {RVVSelectedBodyOperationKind::WideningMAccAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad},
+      {RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad},
+      {RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
+       RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce},
+      {RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideWideningDotReduce},
+      {RVVSelectedBodyOperationKind::
+           ComputedMaskStridedInputWideningDotReduceAdd,
+       RVVSelectedBodyMemoryForm::ComputedMaskStridedInputWideningDotReduce}};
+
+  for (const DirectContractionCase &routeCase : directContractionCases) {
+    RVVSelectedBodyEmitCRouteDescription description;
+    description.operation = routeCase.operation;
+    description.memoryForm = routeCase.memoryForm;
+    std::size_t matchCount = 0;
+    for (const auto &owner : directOwners)
+      if (owner.isConsumer(description))
+        ++matchCount;
+    if (int result = expect(
+            matchCount == 1 &&
+                isRVVSelectedBodyDirectContractionRouteProviderConsumer(
+                    description),
+            "direct contraction route-provider owner classifies every active "
+            "direct contraction route exactly once"))
+      return result;
+  }
+
+  RVVSelectedBodyEmitCRouteDescription nonConsumerDescription;
+  nonConsumerDescription.operation = RVVSelectedBodyOperationKind::MAccAdd;
+  nonConsumerDescription.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (int result = expect(
+          !isRVVSelectedBodyDirectContractionRouteProviderConsumer(
+              nonConsumerDescription),
+          "plain MAcc remains outside direct contraction route-provider "
+          "ownership"))
+    return result;
+  RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
+  nonConsumerAnalysis.description = nonConsumerDescription;
+  tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts
+      emptyMaterializationFacts;
+  tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts
+      emptyMathFacts;
+  auto emptyDirectStatementPlan =
+      getRVVSelectedBodyDirectContractionRouteStatementPlan(
+          nonConsumerAnalysis, emptyMaterializationFacts, emptyMathFacts,
+          "direct contraction owner non-consumer unit test");
+  if (!emptyDirectStatementPlan)
+    return fail("non-consumer direct contraction statement plan unexpectedly "
+                "failed: " +
+                llvm::toString(emptyDirectStatementPlan.takeError()));
+  if (int result = expect(
+          !emptyDirectStatementPlan->plansDirectContractionRoute &&
+              emptyDirectStatementPlan->contractionPlan == nullptr,
+          "non-consumer routes receive an empty direct contraction statement "
+          "plan"))
+    return result;
 
   if (int result = expect(
           isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
@@ -11207,7 +11291,8 @@ module {
   auto expectContractionRouteControl =
       [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef label,
           bool expectedWideningMAcc, bool expectedDotReduction,
-          bool expectedComputedMask, bool expectedStridedInput) -> int {
+          bool expectedComputedMask, bool expectedStridedInput,
+          bool verifyStatementPlan) -> int {
     auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
         analysis, label);
     if (!materializationFacts)
@@ -11281,15 +11366,140 @@ module {
     default:
       break;
     }
-    return expect(hasExpectedBindingFacts,
-                  "contraction direct provider sees the matching RVV-owned "
-                  "math operand-binding facts before statement construction");
+    if (int result = expect(
+            hasExpectedBindingFacts,
+            "contraction direct provider sees the matching RVV-owned "
+            "math operand-binding facts before statement construction"))
+      return result;
+    if (!verifyStatementPlan)
+      return 0;
+
+    auto directStatementPlan =
+        getRVVSelectedBodyDirectContractionRouteStatementPlan(
+            analysis, *materializationFacts, *mathFacts, label);
+    if (!directStatementPlan)
+      return fail((llvm::Twine(label) +
+                   " direct contraction route-provider statement plan: " +
+                   llvm::toString(directStatementPlan.takeError()))
+                      .str());
+    if (int result = expect(
+            directStatementPlan->plansDirectContractionRoute &&
+                directStatementPlan->contractionPlan ==
+                    materializationFacts->contractionPlan &&
+                directStatementPlan->plansWideningMAcc ==
+                    expectedWideningMAcc &&
+                directStatementPlan->plansDotReduction ==
+                    expectedDotReduction &&
+                directStatementPlan->plansComputedMask ==
+                    expectedComputedMask &&
+                directStatementPlan->plansStridedInput ==
+                    expectedStridedInput &&
+                directStatementPlan->loop.inductionVarName ==
+                    analysis.description.emitCLoopInductionName,
+            "direct contraction owner returns a provider-ready statement plan "
+            "for the matching contraction family"))
+      return result;
+    if (int result = expect(
+            directStatementPlan->preLoopSteps.size() ==
+                (expectedDotReduction ? 3u : 1u),
+            "direct contraction owner preserves pre-loop setvl and "
+            "dot-reduction seed/store ordering"))
+      return result;
+
+    auto containsCallee = [](const auto &steps, llvm::StringRef callee) {
+      for (const auto &step : steps)
+        if (step.callee == callee)
+          return true;
+      return false;
+    };
+    const auto &loopSteps = directStatementPlan->loop.bodySteps;
+    if (int result = expect(
+            containsCallee(loopSteps, materializationFacts->setVLLeaf) &&
+                containsCallee(loopSteps,
+                               materializationFacts->contractionComputeLeaf) &&
+                containsCallee(loopSteps, materializationFacts->storeLeaf),
+            "direct contraction owner loop carries setvl, contraction compute, "
+            "and store leaves from materialization facts"))
+      return result;
+    if (expectedWideningMAcc)
+      if (int result = expect(
+              containsCallee(loopSteps, materializationFacts->sourceLoadLeaf) &&
+                  containsCallee(loopSteps,
+                                 materializationFacts->vectorLoadLeaf),
+              "widening MAcc direct owner consumes source and accumulator load "
+              "leaves"))
+        return result;
+    if (expectedDotReduction && !expectedComputedMask)
+      if (int result = expect(
+              containsCallee(loopSteps,
+                             expectedStridedInput
+                                 ? materializationFacts->stridedSourceLoadLeaf
+                                 : materializationFacts->sourceLoadLeaf) &&
+                  containsCallee(loopSteps,
+                                 materializationFacts->wideningProductLeaf) &&
+                  containsCallee(loopSteps,
+                                 materializationFacts->scalarSeedSplatLeaf),
+              "dot-reduction direct owner consumes source load, widening "
+              "product, and scalar seed leaves"))
+        return result;
+    if (expectedComputedMask)
+      if (int result = expect(
+              containsCallee(loopSteps, materializationFacts->vectorLoadLeaf) &&
+                  containsCallee(loopSteps,
+                                 expectedStridedInput
+                                     ? materializationFacts->stridedSourceLoadLeaf
+                                     : materializationFacts->sourceLoadLeaf) &&
+                  containsCallee(loopSteps, materializationFacts->compareLeaf) &&
+                  containsCallee(
+                      loopSteps,
+                      materializationFacts->maskedWideningProductLeaf) &&
+                  containsCallee(loopSteps,
+                                 materializationFacts->maskedMergeLeaf),
+              "computed-mask dot-reduction direct owner consumes compare, mask, "
+              "source, masked product, and merge leaves"))
+        return result;
+    return 0;
   };
 
   if (int result = expectContractionRouteControl(
           *computedStridedAnalysis,
           "computed-mask strided contraction route-control unit test", false,
-          true, true, true))
+          true, true, true, true))
+    return result;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedStridedRoute;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              computedStridedRoute),
+          "build computed-mask strided direct contraction EmitC route"))
+    return result;
+  auto routeContainsCallee = [](const auto &steps, llvm::StringRef callee) {
+    for (const auto &step : steps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (int result = expect(
+          computedStridedRoute.getCallOpaqueSteps().size() == 3 &&
+              computedStridedRoute.getForLoops().size() == 1 &&
+              computedStridedRoute.getCallOpaqueSteps()[1].callee ==
+                  routeDescription->scalarSeedSplatIntrinsic &&
+              computedStridedRoute.getCallOpaqueSteps()[2].callee ==
+                  routeDescription->storeIntrinsic &&
+              routeContainsCallee(
+                  computedStridedRoute.getForLoops().front().bodySteps,
+                  routeDescription->stridedLoadIntrinsic) &&
+              routeContainsCallee(
+                  computedStridedRoute.getForLoops().front().bodySteps,
+                  routeDescription->maskedWideningProductIntrinsic) &&
+              routeContainsCallee(
+                  computedStridedRoute.getForLoops().front().bodySteps,
+                  routeDescription->intrinsic),
+          "production route provider attaches direct contraction owner "
+          "pre-loop and loop statements for computed-mask strided dot"))
     return result;
 
   constexpr llvm::StringLiteral plainDotSource = R"mlir(
@@ -11385,7 +11595,7 @@ module {
                 llvm::toString(plainDotAnalysis.takeError()));
   if (int result = expectContractionRouteControl(
           *plainDotAnalysis, "plain widening dot route-control unit test",
-          false, true, false, false))
+          false, true, false, false, false))
     return result;
 
   auto stridedDotAnalysis = analyzeContractionRouteControlSource(
@@ -11396,7 +11606,7 @@ module {
                 llvm::toString(stridedDotAnalysis.takeError()));
   if (int result = expectContractionRouteControl(
           *stridedDotAnalysis, "strided widening dot route-control unit test",
-          false, true, false, true))
+          false, true, false, true, false))
     return result;
 
   auto maskedDotAnalysis = analyzeContractionRouteControlSource(
@@ -11408,7 +11618,7 @@ module {
   if (int result = expectContractionRouteControl(
           *maskedDotAnalysis,
           "computed-mask widening dot route-control unit test", false, true,
-          true, false))
+          true, false, false))
     return result;
 
   auto computedStridedRouteControlFacts =
@@ -11418,6 +11628,52 @@ module {
   if (!computedStridedRouteControlFacts)
     return fail("computed-mask strided route-control materialization facts: " +
                 llvm::toString(computedStridedRouteControlFacts.takeError()));
+
+  auto computedStridedMathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *computedStridedAnalysis,
+      "computed-mask strided direct contraction negative setup");
+  if (!computedStridedMathFacts)
+    return fail("computed-mask strided direct contraction math facts: " +
+                llvm::toString(computedStridedMathFacts.takeError()));
+
+  auto missingDirectMaterialization = *computedStridedRouteControlFacts;
+  missingDirectMaterialization.contractionPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+              *computedStridedAnalysis, missingDirectMaterialization,
+              *computedStridedMathFacts,
+              "computed-mask strided direct contraction missing plan")
+              .takeError(),
+          {"direct contraction route-provider owner requires the verified "
+           "contraction route-family materialization facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts
+      missingDirectMathFacts;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+              *computedStridedAnalysis, *computedStridedRouteControlFacts,
+              missingDirectMathFacts,
+              "computed-mask strided direct contraction missing math facts")
+              .takeError(),
+          {"direct contraction route-provider owner requires same-analysis "
+           "RVV-owned math operand-binding facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  auto missingDirectLeafFacts = *computedStridedRouteControlFacts;
+  missingDirectLeafFacts.vectorLoadLeaf = "";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+              *computedStridedAnalysis, missingDirectLeafFacts,
+              *computedStridedMathFacts,
+              "computed-mask strided direct contraction missing leaf")
+              .takeError(),
+          {"direct contraction route-provider owner requires compare vector "
+           "load leaf",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
 
   auto missingContractionMaterialization = *computedStridedRouteControlFacts;
   missingContractionMaterialization.contractionPlan = nullptr;
@@ -11480,6 +11736,22 @@ module {
               .takeError(),
           {"route-control provider plan tail policy", "agnostic",
            "undisturbed"}))
+    return result;
+  auto staleRouteControlMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          staleRouteControl,
+          "computed-mask strided direct contraction stale policy unit test");
+  if (!staleRouteControlMathFacts)
+    return fail("computed-mask strided stale policy math facts: " +
+                llvm::toString(staleRouteControlMathFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              *staleRouteControlMathFacts,
+              "computed-mask strided direct contraction stale policy unit test")
+              .takeError(),
+          {"contraction route-family mirrors",
+           "validated family plan"}))
     return result;
 
   staleRouteControl = *computedStridedAnalysis;
@@ -11842,7 +12114,7 @@ module {
     return result;
   if (int result = expectContractionRouteControl(
           *maccAnalysis, "widening MAcc contraction route-control unit test",
-          true, false, false, false))
+          true, false, false, false, true))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleMAcc = *maccAnalysis;

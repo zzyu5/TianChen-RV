@@ -830,8 +830,9 @@ scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
 select, widening conversion, non-segment computed-mask memory, segment2 memory,
 base memory movement, standalone reduction, scalar-broadcast MAcc, runtime
 scalar splat-store, computed-mask accumulation MAcc, and contraction families.
-Contraction may remain a direct-provider path only after consuming this
-boundary; it does not need a wrapper-only statement-plan layer. Other migrated
+Contraction may remain a direct-provider route family only after consuming this
+boundary through the direct contraction route-provider owner. It must not keep
+central ad hoc statement construction as active route authority. Other migrated
 families may continue to use their existing family-local checks until they are
 explicitly moved onto this boundary.
 
@@ -2468,6 +2469,156 @@ verified route-family provider plans
   -> RVVSelectedBodyPlainMAccRouteStatementPlan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
+
+## Direct Contraction Route-Provider Owner Boundary
+
+### 1. Scope / Trigger
+
+For active direct-provider contraction routes, `RVVEmitCRouteProvider` must not
+locally recreate widening MAcc or widening dot-reduction statement sequences
+from operation names, memory forms, ABI strings, intrinsic mirrors, route ids,
+or artifact metadata after RVV-owned family plans, materialization facts,
+math operand-binding facts, and route-control provider-plan facts have been
+validated.
+
+The active direct-provider contraction routes are `widening_macc_add`,
+`widening_dot_reduce_add`, `strided_input_widening_dot_reduce_add`,
+`computed_masked_widening_dot_reduce_add`, and
+`computed_masked_strided_input_widening_dot_reduce_add`. They must be selected
+exactly once by an RVV plugin-owned direct contraction route-provider owner.
+
+`RVVEmitCRouteProvider` remains the owner that instantiates
+`TCRVEmitCLowerableRoute`, records neutral headers/type mappings/ABI mappings,
+preserves selected-boundary source provenance, and attaches returned
+provider-ready statements. It must call the direct contraction owner after
+route-family provider-plan verification, route materialization facts, and math
+operand-binding facts are available, and before the older generic provider-local
+statement assembly path. Contraction routes must not fall through to central
+ad hoc contraction statement construction when the owner boundary exists.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+struct RVVSelectedBodyDirectContractionRouteStatementPlan {
+  contraction route-family plan pointer;
+  direct contraction / widening MAcc / dot-reduction / computed-mask /
+      strided-input booleans;
+  provider-ready pre-loop TCRVEmitCCallOpaqueStep entries;
+  one provider-ready TCRVEmitCForLoop;
+};
+
+struct RVVSelectedBodyDirectContractionRouteProviderOwner {
+  family name;
+  consumer predicate over RVVSelectedBodyEmitCRouteDescription;
+  statement-plan builder over RVVSelectedBodyRouteAnalysis,
+      route materialization facts,
+      math operand-binding facts,
+      output direct contraction statement plan;
+};
+
+getRVVSelectedBodyDirectContractionRouteProviderOwners()
+isRVVSelectedBodyDirectContractionRouteProviderConsumer(
+    RVVSelectedBodyEmitCRouteDescription)
+
+llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
+getRVVSelectedBodyDirectContractionRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+The owner registry must have exactly one active owner for the existing
+direct-provider contraction family. The aggregate getter must select ownership
+through that registry, return an empty/default plan for non-consumer routes, and
+fail closed when an owner entry is incomplete, more than one owner matches, or
+the selected owner fails to produce a direct contraction statement plan.
+
+### 3. Contracts
+
+`RVVSelectedBodyDirectContractionRouteStatementPlan` is RVV-local provider
+input. It may carry:
+
+- a pointer to the verified same-analysis contraction route-family plan;
+- booleans for widening MAcc, dot-reduction, computed-mask, and strided-input
+  classification;
+- provider-ready full-chunk `setvl` pre-loop steps;
+- dot-reduction seed/store pre-loop steps when required;
+- one provider-ready loop with loop `setvl`, source loads, optional compare and
+  masked-product/merge steps, accumulator load where required, contraction
+  compute, and store steps.
+
+The owner must consume verified typed body/config/runtime facts,
+same-analysis route materialization facts, the RVV-owned route-control provider
+plan, and RVV-owned math operand-binding facts before statement construction.
+It is not a common EmitC fact, not artifact metadata, not an acceptance/status
+mirror, and not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A non-contraction route requests the boundary -> return an empty direct
+  contraction statement plan without changing unrelated provider behavior.
+- A contraction route has no verified contraction route-family materialization
+  facts -> fail closed before route statement construction.
+- A contraction route lacks the RVV-owned route-control provider plan, carries
+  stale materialization/control facts, has an invalid runtime AVL/VL source, or
+  has SEW/LMUL/policy/capability mirrors that disagree with the typed body/config
+  and selected target facts -> fail closed before route statement construction.
+- A contraction route lacks same-analysis math operand-binding facts for its
+  specific sub-family -> fail closed before route statement construction.
+- Required ABI roles such as compare lhs/rhs, dot lhs/rhs, lhs/rhs,
+  accumulator, output, runtime element count, or strided-input strides are absent
+  -> fail closed with the logical operand name and operation/memory-form context.
+- Required materialized leaves such as `setvl`, source load, compare vector
+  load, strided source load, widening product, masked widening product,
+  masked merge, scalar seed splat, accumulator load, contraction compute, or
+  store are absent -> fail closed before common EmitC.
+- Required source operation provenance for configure/load/compute/store steps is
+  absent or reports the wrong EmitC source role -> fail closed before common
+  EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed widening MAcc `tcrv_rvv` body -> contraction family plan verifier
+  -> materialization facts -> math operand-binding facts -> route-control
+  provider plan -> direct contraction owner statement plan -> provider attaches
+  statements into `TCRVEmitCLowerableRoute`.
+- Good: typed computed-mask strided widening dot-reduction body -> contraction
+  family plan verifier with compare producer, strided-input, accumulator/result,
+  product/seed, and runtime-control facts -> materialization facts -> math
+  operand-binding facts -> route-control provider plan -> direct contraction
+  owner statement plan -> provider-built route.
+- Base: migrated elementwise, compare/select, widening conversion, standalone
+  reduction, plain MAcc, memory, segment2, and computed-mask accumulation routes
+  remain outside this owner and are handled by the migrated statement-plan
+  boundary.
+- Bad: provider body branches on direct contraction operation names, ABI strings,
+  memory forms, field-role mirrors, intrinsic mirrors, route ids, or artifact
+  metadata to rebuild the contraction statement sequence after this owner exists.
+
+### 6. Tests Required
+
+- Focused C++ tests for direct contraction owner registry membership, hook
+  presence, exact-once classification for every active direct-provider
+  contraction route, and empty-plan behavior for unrelated routes.
+- Focused C++ tests for positive direct contraction owner statement-plan
+  construction, including route-control provider-plan consumption and math
+  operand-binding facts.
+- Focused C++ fail-closed diagnostics for missing contraction materialization
+  facts, stale route-control/family facts, missing math operand-binding facts,
+  and missing required materialized leaves.
+- Provider-route tests proving `RVVEmitCRouteProvider` attaches the returned
+  direct contraction owner statements into `TCRVEmitCLowerableRoute`.
+- Representative generated-bundle or `tcrv-translate` dry-run coverage for one
+  direct-provider contraction route and one migrated statement-plan route.
+- Bounded provider scan showing direct contraction statement construction is
+  reached through the RVV-owned direct contraction owner and that the provider
+  no longer carries central direct-contraction statement branches.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
 
 ## Migrated Statement-Plan Provider Consumption Boundary
 

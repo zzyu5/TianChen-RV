@@ -57,6 +57,67 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 228: Stage2 RVV direct-provider contraction route-provider owner
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV direct-provider contraction route-provider owner
+**Branch**: `main`
+
+### Summary
+
+Moved direct-provider contraction statement construction behind an RVV-owned
+route-provider owner boundary while keeping route construction, common EmitC
+materialization, selected-body realization, emitted statement order, and
+runtime ABI behavior unchanged.
+
+### Main Changes
+
+- Added `RVVSelectedBodyDirectContractionRouteProviderOwner` and
+  `RVVSelectedBodyDirectContractionRouteStatementPlan` APIs, including exact-one
+  owner selection and non-consumer empty-plan behavior.
+- Moved widening MAcc, plain/strided dot-reduction, and computed-mask
+  dot-reduction statement construction into the direct contraction owner.
+- Rewired `RVVEmitCRouteProvider` to attach the owner-returned pre-loop and loop
+  statements before the generic provider-local fallback path.
+- Removed the active central provider branches for direct contraction operand
+  binding, source loads, computed-mask dot loops, products, reductions, and
+  stores.
+- Updated the RVV plugin spec with the durable direct contraction
+  route-provider owner boundary and route-control provider-plan consumption
+  contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Direct-provider contraction dry-run:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_masked_strided_input_widening_dot_reduce_add --run-id direct-contraction-computed-mask-strided ...`
+- [OK] Migrated statement-plan dry-run:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind add --run-id migrated-add-statement-plan ...`
+- [OK] `git diff --check`
+- [OK] Bounded added-line authority scan found only spec prohibition language for
+  legacy i32/source-front-door/descriptor/direct-C/source-export/common-EmitC/
+  metadata/route-id authority, and no new active authority leaks.
+- [OK] Provider scan found no active central direct contraction operation-name
+  branches in `RVVEmitCRouteProvider.cpp`; only the direct owner call remains.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Runtime Evidence
+
+No `ssh rvv` rerun was needed because this round changed route-provider
+ownership and fail-closed validation boundaries only. It did not change emitted
+RVV computation semantics, runtime ABI, dispatch/fallback behavior, target
+artifact semantics, or performance claims.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 228: Stage2 RVV route-provider family owner registry
 
 **Date**: 2026-05-25

@@ -1159,6 +1159,40 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyDirectContractionRouteStatementPlan {
+  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
+
+  bool plansDirectContractionRoute = false;
+  bool plansWideningMAcc = false;
+  bool plansDotReduction = false;
+  bool plansComputedMask = false;
+  bool plansStridedInput = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
+struct RVVSelectedBodyDirectContractionRouteProviderOwner {
+  using ConsumerPredicate =
+      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
+  using StatementPlanBuilder = llvm::Error (*)(
+      RVVSelectedBodyRouteAnalysis &,
+      const RVVSelectedBodyRouteMaterializationFacts &,
+      const RVVSelectedBodyMathRouteOperandBindingFacts &,
+      RVVSelectedBodyDirectContractionRouteStatementPlan &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  StatementPlanBuilder buildStatementPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyDirectContractionRouteProviderOwner>
+getRVVSelectedBodyDirectContractionRouteProviderOwners();
+
+bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
   None,
   ElementwiseArithmetic,
@@ -1476,6 +1510,13 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
 
 llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
 getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
+getRVVSelectedBodyDirectContractionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
