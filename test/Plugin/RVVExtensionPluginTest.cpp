@@ -7449,6 +7449,8 @@ int runCompareSelectStatementPlanBoundaryTest(mlir::MLIRContext &context) {
       getRVVSelectedBodyCompareSelectRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyCompareSelectRouteStatementPlan;
@@ -7456,6 +7458,7 @@ int runCompareSelectStatementPlanBoundaryTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -7589,6 +7592,46 @@ module {
     if (!elementwiseFacts)
       return fail("compare/select statement-plan elementwise facts: " +
                   llvm::toString(elementwiseFacts.takeError()));
+
+    if (plain) {
+      auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+          *analysis, *materializationFacts,
+          "plain compare-select route-control provider unit test");
+      if (!routeControlPlan)
+        return fail("plain compare-select route-control provider plan: " +
+                    llvm::toString(routeControlPlan.takeError()));
+      const auto *plainRuntimeControlPlan =
+          &analysis->plainCompareSelectRouteFamilyPlan->runtimeControlPlan;
+      if (int result = expect(
+              routeControlPlan->plansRouteControl &&
+                  routeControlPlan->controlsPlainCompareSelect &&
+                  routeControlPlan->runtimeControlPlan ==
+                      plainRuntimeControlPlan &&
+                  routeControlPlan->typedConfigFacts ==
+                      &analysis->typedConfigFacts &&
+                  routeControlPlan->selectedTargetCapabilityFacts ==
+                      &analysis->selectedTargetCapabilityFacts,
+              "plain compare-select route-control provider plan joins typed "
+              "config, target capability, and runtime AVL/VL facts"))
+        return result;
+      if (int result = expect(
+              routeControlPlan->controlPlanIDMirror ==
+                      analysis->description.runtimeControlPlanID &&
+                  routeControlPlan->runtimeABIOrderMirror ==
+                      analysis->description.runtimeABIOrder &&
+                  routeControlPlan->tailPolicyMirror ==
+                      analysis->description.tailPolicy &&
+                  routeControlPlan->maskPolicyMirror ==
+                      analysis->description.maskPolicy &&
+                  routeControlPlan->selectedProviderMirror ==
+                      analysis->description.targetCapabilityProviderMirror &&
+                  routeControlPlan->selectedLegalityMirror ==
+                      analysis->description.targetCapabilityLegalityMirror &&
+                  elementwiseFacts->bindsPlainCompareSelect,
+              "plain compare-select route-control provider plan carries "
+              "validated control mirrors before statement planning"))
+        return result;
+    }
 
     llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
         statementPlan = getRVVSelectedBodyCompareSelectRouteStatementPlan(
@@ -7745,14 +7788,172 @@ module {
                 llvm::toString(computedElementwiseFacts.takeError()));
   auto staleMaterializationFacts = *computedMaterializationFacts;
   staleMaterializationFacts.computedMaskSelectPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              *computedAnalysis, staleMaterializationFacts,
+              *computedElementwiseFacts,
+              "compare/select statement plan stale dependency unit test")
+              .takeError(),
+          {"compare/select statement plan requires the verified computed-mask "
+           "select route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> plainAnalysis =
+      analyzeRouteInModule(*module, "stmt_cmp_select_kernel",
+                           "rvv_cmp_select");
+  if (!plainAnalysis)
+    return fail("analyze plain compare/select route-control route: " +
+                llvm::toString(plainAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              *plainAnalysis,
+              "plain compare-select route-control stale dependency unit test"),
+          "verify plain compare-select route before route-control stale "
+          "dependency tests"))
+    return result;
+  auto plainMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *plainAnalysis,
+          "plain compare-select route-control stale dependency unit test");
+  if (!plainMaterializationFacts)
+    return fail("plain compare/select route-control materialization facts: " +
+                llvm::toString(plainMaterializationFacts.takeError()));
+  auto plainElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          *plainAnalysis,
+          "plain compare-select route-control stale dependency unit test");
+  if (!plainElementwiseFacts)
+    return fail("plain compare/select route-control elementwise facts: " +
+                llvm::toString(plainElementwiseFacts.takeError()));
+
+  auto missingPlainFamilyFacts = *plainMaterializationFacts;
+  missingPlainFamilyFacts.plainCompareSelectPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *plainAnalysis, missingPlainFamilyFacts,
+              "plain compare-select missing control-plan dependency unit test")
+              .takeError(),
+          {"route-control provider plan requires the verified plain "
+           "compare-select route-family plan",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeControl = *plainAnalysis;
+  staleRuntimeControl.plainCompareSelectRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto staleRuntimeControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeControl,
+      "plain compare-select route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlFacts)
+    return fail("stale plain compare/select runtime-control materialization "
+                "facts: " +
+                llvm::toString(staleRuntimeControlFacts.takeError()));
+  auto staleRuntimeControlElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleRuntimeControl,
+          "plain compare-select route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlElementwiseFacts)
+    return fail("stale plain compare/select runtime-control binding facts: " +
+                llvm::toString(
+                    staleRuntimeControlElementwiseFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              staleRuntimeControl, *staleRuntimeControlFacts,
+              *staleRuntimeControlElementwiseFacts,
+              "plain compare-select route-control stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePolicy = *plainAnalysis;
+  stalePolicy.plainCompareSelectRouteFamilyPlan->runtimeControlPlan.tailPolicy =
+      "undisturbed";
+  auto stalePolicyFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      stalePolicy, "plain compare-select route-control stale policy unit test");
+  if (!stalePolicyFacts)
+    return fail("stale plain compare/select policy materialization facts: " +
+                llvm::toString(stalePolicyFacts.takeError()));
+  auto stalePolicyElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          stalePolicy,
+          "plain compare-select route-control stale policy unit test");
+  if (!stalePolicyElementwiseFacts)
+    return fail("stale plain compare/select policy binding facts: " +
+                llvm::toString(stalePolicyElementwiseFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              stalePolicy, *stalePolicyFacts, *stalePolicyElementwiseFacts,
+              "plain compare-select route-control stale policy unit test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleTarget = *plainAnalysis;
+  staleTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleTargetFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleTarget, "plain compare-select route-control stale target unit test");
+  if (!staleTargetFacts)
+    return fail("stale plain compare/select target materialization facts: " +
+                llvm::toString(staleTargetFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleTarget, *staleTargetFacts,
+              "plain compare-select route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedPlainAnalysis = *plainAnalysis;
+  auto copiedPlainElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          copiedPlainAnalysis,
+          "plain compare-select stale-analysis route-control unit test");
+  if (!copiedPlainElementwiseFacts)
+    return fail("copied plain compare/select binding facts: " +
+                llvm::toString(copiedPlainElementwiseFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              copiedPlainAnalysis, *plainMaterializationFacts,
+              *copiedPlainElementwiseFacts,
+              "plain compare-select stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires plain compare-select "
+           "materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeMirror = *plainAnalysis;
+  staleRuntimeMirror.description.runtimeABIOrder = "lhs,rhs,out,metadata_n";
+  auto staleRuntimeMirrorFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeMirror,
+      "plain compare-select route-control stale runtime ABI mirror unit test");
+  if (!staleRuntimeMirrorFacts)
+    return fail("stale plain compare/select runtime ABI mirror facts: " +
+                llvm::toString(staleRuntimeMirrorFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRuntimeMirror, *staleRuntimeMirrorFacts,
+              "plain compare-select route-control stale runtime ABI mirror "
+              "unit test")
+              .takeError(),
+          {"route-control provider plan description runtime ABI order",
+           "lhs,rhs,out,n", "lhs,rhs,out,metadata_n"}))
+    return result;
+
+  auto stalePlainOperandBindingFacts = *plainElementwiseFacts;
+  stalePlainOperandBindingFacts.bindsPlainCompareSelect = false;
   return expectErrorContains(
       getRVVSelectedBodyCompareSelectRouteStatementPlan(
-          *computedAnalysis, staleMaterializationFacts,
-          *computedElementwiseFacts,
-          "compare/select statement plan stale dependency unit test")
+          *plainAnalysis, *plainMaterializationFacts,
+          stalePlainOperandBindingFacts,
+          "plain compare-select statement plan stale binding unit test")
           .takeError(),
-      {"compare/select statement plan requires the verified computed-mask "
-       "select route-family plan",
+      {"compare/select statement plan requires plain compare-select "
+       "operand-binding facts",
        "before route statement construction"});
 }
 

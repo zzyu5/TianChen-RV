@@ -22803,12 +22803,19 @@ static bool isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
              RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
 }
 
+static bool isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(
+      description.operation);
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
              description) ||
          isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
              description) ||
+         isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
          isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
@@ -23008,6 +23015,27 @@ getRVVSelectedBodyRouteControlProviderPlan(
     runtimeControlPlan =
         &materializationFacts.scalarBroadcastPlan->runtimeControlPlan;
     plan.controlsScalarBroadcastElementwise = true;
+  } else if (isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.plainCompareSelectPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified plain "
+          "compare-select route-family plan before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.plainCompareSelectRouteFamilyPlan ||
+        materializationFacts.plainCompareSelectPlan !=
+            &*analysis.plainCompareSelectRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires plain compare-select "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.plainCompareSelectPlan->runtimeControlPlan;
+    plan.controlsPlainCompareSelect = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -27639,6 +27667,19 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
           llvm::Twine(context) +
           " compare/select statement plan requires plain compare-select "
           "operand-binding facts before route statement construction");
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts, context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsPlainCompareSelect ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.plainCompareSelectPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain compare-select statement plan requires the RVV-owned "
+          "route-control provider plan before route statement construction");
   } else {
     if (!materializationFacts.computedMaskSelectPlan)
       return makeRVVEmitCRouteProviderError(

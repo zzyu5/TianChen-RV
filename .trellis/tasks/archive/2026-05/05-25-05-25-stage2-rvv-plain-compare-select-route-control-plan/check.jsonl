@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture and RVV Stage 2 boundaries after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route-control, compare/select statement-plan, provider, selected-body, and mirror-only spec compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/lit/generated-bundle/ssh rvv evidence expectations."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability/config/policy authority is structured and plugin-validated."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV route-control migration stayed plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute, descriptor, or tcrv.exec semantic drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-runtime-vl-policy-provider-plan/prd.md", "reason": "Compare final route-control consumer evidence with the source boundary task."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-elementwise-route-control-plan/prd.md", "reason": "Compare fail-closed and provider-plan patterns with ordinary elementwise."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-scalar-broadcast-route-control/prd.md", "reason": "Compare fail-closed and provider-plan patterns with scalar-broadcast elementwise."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-scalar-macc-route-control-provider-plan/prd.md", "reason": "Compare fail-closed and route-control statement-plan patterns with scalar MAcc."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-compare-select-statement-plan-ownership/prd.md", "reason": "Verify compare/select statement-plan ownership remains intact."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-plain-compare-select-runtime-binding-closure/prd.md", "reason": "Verify runtime/operand binding closure remains the plain compare/select authority layer."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-compare-select-predicate-route-closure/prd.md", "reason": "Verify emitted compare/select predicate evidence shape if artifacts are touched."}

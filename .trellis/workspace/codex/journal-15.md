@@ -635,3 +635,43 @@ Integrated scalar-broadcast elementwise Add/Sub/Mul with the shared RVV route-co
 ### Next Steps
 
 - None - task complete
+
+
+## Session 217: Stage2 RVV plain compare-select route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV plain compare-select route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated the existing plain cmp_select route with the shared RVV route-control provider-plan boundary before compare/select statement planning, with focused fail-closed coverage, generated-bundle evidence, ssh rvv proof, spec update, and full check-tianchenrv.
+
+### Main Changes
+
+- Added `controlsPlainCompareSelect` to `RVVSelectedBodyRouteControlProviderPlan` and made `CmpSelect` an explicit route-control provider-plan consumer.
+- Required route-control construction for plain compare/select to validate same-analysis plain compare/select family materialization facts, typed config facts, selected target capability facts, runtime AVL/VL control, runtime ABI order, tail/mask policy, and mirror consistency.
+- Required `getRVVSelectedBodyCompareSelectRouteStatementPlan(...)` to consume the RVV-owned route-control plan before building the plain compare/select setvl/load/compare/select/store statement plan.
+- Kept computed-mask, runtime-scalar, and dual compare/select subfamilies outside this migration.
+- Extended `RVVExtensionPluginTest.cpp` with positive plain compare/select control-plan consumption and fail-closed cases for missing family facts, stale runtime AVL role, policy mismatch, unsupported selected capability, stale same-analysis materialization, runtime ABI mirror mismatch, and stale operand binding.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to list plain compare/select as a route-control consumer and document the statement-plan control dependency.
+- Validation passed: task context validation, `git diff --check`, RVV extension plugin test build/run, `tcrv-opt`/`tcrv-translate` build, focused lit filter `cmp-select|compare-select` (11 selected tests), pre-realized `cmp_select` generated-bundle dry-run, real `ssh rvv` `cmp_select` counts `7,16,23`, added-line authority scan, and `check-tianchenrv` 379/379.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
