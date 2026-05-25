@@ -35,6 +35,10 @@ constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_macc_add.v1");
+constexpr llvm::StringLiteral kRVVRuntimeABIExecBindingAttrName(
+    "exec_binding");
+constexpr llvm::StringLiteral kRVVRequireExecABIBindingsAttrName(
+    "tcrv_rvv.require_exec_abi_bindings");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccOperandBindingPlanID(
     "rvv-route-operand-binding:computed_masked_macc_add.v1");
 constexpr llvm::StringLiteral
@@ -10847,6 +10851,98 @@ std::string formatRuntimeABIExpectedRoles(
       [&] { stream << " or "; });
   stream.flush();
   return expected;
+}
+
+bool variantRequiresRVVExecABIBindings(tcrv::exec::VariantOp variant) {
+  if (!variant)
+    return false;
+  auto required =
+      variant->getAttrOfType<mlir::BoolAttr>(kRVVRequireExecABIBindingsAttrName);
+  return required && required.getValue();
+}
+
+bool runtimeABIParametersMatchRuntimeABIValue(
+    const support::RuntimeABIParameter &parameter,
+    tcrv::rvv::RuntimeABIValueOp binding) {
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  std::optional<support::RuntimeABIParameterOwnership> ownership =
+      support::symbolizeRuntimeABIParameterOwnership(binding.getOwnership());
+  return role && ownership && parameter.role == *role &&
+         parameter.ownership == *ownership &&
+         parameter.cName == binding.getCName() &&
+         parameter.cType == binding.getCType();
+}
+
+llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+findRuntimeABIValueForParameter(tcrv::exec::VariantOp variant,
+                                const support::RuntimeABIParameter &parameter,
+                                llvm::StringRef context) {
+  tcrv::rvv::RuntimeABIValueOp matched;
+  unsigned count = 0;
+  variant.getBody().walk([&](tcrv::rvv::RuntimeABIValueOp binding) {
+    if (!runtimeABIParametersMatchRuntimeABIValue(parameter, binding))
+      return;
+    matched = binding;
+    ++count;
+  });
+
+  if (count == 1)
+    return matched;
+
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " requires exactly one tcrv_rvv.runtime_abi_value matching ABI "
+      "parameter '" +
+      parameter.cName + "' with role '" +
+      support::stringifyRuntimeABIParameterRole(parameter.role) +
+      "' before exec-envelope ABI binding validation; found " +
+      llvm::Twine(count));
+}
+
+llvm::Expected<std::string>
+summarizeRVVSelectedBodyExecABIBindings(
+    tcrv::exec::VariantOp variant,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+    llvm::StringRef context) {
+  const bool required = variantRequiresRVVExecABIBindings(variant);
+  llvm::SmallVector<std::string, 8> entries;
+
+  for (const support::RuntimeABIParameter &parameter : runtimeABIParameters) {
+    llvm::Expected<tcrv::rvv::RuntimeABIValueOp> binding =
+        findRuntimeABIValueForParameter(variant, parameter, context);
+    if (!binding)
+      return binding.takeError();
+
+    auto execBinding = (*binding)->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        kRVVRuntimeABIExecBindingAttrName);
+    if (!execBinding) {
+      if (required)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " requires tcrv_rvv.runtime_abi_value '" + parameter.cName +
+            "' with role '" +
+            support::stringifyRuntimeABIParameterRole(parameter.role) +
+            "' to carry exec_binding to a tcrv.exec ABI declaration");
+      continue;
+    }
+
+    std::string entry;
+    llvm::raw_string_ostream stream(entry);
+    stream << parameter.cName << "="
+           << support::stringifyRuntimeABIParameterRole(parameter.role)
+           << "->@" << execBinding.getValue();
+    stream.flush();
+    entries.push_back(std::move(entry));
+  }
+
+  std::string summary;
+  llvm::raw_string_ostream stream(summary);
+  llvm::interleave(
+      entries, [&](const std::string &entry) { stream << entry; },
+      [&] { stream << ";"; });
+  stream.flush();
+  return summary;
 }
 
 llvm::Expected<support::RuntimeABIParameter>
@@ -30459,6 +30555,14 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           analysis.routeOperandBindingPlan, analysis.description,
           "selected RVV route analysis"))
     return std::move(error);
+  llvm::Expected<std::string> execABIBindingSummary =
+      summarizeRVVSelectedBodyExecABIBindings(
+          request.getVariant(), analysis.description.runtimeABIParameters,
+          "selected RVV route analysis exec-envelope ABI binding");
+  if (!execABIBindingSummary)
+    return execABIBindingSummary.takeError();
+  analysis.description.execABIBindingSummary =
+      std::move(*execABIBindingSummary);
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
           routeProfile->operation.operationMnemonic,
           analysis.description.typedComputeOpName,
@@ -33806,6 +33910,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.route_operand_binding_operands",
                         description.routeOperandBindingSummary});
   }
+  if (!description.execABIBindingSummary.empty())
+    metadata.push_back(
+        {"tcrv_rvv.exec_abi_bindings", description.execABIBindingSummary});
   if (!description.accumulationRouteFamilyPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.accumulation_route_family_plan",
                         description.accumulationRouteFamilyPlanID});

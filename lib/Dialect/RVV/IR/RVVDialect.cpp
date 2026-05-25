@@ -7,6 +7,7 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -56,6 +57,7 @@ constexpr llvm::StringLiteral kRoleAttrName("role");
 constexpr llvm::StringLiteral kCNameAttrName("c_name");
 constexpr llvm::StringLiteral kCTypeAttrName("c_type");
 constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
+constexpr llvm::StringLiteral kExecBindingAttrName("exec_binding");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kOpKindAttrName("op_kind");
 constexpr llvm::StringLiteral kPredicateKindAttrName("predicate_kind");
@@ -1483,7 +1485,7 @@ bool isAllowedI32StoreAttr(llvm::StringRef) {
 bool isAllowedRuntimeABIValueAttr(llvm::StringRef name) {
   return name == kRoleAttrName || name == kCNameAttrName ||
          name == kCTypeAttrName || name == kOwnershipAttrName ||
-         name == kPurposeAttrName;
+         name == kExecBindingAttrName || name == kPurposeAttrName;
 }
 
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
@@ -1660,6 +1662,160 @@ bool isBoundedRuntimeIndexRole(
   return role == Role::RuntimeElementCount || role == Role::LHSInputStride ||
          role == Role::RHSInputStride || role == Role::SourceByteStride ||
          role == Role::DestinationByteStride || role == Role::OutputStride;
+}
+
+bool isRuntimeABIExecBindingWriteWindowRole(
+    tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return role == Role::OutputBuffer ||
+         role == Role::SegmentField0OutputBuffer ||
+         role == Role::SegmentField1OutputBuffer ||
+         role == Role::SegmentInterleavedOutputBuffer;
+}
+
+mlir::Operation *
+lookupDirectExecKernelSymbol(tianchenrv::tcrv::exec::KernelOp kernel,
+                             llvm::StringRef symbolName) {
+  if (!kernel || kernel.getBody().empty())
+    return nullptr;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto symbol = op.getAttrOfType<mlir::StringAttr>(
+        mlir::SymbolTable::getSymbolAttrName());
+    if (symbol && symbol.getValue() == symbolName)
+      return &op;
+  }
+  return nullptr;
+}
+
+llvm::StringRef getStringAttrValue(mlir::Operation *op,
+                                   llvm::StringRef attrName) {
+  auto attr = op ? op->getAttrOfType<mlir::StringAttr>(attrName)
+                 : mlir::StringAttr();
+  if (!attr)
+    return {};
+  return attr.getValue();
+}
+
+mlir::LogicalResult
+requireExecBindingStringAttr(RuntimeABIValueOp binding, mlir::Operation *target,
+                             llvm::StringRef targetKind,
+                             llvm::StringRef attrName,
+                             llvm::StringRef expected) {
+  llvm::StringRef actual = getStringAttrValue(target, attrName);
+  if (actual == expected)
+    return mlir::success();
+
+  auto execBinding =
+      binding->getAttrOfType<mlir::FlatSymbolRefAttr>(kExecBindingAttrName);
+  return binding.emitOpError()
+         << "exec_binding " << execBinding
+         << " must reference a " << targetKind << " with attribute '"
+         << attrName << "' = \"" << expected << "\"; got \"" << actual
+         << "\"";
+}
+
+mlir::LogicalResult verifyRuntimeABIValueExecBinding(
+    RuntimeABIValueOp binding,
+    tianchenrv::support::RuntimeABIParameterRole parsedRole) {
+  auto execBinding =
+      binding->getAttrOfType<mlir::FlatSymbolRefAttr>(kExecBindingAttrName);
+  if (!execBinding)
+    return mlir::success();
+
+  tianchenrv::tcrv::exec::KernelOp kernel =
+      binding->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  if (!kernel)
+    return binding.emitOpError()
+           << "exec_binding " << execBinding
+           << " requires an enclosing tcrv.exec.kernel";
+
+  mlir::Operation *target =
+      lookupDirectExecKernelSymbol(kernel, execBinding.getValue());
+  if (!target)
+    return binding.emitOpError()
+           << "exec_binding " << execBinding
+           << " must resolve to a direct same-kernel tcrv.exec ABI symbol";
+
+  llvm::StringRef expectedRole =
+      tianchenrv::support::stringifyRuntimeABIParameterRole(parsedRole);
+
+  if (isBoundedBufferRole(parsedRole)) {
+    auto window = llvm::dyn_cast<tianchenrv::tcrv::exec::MemWindowOp>(target);
+    if (!window)
+      return binding.emitOpError()
+             << "exec_binding " << execBinding
+             << " for buffer ABI role '" << expectedRole
+             << "' must reference a direct same-kernel tcrv.exec.mem_window";
+
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window",
+            "purpose", "runtime-abi-buffer")))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window",
+            "binding", "kernel-argument")))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window",
+            "memory_space", "host")))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window",
+            "abi_role", expectedRole)))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window", "access",
+            isRuntimeABIExecBindingWriteWindowRole(parsedRole) ? "write"
+                                                               : "read")))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window",
+            "ownership", binding.getOwnership())))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, window.getOperation(), "tcrv.exec.mem_window", "c_type",
+            binding.getCType())))
+      return mlir::failure();
+    return mlir::success();
+  }
+
+  if (isBoundedScalarRole(parsedRole) ||
+      isBoundedRuntimeIndexRole(parsedRole)) {
+    auto param =
+        llvm::dyn_cast<tianchenrv::tcrv::exec::RuntimeParamOp>(target);
+    if (!param)
+      return binding.emitOpError()
+             << "exec_binding " << execBinding
+             << " for scalar/control ABI role '" << expectedRole
+             << "' must reference a direct same-kernel "
+                "tcrv.exec.runtime_param";
+
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            "purpose", "runtime-abi-scalar")))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            "abi_role", expectedRole)))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            "c_name", binding.getCName())))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            "c_type", binding.getCType())))
+      return mlir::failure();
+    if (mlir::failed(requireExecBindingStringAttr(
+            binding, param.getOperation(), "tcrv.exec.runtime_param",
+            "ownership", binding.getOwnership())))
+      return mlir::failure();
+    return mlir::success();
+  }
+
+  return binding.emitOpError()
+         << "exec_binding " << execBinding << " is unsupported for ABI role '"
+         << expectedRole << "'";
 }
 
 mlir::FailureOr<RuntimeABIValueOp>
@@ -2544,8 +2700,9 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
       return emitOpError()
              << "only accepts runtime ABI binding attributes '" << kRoleAttrName
              << "', '" << kCNameAttrName << "', '" << kCTypeAttrName
-             << "', '" << kOwnershipAttrName << "', and optional '"
-             << kPurposeAttrName << "'; unexpected attribute '"
+             << "', '" << kOwnershipAttrName << "', optional '"
+             << kExecBindingAttrName << "', and optional '" << kPurposeAttrName
+             << "'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -2605,6 +2762,9 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
     return emitOpError()
            << "requires runtime ABI role '" << getRole()
            << "' to use C type " << expectedCType;
+
+  if (mlir::failed(verifyRuntimeABIValueExecBinding(*this, *parsedRole)))
+    return mlir::failure();
 
   if (isBoundedRuntimeIndexRole(*parsedRole)) {
     if (!getValue().getType().isIndex())

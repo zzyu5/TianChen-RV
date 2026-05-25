@@ -222,7 +222,9 @@ def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value",
     for the current first slice. The operation records the ABI role, C
     parameter name, C type spelling, and ownership class, then produces one SSA
     value consumed by tcrv_rvv.setvl, generic tcrv_rvv.load / tcrv_rvv.store,
-    or other typed RVV body ops.
+    or other typed RVV body ops. Optional exec_binding links the value to the
+    same-kernel tcrv.exec.mem_window or tcrv.exec.runtime_param ABI envelope
+    declaration that introduced the role.
 
     This op is an ABI/provenance boundary only. It does not describe
     computation, infer route selection, expose target hardware facts, replace
@@ -235,6 +237,7 @@ def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value",
     StrAttr:$c_name,
     StrAttr:$c_type,
     StrAttr:$ownership,
+    OptionalAttr<FlatSymbolRefAttr>:$exec_binding,
     OptionalAttr<StrAttr>:$purpose
   );
   let results = (outs AnyType:$value);

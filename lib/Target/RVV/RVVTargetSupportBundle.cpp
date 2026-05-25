@@ -664,6 +664,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"route_operand_binding_operands",
        "tcrv_rvv.route_operand_binding_operands", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"exec_abi_bindings", "tcrv_rvv.exec_abi_bindings", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"contraction_route_family_plan",
        "tcrv_rvv.contraction_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

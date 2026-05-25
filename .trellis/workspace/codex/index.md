@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-15.md`
-- **Total Sessions**: 208
+- **Total Sessions**: 209
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-15.md` | ~110 | Active |
+| `journal-15.md` | ~148 | Active |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
@@ -43,6 +43,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 209 | 2026-05-25 | Stage2 RVV selected exec-envelope ABI closure | pending-final-session-commit | `main` |
 | 208 | 2026-05-25 | Stage2 RVV selected-body realization closure | same-commit-as-session-entry | `main` |
 | 207 | 2026-05-25 | Stage2 RVV multi-family selected-body composition closure | pending-final-session-commit | `main` |
 | 206 | 2026-05-25 | Stage2 RVV elementwise broadcast route closure | pending-final-session-commit | `main` |

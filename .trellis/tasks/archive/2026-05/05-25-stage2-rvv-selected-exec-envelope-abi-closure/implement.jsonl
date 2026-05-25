@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV stage order, and authority invariants"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window/runtime_param ABI-envelope contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization/provider/runtime ABI authority contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built route contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI and artifact mirror boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/script and ssh rvv evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-selected-body-realization-closure/prd.md", "reason": "Previous scalar_broadcast_macc_add selected-body realization closure context"}

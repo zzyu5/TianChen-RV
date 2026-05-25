@@ -256,6 +256,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef destinationMemoryForm;
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
+  std::string execABIBindingSummary;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
       runtimeABIParameters;
 };

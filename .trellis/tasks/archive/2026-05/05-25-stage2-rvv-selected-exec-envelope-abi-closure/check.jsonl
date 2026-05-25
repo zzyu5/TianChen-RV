@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global source-of-truth and RVV-first stage order check"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains ABI envelope, not compute authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-owned realization/provider boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC consumes provider-built route only"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify artifact/runtime ABI mirror-only behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused test and evidence adequacy"}
