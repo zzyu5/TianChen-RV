@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, route-entry bridge, route-control registry, and mirror-only metadata contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization hook and registry boundary rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Selected-body artifact, direct route-entry, fail-closed, and runtime evidence requirements."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Moved route-entry-capable non-elementwise selected-body realization families to owner-local hooks for standalone reduction, MAcc, and base memory movement; registry now dispatches those owners directly and the shared helper fails closed for migrated families."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added focused C++ owner-registry, route-entry, explicit-body, and owner-local fail-closed coverage for migrated hooks while documenting deferred shared-helper continuation owners."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-selected-body-realization-owner-local-hooks/prd.md", "reason": "Updated acceptance status, migrated/deferred owner list, evidence summary, and spec-update decision."}

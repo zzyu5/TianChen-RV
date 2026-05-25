@@ -57,6 +57,49 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 227: Stage2 RVV selected-body realization owner-local hooks
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV selected-body realization owner-local hooks
+**Branch**: `main`
+
+### Summary
+
+Migrated the route-entry-capable non-elementwise RVV selected-body realization families from the shared existing-family branch helper to owner-local hooks for standalone reduction, MAcc, and base memory movement. Deferred non-route-entry owners remain explicit shared-helper continuation points.
+
+### Main Changes
+
+- Added owner-local realization hooks for `standalone reduction`, `MAcc`, and `base memory movement` in `RVVSelectedBodyRealization.cpp`.
+- Updated the selected-body realization owner registry so migrated owners dispatch directly to their hooks, while the shared helper fails closed if asked to own those migrated families.
+- Preserved existing typed validators/materializers and route-control provider evidence; no common EmitC, artifact, runtime ABI, dispatch/fallback, or computation semantic changes were made.
+- Added focused C++ tests for distinct migrated hook pointers, deferred shared-helper continuation owners, scalar-broadcast MAcc route-entry realization, explicit selected-body unaffected evidence, and owner-local fail-closed MAcc diagnostics for family mismatch, memory_form/op_kind mismatch, LMUL/config mismatch, and runtime n/AVL role mismatch.
+- Recorded that no `.trellis/spec` update was required because the existing RVV plugin spec already defines the owner-local selected-body realization and route-control registry contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Representative selected-body artifact lit filter for pre-realized strided-load/unit-store, standalone-reduce-add, scalar-broadcast-macc-add, and explicit scalar-broadcast MAcc.
+- [OK] Representative generated-bundle dry-run lit filter for direct pre-realized route entry, scalar-broadcast MAcc, and standalone reduction.
+- [OK] `rtk ninja -C build check-tianchenrv`: 379/379 passed.
+- [OK] `rtk git diff --check`
+- [OK] Changed-line authority scan over touched C++/test files found no new legacy i32/source-front-door/descriptor/ABI/artifact/common-EmitC route-authority additions.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Migrate the remaining deferred non-route-entry selected-body realization owners away from `realizePreRealizedRVVExistingFamilyOwner(...)`: runtime scalar splat-store, runtime scalar computed-mask store/load-store, reduction, computed-mask MAcc, contraction, widening conversion, computed-mask memory, and segment2 memory.
+
+
 ## Session 223: Stage2 RVV computed-mask accumulation route-control provider-plan integration
 
 **Date**: 2026-05-25

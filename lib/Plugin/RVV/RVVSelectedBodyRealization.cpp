@@ -832,6 +832,18 @@ realizePreRealizedRVVExistingFamilyOwner(
   return realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(request);
 }
 
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVStandaloneReductionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVMAccOwner(const VariantLoweringBoundaryRequest &request,
+                               mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVBaseMemoryMovementOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
 bool isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp(mlir::Operation *op) {
   return llvm::isa<tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
       op);
@@ -931,10 +943,10 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVExistingFamilyOwner},
       {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
        isPreRealizedRVVStandaloneReductionRouteEntryOp,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVStandaloneReductionOwner},
       {"MAcc", isPreRealizedRVVMAccOwnerOp,
        isPreRealizedRVVScalarBroadcastMAccRouteEntryOp,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp, nullptr,
        realizePreRealizedRVVExistingFamilyOwner},
       {"contraction", isPreRealizedRVVContractionOwnerOp, nullptr,
@@ -943,7 +955,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        nullptr, realizePreRealizedRVVExistingFamilyOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
        isPreRealizedRVVBaseMemoryMovementRouteEntryOp,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVBaseMemoryMovementOwner},
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
        nullptr, realizePreRealizedRVVExistingFamilyOwner},
       {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp, nullptr,
@@ -6414,6 +6426,566 @@ realizePreRealizedRVVSelectedContractionFamily(
   return withVL;
 }
 
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVStandaloneReductionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  if (!isPreRealizedRVVStandaloneReductionOwnerOp(bodyOp))
+    return makeRVVPluginError(
+        "standalone reduction selected-body realization owner received a "
+        "body outside its RVV-owned realization family");
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "pre-realized RVV standalone reduction selected-body realization "
+        "requires materialized kernel and variant");
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (auto standaloneReduceBody =
+          llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedStandaloneReduceBody(
+            request, standaloneReduceBody))
+      return std::move(error);
+
+    mlir::Location loc = standaloneReduceBody->getLoc();
+    builder.setInsertionPoint(standaloneReduceBody.getOperation());
+
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, standaloneReduceBody.getN(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(),
+            tcrv::rvv::getRVVLMULM1(), standaloneReduceBody.getPolicy(),
+            "lhs,acc,out,n",
+            "pre-realized RVV standalone reduction selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan->runtimeAVLValue,
+                            runtimeControlPlan->sew,
+                            runtimeControlPlan->lmul,
+                            runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto inputLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, standaloneReduceBody.getLhs(), setvl.getVl(),
+        runtimeControlPlan->sew, runtimeControlPlan->lmul));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericStandaloneReduceCompute(
+            builder, loc, standaloneReduceBody.getOpKind(),
+            standaloneReduceBody.getAccumulatorLayout(),
+            standaloneReduceBody.getResultLayout(), inputLoad.getLoaded(),
+            standaloneReduceBody.getAcc(), setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, standaloneReduceBody.getOut(),
+                               (*compute)->getResult(0), setvl.getVl());
+    standaloneReduceBody->erase();
+    return withVL;
+  }
+
+  if (auto maskedStandaloneReduceBody = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp>(
+          bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
+                request, maskedStandaloneReduceBody))
+      return std::move(error);
+
+    mlir::Location loc = maskedStandaloneReduceBody->getLoc();
+    builder.setInsertionPoint(maskedStandaloneReduceBody.getOperation());
+
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, maskedStandaloneReduceBody.getN(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(),
+            tcrv::rvv::getRVVLMULM1(),
+            maskedStandaloneReduceBody.getPolicy(),
+            "cmp_lhs,cmp_rhs,src,acc,out,n",
+            "pre-realized RVV computed-mask standalone reduction "
+            "selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan->runtimeAVLValue,
+                            runtimeControlPlan->sew,
+                            runtimeControlPlan->lmul,
+                            runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, maskedStandaloneReduceBody.getCompareLhs(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto compareRhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, maskedStandaloneReduceBody.getCompareRhs(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc,
+                                  maskedStandaloneReduceBody.getSource(),
+                                  setvl.getVl(), runtimeControlPlan->sew,
+                                  runtimeControlPlan->lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsLoad.getLoaded(),
+            compareRhsLoad.getLoaded(), setvl.getVl(),
+            maskedStandaloneReduceBody.getPredicateKind()));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericMaskedStandaloneReduceCompute(
+            builder, loc, maskedStandaloneReduceBody.getOpKind(),
+            maskedStandaloneReduceBody.getMaskRole(),
+            maskedStandaloneReduceBody.getMaskSource(),
+            maskedStandaloneReduceBody.getMaskMemoryForm(),
+            maskedStandaloneReduceBody.getAccumulatorLayout(),
+            maskedStandaloneReduceBody.getResultLayout(), compare.getMask(),
+            sourceLoad.getLoaded(), maskedStandaloneReduceBody.getAcc(),
+            setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, maskedStandaloneReduceBody.getOut(),
+                               (*compute)->getResult(0), setvl.getVl());
+    maskedStandaloneReduceBody->erase();
+    return withVL;
+  }
+
+  if (auto runtimeScalarMaskedStandaloneReduceBody = llvm::dyn_cast<
+          tcrv::rvv::
+              TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp>(
+          bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
+                request, runtimeScalarMaskedStandaloneReduceBody))
+      return std::move(error);
+
+    mlir::Location loc = runtimeScalarMaskedStandaloneReduceBody->getLoc();
+    builder.setInsertionPoint(
+        runtimeScalarMaskedStandaloneReduceBody.getOperation());
+
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, runtimeScalarMaskedStandaloneReduceBody.getN(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(),
+            tcrv::rvv::getRVVLMULM1(),
+            runtimeScalarMaskedStandaloneReduceBody.getPolicy(),
+            "cmp_lhs,rhs_scalar,src,acc,out,n",
+            "pre-realized RVV runtime scalar computed-mask standalone "
+            "reduction selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan->runtimeAVLValue,
+                            runtimeControlPlan->sew,
+                            runtimeControlPlan->lmul,
+                            runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc,
+            runtimeScalarMaskedStandaloneReduceBody.getCompareLhs(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(
+            builder, loc,
+            runtimeScalarMaskedStandaloneReduceBody.getRhsScalar(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(
+            builder, loc, runtimeScalarMaskedStandaloneReduceBody.getSource(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsLoad.getLoaded(),
+            rhsSplat.getBroadcast(), setvl.getVl(),
+            runtimeScalarMaskedStandaloneReduceBody.getPredicateKind()));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericMaskedStandaloneReduceCompute(
+            builder, loc, runtimeScalarMaskedStandaloneReduceBody.getOpKind(),
+            runtimeScalarMaskedStandaloneReduceBody.getMaskRole(),
+            runtimeScalarMaskedStandaloneReduceBody.getMaskSource(),
+            runtimeScalarMaskedStandaloneReduceBody.getMaskMemoryForm(),
+            runtimeScalarMaskedStandaloneReduceBody.getAccumulatorLayout(),
+            runtimeScalarMaskedStandaloneReduceBody.getResultLayout(),
+            compare.getMask(), sourceLoad.getLoaded(),
+            runtimeScalarMaskedStandaloneReduceBody.getAcc(), setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(
+        builder, loc, runtimeScalarMaskedStandaloneReduceBody.getOut(),
+        (*compute)->getResult(0), setvl.getVl());
+    runtimeScalarMaskedStandaloneReduceBody->erase();
+    return withVL;
+  }
+
+  return makeRVVPluginError(
+      "standalone reduction selected-body realization owner found an "
+      "unsupported pre-realized body op");
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVMAccOwner(const VariantLoweringBoundaryRequest &request,
+                               mlir::Operation *bodyOp) {
+  auto maccBody =
+      llvm::dyn_cast_or_null<tcrv::rvv::TypedMAccPreRealizedBodyOp>(bodyOp);
+  if (!maccBody)
+    return makeRVVPluginError(
+        "MAcc selected-body realization owner received a body outside its "
+        "RVV-owned realization family");
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "pre-realized RVV MAcc selected-body realization requires "
+        "materialized kernel and variant");
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (llvm::Error error =
+          validatePreRealizedRVVSelectedMAccBody(request, maccBody))
+    return std::move(error);
+
+  mlir::Location loc = maccBody->getLoc();
+  builder.setInsertionPoint(maccBody.getOperation());
+
+  bool scalarBroadcastMAcc = isPreRealizedScalarBroadcastMAccBody(
+      maccBody.getOpKind(), maccBody.getMemoryForm());
+  std::optional<RVVRuntimeAVLVLControlPlan> runtimeControlPlan;
+  if (scalarBroadcastMAcc) {
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, maccBody.getN(), tcrv::rvv::getRVVFirstSliceSEWBits(),
+            tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy(),
+            "lhs,rhs_scalar,acc,out,n",
+            "pre-realized RVV scalar-broadcast macc selected-body "
+            "realization");
+    if (!plan)
+      return plan.takeError();
+    runtimeControlPlan = *plan;
+  }
+
+  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+      createRealizedSetVL(builder, loc,
+                          runtimeControlPlan
+                              ? runtimeControlPlan->runtimeAVLValue
+                              : maccBody.getN(),
+                          tcrv::rvv::getRVVFirstSliceSEWBits(),
+                          tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy()));
+  tcrv::rvv::WithVLOp withVL =
+      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                           request.getRole(), requires,
+                           tcrv::rvv::getRVVFirstSliceSEWBits(),
+                           tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy());
+
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      builder, loc, maccBody.getLhs(), setvl.getVl(),
+      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+  mlir::Value rhsValue;
+  if (scalarBroadcastMAcc) {
+    auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(builder, loc, maccBody.getRhs(),
+                                   setvl.getVl(),
+                                   tcrv::rvv::getRVVFirstSliceSEWBits(),
+                                   tcrv::rvv::getRVVLMULM1()));
+    rhsValue = rhsSplat.getBroadcast();
+  } else {
+    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, maccBody.getRhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    rhsValue = rhsLoad.getLoaded();
+  }
+  auto accumulatorLoad =
+      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+          builder, loc, maccBody.getAcc(), setvl.getVl(),
+          tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+  llvm::Expected<mlir::Operation *> compute = createRealizedGenericMAccCompute(
+      builder, loc, maccBody.getOpKind(), maccBody.getAccumulatorLayout(),
+      maccBody.getResultLayout(), lhsLoad.getLoaded(), rhsValue,
+      accumulatorLoad.getLoaded(), setvl.getVl());
+  if (!compute)
+    return compute.takeError();
+  createRealizedGenericStore(builder, loc, maccBody.getOut(),
+                             (*compute)->getResult(0), setvl.getVl());
+  maccBody->erase();
+  return withVL;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVBaseMemoryMovementOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  if (!isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp))
+    return makeRVVPluginError(
+        "base memory movement selected-body realization owner received a "
+        "body outside its RVV-owned realization family");
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "pre-realized RVV base memory movement selected-body realization "
+        "requires materialized kernel and variant");
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (auto stridedMemoryBody =
+          llvm::dyn_cast<tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedStridedMemoryBody(
+            request, stridedMemoryBody))
+      return std::move(error);
+
+    mlir::Location loc = stridedMemoryBody->getLoc();
+    builder.setInsertionPoint(stridedMemoryBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, stridedMemoryBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(),
+                            stridedMemoryBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             stridedMemoryBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto sourceLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
+        createRealizedGenericStridedLoad(builder, loc,
+                                         stridedMemoryBody.getSource(),
+                                         stridedMemoryBody.getSourceStride(),
+                                         setvl.getVl()));
+    llvm::Expected<mlir::Operation *> move = createRealizedGenericMove(
+        builder, loc, "copy", sourceLoad.getLoaded(), setvl.getVl());
+    if (!move)
+      return move.takeError();
+    createRealizedGenericStore(builder, loc, stridedMemoryBody.getOut(),
+                               (*move)->getResult(0), setvl.getVl());
+    stridedMemoryBody->erase();
+    return withVL;
+  }
+
+  if (auto stridedStoreBody =
+          llvm::dyn_cast<tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedStridedStoreMemoryBody(
+                request, stridedStoreBody))
+      return std::move(error);
+
+    mlir::Location loc = stridedStoreBody->getLoc();
+    builder.setInsertionPoint(stridedStoreBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, stridedStoreBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(),
+                            stridedStoreBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             stridedStoreBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc, stridedStoreBody.getSource(),
+                                  setvl.getVl(),
+                                  tcrv::rvv::getRVVFirstSliceSEWBits(),
+                                  tcrv::rvv::getRVVLMULM1()));
+    llvm::Expected<mlir::Operation *> move = createRealizedGenericMove(
+        builder, loc, "copy", sourceLoad.getLoaded(), setvl.getVl());
+    if (!move)
+      return move.takeError();
+    createRealizedGenericStridedStore(
+        builder, loc, stridedStoreBody.getDst(), (*move)->getResult(0),
+        stridedStoreBody.getDestinationStride(), setvl.getVl());
+    stridedStoreBody->erase();
+    return withVL;
+  }
+
+  if (auto indexedGatherBody = llvm::dyn_cast<
+          tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
+                request, indexedGatherBody))
+      return std::move(error);
+
+    mlir::Location loc = indexedGatherBody->getLoc();
+    builder.setInsertionPoint(indexedGatherBody.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(indexedGatherBody.getSew());
+    llvm::StringRef lmul = indexedGatherBody.getLmul();
+    std::int64_t indexEEW =
+        static_cast<std::int64_t>(indexedGatherBody.getIndexEew());
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, indexedGatherBody.getN(), sew, lmul,
+                            indexedGatherBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             indexedGatherBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto indexLoad = llvm::cast<tcrv::rvv::IndexLoadOp>(
+        createRealizedGenericIndexLoad(builder, loc,
+                                       indexedGatherBody.getIndex(),
+                                       setvl.getVl(), indexEEW, lmul));
+    auto dataLoad = llvm::cast<tcrv::rvv::IndexedLoadOp>(
+        createRealizedGenericIndexedLoad(
+            builder, loc, indexedGatherBody.getData(), indexLoad.getLoaded(),
+            setvl.getVl(), indexEEW, indexedGatherBody.getOffsetUnit(), sew,
+            lmul));
+    llvm::Expected<mlir::Operation *> move = createRealizedGenericMove(
+        builder, loc, "copy", dataLoad.getLoaded(), setvl.getVl());
+    if (!move)
+      return move.takeError();
+    createRealizedGenericStore(builder, loc, indexedGatherBody.getOut(),
+                               (*move)->getResult(0), setvl.getVl());
+    indexedGatherBody->erase();
+    return withVL;
+  }
+
+  if (auto indexedScatterBody = llvm::dyn_cast<
+          tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
+                request, indexedScatterBody))
+      return std::move(error);
+
+    mlir::Location loc = indexedScatterBody->getLoc();
+    builder.setInsertionPoint(indexedScatterBody.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(indexedScatterBody.getSew());
+    llvm::StringRef lmul = indexedScatterBody.getLmul();
+    std::int64_t indexEEW =
+        static_cast<std::int64_t>(indexedScatterBody.getIndexEew());
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, indexedScatterBody.getN(), sew, lmul,
+                            indexedScatterBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             indexedScatterBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc, indexedScatterBody.getSource(),
+                                  setvl.getVl(), sew, lmul));
+    auto indexLoad = llvm::cast<tcrv::rvv::IndexLoadOp>(
+        createRealizedGenericIndexLoad(builder, loc,
+                                       indexedScatterBody.getIndex(),
+                                       setvl.getVl(), indexEEW, lmul));
+    llvm::Expected<mlir::Operation *> move = createRealizedGenericMove(
+        builder, loc, "copy", sourceLoad.getLoaded(), setvl.getVl());
+    if (!move)
+      return move.takeError();
+    createRealizedGenericIndexedStore(
+        builder, loc, indexedScatterBody.getDestination(),
+        indexLoad.getLoaded(), (*move)->getResult(0), setvl.getVl(), indexEEW,
+        indexedScatterBody.getOffsetUnit(),
+        indexedScatterBody.getIndexUniqueness());
+    indexedScatterBody->erase();
+    return withVL;
+  }
+
+  if (auto maskedMemoryBody =
+          llvm::dyn_cast<tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedMaskedMemoryBody(
+            request, maskedMemoryBody))
+      return std::move(error);
+
+    mlir::Location loc = maskedMemoryBody->getLoc();
+    builder.setInsertionPoint(maskedMemoryBody.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(maskedMemoryBody.getSew());
+    llvm::StringRef lmul = maskedMemoryBody.getLmul();
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, maskedMemoryBody.getN(), sew, lmul,
+                            maskedMemoryBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             maskedMemoryBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto maskLoad = llvm::cast<tcrv::rvv::MaskLoadOp>(
+        createRealizedGenericMaskLoad(builder, loc, maskedMemoryBody.getMask(),
+                                      setvl.getVl(),
+                                      maskedMemoryBody.getMaskRole(),
+                                      maskedMemoryBody.getMaskMemoryForm()));
+    if (maskedMemoryBody.getOpKind() == "masked_unit_store") {
+      auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+          createRealizedGenericLoad(builder, loc, maskedMemoryBody.getSource(),
+                                    setvl.getVl(), sew, lmul));
+      createRealizedGenericMaskedStore(
+          builder, loc, maskedMemoryBody.getDestination(),
+          maskLoad.getLoaded(), sourceLoad.getLoaded(), setvl.getVl());
+    } else {
+      auto oldDestinationLoad =
+          llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+              builder, loc, maskedMemoryBody.getDestination(), setvl.getVl(),
+              sew, lmul));
+      llvm::Expected<mlir::Operation *> maskedLoad =
+          createRealizedGenericMaskedLoad(
+              builder, loc, maskedMemoryBody.getSource(), maskLoad.getLoaded(),
+              oldDestinationLoad.getLoaded(), setvl.getVl());
+      if (!maskedLoad)
+        return maskedLoad.takeError();
+      createRealizedGenericStore(builder, loc,
+                                 maskedMemoryBody.getDestination(),
+                                 (*maskedLoad)->getResult(0), setvl.getVl());
+    }
+    maskedMemoryBody->erase();
+    return withVL;
+  }
+
+  return makeRVVPluginError(
+      "base memory movement selected-body realization owner found an "
+      "unsupported pre-realized body op");
+}
+
 } // namespace
 
 llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
@@ -6975,6 +7547,15 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (isPreRealizedRVVStandaloneReductionOwnerOp(*bodyOp) ||
+      isPreRealizedRVVMAccOwnerOp(*bodyOp) ||
+      isPreRealizedRVVBaseMemoryMovementOwnerOp(*bodyOp))
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body shared existing-family helper no "
+        "longer owns route-entry-capable standalone reduction, MAcc, or base "
+        "memory movement families; the selected-body realization owner "
+        "registry must dispatch those families through owner-local hooks");
 
   llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
       elementwiseCompareSelectRealization =
