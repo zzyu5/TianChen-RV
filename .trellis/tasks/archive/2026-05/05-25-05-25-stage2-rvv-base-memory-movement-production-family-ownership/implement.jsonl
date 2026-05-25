@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack boundaries, Stage1/Stage2 RVV order, and invalid authority sources."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local route-family ownership, materialization facts, memory operand-binding facts, and base memory movement statement-plan boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-base-memory-movement-route-family-boundary/prd.md", "reason": "Prior base-memory evidence task and current production-boundary gap context."}

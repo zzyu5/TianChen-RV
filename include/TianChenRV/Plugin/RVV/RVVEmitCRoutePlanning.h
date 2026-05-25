@@ -1038,6 +1038,25 @@ struct RVVSelectedBodyBaseMemoryMovementRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
+  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
+      *baseMemoryMovementPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+
+  bool plansBaseMemoryMovementRoute = false;
+
+  llvm::StringRef familyPlanIDMirror;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef targetLeafProfileMirror;
+  llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef routeOperandBindingPlanIDMirror;
+  llvm::StringRef routeOperandBindingSummaryMirror;
+  llvm::StringRef requiredHeaderDeclarationsMirror;
+  llvm::StringRef cTypeMappingSummaryMirror;
+
+  RVVSelectedBodyBaseMemoryMovementRouteStatementPlan statementPlan;
+};
+
 struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = nullptr;
@@ -1340,6 +1359,14 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
 
 llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
 getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
+getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMemoryRouteOperandBindingFacts

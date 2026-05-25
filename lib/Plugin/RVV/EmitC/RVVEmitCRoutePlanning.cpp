@@ -28692,6 +28692,93 @@ getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
       stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 }
 
+llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
+getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyBaseMemoryMovementRouteProviderPlan providerPlan;
+  if (!isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(description))
+    return providerPlan;
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              analysis, context))
+    return std::move(error);
+
+  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan *basePlan =
+      materializationFacts.baseMemoryMovementPlan;
+  if (!basePlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires the verified base "
+        "memory movement route-family plan before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.baseMemoryMovementRouteFamilyPlan ||
+      basePlan != &*analysis.baseMemoryMovementRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires route materialization "
+        "facts from the same selected route analysis before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!memoryOperandBindingFacts.bindsBaseMemoryMovement ||
+      !memoryOperandBindingFacts.bindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires RVV-owned memory "
+        "operand-binding facts before provider route construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (memoryOperandBindingFacts.bindingPlan !=
+      &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires memory "
+        "operand-binding facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
+      statementPlan = getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
+          analysis, materializationFacts, memoryOperandBindingFacts, context);
+  if (!statementPlan)
+    return statementPlan.takeError();
+  if (!statementPlan->plansBaseMemoryMovementRoute)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires the RVV-owned ordered "
+        "statement plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (statementPlan->baseMemoryMovementPlan != basePlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires statement-plan "
+        "ownership to match the verified base memory movement family plan");
+
+  providerPlan.baseMemoryMovementPlan = basePlan;
+  providerPlan.bindingPlan = memoryOperandBindingFacts.bindingPlan;
+  providerPlan.plansBaseMemoryMovementRoute = true;
+  providerPlan.familyPlanIDMirror = basePlan->familyPlanID;
+  providerPlan.providerSupportedMirror = basePlan->providerSupportedMirror;
+  providerPlan.targetLeafProfileMirror = basePlan->targetLeafProfile;
+  providerPlan.runtimeABIOrderMirror = basePlan->runtimeABIOrder;
+  providerPlan.routeOperandBindingPlanIDMirror =
+      analysis.routeOperandBindingPlan.planID;
+  providerPlan.routeOperandBindingSummaryMirror =
+      description.routeOperandBindingSummary;
+  providerPlan.requiredHeaderDeclarationsMirror =
+      basePlan->requiredHeaderDeclarations;
+  providerPlan.cTypeMappingSummaryMirror = basePlan->cTypeMappingSummary;
+  providerPlan.statementPlan = std::move(*statementPlan);
+  return providerPlan;
+}
+
 llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
 getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
@@ -30109,18 +30196,20 @@ getRVVSelectedBodyMigratedRouteStatementPlan(
       return std::move(error);
   }
 
-  llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
-      baseMemoryPlan = getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
-          analysis, materializationFacts, memoryOperandBindingFacts, context);
-  if (!baseMemoryPlan)
-    return baseMemoryPlan.takeError();
-  if (baseMemoryPlan->plansBaseMemoryMovementRoute) {
+  llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
+      baseMemoryProviderPlan =
+          getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+              analysis, materializationFacts, memoryOperandBindingFacts,
+              context);
+  if (!baseMemoryProviderPlan)
+    return baseMemoryProviderPlan.takeError();
+  if (baseMemoryProviderPlan->plansBaseMemoryMovementRoute) {
     if (llvm::Error error = setRVVSelectedBodyMigratedRouteStatementPlan(
             migratedPlan,
             RVVSelectedBodyMigratedRouteStatementPlanFamily::
                 BaseMemoryMovement,
-            baseMemoryPlan->preLoopSteps, baseMemoryPlan->loop, description,
-            context))
+            baseMemoryProviderPlan->statementPlan.preLoopSteps,
+            baseMemoryProviderPlan->statementPlan.loop, description, context))
       return std::move(error);
   }
 

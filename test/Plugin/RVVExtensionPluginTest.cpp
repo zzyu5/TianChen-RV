@@ -3678,10 +3678,14 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyBaseMemoryMovementRouteProviderPlan;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
   using tianchenrv::plugin::rvv::
@@ -3962,6 +3966,43 @@ module {
       ++index;
     }
 
+    llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
+        providerPlan = getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+            analysis, *materializationFacts, *memoryFacts,
+            "base memory provider-plan unit test");
+    if (!providerPlan)
+      return fail("base memory provider-plan construction: " +
+                  llvm::toString(providerPlan.takeError()));
+    if (int result = expect(
+            providerPlan->plansBaseMemoryMovementRoute &&
+                providerPlan->baseMemoryMovementPlan ==
+                    statementPlan->baseMemoryMovementPlan &&
+                providerPlan->bindingPlan == &analysis.routeOperandBindingPlan,
+            "base memory provider plan joins the family plan, binding plan, "
+            "and statement plan"))
+      return result;
+    if (int result = expect(
+            providerPlan->familyPlanIDMirror ==
+                    analysis.description.baseMemoryMovementRouteFamilyPlanID &&
+                providerPlan->providerSupportedMirror ==
+                    analysis.description.providerSupportedMirror &&
+                providerPlan->targetLeafProfileMirror ==
+                    analysis.description.targetLeafProfile &&
+                providerPlan->routeOperandBindingPlanIDMirror ==
+                    analysis.routeOperandBindingPlan.planID &&
+                providerPlan->routeOperandBindingSummaryMirror ==
+                    analysis.description.routeOperandBindingSummary,
+            "base memory provider plan carries validated mirror payloads from "
+            "the RVV family owner"))
+      return result;
+    if (int result = expect(
+            providerPlan->statementPlan.preLoopSteps.size() == 1 &&
+                providerPlan->statementPlan.loop.bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "base memory provider plan owns the ordered statement plan "
+            "consumed by route construction"))
+      return result;
+
     KernelOp kernel = findKernel(*module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);
     TCRVEmitCLowerableRoute route;
@@ -4078,6 +4119,49 @@ module {
           {"base memory movement statement plan requires the verified base "
            "memory movement route-family plan",
            "before route statement construction"}))
+    return result;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+              *stridedLoadAnalysis, staleBaseMemoryFacts,
+              *stridedLoadBindingFacts,
+              "base memory provider plan stale dependency unit test")
+              .takeError(),
+          {"base memory movement provider plan requires the verified base "
+           "memory movement route-family plan",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyMemoryRouteOperandBindingFacts staleBindingFacts =
+      *stridedLoadBindingFacts;
+  staleBindingFacts.bindingPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+              *stridedLoadAnalysis, *stridedLoadMaterializationFacts,
+              staleBindingFacts,
+              "base memory provider plan stale binding unit test")
+              .takeError(),
+          {"base memory movement provider plan requires RVV-owned memory "
+           "operand-binding facts",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedAnalysis = *stridedLoadAnalysis;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      copiedBindingFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          copiedAnalysis,
+          "base memory provider plan stale materialization unit test");
+  if (!copiedBindingFacts)
+    return fail("copied strided_load_unit_store memory binding facts: " +
+                llvm::toString(copiedBindingFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+              copiedAnalysis, *stridedLoadMaterializationFacts,
+              *copiedBindingFacts,
+              "base memory provider plan stale materialization unit test")
+              .takeError(),
+          {"base memory movement provider plan requires route materialization "
+           "facts from the same selected route analysis",
+           "before provider route construction"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleConfigConsumption =
