@@ -3427,6 +3427,177 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
        "widen_i32_to_i64"});
 }
 
+int runRouteControlProviderOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderOwners;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyRouteControlProviderConsumer;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyRouteControlProviderOwner>
+      owners = getRVVSelectedBodyRouteControlProviderOwners();
+  if (int result =
+          expect(owners.size() == 13,
+                 "route-control provider owner registry has exactly thirteen "
+                 "active adopted family entries"))
+    return result;
+
+  const llvm::StringRef expectedNames[] = {
+      "ordinary elementwise arithmetic",
+      "scalar-broadcast elementwise",
+      "plain compare-select",
+      "computed-mask select",
+      "widening conversion",
+      "computed-mask memory",
+      "segment2 memory",
+      "base memory movement",
+      "standalone reduction",
+      "scalar-broadcast MAcc",
+      "runtime scalar splat-store",
+      "computed-mask accumulation",
+      "contraction"};
+  for (std::size_t i = 0; i < owners.size(); ++i) {
+    if (int result =
+            expect(owners[i].familyName == expectedNames[i],
+                   "route-control provider owner registry preserves explicit "
+                   "family ownership order"))
+      return result;
+    if (int result = expect(owners[i].isConsumer != nullptr &&
+                                owners[i].buildProviderPlan != nullptr,
+                            "route-control provider owner entries carry "
+                            "consumer and provider-plan hooks"))
+      return result;
+  }
+
+  struct RouteControlCase {
+    RVVSelectedBodyOperationKind operation;
+    RVVSelectedBodyMemoryForm memoryForm;
+    llvm::StringRef ownerName;
+  };
+  const RouteControlCase adoptedCases[] = {
+      {RVVSelectedBodyOperationKind::Add,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad,
+       "ordinary elementwise arithmetic"},
+      {RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
+       RVVSelectedBodyMemoryForm::RHSScalarBroadcast,
+       "scalar-broadcast elementwise"},
+      {RVVSelectedBodyOperationKind::CmpSelect,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "plain compare-select"},
+      {RVVSelectedBodyOperationKind::ComputedMaskSelect,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "computed-mask select"},
+      {RVVSelectedBodyOperationKind::WidenI32ToI64,
+       RVVSelectedBodyMemoryForm::UnitStrideConversion, "widening conversion"},
+      {RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore,
+       "computed-mask memory"},
+      {RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
+       RVVSelectedBodyMemoryForm::UnitLoadSegment2Store, "segment2 memory"},
+      {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+       RVVSelectedBodyMemoryForm::StridedLoadUnitStore,
+       "base memory movement"},
+      {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "standalone reduction"},
+      {RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
+       RVVSelectedBodyMemoryForm::RHSScalarBroadcast, "scalar-broadcast MAcc"},
+      {RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+       RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
+       "runtime scalar splat-store"},
+      {RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc,
+       "computed-mask accumulation"},
+      {RVVSelectedBodyOperationKind::WideningMAccAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "contraction"}};
+
+  auto makeDescription = [](RVVSelectedBodyOperationKind operation,
+                            RVVSelectedBodyMemoryForm memoryForm) {
+    RVVSelectedBodyEmitCRouteDescription description;
+    description.operation = operation;
+    description.memoryForm = memoryForm;
+    return description;
+  };
+  for (const RouteControlCase &routeCase : adoptedCases) {
+    RVVSelectedBodyEmitCRouteDescription description =
+        makeDescription(routeCase.operation, routeCase.memoryForm);
+    std::size_t matchCount = 0;
+    bool namedOwnerMatched = false;
+    for (const auto &owner : owners) {
+      if (!owner.isConsumer(description))
+        continue;
+      ++matchCount;
+      namedOwnerMatched |= owner.familyName == routeCase.ownerName;
+    }
+    if (int result = expect(
+            matchCount == 1 && namedOwnerMatched,
+            "route-control provider owner registry classifies each adopted "
+            "family exactly once"))
+      return result;
+    if (int result = expect(
+            isRVVSelectedBodyRouteControlProviderConsumer(description),
+            "route-control provider consumer predicate is registry backed"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
+  nonConsumerAnalysis.description = makeDescription(
+      RVVSelectedBodyOperationKind::MAccAdd,
+      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
+  auto emptyRouteControl = getRVVSelectedBodyRouteControlProviderPlan(
+      nonConsumerAnalysis, emptyMaterializationFacts,
+      "route-control provider owner registry unit test");
+  if (!emptyRouteControl)
+    return fail("non-consumer route-control plan unexpectedly failed: " +
+                llvm::toString(emptyRouteControl.takeError()));
+  if (int result = expect(!emptyRouteControl->plansRouteControl &&
+                              emptyRouteControl->runtimeControlPlan == nullptr,
+                          "non-consumer routes receive an empty route-control "
+                          "provider plan"))
+    return result;
+  if (int result =
+          expect(!isRVVSelectedBodyRouteControlProviderConsumer(
+                     nonConsumerAnalysis.description),
+                 "unadopted MAcc route remains outside the route-control owner "
+                 "registry"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingElementwisePlan;
+  missingElementwisePlan.description =
+      makeDescription(RVVSelectedBodyOperationKind::Add,
+                      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              missingElementwisePlan, emptyMaterializationFacts,
+              "route-control provider owner registry unit test")
+              .takeError(),
+          {"requires the verified elementwise arithmetic route-family plan",
+           "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleElementwiseMaterialization =
+      missingElementwisePlan;
+  staleElementwiseMaterialization.elementwiseArithmeticRouteFamilyPlan.emplace();
+  tianchenrv::plugin::rvv::RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan
+      otherElementwisePlan;
+  RVVSelectedBodyRouteMaterializationFacts staleMaterializationFacts;
+  staleMaterializationFacts.elementwiseArithmeticPlan = &otherElementwisePlan;
+  return expectErrorContains(
+      getRVVSelectedBodyRouteControlProviderPlan(
+          staleElementwiseMaterialization, staleMaterializationFacts,
+          "route-control provider owner registry unit test")
+          .takeError(),
+      {"requires elementwise arithmetic materialization facts from the same "
+       "selected route analysis",
+       "add"});
+}
+
 int runRouteMaterializationFactsBoundaryTest() {
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteMaterializationFacts;
@@ -14516,6 +14687,8 @@ int main() {
           runReductionAccumulationContractionRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runTopLevelRouteFamilyProviderOwnerRegistryTest())
+    return result;
+  if (int result = runRouteControlProviderOwnerRegistryTest())
     return result;
   if (int result = runRouteMaterializationFactsBoundaryTest())
     return result;

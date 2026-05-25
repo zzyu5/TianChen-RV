@@ -704,6 +704,18 @@ explicitly moved onto this boundary.
 The durable planning/provider API is:
 
 ```c++
+struct RVVSelectedBodyRouteControlProviderOwner {
+  family name;
+  consumer predicate over RVVSelectedBodyEmitCRouteDescription;
+  provider-plan builder over RVVSelectedBodyRouteAnalysis,
+      RVVSelectedBodyRouteMaterializationFacts,
+      RVVSelectedBodyRouteControlProviderPlan;
+};
+
+getRVVSelectedBodyRouteControlProviderOwners()
+isRVVSelectedBodyRouteControlProviderConsumer(
+    RVVSelectedBodyEmitCRouteDescription)
+
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyTypedConfigFacts typedConfigFacts;
   RVVSelectedTargetCapabilityFacts selectedTargetCapabilityFacts;
@@ -720,6 +732,17 @@ getRVVSelectedBodyRouteControlProviderPlan(
 Family provider code must call this boundary with materialization facts from
 the same selected route analysis. The plan may be empty for unrelated route
 families.
+
+Route-control eligibility must be registry-owned. Every currently adopted
+route-control family must appear exactly once in the RVV plugin-local owner
+registry, and `getRVVSelectedBodyRouteControlProviderPlan(...)` must select the
+owner through that registry before running family-specific plan/materialization
+same-analysis checks. The registry may dispatch to family-specific builders; it
+must not merge family semantics, infer route support from names/metadata, or
+move route-control authority into common EmitC, artifacts, scripts, descriptors,
+ABI strings, route ids, or legacy i32 spellings. If no owner matches, unrelated
+routes receive an empty route-control plan. If multiple owners match, provider
+construction fails closed before statement construction.
 
 ### 3. Contracts
 

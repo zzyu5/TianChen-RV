@@ -22916,28 +22916,145 @@ static bool isRVVSelectedBodyContractionRouteControlConsumer(
   }
 }
 
-static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
-             description) ||
-         isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
-             description) ||
-         isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(description) ||
-         isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(description) ||
-         isRVVSelectedBodyWideningConversionRouteControlConsumer(description) ||
-         isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description) ||
-         isRVVSelectedBodySegment2MemoryRouteControlConsumer(description) ||
-         isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
-             description) ||
-         isRVVSelectedBodyComputedMaskAccumulationRouteControlConsumer(
-             description) ||
-         isRVVSelectedBodyContractionRouteControlConsumer(description) ||
-         isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
-             description.operation) ||
-         isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
-             description.operation) ||
-         isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+static llvm::Error buildOrdinaryElementwiseRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildScalarBroadcastElementwiseRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildPlainCompareSelectRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildComputedMaskSelectRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildComputedMaskMemoryRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildWideningConversionRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildRuntimeScalarSplatStoreRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildComputedMaskAccumulationRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildContractionRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildBaseMemoryMovementRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildStandaloneReductionRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+static llvm::Error buildScalarBroadcastMAccRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
+
+llvm::ArrayRef<RVVSelectedBodyRouteControlProviderOwner>
+getRVVSelectedBodyRouteControlProviderOwners() {
+  static const RVVSelectedBodyRouteControlProviderOwner owners[] = {
+      {"ordinary elementwise arithmetic",
+       isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer,
+       buildOrdinaryElementwiseRouteControlProviderPlan},
+      {"scalar-broadcast elementwise",
+       isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer,
+       buildScalarBroadcastElementwiseRouteControlProviderPlan},
+      {"plain compare-select",
+       isRVVSelectedBodyPlainCompareSelectRouteControlConsumer,
+       buildPlainCompareSelectRouteControlProviderPlan},
+      {"computed-mask select",
+       isRVVSelectedBodyComputedMaskSelectRouteControlConsumer,
+       buildComputedMaskSelectRouteControlProviderPlan},
+      {"widening conversion",
+       isRVVSelectedBodyWideningConversionRouteControlConsumer,
+       buildWideningConversionRouteControlProviderPlan},
+      {"computed-mask memory",
+       isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer,
+       buildComputedMaskMemoryRouteControlProviderPlan},
+      {"segment2 memory", isRVVSelectedBodySegment2MemoryRouteControlConsumer,
+       buildSegment2MemoryRouteControlProviderPlan},
+      {"base memory movement",
+       [](const RVVSelectedBodyEmitCRouteDescription &description) {
+         return isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation);
+       },
+       buildBaseMemoryMovementRouteControlProviderPlan},
+      {"standalone reduction",
+       [](const RVVSelectedBodyEmitCRouteDescription &description) {
+         return isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
+             description.operation);
+       },
+       buildStandaloneReductionRouteControlProviderPlan},
+      {"scalar-broadcast MAcc",
+       [](const RVVSelectedBodyEmitCRouteDescription &description) {
+         return isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+             description.operation);
+       },
+       buildScalarBroadcastMAccRouteControlProviderPlan},
+      {"runtime scalar splat-store",
+       isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer,
+       buildRuntimeScalarSplatStoreRouteControlProviderPlan},
+      {"computed-mask accumulation",
+       isRVVSelectedBodyComputedMaskAccumulationRouteControlConsumer,
+       buildComputedMaskAccumulationRouteControlProviderPlan},
+      {"contraction", isRVVSelectedBodyContractionRouteControlConsumer,
+       buildContractionRouteControlProviderPlan},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyRouteControlProviderConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  for (const RVVSelectedBodyRouteControlProviderOwner &owner :
+       getRVVSelectedBodyRouteControlProviderOwners())
+    if (owner.isConsumer && owner.isConsumer(description))
+      return true;
+  return false;
 }
 
 static llvm::Error verifyRVVSelectedBodyRouteControlPlanMatchesTypedFacts(
@@ -23078,6 +23195,771 @@ static llvm::Error verifyRVVSelectedBodyRouteControlPlanMatchesTypedFacts(
   return llvm::Error::success();
 }
 
+static llvm::Error buildOrdinaryElementwiseRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.elementwiseArithmeticPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified elementwise "
+        "arithmetic route-family plan before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.elementwiseArithmeticRouteFamilyPlan ||
+      materializationFacts.elementwiseArithmeticPlan !=
+          &*analysis.elementwiseArithmeticRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires elementwise arithmetic "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan;
+  plan.controlsOrdinaryElementwiseArithmetic = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildScalarBroadcastElementwiseRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.scalarBroadcastPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified "
+        "scalar-broadcast elementwise route-family plan before provider "
+        "route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.scalarBroadcastElementwiseRouteFamilyPlan ||
+      materializationFacts.scalarBroadcastPlan !=
+          &*analysis.scalarBroadcastElementwiseRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires scalar-broadcast "
+        "elementwise materialization facts from the same selected route "
+        "analysis before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.scalarBroadcastPlan->runtimeControlPlan;
+  plan.controlsScalarBroadcastElementwise = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildPlainCompareSelectRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.plainCompareSelectPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified plain "
+        "compare-select route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.plainCompareSelectRouteFamilyPlan ||
+      materializationFacts.plainCompareSelectPlan !=
+          &*analysis.plainCompareSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires plain compare-select "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.plainCompareSelectPlan->runtimeControlPlan;
+  plan.controlsPlainCompareSelect = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildComputedMaskSelectRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.computedMaskSelectPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified "
+        "computed-mask select route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.computedMaskSelectRouteFamilyPlan ||
+      materializationFacts.computedMaskSelectPlan !=
+          &*analysis.computedMaskSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires computed-mask select "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.computedMaskSelectPlan->runtimeControlPlan;
+  plan.controlsComputedMaskSelect = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildComputedMaskMemoryRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.computedMaskMemoryPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified "
+        "computed-mask memory route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+      materializationFacts.computedMaskMemoryPlan !=
+          &*analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires computed-mask memory "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+      *materializationFacts.computedMaskMemoryPlan;
+  const bool isRuntimeScalarProducer =
+      description.operation ==
+          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  if (computedPlan.operation != description.operation ||
+      computedPlan.memoryForm != description.memoryForm ||
+      computedPlan.usesRuntimeScalarProducer != isRuntimeScalarProducer ||
+      computedPlan.usesVectorCompareProducer == isRuntimeScalarProducer ||
+      computedPlan.usesSegment2Load || computedPlan.usesSegment2Store ||
+      computedPlan.maskProducerSource !=
+          getComputedMaskMemoryProducerSource(description.operation) ||
+      computedPlan.usesStoreOnly !=
+          isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
+              description.operation) ||
+      computedPlan.usesLoadMerge !=
+          isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
+              description.operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires computed-mask memory "
+        "mask-producer and memory-form facts from the verified route-family "
+        "plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan = &computedPlan.runtimeControlPlan;
+  plan.controlsComputedMaskMemory = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const bool isPlainDeinterleave =
+      description.operation ==
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  const bool isPlainInterleave =
+      description.operation ==
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+  const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
+  const bool isComputedMaskSegment2Load =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isComputedMaskSegment2Store =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+
+  if (isPlainSegment2) {
+    if (!materializationFacts.segment2MemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified plain "
+          "segment2 memory route-family plan before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.segment2MemoryRouteFamilyPlan ||
+        materializationFacts.segment2MemoryPlan !=
+            &*analysis.segment2MemoryRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires plain segment2 memory "
+          "materialization facts from the same selected route analysis "
+          "before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    const RVVSelectedBodySegment2MemoryRouteFamilyPlan &segmentPlan =
+        *materializationFacts.segment2MemoryPlan;
+    if (segmentPlan.operation != description.operation ||
+        segmentPlan.memoryForm != description.memoryForm ||
+        segmentPlan.usesDeinterleaveLoad != isPlainDeinterleave ||
+        segmentPlan.usesInterleaveStore != isPlainInterleave ||
+        segmentPlan.segmentCount != 2)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires plain segment2 memory "
+          "direction and memory-form facts from the verified route-family "
+          "plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan = &segmentPlan.runtimeControlPlan;
+  } else {
+    if (!materializationFacts.computedMaskMemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified "
+          "computed-mask segment2 memory route-family plan before provider "
+          "route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+        materializationFacts.computedMaskMemoryPlan !=
+            &*analysis.computedMaskMemoryRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask segment2 "
+          "memory materialization facts from the same selected route "
+          "analysis before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+        *materializationFacts.computedMaskMemoryPlan;
+    if (computedPlan.operation != description.operation ||
+        computedPlan.memoryForm != description.memoryForm ||
+        computedPlan.usesRuntimeScalarProducer ||
+        !computedPlan.usesVectorCompareProducer ||
+        computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
+        computedPlan.usesStoreOnly != isComputedMaskSegment2Store ||
+        computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
+        computedPlan.usesSegment2Store != isComputedMaskSegment2Store ||
+        computedPlan.maskProducerSource !=
+            getComputedMaskMemoryProducerSource(description.operation) ||
+        computedPlan.segmentCount != 2)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask segment2 "
+          "mask-producer, direction, and memory-form facts from the "
+          "verified route-family plan before provider route construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan = &computedPlan.runtimeControlPlan;
+  }
+  plan.controlsSegment2Memory = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildWideningConversionRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.wideningConversionPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified widening "
+        "conversion route-family plan before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.wideningConversionRouteFamilyPlan ||
+      materializationFacts.wideningConversionPlan !=
+          &*analysis.wideningConversionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires widening conversion "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyWideningConversionRouteFamilyPlan &conversionPlan =
+      *materializationFacts.wideningConversionPlan;
+  if (conversionPlan.operation != description.operation ||
+      conversionPlan.memoryForm != description.memoryForm ||
+      conversionPlan.sourceSEW != description.sourceSEW ||
+      conversionPlan.sourceLMUL != description.sourceLMUL ||
+      conversionPlan.sourceVectorTypeName != description.sourceVectorTypeName ||
+      conversionPlan.sourceVectorCType != description.sourceVectorCType ||
+      conversionPlan.sourceVectorLoadIntrinsic !=
+          description.sourceVectorLoadIntrinsic ||
+      conversionPlan.resultSEW != description.sew ||
+      conversionPlan.resultLMUL != description.lmul ||
+      conversionPlan.resultVectorTypeName != description.vectorTypeName ||
+      conversionPlan.resultVectorCType != description.vectorCType ||
+      conversionPlan.setVLIntrinsic != description.setVLIntrinsic ||
+      conversionPlan.conversionIntrinsic != description.intrinsic ||
+      conversionPlan.storeIntrinsic != description.storeIntrinsic ||
+      conversionPlan.conversionRelation != description.conversionRelation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires widening conversion "
+        "source/result type and conversion-form facts from the verified "
+        "route-family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (materializationFacts.sourceVectorTypeName !=
+          conversionPlan.sourceVectorTypeName ||
+      materializationFacts.sourceVectorCType != conversionPlan.sourceVectorCType ||
+      materializationFacts.resultVectorTypeName !=
+          conversionPlan.resultVectorTypeName ||
+      materializationFacts.resultVectorCType != conversionPlan.resultVectorCType ||
+      materializationFacts.setVLLeaf != conversionPlan.setVLIntrinsic ||
+      materializationFacts.sourceLoadLeaf !=
+          conversionPlan.sourceVectorLoadIntrinsic ||
+      materializationFacts.elementwiseComputeLeaf !=
+          conversionPlan.conversionIntrinsic ||
+      materializationFacts.storeLeaf != conversionPlan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires widening conversion "
+        "materialization facts to mirror the verified conversion family plan "
+        "before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  runtimeControlPlan = &conversionPlan.runtimeControlPlan;
+  plan.controlsWideningConversion = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildRuntimeScalarSplatStoreRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.runtimeScalarSplatStorePlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified runtime scalar "
+        "splat-store route-family plan before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.runtimeScalarSplatStoreRouteFamilyPlan ||
+      materializationFacts.runtimeScalarSplatStorePlan !=
+          &*analysis.runtimeScalarSplatStoreRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires runtime scalar splat-store "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
+      &runtimeSplatPlan = *materializationFacts.runtimeScalarSplatStorePlan;
+  if (runtimeSplatPlan.operation != description.operation ||
+      runtimeSplatPlan.memoryForm != description.memoryForm ||
+      runtimeSplatPlan.vlCType != description.vlCType ||
+      runtimeSplatPlan.vectorTypeName != description.vectorTypeName ||
+      runtimeSplatPlan.vectorCType != description.vectorCType ||
+      runtimeSplatPlan.setVLIntrinsic != description.setVLIntrinsic ||
+      runtimeSplatPlan.rhsScalarSplatIntrinsic !=
+          description.rhsBroadcastIntrinsic ||
+      runtimeSplatPlan.storeIntrinsic != description.storeIntrinsic ||
+      runtimeSplatPlan.resultName != description.resultName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires runtime scalar splat-store "
+        "type, scalar-splat, store, and memory-form facts from the verified "
+        "route-family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (materializationFacts.setVLLeaf != runtimeSplatPlan.setVLIntrinsic ||
+      materializationFacts.rhsScalarBroadcastLeaf !=
+          runtimeSplatPlan.rhsScalarSplatIntrinsic ||
+      materializationFacts.storeLeaf != runtimeSplatPlan.storeIntrinsic ||
+      materializationFacts.resultVectorTypeName !=
+          runtimeSplatPlan.vectorTypeName ||
+      materializationFacts.resultVectorCType != runtimeSplatPlan.vectorCType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires runtime scalar splat-store "
+        "materialization facts to mirror the verified splat-store family "
+        "plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  runtimeControlPlan = &runtimeSplatPlan.runtimeControlPlan;
+  plan.controlsRuntimeScalarSplatStore = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildComputedMaskAccumulationRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.computedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified computed-mask "
+        "accumulation route-family plan before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.computedMaskAccumulationRouteFamilyPlan ||
+      materializationFacts.computedMaskAccumulationPlan !=
+          &*analysis.computedMaskAccumulationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires computed-mask accumulation "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+      &accumulationPlan = *materializationFacts.computedMaskAccumulationPlan;
+  const bool isRuntimeScalar =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
+  if (accumulationPlan.operation != description.operation ||
+      accumulationPlan.memoryForm != description.memoryForm ||
+      !accumulationPlan.usesVectorMAccSuffix ||
+      accumulationPlan.usesScalarHorizontalReductionSuffix ||
+      accumulationPlan.usesVectorCompareProducer != !isRuntimeScalar ||
+      accumulationPlan.usesRuntimeScalarProducer != isRuntimeScalar ||
+      accumulationPlan.maskProducerSource !=
+          (isRuntimeScalar ? "runtime-scalar-splat-compare-rhs"
+                           : "vector-compare-rhs-load") ||
+      accumulationPlan.accumulatorContract !=
+          "vector-accumulator-input-preserves-inactive-lanes" ||
+      accumulationPlan.resultContract !=
+          "vector-macc-result-stored-to-output-buffer" ||
+      accumulationPlan.inactiveLaneContract !=
+          "masked-macc-false-lanes-preserve-accumulator" ||
+      accumulationPlan.maskedPassthroughLayout !=
+          "accumulator-vector-preserves-inactive-lanes")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires computed-mask accumulation "
+        "mask-producer, MAcc classification, accumulator, and memory-form "
+        "facts from the verified route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (materializationFacts.setVLLeaf != accumulationPlan.setVLIntrinsic ||
+      materializationFacts.vectorLoadLeaf !=
+          accumulationPlan.vectorLoadIntrinsic ||
+      materializationFacts.compareLeaf != accumulationPlan.compareIntrinsic ||
+      materializationFacts.storeLeaf != accumulationPlan.storeIntrinsic ||
+      materializationFacts.maskedMergeLeaf != description.maskedMergeIntrinsic ||
+      materializationFacts.elementwiseComputeLeaf != description.intrinsic ||
+      materializationFacts.resultVectorTypeName !=
+          accumulationPlan.vectorTypeName ||
+      materializationFacts.resultVectorCType != accumulationPlan.vectorCType ||
+      materializationFacts.maskTypeName != accumulationPlan.maskTypeName ||
+      materializationFacts.maskCType != accumulationPlan.maskCType ||
+      (isRuntimeScalar && materializationFacts.rhsScalarBroadcastLeaf !=
+                              accumulationPlan.rhsScalarSplatIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires computed-mask accumulation "
+        "materialization facts to mirror the verified accumulation family "
+        "plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  runtimeControlPlan = &accumulationPlan.runtimeControlPlan;
+  plan.controlsComputedMaskAccumulation = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildContractionRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.contractionPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified contraction "
+        "route-family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.contractionRouteFamilyPlan ||
+      materializationFacts.contractionPlan !=
+          &*analysis.contractionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires contraction "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyContractionRouteFamilyPlan &contractionPlan =
+      *materializationFacts.contractionPlan;
+  const bool isWideningMAcc =
+      description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
+  const bool isDotReduction =
+      isRVVSelectedBodyContractionDotReduction(description.operation);
+  const bool isComputedMask =
+      isRVVSelectedBodyContractionComputedMask(description.operation);
+  const bool isStridedInput =
+      isRVVSelectedBodyContractionStridedInputs(description.operation);
+  if (contractionPlan.operation != description.operation ||
+      contractionPlan.memoryForm != description.memoryForm ||
+      contractionPlan.usesWideningMAcc != isWideningMAcc ||
+      contractionPlan.usesDotReduction != isDotReduction ||
+      contractionPlan.usesComputedMask != isComputedMask ||
+      contractionPlan.usesStridedInputs != isStridedInput ||
+      contractionPlan.usesScalarSeed != isDotReduction ||
+      contractionPlan.usesVectorAccumulator != isWideningMAcc ||
+      contractionPlan.runtimeABIOrder != description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires contraction classification, "
+        "runtime ABI, and memory-form facts from the verified route-family "
+        "plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (isWideningMAcc) {
+    if (contractionPlan.accumulatorLayout !=
+            description.wideningMAccAccumulatorLayout ||
+        contractionPlan.resultLayout != description.wideningMAccResultLayout ||
+        contractionPlan.relation != description.wideningMAccRelation ||
+        contractionPlan.contractionComputeIntrinsic != description.intrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires contraction widening MAcc "
+          "accumulator, result, relation, and compute facts from the "
+          "verified route-family plan before provider route construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (contractionPlan.accumulatorLayout !=
+                 description.wideningDotProductAccumulatorLayout ||
+             contractionPlan.resultLayout !=
+                 description.wideningDotProductResultLayout ||
+             contractionPlan.relation != description.wideningDotProductRelation ||
+             contractionPlan.contractionComputeIntrinsic !=
+                 description.intrinsic ||
+             contractionPlan.wideningProductIntrinsic !=
+                 description.wideningProductIntrinsic ||
+             contractionPlan.maskedWideningProductIntrinsic !=
+                 description.maskedWideningProductIntrinsic ||
+             contractionPlan.scalarSeedSplatIntrinsic !=
+                 description.scalarSeedSplatIntrinsic ||
+             contractionPlan.reductionStoreVL != description.reductionStoreVL) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires contraction widening "
+        "dot-reduction accumulator, result, product, seed, and compute facts "
+        "from the verified route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  }
+
+  if (isComputedMask) {
+    if (contractionPlan.compareIntrinsic != description.compareIntrinsic ||
+        contractionPlan.maskedMergeIntrinsic !=
+            description.maskedMergeIntrinsic ||
+        contractionPlan.maskRole != description.maskRole ||
+        contractionPlan.maskSource != description.maskSource ||
+        contractionPlan.maskMemoryForm != description.maskMemoryForm ||
+        contractionPlan.inactiveLaneZeroingRequirement !=
+            description.inactiveLaneZeroingRequirement)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask contraction "
+          "producer, mask, merge, and inactive-lane facts from the verified "
+          "route-family plan before provider route construction for "
+          "operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (!description.compareIntrinsic.empty() ||
+             !description.maskedMergeIntrinsic.empty() ||
+             !description.maskRole.empty() || !description.maskSource.empty() ||
+             !description.maskMemoryForm.empty() ||
+             !description.inactiveLaneZeroingRequirement.empty()) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires non-masked contraction "
+        "routes to carry no computed-mask producer facts before provider "
+        "route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  }
+
+  if (isStridedInput) {
+    if (contractionPlan.stridedMemoryLayout !=
+            description.stridedMemoryLayout ||
+        contractionPlan.lhsStrideSource != description.lhsStrideSource ||
+        contractionPlan.rhsStrideSource != description.rhsStrideSource ||
+        contractionPlan.sourceMemoryForm != description.sourceMemoryForm ||
+        contractionPlan.destinationMemoryForm !=
+            description.destinationMemoryForm)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires strided-input contraction "
+          "layout and stride-source facts from the verified route-family "
+          "plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (!description.stridedMemoryLayout.empty() ||
+             !description.lhsStrideSource.empty() ||
+             !description.rhsStrideSource.empty() ||
+             !description.sourceMemoryForm.empty() ||
+             !description.destinationMemoryForm.empty()) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires non-strided contraction "
+        "routes to carry no strided-input facts before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  }
+
+  if (materializationFacts.vlCType != contractionPlan.vlCType ||
+      materializationFacts.resultVectorTypeName !=
+          contractionPlan.resultVectorTypeName ||
+      materializationFacts.resultVectorCType !=
+          contractionPlan.resultVectorCType ||
+      materializationFacts.sourceVectorTypeName !=
+          contractionPlan.sourceVectorTypeName ||
+      materializationFacts.sourceVectorCType !=
+          contractionPlan.sourceVectorCType ||
+      materializationFacts.setVLLeaf != contractionPlan.setVLIntrinsic ||
+      materializationFacts.sourceLoadLeaf !=
+          contractionPlan.sourceVectorLoadIntrinsic ||
+      materializationFacts.storeLeaf != contractionPlan.storeIntrinsic ||
+      materializationFacts.contractionComputeLeaf !=
+          contractionPlan.contractionComputeIntrinsic ||
+      materializationFacts.wideningProductLeaf !=
+          contractionPlan.wideningProductIntrinsic ||
+      materializationFacts.maskedWideningProductLeaf !=
+          contractionPlan.maskedWideningProductIntrinsic ||
+      materializationFacts.scalarSeedSplatLeaf !=
+          contractionPlan.scalarSeedSplatIntrinsic ||
+      materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
+      materializationFacts.maskedMergeLeaf !=
+          contractionPlan.maskedMergeIntrinsic ||
+      (isStridedInput && materializationFacts.stridedSourceLoadLeaf !=
+                             contractionPlan.stridedLoadIntrinsic) ||
+      (isComputedMask &&
+       (materializationFacts.maskTypeName != contractionPlan.maskTypeName ||
+        materializationFacts.maskCType != contractionPlan.maskCType)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires contraction materialization "
+        "facts to mirror the verified contraction family plan before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  runtimeControlPlan = &contractionPlan.runtimeControlPlan;
+  plan.controlsContraction = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildBaseMemoryMovementRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.baseMemoryMovementPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified base memory "
+        "movement route-family plan before provider route construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.baseMemoryMovementRouteFamilyPlan ||
+      materializationFacts.baseMemoryMovementPlan !=
+          &*analysis.baseMemoryMovementRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires base memory materialization "
+        "facts from the same selected route analysis before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.baseMemoryMovementPlan->runtimeControlPlan;
+  plan.controlsBaseMemoryMovement = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildStandaloneReductionRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.standaloneReductionPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified standalone "
+        "reduction route-family plan before provider route construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.standaloneReductionRouteFamilyPlan ||
+      materializationFacts.standaloneReductionPlan !=
+          &*analysis.standaloneReductionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires standalone reduction "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.standaloneReductionPlan->runtimeControlPlan;
+  plan.controlsStandaloneReduction = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildScalarBroadcastMAccRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.scalarBroadcastMAccPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified "
+        "scalar-broadcast MAcc route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.scalarBroadcastMAccRouteFamilyPlan ||
+      materializationFacts.scalarBroadcastMAccPlan !=
+          &*analysis.scalarBroadcastMAccRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires scalar-broadcast MAcc "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.scalarBroadcastMAccPlan->runtimeControlPlan;
+  plan.controlsScalarBroadcastMAcc = true;
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVSelectedBodyRouteControlProviderPlan>
 getRVVSelectedBodyRouteControlProviderPlan(
     const RVVSelectedBodyRouteAnalysis &analysis,
@@ -23086,674 +23968,34 @@ getRVVSelectedBodyRouteControlProviderPlan(
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
   RVVSelectedBodyRouteControlProviderPlan plan;
-  if (!isRVVSelectedBodyRouteControlProviderPlanConsumer(description))
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+  const RVVSelectedBodyRouteControlProviderOwner *selectedOwner = nullptr;
+  for (const RVVSelectedBodyRouteControlProviderOwner &owner :
+       getRVVSelectedBodyRouteControlProviderOwners()) {
+    if (!owner.isConsumer || !owner.buildProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete route-control provider owner registry "
+          "entry");
+    if (!owner.isConsumer(description))
+      continue;
+    if (selectedOwner)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan matched multiple owner registry "
+          "entries for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) +
+          "': '" + selectedOwner->familyName + "' and '" +
+          owner.familyName + "'");
+    selectedOwner = &owner;
+  }
+
+  if (!selectedOwner)
     return plan;
 
-  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
-  if (isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(description)) {
-    if (!materializationFacts.elementwiseArithmeticPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified elementwise "
-          "arithmetic route-family plan before provider route construction "
-          "for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.elementwiseArithmeticRouteFamilyPlan ||
-        materializationFacts.elementwiseArithmeticPlan !=
-            &*analysis.elementwiseArithmeticRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires elementwise arithmetic "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan;
-    plan.controlsOrdinaryElementwiseArithmetic = true;
-  } else if (isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.scalarBroadcastPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified "
-          "scalar-broadcast elementwise route-family plan before provider "
-          "route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.scalarBroadcastElementwiseRouteFamilyPlan ||
-        materializationFacts.scalarBroadcastPlan !=
-            &*analysis.scalarBroadcastElementwiseRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires scalar-broadcast "
-          "elementwise materialization facts from the same selected route "
-          "analysis before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.scalarBroadcastPlan->runtimeControlPlan;
-    plan.controlsScalarBroadcastElementwise = true;
-  } else if (isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.plainCompareSelectPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified plain "
-          "compare-select route-family plan before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.plainCompareSelectRouteFamilyPlan ||
-        materializationFacts.plainCompareSelectPlan !=
-            &*analysis.plainCompareSelectRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires plain compare-select "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.plainCompareSelectPlan->runtimeControlPlan;
-    plan.controlsPlainCompareSelect = true;
-  } else if (isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.computedMaskSelectPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified "
-          "computed-mask select route-family plan before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.computedMaskSelectRouteFamilyPlan ||
-        materializationFacts.computedMaskSelectPlan !=
-            &*analysis.computedMaskSelectRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires computed-mask select "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.computedMaskSelectPlan->runtimeControlPlan;
-    plan.controlsComputedMaskSelect = true;
-  } else if (isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.computedMaskMemoryPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified "
-          "computed-mask memory route-family plan before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.computedMaskMemoryRouteFamilyPlan ||
-        materializationFacts.computedMaskMemoryPlan !=
-            &*analysis.computedMaskMemoryRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires computed-mask memory "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
-        *materializationFacts.computedMaskMemoryPlan;
-    const bool isRuntimeScalarProducer =
-        description.operation ==
-            RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
-        description.operation ==
-            RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
-    if (computedPlan.operation != description.operation ||
-        computedPlan.memoryForm != description.memoryForm ||
-        computedPlan.usesRuntimeScalarProducer != isRuntimeScalarProducer ||
-        computedPlan.usesVectorCompareProducer == isRuntimeScalarProducer ||
-        computedPlan.usesSegment2Load || computedPlan.usesSegment2Store ||
-        computedPlan.maskProducerSource !=
-            getComputedMaskMemoryProducerSource(description.operation) ||
-        computedPlan.usesStoreOnly !=
-            isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
-                description.operation) ||
-        computedPlan.usesLoadMerge !=
-            isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
-                description.operation))
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires computed-mask memory "
-          "mask-producer and memory-form facts from the verified route-family "
-          "plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan = &computedPlan.runtimeControlPlan;
-    plan.controlsComputedMaskMemory = true;
-  } else if (isRVVSelectedBodySegment2MemoryRouteControlConsumer(
-                 description)) {
-    const bool isPlainDeinterleave =
-        description.operation ==
-        RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
-    const bool isPlainInterleave =
-        description.operation ==
-        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
-    const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
-    const bool isComputedMaskSegment2Load =
-        description.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
-    const bool isComputedMaskSegment2Store =
-        description.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-
-    if (isPlainSegment2) {
-      if (!materializationFacts.segment2MemoryPlan)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires the verified plain "
-            "segment2 memory route-family plan before provider route "
-            "construction for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) +
-            "'");
-      if (!analysis.segment2MemoryRouteFamilyPlan ||
-          materializationFacts.segment2MemoryPlan !=
-              &*analysis.segment2MemoryRouteFamilyPlan)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires plain segment2 memory "
-            "materialization facts from the same selected route analysis "
-            "before provider route construction for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) +
-            "'");
-
-      const RVVSelectedBodySegment2MemoryRouteFamilyPlan &segmentPlan =
-          *materializationFacts.segment2MemoryPlan;
-      if (segmentPlan.operation != description.operation ||
-          segmentPlan.memoryForm != description.memoryForm ||
-          segmentPlan.usesDeinterleaveLoad != isPlainDeinterleave ||
-          segmentPlan.usesInterleaveStore != isPlainInterleave ||
-          segmentPlan.segmentCount != 2)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires plain segment2 memory "
-            "direction and memory-form facts from the verified route-family "
-            "plan before provider route construction for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) +
-            "'");
-      runtimeControlPlan = &segmentPlan.runtimeControlPlan;
-    } else {
-      if (!materializationFacts.computedMaskMemoryPlan)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires the verified "
-            "computed-mask segment2 memory route-family plan before provider "
-            "route construction for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) +
-            "'");
-      if (!analysis.computedMaskMemoryRouteFamilyPlan ||
-          materializationFacts.computedMaskMemoryPlan !=
-              &*analysis.computedMaskMemoryRouteFamilyPlan)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires computed-mask segment2 "
-            "memory materialization facts from the same selected route "
-            "analysis before provider route construction for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) +
-            "'");
-
-      const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
-          *materializationFacts.computedMaskMemoryPlan;
-      if (computedPlan.operation != description.operation ||
-          computedPlan.memoryForm != description.memoryForm ||
-          computedPlan.usesRuntimeScalarProducer ||
-          !computedPlan.usesVectorCompareProducer ||
-          computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
-          computedPlan.usesStoreOnly != isComputedMaskSegment2Store ||
-          computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
-          computedPlan.usesSegment2Store != isComputedMaskSegment2Store ||
-          computedPlan.maskProducerSource !=
-              getComputedMaskMemoryProducerSource(description.operation) ||
-          computedPlan.segmentCount != 2)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires computed-mask segment2 "
-            "mask-producer, direction, and memory-form facts from the "
-            "verified route-family plan before provider route construction "
-            "for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) +
-            "'");
-      runtimeControlPlan = &computedPlan.runtimeControlPlan;
-    }
-    plan.controlsSegment2Memory = true;
-  } else if (isRVVSelectedBodyWideningConversionRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.wideningConversionPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified widening "
-          "conversion route-family plan before provider route construction "
-          "for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.wideningConversionRouteFamilyPlan ||
-        materializationFacts.wideningConversionPlan !=
-            &*analysis.wideningConversionRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires widening conversion "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    const RVVSelectedBodyWideningConversionRouteFamilyPlan &conversionPlan =
-        *materializationFacts.wideningConversionPlan;
-    if (conversionPlan.operation != description.operation ||
-        conversionPlan.memoryForm != description.memoryForm ||
-        conversionPlan.sourceSEW != description.sourceSEW ||
-        conversionPlan.sourceLMUL != description.sourceLMUL ||
-        conversionPlan.sourceVectorTypeName != description.sourceVectorTypeName ||
-        conversionPlan.sourceVectorCType != description.sourceVectorCType ||
-        conversionPlan.sourceVectorLoadIntrinsic !=
-            description.sourceVectorLoadIntrinsic ||
-        conversionPlan.resultSEW != description.sew ||
-        conversionPlan.resultLMUL != description.lmul ||
-        conversionPlan.resultVectorTypeName != description.vectorTypeName ||
-        conversionPlan.resultVectorCType != description.vectorCType ||
-        conversionPlan.setVLIntrinsic != description.setVLIntrinsic ||
-        conversionPlan.conversionIntrinsic != description.intrinsic ||
-        conversionPlan.storeIntrinsic != description.storeIntrinsic ||
-        conversionPlan.conversionRelation != description.conversionRelation)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires widening conversion "
-          "source/result type and conversion-form facts from the verified "
-          "route-family plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    if (materializationFacts.sourceVectorTypeName !=
-            conversionPlan.sourceVectorTypeName ||
-        materializationFacts.sourceVectorCType !=
-            conversionPlan.sourceVectorCType ||
-        materializationFacts.resultVectorTypeName !=
-            conversionPlan.resultVectorTypeName ||
-        materializationFacts.resultVectorCType !=
-            conversionPlan.resultVectorCType ||
-        materializationFacts.setVLLeaf != conversionPlan.setVLIntrinsic ||
-        materializationFacts.sourceLoadLeaf !=
-            conversionPlan.sourceVectorLoadIntrinsic ||
-        materializationFacts.elementwiseComputeLeaf !=
-            conversionPlan.conversionIntrinsic ||
-        materializationFacts.storeLeaf != conversionPlan.storeIntrinsic)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires widening conversion "
-          "materialization facts to mirror the verified conversion family plan "
-          "before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    runtimeControlPlan = &conversionPlan.runtimeControlPlan;
-    plan.controlsWideningConversion = true;
-  } else if (isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.runtimeScalarSplatStorePlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified runtime scalar "
-          "splat-store route-family plan before provider route construction "
-          "for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.runtimeScalarSplatStoreRouteFamilyPlan ||
-        materializationFacts.runtimeScalarSplatStorePlan !=
-            &*analysis.runtimeScalarSplatStoreRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires runtime scalar splat-store "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
-        &runtimeSplatPlan = *materializationFacts.runtimeScalarSplatStorePlan;
-    if (runtimeSplatPlan.operation != description.operation ||
-        runtimeSplatPlan.memoryForm != description.memoryForm ||
-        runtimeSplatPlan.vlCType != description.vlCType ||
-        runtimeSplatPlan.vectorTypeName != description.vectorTypeName ||
-        runtimeSplatPlan.vectorCType != description.vectorCType ||
-        runtimeSplatPlan.setVLIntrinsic != description.setVLIntrinsic ||
-        runtimeSplatPlan.rhsScalarSplatIntrinsic !=
-            description.rhsBroadcastIntrinsic ||
-        runtimeSplatPlan.storeIntrinsic != description.storeIntrinsic ||
-        runtimeSplatPlan.resultName != description.resultName)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires runtime scalar splat-store "
-          "type, scalar-splat, store, and memory-form facts from the verified "
-          "route-family plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    if (materializationFacts.setVLLeaf != runtimeSplatPlan.setVLIntrinsic ||
-        materializationFacts.rhsScalarBroadcastLeaf !=
-            runtimeSplatPlan.rhsScalarSplatIntrinsic ||
-        materializationFacts.storeLeaf != runtimeSplatPlan.storeIntrinsic ||
-        materializationFacts.resultVectorTypeName !=
-            runtimeSplatPlan.vectorTypeName ||
-        materializationFacts.resultVectorCType !=
-            runtimeSplatPlan.vectorCType)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires runtime scalar splat-store "
-          "materialization facts to mirror the verified splat-store family "
-          "plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    runtimeControlPlan = &runtimeSplatPlan.runtimeControlPlan;
-    plan.controlsRuntimeScalarSplatStore = true;
-  } else if (isRVVSelectedBodyComputedMaskAccumulationRouteControlConsumer(
-                 description)) {
-    if (!materializationFacts.computedMaskAccumulationPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified computed-mask "
-          "accumulation route-family plan before provider route construction "
-          "for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.computedMaskAccumulationRouteFamilyPlan ||
-        materializationFacts.computedMaskAccumulationPlan !=
-            &*analysis.computedMaskAccumulationRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires computed-mask accumulation "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
-        &accumulationPlan = *materializationFacts.computedMaskAccumulationPlan;
-    const bool isRuntimeScalar =
-        description.operation ==
-        RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
-    if (accumulationPlan.operation != description.operation ||
-        accumulationPlan.memoryForm != description.memoryForm ||
-        !accumulationPlan.usesVectorMAccSuffix ||
-        accumulationPlan.usesScalarHorizontalReductionSuffix ||
-        accumulationPlan.usesVectorCompareProducer != !isRuntimeScalar ||
-        accumulationPlan.usesRuntimeScalarProducer != isRuntimeScalar ||
-        accumulationPlan.maskProducerSource !=
-            (isRuntimeScalar ? "runtime-scalar-splat-compare-rhs"
-                             : "vector-compare-rhs-load") ||
-        accumulationPlan.accumulatorContract !=
-            "vector-accumulator-input-preserves-inactive-lanes" ||
-        accumulationPlan.resultContract !=
-            "vector-macc-result-stored-to-output-buffer" ||
-        accumulationPlan.inactiveLaneContract !=
-            "masked-macc-false-lanes-preserve-accumulator" ||
-        accumulationPlan.maskedPassthroughLayout !=
-            "accumulator-vector-preserves-inactive-lanes")
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires computed-mask accumulation "
-          "mask-producer, MAcc classification, accumulator, and memory-form "
-          "facts from the verified route-family plan before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    if (materializationFacts.setVLLeaf !=
-            accumulationPlan.setVLIntrinsic ||
-        materializationFacts.vectorLoadLeaf !=
-            accumulationPlan.vectorLoadIntrinsic ||
-        materializationFacts.compareLeaf != accumulationPlan.compareIntrinsic ||
-        materializationFacts.storeLeaf != accumulationPlan.storeIntrinsic ||
-        materializationFacts.maskedMergeLeaf != description.maskedMergeIntrinsic ||
-        materializationFacts.elementwiseComputeLeaf != description.intrinsic ||
-        materializationFacts.resultVectorTypeName !=
-            accumulationPlan.vectorTypeName ||
-        materializationFacts.resultVectorCType !=
-            accumulationPlan.vectorCType ||
-        materializationFacts.maskTypeName != accumulationPlan.maskTypeName ||
-        materializationFacts.maskCType != accumulationPlan.maskCType ||
-        (isRuntimeScalar &&
-         materializationFacts.rhsScalarBroadcastLeaf !=
-             accumulationPlan.rhsScalarSplatIntrinsic))
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires computed-mask accumulation "
-          "materialization facts to mirror the verified accumulation family "
-          "plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    runtimeControlPlan = &accumulationPlan.runtimeControlPlan;
-    plan.controlsComputedMaskAccumulation = true;
-  } else if (isRVVSelectedBodyContractionRouteControlConsumer(description)) {
-    if (!materializationFacts.contractionPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified contraction "
-          "route-family plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.contractionRouteFamilyPlan ||
-        materializationFacts.contractionPlan !=
-            &*analysis.contractionRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires contraction "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    const RVVSelectedBodyContractionRouteFamilyPlan &contractionPlan =
-        *materializationFacts.contractionPlan;
-    const bool isWideningMAcc =
-        description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
-    const bool isDotReduction =
-        isRVVSelectedBodyContractionDotReduction(description.operation);
-    const bool isComputedMask =
-        isRVVSelectedBodyContractionComputedMask(description.operation);
-    const bool isStridedInput =
-        isRVVSelectedBodyContractionStridedInputs(description.operation);
-    if (contractionPlan.operation != description.operation ||
-        contractionPlan.memoryForm != description.memoryForm ||
-        contractionPlan.usesWideningMAcc != isWideningMAcc ||
-        contractionPlan.usesDotReduction != isDotReduction ||
-        contractionPlan.usesComputedMask != isComputedMask ||
-        contractionPlan.usesStridedInputs != isStridedInput ||
-        contractionPlan.usesScalarSeed != isDotReduction ||
-        contractionPlan.usesVectorAccumulator != isWideningMAcc ||
-        contractionPlan.runtimeABIOrder != description.runtimeABIOrder)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires contraction classification, "
-          "runtime ABI, and memory-form facts from the verified route-family "
-          "plan before provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    if (isWideningMAcc) {
-      if (contractionPlan.accumulatorLayout !=
-              description.wideningMAccAccumulatorLayout ||
-          contractionPlan.resultLayout !=
-              description.wideningMAccResultLayout ||
-          contractionPlan.relation != description.wideningMAccRelation ||
-          contractionPlan.contractionComputeIntrinsic != description.intrinsic)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires contraction widening MAcc "
-            "accumulator, result, relation, and compute facts from the "
-            "verified route-family plan before provider route construction "
-            "for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    } else if (contractionPlan.accumulatorLayout !=
-                   description.wideningDotProductAccumulatorLayout ||
-               contractionPlan.resultLayout !=
-                   description.wideningDotProductResultLayout ||
-               contractionPlan.relation !=
-                   description.wideningDotProductRelation ||
-               contractionPlan.contractionComputeIntrinsic !=
-                   description.intrinsic ||
-               contractionPlan.wideningProductIntrinsic !=
-                   description.wideningProductIntrinsic ||
-               contractionPlan.maskedWideningProductIntrinsic !=
-                   description.maskedWideningProductIntrinsic ||
-               contractionPlan.scalarSeedSplatIntrinsic !=
-                   description.scalarSeedSplatIntrinsic ||
-               contractionPlan.reductionStoreVL !=
-                   description.reductionStoreVL) {
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires contraction widening "
-          "dot-reduction accumulator, result, product, seed, and compute facts "
-          "from the verified route-family plan before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    }
-
-    if (isComputedMask) {
-      if (contractionPlan.compareIntrinsic != description.compareIntrinsic ||
-          contractionPlan.maskedMergeIntrinsic !=
-              description.maskedMergeIntrinsic ||
-          contractionPlan.maskRole != description.maskRole ||
-          contractionPlan.maskSource != description.maskSource ||
-          contractionPlan.maskMemoryForm != description.maskMemoryForm ||
-          contractionPlan.inactiveLaneZeroingRequirement !=
-              description.inactiveLaneZeroingRequirement)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires computed-mask contraction "
-            "producer, mask, merge, and inactive-lane facts from the verified "
-            "route-family plan before provider route construction for "
-            "operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    } else if (!description.compareIntrinsic.empty() ||
-               !description.maskedMergeIntrinsic.empty() ||
-               !description.maskRole.empty() ||
-               !description.maskSource.empty() ||
-               !description.maskMemoryForm.empty() ||
-               !description.inactiveLaneZeroingRequirement.empty()) {
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires non-masked contraction "
-          "routes to carry no computed-mask producer facts before provider "
-          "route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    }
-
-    if (isStridedInput) {
-      if (contractionPlan.stridedMemoryLayout !=
-              description.stridedMemoryLayout ||
-          contractionPlan.lhsStrideSource != description.lhsStrideSource ||
-          contractionPlan.rhsStrideSource != description.rhsStrideSource ||
-          contractionPlan.sourceMemoryForm != description.sourceMemoryForm ||
-          contractionPlan.destinationMemoryForm !=
-              description.destinationMemoryForm)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine(context) +
-            " route-control provider plan requires strided-input contraction "
-            "layout and stride-source facts from the verified route-family "
-            "plan before provider route construction for operation '" +
-            stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    } else if (!description.stridedMemoryLayout.empty() ||
-               !description.lhsStrideSource.empty() ||
-               !description.rhsStrideSource.empty() ||
-               !description.sourceMemoryForm.empty() ||
-               !description.destinationMemoryForm.empty()) {
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires non-strided contraction "
-          "routes to carry no strided-input facts before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    }
-
-    if (materializationFacts.vlCType != contractionPlan.vlCType ||
-        materializationFacts.resultVectorTypeName !=
-            contractionPlan.resultVectorTypeName ||
-        materializationFacts.resultVectorCType !=
-            contractionPlan.resultVectorCType ||
-        materializationFacts.sourceVectorTypeName !=
-            contractionPlan.sourceVectorTypeName ||
-        materializationFacts.sourceVectorCType !=
-            contractionPlan.sourceVectorCType ||
-        materializationFacts.setVLLeaf != contractionPlan.setVLIntrinsic ||
-        materializationFacts.sourceLoadLeaf !=
-            contractionPlan.sourceVectorLoadIntrinsic ||
-        materializationFacts.storeLeaf != contractionPlan.storeIntrinsic ||
-        materializationFacts.contractionComputeLeaf !=
-            contractionPlan.contractionComputeIntrinsic ||
-        materializationFacts.wideningProductLeaf !=
-            contractionPlan.wideningProductIntrinsic ||
-        materializationFacts.maskedWideningProductLeaf !=
-            contractionPlan.maskedWideningProductIntrinsic ||
-        materializationFacts.scalarSeedSplatLeaf !=
-            contractionPlan.scalarSeedSplatIntrinsic ||
-        materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
-        materializationFacts.maskedMergeLeaf !=
-            contractionPlan.maskedMergeIntrinsic ||
-        (isStridedInput &&
-         materializationFacts.stridedSourceLoadLeaf !=
-             contractionPlan.stridedLoadIntrinsic) ||
-        (isComputedMask &&
-         (materializationFacts.maskTypeName != contractionPlan.maskTypeName ||
-          materializationFacts.maskCType != contractionPlan.maskCType)))
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires contraction materialization "
-          "facts to mirror the verified contraction family plan before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-    runtimeControlPlan = &contractionPlan.runtimeControlPlan;
-    plan.controlsContraction = true;
-  } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
-                 description.operation)) {
-    if (!materializationFacts.baseMemoryMovementPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified base memory "
-          "movement route-family plan before provider route construction for "
-          "operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.baseMemoryMovementRouteFamilyPlan ||
-        materializationFacts.baseMemoryMovementPlan !=
-            &*analysis.baseMemoryMovementRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires base memory materialization "
-          "facts from the same selected route analysis before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.baseMemoryMovementPlan->runtimeControlPlan;
-    plan.controlsBaseMemoryMovement = true;
-  } else if (isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
-                 description.operation)) {
-    if (!materializationFacts.standaloneReductionPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified standalone "
-          "reduction route-family plan before provider route construction for "
-          "operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.standaloneReductionRouteFamilyPlan ||
-        materializationFacts.standaloneReductionPlan !=
-            &*analysis.standaloneReductionRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires standalone reduction "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.standaloneReductionPlan->runtimeControlPlan;
-    plan.controlsStandaloneReduction = true;
-  } else if (isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
-                 description.operation)) {
-    if (!materializationFacts.scalarBroadcastMAccPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires the verified "
-          "scalar-broadcast MAcc route-family plan before provider route "
-          "construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (!analysis.scalarBroadcastMAccRouteFamilyPlan ||
-        materializationFacts.scalarBroadcastMAccPlan !=
-            &*analysis.scalarBroadcastMAccRouteFamilyPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " route-control provider plan requires scalar-broadcast MAcc "
-          "materialization facts from the same selected route analysis before "
-          "provider route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    runtimeControlPlan =
-        &materializationFacts.scalarBroadcastMAccPlan->runtimeControlPlan;
-    plan.controlsScalarBroadcastMAcc = true;
-  }
+  if (llvm::Error error = selectedOwner->buildProviderPlan(
+          analysis, materializationFacts, plan, runtimeControlPlan, context))
+    return std::move(error);
 
   if (!runtimeControlPlan)
     return makeRVVEmitCRouteProviderError(

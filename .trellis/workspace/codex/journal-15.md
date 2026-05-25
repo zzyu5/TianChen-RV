@@ -1047,3 +1047,36 @@ Integrated existing RVV contraction direct-provider routes with the shared route
 ### Next Steps
 
 - None - task complete
+
+
+## Session 225: Stage2 RVV route-control owner registry consolidation
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV route-control owner registry consolidation
+**Branch**: `main`
+
+### Summary
+
+Consolidated adopted RVV route-control consumers behind a plugin-local owner registry, preserved route-control same-analysis and capability checks, added focused C++ registry coverage, updated RVV spec, and verified generated-bundle dry-runs plus check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

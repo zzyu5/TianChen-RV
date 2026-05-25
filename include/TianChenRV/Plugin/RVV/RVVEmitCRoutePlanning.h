@@ -889,6 +889,26 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   llvm::StringRef selectedLegalityMirror;
 };
 
+struct RVVSelectedBodyRouteControlProviderOwner {
+  using ConsumerPredicate =
+      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
+  using ProviderPlanBuilder = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &,
+      const RVVSelectedBodyRouteMaterializationFacts &,
+      RVVSelectedBodyRouteControlProviderPlan &,
+      const RVVRuntimeAVLVLControlPlan *&, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanBuilder buildProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyRouteControlProviderOwner>
+getRVVSelectedBodyRouteControlProviderOwners();
+
+bool isRVVSelectedBodyRouteControlProviderConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
 
