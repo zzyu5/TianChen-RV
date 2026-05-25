@@ -1,29 +1,29 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-computed-masked-widening-dot-reduce-add --overwrite --op-kind computed_masked_widening_dot_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/explicit-computed-masked-widening-dot-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=MDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/explicit-computed-masked-widening-dot-reduce-add/computed_masked_widening_dot_reduce_add/evidence.json
-# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/explicit-computed-masked-widening-dot-reduce-add/computed_masked_widening_dot_reduce_add/rvv_generated_bundle_abi_computed_masked_widening_dot_reduce_add_harness.c
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-widening-dot-reduce-add --overwrite --op-kind computed_masked_widening_dot_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-masked-widening-dot-reduce-add/evidence.json
+# RUN: FileCheck %s --check-prefix=MDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-masked-widening-dot-reduce-add/computed_masked_widening_dot_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-masked-widening-dot-reduce-add/computed_masked_widening_dot_reduce_add/rvv_generated_bundle_abi_computed_masked_widening_dot_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
 
-# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "input_mode": "pre-realized-selected-body"
 # ROOT: "computed_masked_widening_dot_reduce_add"
-# ROOT: "pre_realized_selected_body": false
+# ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
 
-# MDOT-DAG: "input_mode": "explicit-selected-body"
+# MDOT-DAG: "input_mode": "pre-realized-selected-body"
 # MDOT-DAG: "op_kind": "computed_masked_widening_dot_reduce_add"
-# MDOT-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-computed-masked-widening-dot-reduce-add.mlir"
-# MDOT-DAG: "prototype": "void tcrv_emitc_explicit_masked_wdot_kernel_rvv_explicit_masked_wdot(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);"
-# MDOT-DAG: "expected_function": "tcrv_emitc_explicit_masked_wdot_kernel_rvv_explicit_masked_wdot"
+# MDOT-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-widening-dot-reduce-add.mlir"
+# MDOT-DAG: "prototype": "void tcrv_emitc_pre_realized_body_masked_widening_dot_reduce_add_kernel_pre_realized_body_rvv_masked_widening_dot_reduce_add(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);"
+# MDOT-DAG: "expected_function": "tcrv_emitc_pre_realized_body_masked_widening_dot_reduce_add_kernel_pre_realized_body_rvv_masked_widening_dot_reduce_add"
 # MDOT-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1"
-# MDOT-DAG: "expected_selected_variant": "rvv_explicit_masked_wdot"
-# MDOT-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
-# MDOT-DAG: "materializer": "none-selected-body-already-explicit"
-# MDOT-DAG: "pre_realized_body_consumed": false
+# MDOT-DAG: "expected_selected_variant": "pre_realized_body_rvv_masked_widening_dot_reduce_add"
+# MDOT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# MDOT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# MDOT-DAG: "pre_realized_body_consumed": true
 # MDOT-DAG: "key": "rvv_emitc_lowerable_route"
 # MDOT-DAG: "value": "rvv-generic-computed-masked-widening-dot-reduce-add-emitc-route"
 # MDOT-DAG: "key": "rvv_selected_body_operation"
@@ -38,8 +38,6 @@
 # MDOT-DAG: "value": "slt"
 # MDOT-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # MDOT-DAG: "value": "rvv-route-operand-binding:masked_widening_dot_reduce.v1"
-# MDOT-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# MDOT-DAG: "value": "rvv-route-operand-binding:masked_widening_dot_reduce.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;dot_lhs=dot-lhs-input-buffer:lhs:abi|ld|mlhs|i16|hdr;dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MDOT-DAG: "key": "tcrv_rvv.contraction_route_family_plan"
 # MDOT-DAG: "value": "rvv-contraction-route-family-plan.v1"
 # MDOT-DAG: "key": "tcrv_rvv.mask_role"
@@ -64,7 +62,7 @@
 # MDOT-DAG: "memory_form": "computed-mask-unit-stride-widening-dot-reduce"
 # MDOT-DAG: "status": "dry_run_success"
 
-# HARNESS: tcrv_emitc_explicit_masked_wdot_kernel_rvv_explicit_masked_wdot(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n);
+# HARNESS: tcrv_emitc_pre_realized_body_masked_widening_dot_reduce_add_kernel_pre_realized_body_rvv_masked_widening_dot_reduce_add(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n);
 # HARNESS: int active = cmp_lhs[index] < cmp_rhs[index];
 # HARNESS: int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
 # HARNESS: compare_masked_signed_horizontal_dot seed_added inactive_lanes_skipped scalar_output tail_preserved

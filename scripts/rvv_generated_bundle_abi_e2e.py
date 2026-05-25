@@ -2810,6 +2810,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
     "widening_dot_reduce_add": OpExpectation(
         kind="widening_dot_reduce_add",
@@ -2835,6 +2836,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
     "strided_input_widening_dot_reduce_add": OpExpectation(
         kind="strided_input_widening_dot_reduce_add",
@@ -2899,6 +2901,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
     "computed_masked_strided_input_widening_dot_reduce_add": OpExpectation(
         kind="computed_masked_strided_input_widening_dot_reduce_add",
@@ -3921,6 +3924,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
     "computed_masked_strided_input_widening_dot_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -4990,6 +4994,43 @@ COMPUTED_MASKED_MACC_METADATA_KEYS = (
     "tcrv_rvv.indexed_memory_layout",
     "tcrv_rvv.macc_accumulator_layout",
     "tcrv_rvv.macc_result_layout",
+)
+COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.compare_predicate_kind",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.contraction_route_family_plan",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.source_sew",
+    "tcrv_rvv.source_lmul",
+    "tcrv_rvv.accumulator_sew",
+    "tcrv_rvv.accumulator_lmul",
+    "tcrv_rvv.result_sew",
+    "tcrv_rvv.result_lmul",
+    "tcrv_rvv.mask_role",
+    "tcrv_rvv.mask_source",
+    "tcrv_rvv.mask_memory_form",
+    "tcrv_rvv.inactive_lane_zeroing_requirement",
+    "tcrv_rvv.widening_dot_accumulator_layout",
+    "tcrv_rvv.widening_dot_result_layout",
+    "tcrv_rvv.widening_dot_relation",
+    "tcrv_rvv.widening_product_intrinsic",
+    "tcrv_rvv.masked_widening_product_intrinsic",
+    "tcrv_rvv.widening_dot_reduction_store_vl",
 )
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
@@ -6958,6 +6999,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.accumulator_lmul": "m1",
                 "tcrv_rvv.result_sew": "32",
                 "tcrv_rvv.result_lmul": "m1",
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -7121,6 +7165,7 @@ def verify_emitted_rvv_cpp(
     reduction_accumulation_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
+    computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -7289,6 +7334,48 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = computed_masked_macc_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_computed_masked_widening_dot_reduce_add:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            "__riscv_vle32_v_i32m1",
+            "__riscv_vle16_v_i16mf2",
+            expectation.compare_intrinsic,
+            "__riscv_vmv_v_x_i32m1",
+            "__riscv_vwmul_vv_i32m1_m",
+            "__riscv_vmerge_vvm_i32m1",
+            "__riscv_vredsum_vs_i32m1_i32m1",
+            "__riscv_vse32_v_i32m1",
+        ]
+        require_contains(
+            text,
+            "vint16mf2_t",
+            "emitted RVV C/C++ computed-mask widening dot-reduce source vector type",
+        )
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ computed-mask widening dot-reduce result vector type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ computed-mask widening dot-reduce mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ computed-mask widening dot-reduce intrinsic spelling",
+            )
+        computed_masked_widening_dot_reduce_boundary = (
+            extract_computed_masked_widening_dot_reduce_emitc_boundary(
+                text, expectation
+            )
+        )
+        runtime_avl_vl_boundary = computed_masked_widening_dot_reduce_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.is_masked_unit_store:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -7334,6 +7421,9 @@ def verify_emitted_rvv_cpp(
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
+        "computed_masked_widening_dot_reduce_boundary": (
+            computed_masked_widening_dot_reduce_boundary
+        ),
     }
 
 
@@ -7900,6 +7990,224 @@ def extract_computed_masked_macc_emitc_boundary(
     }
 
 
+def extract_computed_masked_widening_dot_reduce_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        r"\(const int32_t\s*\*\s*(?P<cmp_lhs>v[0-9]+), "
+        r"const int32_t\s*\*\s*(?P<cmp_rhs>v[0-9]+), "
+        r"const int16_t\s*\*\s*(?P<lhs>v[0-9]+), "
+        r"const int16_t\s*\*\s*(?P<rhs>v[0-9]+), "
+        r"const int32_t\s*\*\s*(?P<acc>v[0-9]+), "
+        r"int32_t\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ computed-mask widening dot-reduce ABI parameters",
+    )
+    cmp_lhs = signature.group("cmp_lhs")
+    cmp_rhs = signature.group("cmp_rhs")
+    lhs = signature.group("lhs")
+    rhs = signature.group("rhs")
+    acc = signature.group("acc")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    seed = require_regex(
+        text,
+        rf"const int32_t (?P<seed_scalar>v[0-9]+) = {acc}\[0\];\s*"
+        rf"vint32m1_t (?P<seed_vec>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\((?P=seed_scalar), 1\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce scalar seed",
+    )
+    seed_scalar = seed.group("seed_scalar")
+    seed_vector = seed.group("seed_vec")
+    require_regex(
+        text,
+        rf"__riscv_vse32_v_i32m1\({out}, {seed_vector}, 1\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce seed store",
+    )
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ computed-mask widening dot-reduce runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+
+    def load_vector(
+        parameter: str,
+        element_c_type: str,
+        vector_c_type: str,
+        load_intrinsic: str,
+        role: str,
+    ) -> tuple[str, str]:
+        loaded = require_regex(
+            text,
+            rf"const {re.escape(element_c_type)}\* (?P<ptr>v[0-9]+) = "
+            rf"{parameter} \+ {offset};\s*"
+            rf"{re.escape(vector_c_type)} (?P<vec>v[0-9]+) = "
+            rf"{re.escape(load_intrinsic)}\((?P=ptr), {loop_vl}\);",
+            f"emitted RVV C/C++ computed-mask widening dot-reduce {role} load",
+        )
+        return loaded.group("ptr"), loaded.group("vec")
+
+    cmp_lhs_ptr, cmp_lhs_vec = load_vector(
+        cmp_lhs, "int32_t", "vint32m1_t", "__riscv_vle32_v_i32m1", "compare lhs"
+    )
+    cmp_rhs_ptr, cmp_rhs_vec = load_vector(
+        cmp_rhs, "int32_t", "vint32m1_t", "__riscv_vle32_v_i32m1", "compare rhs"
+    )
+    compare = require_regex(
+        text,
+        rf"vbool32_t (?P<mask>v[0-9]+) = {re.escape(expectation.compare_intrinsic)}"
+        rf"\({cmp_lhs_vec}, {cmp_rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce compare producer",
+    )
+    mask = compare.group("mask")
+    lhs_ptr, lhs_vec = load_vector(
+        lhs, "int16_t", "vint16mf2_t", "__riscv_vle16_v_i16mf2", "dot lhs"
+    )
+    rhs_ptr, rhs_vec = load_vector(
+        rhs, "int16_t", "vint16mf2_t", "__riscv_vle16_v_i16mf2", "dot rhs"
+    )
+    zero = require_regex(
+        text,
+        rf"vint32m1_t (?P<zero>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\(0, {loop_vl}\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce inactive zero",
+    )
+    zero_vec = zero.group("zero")
+    active_product = require_regex(
+        text,
+        rf"vint32m1_t (?P<active>v[0-9]+) = "
+        rf"__riscv_vwmul_vv_i32m1_m\({mask}, {lhs_vec}, {rhs_vec}, "
+        rf"{loop_vl}\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce masked product",
+    )
+    active_vec = active_product.group("active")
+    merge = require_regex(
+        text,
+        rf"vint32m1_t (?P<merged>v[0-9]+) = "
+        rf"__riscv_vmerge_vvm_i32m1\({zero_vec}, {active_vec}, {mask}, "
+        rf"{loop_vl}\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce inactive merge",
+    )
+    merged_vec = merge.group("merged")
+    carry = require_regex(
+        text,
+        rf"int32_t (?P<carry_scalar>v[0-9]+) = {out}\[0\];\s*"
+        rf"vint32m1_t (?P<carry_vec>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\((?P=carry_scalar), 1\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce carried scalar",
+    )
+    carry_scalar = carry.group("carry_scalar")
+    carry_vector = carry.group("carry_vec")
+    reduction = require_regex(
+        text,
+        rf"vint32m1_t (?P<result>v[0-9]+) = "
+        rf"__riscv_vredsum_vs_i32m1_i32m1\({merged_vec}, {carry_vector}, "
+        rf"{loop_vl}\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce scalar reduction",
+    )
+    result_vec = reduction.group("result")
+    require_regex(
+        text,
+        rf"__riscv_vse32_v_i32m1\({out}, {result_vec}, 1\);",
+        "emitted RVV C/C++ computed-mask widening dot-reduce scalar store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "cmp_lhs_abi_parameter": cmp_lhs,
+        "cmp_rhs_abi_parameter": cmp_rhs,
+        "lhs_abi_parameter": lhs,
+        "rhs_abi_parameter": rhs,
+        "accumulator_abi_parameter": acc,
+        "out_abi_parameter": out,
+        "runtime_n_abi_parameter": runtime_n,
+        "compare_lhs_pointer": cmp_lhs_ptr,
+        "compare_rhs_pointer": cmp_rhs_ptr,
+        "lhs_pointer": lhs_ptr,
+        "rhs_pointer": rhs_ptr,
+        "compare_lhs_vector": cmp_lhs_vec,
+        "compare_rhs_vector": cmp_rhs_vec,
+        "lhs_vector": lhs_vec,
+        "rhs_vector": rhs_vec,
+        "mask_vector": mask,
+        "zero_vector": zero_vec,
+        "active_product_vector": active_vec,
+        "merged_dot_product_vector": merged_vec,
+        "seed_scalar": seed_scalar,
+        "seed_vector": seed_vector,
+        "carried_accumulator_scalar": carry_scalar,
+        "carried_accumulator_vector": carry_vector,
+        "result_vector": result_vec,
+        "compare_vector_c_type": "vint32m1_t",
+        "source_vector_c_type": "vint16mf2_t",
+        "result_vector_c_type": expectation.rvv_vector_c_type,
+        "mask_c_type": expectation.rvv_mask_c_type,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "source_element_type": "i16",
+        "source_sew": "16",
+        "source_lmul": "mf2",
+        "result_element_type": expectation.element_type,
+        "result_sew": expectation.sew,
+        "result_lmul": expectation.lmul,
+        "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+        "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+        "dot_product_relation": WIDENING_DOT_RELATION,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "compare_load_intrinsic": "__riscv_vle32_v_i32m1",
+        "dot_source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+        "zero_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "masked_widening_product_intrinsic": "__riscv_vwmul_vv_i32m1_m",
+        "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
+        "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+        "store_intrinsic": "__riscv_vse32_v_i32m1",
+        "compare_operand_order": "cmp_lhs,cmp_rhs,vl",
+        "masked_product_operand_order": "mask,lhs,rhs,vl",
+        "merge_operand_order": "zero,active_product,mask,vl",
+        "reduction_operand_order": "masked_products,current_out0,vl",
+        "seed_source": "acc[0]",
+        "loop_accumulator_source": "out[0]",
+        "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+        "inactive_lanes_zeroed_before_reduction": True,
+        "scalar_result_carried_across_chunks": True,
+    }
+
+
 def extract_plain_cmp_select_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -8351,6 +8659,7 @@ def verify_materialized_selected_body(
     reduction_accumulation_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
+    computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
     if expectation.is_widen_i32_to_i64:
         require_contains(
             text,
@@ -10253,6 +10562,56 @@ def verify_materialized_selected_body(
     if expectation.is_computed_masked_widening_dot_reduce_add:
         require_contains(
             text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR masked widening dot compare producer",
+        )
+        require_contains(
+            text,
+            f'kind = "{expectation.compare_predicate_kind}"',
+            "materialized selected-body MLIR masked widening dot predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_widening_dot_reduce",
+            "materialized selected-body MLIR masked widening dot op",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i16, "mf2">',
+            "materialized selected-body MLIR masked widening dot source vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m1">',
+            "materialized selected-body MLIR masked widening dot result vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.mask<i32, "m1">',
+            "materialized selected-body MLIR masked widening dot mask type",
+        )
+        require_contains(
+            text,
+            f'mask_role = "{COMPUTED_MASK_MEMORY_MASK_ROLE}"',
+            "materialized selected-body MLIR masked widening dot mask role",
+        )
+        require_contains(
+            text,
+            f'mask_source = "{COMPUTED_MASK_MEMORY_MASK_SOURCE}"',
+            "materialized selected-body MLIR masked widening dot mask source",
+        )
+        require_contains(
+            text,
+            f'mask_memory_form = "{COMPUTED_MASK_MEMORY_MASK_FORM}"',
+            "materialized selected-body MLIR masked widening dot mask memory form",
+        )
+        require_contains(
+            text,
+            f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
+            "materialized selected-body MLIR masked widening dot relation",
+        )
+        require_contains(
+            text,
             f'accumulator_layout = "{WIDENING_DOT_ACCUMULATOR_LAYOUT}"',
             "materialized selected-body MLIR masked widening dot accumulator layout",
         )
@@ -10261,6 +10620,37 @@ def verify_materialized_selected_body(
             f'result_layout = "{WIDENING_DOT_RESULT_LAYOUT}"',
             "materialized selected-body MLIR masked widening dot result layout",
         )
+        computed_masked_widening_dot_reduce_boundary = {
+            "typed_compute_op": "tcrv_rvv.masked_widening_dot_reduce",
+            "compare_producer": "tcrv_rvv.compare",
+            "compare_predicate_kind": expectation.compare_predicate_kind,
+            "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+            "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+            "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+            "source_vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
+            "mask_type": '!tcrv_rvv.mask<i32, "m1">',
+            "source_element_type": "i16",
+            "source_sew": "16",
+            "source_lmul": "mf2",
+            "accumulator_element_type": "i32",
+            "result_element_type": expectation.element_type,
+            "result_sew": expectation.sew,
+            "result_lmul": expectation.lmul,
+            "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+            "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+            "dot_product_relation": WIDENING_DOT_RELATION,
+            "selected_source_abi": {
+                "cmp_lhs": "lhs-input-buffer",
+                "cmp_rhs": "rhs-input-buffer",
+                "lhs": "dot-lhs-input-buffer",
+                "rhs": "dot-rhs-input-buffer",
+                "acc": "accumulator-input-buffer",
+                "out": "output-buffer",
+                "n": "runtime-element-count",
+            },
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
         require_contains(
             text,
@@ -10410,6 +10800,9 @@ def verify_materialized_selected_body(
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
+        "computed_masked_widening_dot_reduce_boundary": (
+            computed_masked_widening_dot_reduce_boundary
+        ),
     }
 
 
@@ -16256,6 +16649,37 @@ def computed_masked_macc_metadata_from_bundle(
     return metadata
 
 
+def computed_masked_widening_dot_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "computed-mask widening dot-reduce evidence requires object and "
+            "header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object computed-mask widening dot metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header computed-mask widening dot metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def runtime_avl_vl_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -17084,6 +17508,131 @@ def computed_masked_macc_boundary_summary(
     }
 
 
+def computed_masked_widening_dot_reduce_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_computed_masked_widening_dot_reduce_add:
+        return {}
+    return {
+        "source": (
+            "typed tcrv_rvv.masked_widening_dot_reduce body/config/runtime "
+            "facts -> contraction route-family plan -> math operand-binding "
+            "facts -> route-control provider plan -> direct contraction owner "
+            "-> emitted compare, masked widening product, zero merge, scalar "
+            "reduction, and scalar store"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv computed-mask widening "
+            "dot-reduce body/config/runtime facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "contraction_kind": "computed_masked_widening_dot_reduce_add",
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "inactive_lane_contract": (
+            "compare-false lanes contribute zero before horizontal reduction"
+        ),
+        "active_lane_contract": (
+            "compare-true lanes contribute signed i16*i16 widening products "
+            "to the i32 scalar seed"
+        ),
+        "source_type_policy": {
+            "element_type": "i16",
+            "element_c_type": "int16_t",
+            "sew": "16",
+            "lmul": "mf2",
+            "vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "vector_c_type": "vint16mf2_t",
+            "compare_vector_c_type": "vint32m1_t",
+            "mask_c_type": expectation.rvv_mask_c_type,
+        },
+        "accumulator_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+            "abi_role": "accumulator-input-buffer",
+            "seed_source": "acc[0]",
+            "loop_carry_source": "out[0]",
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "layout": WIDENING_DOT_RESULT_LAYOUT,
+            "abi_role": "output-buffer",
+            "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+        },
+        "dot_product_relation": WIDENING_DOT_RELATION,
+        "selected_source_abi": {
+            "cmp_lhs": "lhs-input-buffer",
+            "cmp_rhs": "rhs-input-buffer",
+            "lhs": "dot-lhs-input-buffer",
+            "rhs": "dot-rhs-input-buffer",
+            "acc": "accumulator-input-buffer",
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        },
+        "statement_plan": {
+            "family": "computed-mask widening dot-reduction contraction",
+            "pre_loop_callees": [
+                expectation.setvl_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vse32_v_i32m1",
+            ],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                "__riscv_vle32_v_i32m1",
+                "__riscv_vle32_v_i32m1",
+                expectation.compare_intrinsic,
+                "__riscv_vle16_v_i16mf2",
+                "__riscv_vle16_v_i16mf2",
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vwmul_vv_i32m1_m",
+                "__riscv_vmerge_vvm_i32m1",
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vredsum_vs_i32m1_i32m1",
+                "__riscv_vse32_v_i32m1",
+            ],
+            "compare_operand_order": "cmp_lhs,cmp_rhs,vl",
+            "masked_product_operand_order": "mask,lhs,rhs,vl",
+            "merge_operand_order": "zero,active_product,mask,vl",
+            "reduction_operand_order": "masked_products,current_out0,vl",
+            "seed_source": "acc[0]",
+            "loop_accumulator_source": "out[0]",
+            "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+        },
+        "materialized_body": materialized_checks.get(
+            "computed_masked_widening_dot_reduce_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "computed_masked_widening_dot_reduce_boundary", {}
+        ),
+        "route_metadata": computed_masked_widening_dot_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "empty_count_behavior": (
+            "runtime loop skipped after seed store; tail/non-scalar output "
+            "sentinels preserved"
+        ),
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_dot_or_mask_authority": True,
+    }
+
+
 def run_one_op_e2e(
     *,
     args: argparse.Namespace,
@@ -17272,6 +17821,18 @@ def run_one_op_e2e(
         if expectation.is_computed_masked_macc_add:
             evidence["computed_masked_macc_boundary"] = (
                 computed_masked_macc_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
+        if expectation.is_computed_masked_widening_dot_reduce_add:
+            evidence["computed_masked_widening_dot_reduce_boundary"] = (
+                computed_masked_widening_dot_reduce_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"
@@ -17757,6 +18318,9 @@ def root_op_result_summary(
         ),
         "computed_masked_macc_boundary": result.get(
             "computed_masked_macc_boundary", {}
+        ),
+        "computed_masked_widening_dot_reduce_boundary": result.get(
+            "computed_masked_widening_dot_reduce_boundary", {}
         ),
         "typed_config_artifact_closure": result.get(
             "typed_config_artifact_closure", {}

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-15.md`
-- **Total Sessions**: 235
+- **Total Sessions**: 236
 - **Last Active**: 2026-05-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-15.md` | ~1801 | Active |
+| `journal-15.md` | ~1832 | Active |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
@@ -43,6 +43,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 236 | 2026-05-26 | Stage2 RVV computed-mask widening dot-reduce boundary | - | `main` |
 | 235 | 2026-05-26 | Stage2 RVV widening dot-reduce contraction boundary | pending-final-session-commit | `main` |
 | 234 | 2026-05-26 | Stage2 RVV computed-mask MAcc accumulator mask artifact boundary | - | `main` |
 | 233 | 2026-05-26 | Stage2 RVV MAcc accumulator runtime artifact boundary | - | `main` |

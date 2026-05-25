@@ -11466,11 +11466,14 @@ module {
                   ->usesStridedInputs &&
               !computedStridedAnalysis->contractionRouteFamilyPlan
                    ->usesWideningMAcc &&
+              computedStridedAnalysis->description.comparePredicateKind ==
+                  "slt" &&
               computedStridedAnalysis->contractionRouteFamilyPlan
                       ->runtimeControlPlan.controlPlanID ==
                   tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID(),
           "computed-mask strided widening dot-reduction must carry computed "
-          "mask, strided-input, dot-reduction, and runtime control facts"))
+          "mask, strided-input, dot-reduction, predicate, and runtime control "
+          "facts"))
     return result;
 
   auto expectContractionRouteControl =
@@ -11794,8 +11797,13 @@ module {
           false, true, false, true, false))
     return result;
 
-  auto maskedDotAnalysis = analyzeContractionRouteControlSource(
-      maskedDotSource, "rvv_masked_dot_route_control_kernel",
+  mlir::OwningOpRef<mlir::ModuleOp> maskedDotModule =
+      parseModule(context, maskedDotSource);
+  if (!maskedDotModule)
+    return fail("failed to parse computed-mask widening dot route-control "
+                "module");
+  auto maskedDotAnalysis = analyzeRouteInModule(
+      *maskedDotModule, "rvv_masked_dot_route_control_kernel",
       "rvv_masked_dot");
   if (!maskedDotAnalysis)
     return fail("analyze computed-mask widening dot route-control route: " +
@@ -11803,7 +11811,12 @@ module {
   if (int result = expectContractionRouteControl(
           *maskedDotAnalysis,
           "computed-mask widening dot route-control unit test", false, true,
-          true, false, false))
+          true, false, true))
+    return result;
+  if (int result = expect(
+          maskedDotAnalysis->description.comparePredicateKind == "slt",
+          "computed-mask widening dot route description carries the "
+          "compare-produced predicate kind before route construction"))
     return result;
 
   auto computedStridedRouteControlFacts =

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global RVV-first authority, Stage 2 boundaries, and no descriptor/source-front-door/common-EmitC authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider-owned computed-mask widening dot-reduction validation, direct contraction owner consumption, selected-body realization, mirror-only artifact metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral and consume provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle artifact evidence, ssh rvv correctness claims, focused regressions, and authority scans."}

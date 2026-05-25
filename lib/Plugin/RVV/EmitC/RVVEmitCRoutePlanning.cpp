@@ -33384,6 +33384,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::
               RuntimeScalarComputedMaskStandaloneReduceAdd ||
+      isRVVSelectedBodyContractionComputedMask(
+          analysis.slice.arithmeticKind) ||
       isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
           analysis.slice.arithmeticKind)) &&
       analysis.slice.compareOp)
@@ -37884,6 +37886,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
           RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
       description.operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
+      isRVVSelectedBodyContractionComputedMask(description.operation) ||
       isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(

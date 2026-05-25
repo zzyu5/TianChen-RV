@@ -1799,3 +1799,34 @@ Closed the representative signed unit-stride widening_dot_reduce_add generated-b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 236: Stage2 RVV computed-mask widening dot-reduce boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask widening dot-reduce boundary
+**Branch**: `main`
+
+### Summary
+
+Closed computed-mask widening dot-reduce predicate/artifact/evidence boundary with ssh rvv explicit and pre-realized runs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

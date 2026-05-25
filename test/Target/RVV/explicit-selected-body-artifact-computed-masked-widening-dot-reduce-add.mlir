@@ -43,6 +43,7 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_widening_dot_reduce_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_widening_dot_reduce"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "slt"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-unit-stride-widening-dot-reduce"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_widening_dot_reduce.v1"}
@@ -62,6 +63,7 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n
+// HEADER: tianchenrv.rvv.compare_predicate_kind: slt
 // HEADER: tianchenrv.rvv.memory_form: computed-mask-unit-stride-widening-dot-reduce
 // HEADER: tianchenrv.rvv.mask_source: compare-produced-mask-same-vl-scope
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
