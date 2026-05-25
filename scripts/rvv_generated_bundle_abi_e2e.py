@@ -1813,6 +1813,11 @@ class OpExpectation:
             or self.is_strided_load_unit_store
             or self.is_standalone_reduce_add
             or self.is_scalar_broadcast_macc_add
+            or self.is_widening_macc_add
+            or self.is_widening_dot_reduce_add
+            or self.is_strided_input_widening_dot_reduce_add
+            or self.is_computed_masked_widening_dot_reduce_add
+            or self.is_computed_masked_strided_input_widening_dot_reduce_add
         )
 
     @property
@@ -16302,7 +16307,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "--direct-pre-realized-route-entry is bounded to "
                 "pre-realized cmp_select/cmp_select_sle and "
                 "strided_load_unit_store/standalone_reduce_add/"
-                "scalar_broadcast_macc_add "
+                "scalar_broadcast_macc_add/contraction "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -19192,8 +19197,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded cmp_select/"
             "cmp_select_sle, strided_load_unit_store, or "
-            "standalone_reduce_add/scalar_broadcast_macc_add fixtures before "
-            "target bundle export"
+            "standalone_reduce_add/scalar_broadcast_macc_add/contraction "
+            "fixtures before target bundle export"
         ),
     )
     parser.add_argument(

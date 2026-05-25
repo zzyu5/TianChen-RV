@@ -1145,7 +1145,7 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
 
   const llvm::StringRef routeEntryOwners[] = {
       "elementwise/compare-select", "standalone reduction", "MAcc",
-      "base memory movement"};
+      "contraction", "base memory movement"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1708,6 +1708,358 @@ module {
           reduceRoute),
       {"selected-body route-entry realization currently supports only",
        "selected body belongs to another RVV realization family"});
+}
+
+int runPreRealizedContractionRouteEntryOwnerTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteProviderPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      variantContainsPreRealizedRVVRouteEntrySelectedBody;
+  using tianchenrv::plugin::rvv::variantContainsPreRealizedRVVSelectedBody;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_pre_realized_contraction_route_entry_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_route_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_dot_reduce_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", memory_form = "unit-stride-widening-dot-reduce", op_kind = "signed_widening_dot_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_masked_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-stride-widening-dot-reduce", op_kind = "signed_masked_widening_dot_reduce_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_masked_strided_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
+      tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n, %lhs_stride, %rhs_stride {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-strided-input-widening-dot-reduce", op_kind = "signed_masked_widening_dot_reduce_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64, stride_unit = "element"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_negative_masked_strided_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
+      tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n, %lhs_stride, %rhs_stride {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-strided-input-widening-dot-reduce", op_kind = "signed_masked_widening_dot_reduce_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64, stride_unit = "element"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV pre-realized contraction route-entry "
+                "module");
+  KernelOp kernel =
+      findKernel(*module, "rvv_pre_realized_contraction_route_entry_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for pre-realized contraction route-entry test"))
+    return result;
+
+  struct ContractionRouteEntryCase {
+    llvm::StringRef variantName;
+    llvm::StringRef preRealizedOpName;
+    RVVSelectedBodyOperationKind operation;
+    bool computedMask;
+    bool stridedInput;
+    llvm::StringRef realizedComputeOpName;
+  };
+
+  const ContractionRouteEntryCase cases[] = {
+      {"rvv_pre_route_widening_dot",
+       "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body",
+       RVVSelectedBodyOperationKind::WideningDotReduceAdd, false, false,
+       "tcrv_rvv.widening_dot_reduce"},
+      {"rvv_pre_route_masked_widening_dot",
+       "tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body",
+       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd, true,
+       false, "tcrv_rvv.masked_widening_dot_reduce"},
+      {"rvv_pre_route_masked_strided_widening_dot",
+       "tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_"
+       "pre_realized_body",
+       RVVSelectedBodyOperationKind::
+           ComputedMaskStridedInputWideningDotReduceAdd,
+       true, true, "tcrv_rvv.masked_widening_dot_reduce"}};
+
+  for (const ContractionRouteEntryCase &routeCase : cases) {
+    VariantOp variant = findVariant(kernel, routeCase.variantName);
+    if (int result = expect(
+            variantContainsPreRealizedRVVSelectedBody(variant) &&
+                variantContainsPreRealizedRVVRouteEntrySelectedBody(variant),
+            llvm::Twine("pre-realized contraction @") +
+                routeCase.variantName +
+                " is route-entry eligible through the owner registry"))
+      return result;
+
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, routeCase.preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found pre-realized contraction body "
+                                        "for @") +
+                                routeCase.variantName))
+      return result;
+    auto owner = getRVVSelectedBodyRealizationOwnerForBody(
+        preRealized, "pre-realized contraction route-entry owner test");
+    if (!owner)
+      return fail(llvm::Twine("contraction owner lookup for @") +
+                  routeCase.variantName + ": " +
+                  llvm::toString(owner.takeError()));
+    if (int result = expect(
+            (*owner)->familyName == "contraction" &&
+                (*owner)->isRouteEntryConsumer &&
+                (*owner)->isRouteEntryConsumer(preRealized),
+            llvm::Twine("pre-realized contraction @") +
+                routeCase.variantName +
+                " dispatches through the contraction realization owner"))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("route-entry realizes and builds direct contraction "
+                        "route for @") +
+                routeCase.variantName))
+      return result;
+
+    if (int result = expect(
+            countNestedOps(variant, routeCase.preRealizedOpName) == 0 &&
+                countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
+                countNestedOps(variant, routeCase.realizedComputeOpName) == 1 &&
+                countNestedOps(variant, "tcrv_rvv.store") == 1,
+            llvm::Twine("route-entry contraction @") +
+                routeCase.variantName +
+                " consumes shorthand into typed setvl/with_vl/compute/store "
+                "IR"))
+      return result;
+    if (int result = expect(
+            countNestedOps(variant, "tcrv_rvv.compare") ==
+                (routeCase.computedMask ? 1U : 0U),
+            llvm::Twine("route-entry contraction @") +
+                routeCase.variantName +
+                " carries expected compare-produced mask structure"))
+      return result;
+    if (int result = expect(
+            countNestedOps(variant, "tcrv_rvv.strided_load") ==
+                (routeCase.stridedInput ? 2U : 0U),
+            llvm::Twine("route-entry contraction @") +
+                routeCase.variantName +
+                " carries expected strided payload load structure"))
+      return result;
+
+    VariantEmissionPlan emissionPlan;
+    if (int result = expectSuccess(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                emissionPlan),
+            llvm::Twine("emission plan consumes realized contraction @") +
+                routeCase.variantName))
+      return result;
+    if (int result = expect(emissionPlan.isSupported(),
+                            llvm::Twine("realized contraction @") +
+                                routeCase.variantName +
+                                " is provider-supported after realization"))
+      return result;
+
+    auto analysis = analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+        variant, kernel, capabilities, VariantEmissionRole::DirectVariant));
+    if (!analysis)
+      return fail(llvm::Twine("analyze realized contraction @") +
+                  routeCase.variantName + ": " +
+                  llvm::toString(analysis.takeError()));
+    if (int result = expect(
+            analysis->description.operation == routeCase.operation &&
+                analysis->description.contractionRouteFamilyPlanID ==
+                    "rvv-contraction-route-family-plan.v1" &&
+                analysis->contractionRouteFamilyPlan &&
+                analysis->contractionRouteFamilyPlan->usesDotReduction &&
+                analysis->contractionRouteFamilyPlan->usesComputedMask ==
+                    routeCase.computedMask &&
+                analysis->contractionRouteFamilyPlan->usesStridedInputs ==
+                    routeCase.stridedInput,
+            llvm::Twine("realized contraction @") + routeCase.variantName +
+                " carries operation, mask, stride, and contraction family "
+                "facts to route analysis"))
+      return result;
+
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        *analysis, "pre-realized contraction route-entry owner test");
+    if (!materializationFacts)
+      return fail(llvm::Twine("materialization facts for @") +
+                  routeCase.variantName + ": " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto mathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+        *analysis, "pre-realized contraction route-entry owner test");
+    if (!mathFacts)
+      return fail(llvm::Twine("math operand-binding facts for @") +
+                  routeCase.variantName + ": " +
+                  llvm::toString(mathFacts.takeError()));
+    auto directProviderPlan =
+        getRVVSelectedBodyDirectContractionRouteProviderPlan(
+            *analysis, *materializationFacts, *mathFacts,
+            "pre-realized contraction route-entry owner test");
+    if (!directProviderPlan)
+      return fail(llvm::Twine("direct contraction provider plan for @") +
+                  routeCase.variantName + ": " +
+                  llvm::toString(directProviderPlan.takeError()));
+    if (int result = expect(
+            directProviderPlan->plansDirectContractionRoute &&
+                directProviderPlan->plansDotReduction &&
+                directProviderPlan->plansComputedMask ==
+                    routeCase.computedMask &&
+                directProviderPlan->plansStridedInput ==
+                    routeCase.stridedInput &&
+                directProviderPlan->contractionComputeLeaf ==
+                    materializationFacts->contractionComputeLeaf,
+            llvm::Twine("pre-realized contraction @") +
+                routeCase.variantName +
+                " reaches the direct contraction provider plan before "
+                "statement construction"))
+      return result;
+  }
+
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *contractionOwner = nullptr;
+  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
+       getRVVSelectedBodyRealizationOwners())
+    if (owner.familyName == "contraction")
+      contractionOwner = &owner;
+  if (int result =
+          expect(contractionOwner != nullptr &&
+                     contractionOwner->realize != nullptr &&
+                     contractionOwner->isRouteEntryConsumer != nullptr,
+                 "found route-entry-capable contraction realization owner"))
+    return result;
+
+  VariantOp negativeVariant =
+      findVariant(kernel, "rvv_pre_route_negative_masked_strided_widening_dot");
+  mlir::Operation *negativeBody = findFirstNestedOp(
+      negativeVariant,
+      "tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_"
+      "pre_realized_body");
+  if (int result =
+          expect(negativeBody != nullptr,
+                 "found computed-mask strided contraction body for "
+                 "owner-local fail-closed tests"))
+    return result;
+
+  mlir::Builder attrBuilder(module->getContext());
+  auto expectContractionOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        contractionOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativeVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            negativeBody);
+    if (invalid)
+      return fail("contraction owner accepted invalid typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativeBody->setAttr("mask_source",
+                        attrBuilder.getStringAttr("metadata-mask-source"));
+  if (int result = expectContractionOwnerError(
+          {"computed-mask strided-input widening dot-product reduction body "
+           "requires mask_source",
+           "compare-produced-mask-same-vl-scope"}))
+    return result;
+  negativeBody->setAttr(
+      "mask_source",
+      attrBuilder.getStringAttr("compare-produced-mask-same-vl-scope"));
+
+  negativeBody->setAttr("source_lmul", attrBuilder.getStringAttr("m1"));
+  if (int result = expectContractionOwnerError(
+          {"computed-mask strided-input widening dot-product reduction "
+           "config/relation must match op_kind",
+           "dot source SEW16 LMUL mf2"}))
+    return result;
+  negativeBody->setAttr("source_lmul", attrBuilder.getStringAttr("mf2"));
+
+  negativeBody->setAttr("result_layout",
+                        attrBuilder.getStringAttr("metadata-result-layout"));
+  if (int result = expectContractionOwnerError(
+          {"computed-mask strided-input widening dot-product reduction body "
+           "currently supports only result_layout",
+           "store-dot-reduction-lane0-to-output-scalar"}))
+    return result;
+  negativeBody->setAttr(
+      "result_layout",
+      attrBuilder.getStringAttr("store-dot-reduction-lane0-to-output-scalar"));
+
+  negativeBody->setAttr("op_kind",
+                        attrBuilder.getStringAttr("unsupported_contraction"));
+  if (int result = expectContractionOwnerError(
+          {"computed-mask strided-input widening dot-product reduction body "
+           "currently supports only op_kind",
+           "signed_masked_widening_dot_reduce_add"}))
+    return result;
+  negativeBody->setAttr(
+      "op_kind",
+      attrBuilder.getStringAttr("signed_masked_widening_dot_reduce_add"));
+
+  auto body = llvm::cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
+      negativeBody);
+  mlir::Operation *nOp = body.getN().getDefiningOp();
+  mlir::Attribute originalNRole = nOp->getAttr("role");
+  nOp->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectContractionOwnerError(
+          {"runtime n/AVL operand must bind runtime ABI role "
+           "'runtime-element-count'"}))
+    return result;
+  nOp->setAttr("role", originalNRole);
+
+  mlir::Operation *rhsStrideOp = body.getRhsStride().getDefiningOp();
+  mlir::Attribute originalRhsStrideRole = rhsStrideOp->getAttr("role");
+  rhsStrideOp->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectContractionOwnerError(
+          {"rhs stride operand must bind runtime ABI role "
+           "'rhs-input-stride'"}))
+    return result;
+  rhsStrideOp->setAttr("role", originalRhsStrideRole);
+
+  return 0;
 }
 
 int runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(
@@ -15845,6 +16197,9 @@ int main() {
     return result;
   if (int result =
           runPreRealizedSelectedBodyProductionRoutePathTest(context))
+    return result;
+  if (int result =
+          runPreRealizedContractionRouteEntryOwnerTest(context))
     return result;
   if (int result =
           runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(context))

@@ -57,6 +57,62 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 239: Stage2 RVV selected-body contraction realization owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV selected-body contraction realization owner
+**Branch**: `main`
+
+### Summary
+
+Made the RVV selected-body `contraction` realization owner route-entry-capable
+so pre-realized widening-dot contraction bodies can enter production emission
+planning/route construction directly, be materialized into typed low-level
+`tcrv_rvv` structure, and then feed the consolidated direct contraction
+provider plan.
+
+### Main Changes
+
+- Marked the `contraction` selected-body realization owner as route-entry
+  eligible through its structural pre-realized contraction predicate.
+- Updated route-entry diagnostics and RVV plugin spec wording to include
+  contraction as a supported route-entry selected-body family.
+- Added C++ coverage for direct route-entry realization of
+  `widening_dot_reduce_add`, `computed_masked_widening_dot_reduce_add`, and
+  `computed_masked_strided_input_widening_dot_reduce_add`.
+- Added fail-closed owner-local checks for mask-source mismatch, stale
+  dtype/relation, result layout mismatch, unsupported op kind, wrong runtime
+  `n` role, and wrong rhs-stride ABI role.
+- Updated generated-bundle evidence tooling so
+  `--direct-pre-realized-route-entry` can exercise contraction fixtures.
+
+### Testing
+
+- [OK] Task validation.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit for explicit/pre-realized widening-dot contraction target
+  artifacts: 6/6.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`.
+- [OK] Direct pre-realized route-entry generated-bundle dry-run for plain,
+  computed-mask, and computed-mask strided widening-dot contraction counts
+  `0,7,16,23`.
+- [OK] Added-line authority scan found no new legacy-i32, source-front-door,
+  descriptor, route-id, ABI-string, artifact-name, common-EmitC, metadata-only,
+  or status-only route authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 381/381 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 238: Stage2 RVV contraction route-family production owner consolidation
 
 **Date**: 2026-05-26

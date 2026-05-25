@@ -504,6 +504,10 @@ The route-entry bridge may support bounded family groups such as:
 - standalone reduction pre-realized bodies whose realized structure already
   feeds RVV-owned standalone-reduction family plans, materialization facts,
   math operand-binding facts, and migrated statement plans.
+- contraction pre-realized bodies whose realized structure already feeds
+  RVV-owned contraction family plans, materialization facts, math
+  operand-binding facts, direct contraction provider plans, and direct
+  contraction owner statement plans.
 
 Unlisted pre-realized families must fail closed at the route-entry bridge
 unless their owning route-entry support is explicitly added with matching
@@ -566,10 +570,10 @@ structure.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: selected RVV variant -> pre-realized compare/select, base-memory, or
-  standalone-reduction body -> route-entry realization bridge -> realized
-  `tcrv_rvv` body -> RVV-owned facts/statement plan -> provider-built route ->
-  common EmitC.
+- Good: selected RVV variant -> pre-realized compare/select, base-memory,
+  standalone-reduction, or contraction body -> route-entry realization bridge
+  -> realized `tcrv_rvv` body -> RVV-owned facts/statement plan ->
+  provider-built route -> common EmitC.
 - Base: explicit already-realized selected body -> route-entry helper returns
   the unique `with_vl` boundary and preserves existing route behavior.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
@@ -582,8 +586,8 @@ structure.
 
 - C++ tests showing production emission/provider route entries realize at
   least one compare/select pre-realized body, one base-memory pre-realized
-  body, and one standalone-reduction pre-realized body before route facts are
-  collected.
+  body, one standalone-reduction pre-realized body, and one contraction
+  pre-realized body before route facts are collected.
 - C++ fail-closed coverage for an unsupported route-entry family or incomplete
   realization dependency.
 - Representative lit/FileCheck coverage proving direct pre-realized route

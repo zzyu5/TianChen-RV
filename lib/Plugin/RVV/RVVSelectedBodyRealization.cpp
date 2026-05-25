@@ -1067,7 +1067,8 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp, nullptr,
        realizePreRealizedRVVComputedMaskMAccOwner},
-      {"contraction", isPreRealizedRVVContractionOwnerOp, nullptr,
+      {"contraction", isPreRealizedRVVContractionOwnerOp,
+       isPreRealizedRVVContractionOwnerOp,
        realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
        nullptr, realizePreRealizedRVVWideningConversionOwner},
@@ -7641,8 +7642,9 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise/compare-select, base memory movement, "
-        "standalone reduction, or scalar-broadcast macc tcrv_rvv bodies; "
-        "selected body belongs to another RVV realization family");
+        "standalone reduction, scalar-broadcast macc, or contraction "
+        "tcrv_rvv bodies; selected body belongs to another RVV realization "
+        "family");
 
   return (*owner)->realize(request, *bodyOp);
 }
