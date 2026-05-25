@@ -2825,8 +2825,8 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-widening-dot-reduce-add-emitc-route",
         typed_compute_op="tcrv_rvv.widening_dot_reduce",
         memory_form="vector-rhs-load",
-        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 53) + 2) : ((int)(index % 53) + 5))",
-        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 37) + 3) : ((int)(index % 37) + 7))",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
         source_initializer="(int32_t)17",
         expected_expression="(int32_t)(acc[0] + sum_i((int32_t)lhs[i] * (int32_t)rhs[i]))",
         out_initializer=OUT_SENTINEL,
@@ -3853,8 +3853,8 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-widening-dot-reduce-add-emitc-route",
         typed_compute_op="tcrv_rvv.widening_dot_reduce",
         memory_form="vector-rhs-load",
-        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 53) + 2) : ((int)(index % 53) + 5))",
-        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 37) + 3) : ((int)(index % 37) + 7))",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
         source_initializer="(int32_t)17",
         expected_expression="(int32_t)(acc[0] + sum_i((int32_t)lhs[i] * (int32_t)rhs[i]))",
         out_initializer=OUT_SENTINEL,
@@ -14772,14 +14772,22 @@ static int run_case(size_t n) {{
   {expectation.function_name}(lhs, rhs, acc, out, n);
 
   int32_t expected = acc[0];
+  int32_t add_only_expected = acc[0];
+  int32_t no_seed_expected = 0;
   size_t positive_products = 0;
   size_t negative_products = 0;
+  size_t widening_products = 0;
   for (size_t index = 0; index < n; ++index) {{
     int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+    add_only_expected = (int32_t)(add_only_expected + (int32_t)lhs[index] +
+                                  (int32_t)rhs[index]);
+    no_seed_expected = (int32_t)(no_seed_expected + product);
     if (product > 0)
       ++positive_products;
     if (product < 0)
       ++negative_products;
+    if (product > 32767 || product < -32768)
+      ++widening_products;
     expected = (int32_t)(expected + product);
   }}
 
@@ -14807,11 +14815,16 @@ static int run_case(size_t n) {{
     }}
   }}
 
+  size_t add_only_distinguishing = expected != add_only_expected;
+  size_t mul_only_distinguishing = expected != no_seed_expected;
   if (n > 3 && (positive_products == 0 || negative_products == 0 ||
-                acc[0] == 0)) {{
+                widening_products == 0 || acc[0] == 0 ||
+                add_only_distinguishing == 0 ||
+                mul_only_distinguishing == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu seed=%d\\n",
-            n, positive_products, negative_products, acc[0]);
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu widening_products=%zu seed=%d add_only_distinguishing=%zu mul_only_distinguishing=%zu\\n",
+            n, positive_products, negative_products, widening_products, acc[0],
+            add_only_distinguishing, mul_only_distinguishing);
     free(lhs);
     free(rhs);
     free(acc);
@@ -14823,7 +14836,8 @@ static int run_case(size_t n) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok signed_horizontal_dot seed_added scalar_output tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu ok signed_horizontal_dot seed_added scalar_output tail_preserved widening_products=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu\\n",
+         n, widening_products, add_only_distinguishing, mul_only_distinguishing);
   return 0;
 }}
 
@@ -17593,6 +17607,21 @@ def run_one_op_e2e(
                 "only out[0] is written and non-scalar output slots preserve "
                 "sentinels"
             )
+        if expectation.is_widening_dot_reduce_add:
+            evidence["harness"]["dot_reduction_contract"] = (
+                "signed i16*i16 widening products contribute to the i32 scalar "
+                "seed through a horizontal dot-reduction"
+            )
+            evidence["harness"]["dot_distinguishing_contract"] = (
+                "multi-lane cases include mixed-sign products and products "
+                "outside int16 range so the oracle distinguishes true widening "
+                "dot-reduce from add-only, mul-only/no-seed, non-widening, and "
+                "wrong sign-extension behavior"
+            )
+            evidence["harness"]["scalar_result_contract"] = (
+                "only out[0] is written and tail/non-scalar output slots "
+                "preserve sentinels"
+            )
         if expectation.is_computed_masked_widening_dot_reduce_add:
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane computed_masked_widening_dot_reduce_add cases "
@@ -18268,6 +18297,18 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost standalone reduction "
                     "seed, kind, or scalar-tail coverage"
+                )
+            if expectation.is_widening_dot_reduce_add and (
+                "signed_horizontal_dot" not in harness
+                or "widening_products" not in harness
+                or "add_only_distinguishing" not in harness
+                or "mul_only_distinguishing" not in harness
+                or "out[0] != expected" not in harness
+                or "touched non-scalar/tail sentinel" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost widening dot-reduce "
+                    "signed widening, scalar-result, or distinguishing coverage"
                 )
 
         expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]

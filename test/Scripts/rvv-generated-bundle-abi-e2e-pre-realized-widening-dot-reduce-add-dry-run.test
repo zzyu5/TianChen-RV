@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-dot-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=WDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c
@@ -63,6 +63,9 @@
 # WDOT-DAG: "value": "__riscv_vwmul_vv_i32m1"
 # WDOT-DAG: "key": "tcrv_rvv.widening_dot_reduction_store_vl"
 # WDOT-DAG: "value": "1"
+# WDOT-DAG: "dot_reduction_contract":
+# WDOT-DAG: "dot_distinguishing_contract":
+# WDOT-DAG: "scalar_result_contract": "only out[0] is written
 # WDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
 # WDOT-DAG: "memory_form": "vector-rhs-load"
 # WDOT-DAG: "lmul": "m1"
@@ -74,7 +77,12 @@
 # HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
 # HARNESS: tcrv_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = acc[0];
+# HARNESS: int32_t add_only_expected = acc[0];
+# HARNESS: int32_t no_seed_expected = 0;
 # HARNESS: expected = (int32_t)(expected + product);
+# HARNESS: widening_products
+# HARNESS: add_only_distinguishing
+# HARNESS: mul_only_distinguishing
 # HARNESS: signed_horizontal_dot seed_added scalar_output tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=7,16,23
-# HARNESS: PASS op=widening_dot_reduce_add counts=7,16,23
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,7,16,23
+# HARNESS: PASS op=widening_dot_reduce_add counts=0,7,16,23

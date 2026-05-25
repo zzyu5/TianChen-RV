@@ -1760,3 +1760,42 @@ Closed computed_masked_macc_add generated-bundle evidence with provider-owned ma
 ### Next Steps
 
 - None - task complete
+
+
+## Session 235: Stage2 RVV widening dot-reduce contraction boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV widening dot-reduce contraction boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the representative signed unit-stride widening_dot_reduce_add generated-bundle contraction boundary with stronger signed widening dot-reduce oracle coverage, explicit/pre-realized dry-run evidence, ssh rvv correctness over counts 0,7,16,23, focused regressions, authority scan, and check-tianchenrv 380/380.
+
+### Main Changes
+
+- Strengthened `widening_dot_reduce_add` generated-bundle harness inputs so multi-lane cases include mixed-sign i16 operands and products outside i16 range.
+- Added oracle checks distinguishing true signed widening dot-reduce with accumulator seed from add-only, mul-only/no-seed, non-widening, wrong sign-extension, vector-store, and sentinel-clobbering behavior.
+- Extended explicit and pre-realized dry-run script tests to include runtime count `0` and to check dot-reduction, distinguishing, scalar `out[0]`, and sentinel-preservation evidence.
+- Confirmed existing C++ provider code already owns the contraction boundary through typed body/config/runtime facts, route-family plan validation, route-control provider plan, math operand-binding facts, direct contraction owner statement planning, and provider-built route attachment.
+- Spec-update judgment: no `.trellis/spec/**` edit was needed; this round did not add a new durable contract beyond the existing RVV plugin / EmitC route / testing specs.
+- Checks: `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`; `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`; focused lit from `build/test` filtered to widening-dot-reduce dry-run tests, 7/7 passed; `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2 && ./build/bin/tianchenrv-rvv-extension-plugin-test`; explicit and pre-realized dry-runs for `widening_dot_reduce_add`; explicit and pre-realized `ssh rvv` generated-bundle runs for counts `0,7,16,23`, both PASS; dry-run non-regression for `widen_i32_to_i64`, `macc_add`, and `computed_masked_macc_add`; `git diff --check`; bounded authority scan; `cmake --build build --target check-tianchenrv -j2` passed 380/380.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
