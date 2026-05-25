@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"Verify global RVV-first and stack constraints remain intact."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify computed-mask memory owner, migrated statement-plan, route-control, runtime ABI, artifact mirror, and fail-closed rules are respected."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Verify common EmitC remains neutral and consumes provider-built route output only."}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Verify route authority remains plugin-local and not common/core metadata-derived."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Verify selected-body realization and route-provider sequencing remain typed-body driven."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Verify executable claims are backed by ssh rvv evidence and focused checks."}
+{"file":".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-computed-mask-memory-statement-plan-ownership/prd.md","reason":"Verify predecessor computed-mask memory statement-plan behavior is not regressed."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-provider-family-owner-registry/prd.md","reason":"Verify migrated statement-plan owner registry behavior is not regressed."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-direct-contraction-executable-artifact-closure/prd.md","reason":"Verify generated-bundle executable closure pattern and final evidence discipline."}

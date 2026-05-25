@@ -1399,3 +1399,66 @@ Closed executable evidence for computed_masked_strided_input_widening_dot_reduce
 ### Next Steps
 
 - None - task complete
+
+
+## Session 229: Stage2 RVV computed-mask memory executable artifact closure
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask memory executable artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed executable evidence for computed_masked_indexed_scatter_store_unit_load: pre-realized selected-body generated bundle compiled and ran on ssh rvv for counts 1,7,17,33,257 with active/inactive lane, noncontiguous indexed scatter, source preservation, and tail preservation checks. Direct-contraction non-regression dry-run, authority scans, task validation, git diff --check, and check-tianchenrv passed. No production code change was needed because current HEAD already satisfied the runtime/artifact boundary.
+
+### Main Changes
+
+- Created and archived the Trellis task for the executable artifact closure.
+- Confirmed no production compiler/script repair was needed: current HEAD
+  already carried `computed_masked_indexed_scatter_store_unit_load` through
+  pre-realized selected-body realization, computed-mask memory statement-plan
+  ownership, migrated route-provider owner selection,
+  `TCRVEmitCLowerableRoute`, common EmitC materialization, target bundle export,
+  and external ABI harness generation.
+- Captured executable `ssh rvv` evidence for
+  `computed_masked_indexed_scatter_store_unit_load` using the pre-realized
+  selected-body fixture and runtime counts `1,7,17,33,257`.
+- Verified direct-contraction non-regression with a dry-run
+  `computed_masked_strided_input_widening_dot_reduce_add` generated-bundle
+  path.
+- Recorded that no `.trellis/spec/**` update was needed because this round
+  discovered no new durable contract; it closed evidence for existing
+  computed-mask memory ownership and generated-bundle evidence contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-26-stage2-rvv-computed-mask-memory-executable-artifact-closure`
+- [OK] Chosen route dry-run generated bundle under
+  `artifacts/tmp/stage2_rvv_computed_mask_memory_executable_artifact_closure/pre-realized-computed-mask-indexed-scatter-dry`
+- [OK] Chosen route non-dry-run `ssh rvv` generated-bundle execution:
+  `PASS op=computed_masked_indexed_scatter_store_unit_load counts=1,7,17,33,257`
+- [OK] Remote execution reported active/inactive lane coverage,
+  noncontiguous indexed scatter coverage, source preservation, and tail
+  preservation for counts `1,7,17,33,257`.
+- [OK] Direct-contraction non-regression dry-run under
+  `artifacts/tmp/stage2_rvv_computed_mask_memory_executable_artifact_closure/direct-contraction-nonregression-dry`
+- [OK] Bounded current-path authority scan found only existing
+  provider-derived intrinsic mirrors, descriptor/source-front-door negative
+  checks, and legacy fail-closed fixtures; no production files changed in this
+  task.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

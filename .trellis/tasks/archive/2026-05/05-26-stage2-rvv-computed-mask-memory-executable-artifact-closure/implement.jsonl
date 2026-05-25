@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"Global stack boundary, RVV-first authority chain, Stage1/Stage2 constraints, and runtime evidence rule."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Computed-mask memory statement-plan boundary, migrated statement-plan owner registry, selected-body realization, runtime AVL/VL, ABI/mem_window, mirror metadata, and fail-closed diagnostic contracts."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute handoff contract."}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Plugin-local route-provider ownership and core/common locality boundary."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Selected typed RVV body, selected-body realization, route-provider, and metadata-mirror constraints."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Generated-bundle evidence, ssh rvv correctness evidence, and memory-writing guard/tail preservation requirements."}
+{"file":".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-computed-mask-memory-statement-plan-ownership/prd.md","reason":"Predecessor computed-mask memory statement-plan ownership completion and dry-run-only continuation point."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-provider-family-owner-registry/prd.md","reason":"Migrated statement-plan owner registry that includes computed-mask memory."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-direct-contraction-executable-artifact-closure/prd.md","reason":"Latest executable artifact closure pattern for generated bundle, ssh rvv evidence, authority scan, and no-unnecessary-repair discipline."}
