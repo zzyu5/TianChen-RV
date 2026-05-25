@@ -1,17 +1,18 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-standalone-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="--tcrv-materialize-selected-lowering-boundaries" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
 
-# ROOT: "input_mode": "pre-realized-selected-body"
-# ROOT: "standalone_reduce_add"
-# ROOT: "pre_realized_selected_body": true
-# ROOT: "ssh_evidence": false
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "pre_realized_route_entry_mode": "direct"
+# ROOT-DAG: "standalone_reduce_add"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
 
 # REDUCE-DAG: "input_mode": "pre-realized-selected-body"
@@ -21,8 +22,8 @@
 # REDUCE-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1"
 # REDUCE-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_add"
 # REDUCE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# REDUCE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
-# REDUCE-DAG: --tcrv-materialize-selected-lowering-boundaries
+# REDUCE-DAG: "materializer": "rvv-route-entry-selected-body-realization"
+# REDUCE-DAG: "route_entry_realization": true
 # REDUCE-DAG: "pre_realized_body_consumed": true
 # REDUCE-DAG: "key": "rvv_emitc_lowerable_route"
 # REDUCE-DAG: "value": "rvv-generic-standalone-reduce-add-emitc-route"
@@ -60,6 +61,23 @@
 # REDUCE-DAG: "reduction_store_vl": "1"
 # REDUCE-DAG: "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
 # REDUCE-DAG: "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1"
+# REDUCE-DAG: "statement_plan": {
+# REDUCE-DAG: "family": "standalone reduction"
+# REDUCE-DAG: "pre_loop_callees": [
+# REDUCE-DAG: "__riscv_vsetvl_e32m1"
+# REDUCE-DAG: "__riscv_vmv_v_x_i32m1"
+# REDUCE-DAG: "__riscv_vse32_v_i32m1"
+# REDUCE-DAG: "loop_callees": [
+# REDUCE-DAG: "__riscv_vsetvl_e32m1"
+# REDUCE-DAG: "__riscv_vle32_v_i32m1"
+# REDUCE-DAG: "__riscv_vmv_v_x_i32m1"
+# REDUCE-DAG: "__riscv_vredsum_vs_i32m1_i32m1"
+# REDUCE-DAG: "__riscv_vse32_v_i32m1"
+# REDUCE-DAG: "seed_source": "acc[0]"
+# REDUCE-DAG: "loop_accumulator_source": "out[0]"
+# REDUCE-DAG: "reduction_operand_order": "source,accumulator,vl"
+# REDUCE-DAG: "store_pointer": "out"
+# REDUCE-DAG: "store_vl": "1"
 # REDUCE-DAG: "seed_store_initializes_empty_count_result": true
 # REDUCE-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # REDUCE-DAG: "status": "dry_run_success"

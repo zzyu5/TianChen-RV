@@ -365,6 +365,9 @@ The route-entry bridge may support bounded family groups such as:
 - base memory movement pre-realized bodies whose realized structure already
   feeds RVV-owned base-memory materialization facts, memory operand-binding
   facts, and statement plans.
+- standalone reduction pre-realized bodies whose realized structure already
+  feeds RVV-owned standalone-reduction family plans, materialization facts,
+  math operand-binding facts, and migrated statement plans.
 
 Unlisted pre-realized families must fail closed at the route-entry bridge
 unless their owning route-entry support is explicitly added with matching
@@ -427,9 +430,10 @@ structure.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: selected RVV variant -> pre-realized compare/select or base-memory
-  body -> route-entry realization bridge -> realized `tcrv_rvv` body ->
-  RVV-owned facts/statement plan -> provider-built route -> common EmitC.
+- Good: selected RVV variant -> pre-realized compare/select, base-memory, or
+  standalone-reduction body -> route-entry realization bridge -> realized
+  `tcrv_rvv` body -> RVV-owned facts/statement plan -> provider-built route ->
+  common EmitC.
 - Base: explicit already-realized selected body -> route-entry helper returns
   the unique `with_vl` boundary and preserves existing route behavior.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
@@ -441,8 +445,9 @@ structure.
 ### 6. Tests Required
 
 - C++ tests showing production emission/provider route entries realize at
-  least one compare/select pre-realized body and one base-memory pre-realized
-  body before route facts are collected.
+  least one compare/select pre-realized body, one base-memory pre-realized
+  body, and one standalone-reduction pre-realized body before route facts are
+  collected.
 - C++ fail-closed coverage for an unsupported route-entry family or incomplete
   realization dependency.
 - Representative lit/FileCheck coverage proving direct pre-realized route

@@ -38,6 +38,7 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 ### Next Steps
 
 - None - task complete
+*** End of File
 
 
 ## Session 212: Stage2 RVV route-family module boundary closure
@@ -307,6 +308,64 @@ Pending final session commit in this turn.
   `scalar_broadcast_macc_add`, counts `7,16,23`, rhs scalars `-37,91`.
 - [OK] `cmake --build build --target check-tianchenrv -j2`:
   378/378 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 213: Stage2 RVV standalone reduction route-family boundary reuse
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV standalone reduction route-family boundary reuse
+**Branch**: `main`
+
+### Summary
+
+Closed direct pre-realized route-entry reuse for the existing executable
+`standalone_reduce_add` route family. The production route-entry bridge now
+realizes the pre-realized standalone reduction body before route facts are
+collected, then the existing standalone reduction family plan, math operand
+binding facts, migrated statement plan, provider route, common EmitC, target
+mirrors, and generated-bundle evidence carry the route.
+
+### Main Changes
+
+- Added standalone reduction to the RVV route-entry selected-body realization
+  allowlist, gated on structural standalone-reduction op kind and memory form.
+- Added a C++ production route-path case proving direct route-entry realization
+  reaches `rvv-standalone-reduction-route-family-plan.v1`, while ordinary
+  pre-realized `reduce` remains fail-closed.
+- Enabled direct pre-realized generated-bundle evidence for
+  `standalone_reduce_add` and exposed the standalone reduction statement-plan
+  family, pre-loop callees, loop callees, seed source, operand order, store
+  pointer, and reduction store VL.
+- Updated the RVV plugin spec so standalone reduction is a listed route-entry
+  realization family only with matching RVV-owned family facts, operand
+  binding, migrated statement plan, and tests.
+
+### Git Commits
+
+Pending final session commit in this turn.
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] Direct pre-realized generated-bundle dry-run for
+  `standalone_reduce_add`, counts `7,16,23`
+- [OK] Focused lit/FileCheck:
+  `rvv-generated-bundle-abi-e2e-pre-realized-standalone-reduce-add-dry-run`
+- [OK] `ssh rvv` generated-bundle ABI/e2e for
+  `standalone_reduce_add`, counts `7,16,23`, seeds `-11,17`
+- [OK] Bounded authority scans over touched source/test paths and generated
+  evidence/harnesses
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed
 
 ### Status
 

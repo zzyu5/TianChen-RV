@@ -796,9 +796,19 @@ bool isPreRealizedRVVScalarBroadcastMAccRouteEntryOp(mlir::Operation *op) {
          isPreRealizedScalarBroadcastMAccMemoryForm(body.getMemoryForm());
 }
 
+bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
+  auto body =
+      llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(op);
+  if (!body)
+    return false;
+  return isPreRealizedStandaloneReduceOpKind(body.getOpKind()) &&
+         isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm());
+}
+
 bool isPreRealizedRVVRouteEntrySelectedBodyOp(mlir::Operation *op) {
   return isPreRealizedRVVElementwiseCompareSelectClusterOp(op) ||
          isPreRealizedRVVBaseMemoryMovementRouteEntryOp(op) ||
+         isPreRealizedRVVStandaloneReductionRouteEntryOp(op) ||
          isPreRealizedRVVScalarBroadcastMAccRouteEntryOp(op);
 }
 
@@ -6841,9 +6851,9 @@ realizePreRealizedRVVRouteEntrySelectedBody(
   if (!isPreRealizedRVVRouteEntrySelectedBodyOp(*bodyOp))
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
-        "pre-realized elementwise/compare-select, base memory movement, or "
-        "scalar-broadcast macc tcrv_rvv bodies; selected body belongs to "
-        "another RVV realization family");
+        "pre-realized elementwise/compare-select, base memory movement, "
+        "standalone reduction, or scalar-broadcast macc tcrv_rvv bodies; "
+        "selected body belongs to another RVV realization family");
 
   return realizePreRealizedRVVSelectedBody(request);
 }

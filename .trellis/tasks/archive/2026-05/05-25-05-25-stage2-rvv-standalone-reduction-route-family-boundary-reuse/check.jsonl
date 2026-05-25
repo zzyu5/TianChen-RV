@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final behavior against global authority, Stage 2 RVV, and no legacy i32/source-front-door drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-family provider ownership, standalone reduction statement planning, mirrors, dispatch/fallback, and artifact evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral consumer of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck, generated-bundle, ssh rvv, and authority-scan evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-family-boundary/prd.md", "reason": "Compare final standalone reduction boundary reuse against the previous scalar_broadcast_macc_add closure pattern."}

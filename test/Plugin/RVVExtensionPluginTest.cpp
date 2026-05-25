@@ -1129,6 +1129,13 @@ module {
       %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
       tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_standalone_reduce_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_standalone_reduce_pre_realized_body %lhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "unit-stride-standalone-reduction", op_kind = "standalone_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-standalone-reduction-lane0-to-output-scalar", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1259,6 +1266,8 @@ module {
                 routeDescription->plainCompareSelectRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->baseMemoryMovementRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->standaloneReductionRouteFamilyPlanID ==
                     expectedProviderPlanID,
             llvm::Twine("realized @") + variantName +
                 " reaches the expected provider plan"))
@@ -1294,6 +1303,12 @@ module {
           "rvv_pre_route_strided_load_unit_store",
           "tcrv_rvv.typed_strided_memory_pre_realized_body",
           "rvv-base-memory-movement-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_standalone_reduce_add",
+          "tcrv_rvv.typed_standalone_reduce_pre_realized_body",
+          "rvv-standalone-reduction-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
 

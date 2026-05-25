@@ -1797,6 +1797,7 @@ class OpExpectation:
         return self.is_pre_realized and (
             self.is_cmp_select
             or self.is_strided_load_unit_store
+            or self.is_standalone_reduce_add
             or self.is_scalar_broadcast_macc_add
         )
 
@@ -15421,7 +15422,8 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
                 "pre-realized cmp_select/cmp_select_sle and "
-                "strided_load_unit_store/scalar_broadcast_macc_add "
+                "strided_load_unit_store/standalone_reduce_add/"
+                "scalar_broadcast_macc_add "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -15937,6 +15939,26 @@ def reduction_accumulation_boundary_summary(
             "acc": "accumulator-input-buffer",
             "out": "output-buffer",
             "n": "runtime-element-count",
+        },
+        "statement_plan": {
+            "family": "standalone reduction",
+            "pre_loop_callees": [
+                expectation.setvl_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                expectation.unit_store_intrinsic,
+            ],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.unit_load_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vredsum_vs_i32m1_i32m1",
+                expectation.unit_store_intrinsic,
+            ],
+            "seed_source": "acc[0]",
+            "loop_accumulator_source": "out[0]",
+            "reduction_operand_order": "source,accumulator,vl",
+            "store_pointer": "out",
+            "store_vl": STANDALONE_REDUCE_STORE_VL,
         },
         "materialized_body": materialized_checks.get(
             "reduction_accumulation_boundary", {}
@@ -17548,7 +17570,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded cmp_select/"
             "cmp_select_sle, strided_load_unit_store, or "
-            "scalar_broadcast_macc_add fixtures before target bundle export"
+            "standalone_reduce_add/scalar_broadcast_macc_add fixtures before "
+            "target bundle export"
         ),
     )
     parser.add_argument(
