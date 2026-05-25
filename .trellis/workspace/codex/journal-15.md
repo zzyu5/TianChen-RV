@@ -19,7 +19,16 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 
 ### Main Changes
 
-(Add details)
+- Added ordinary Add/Sub/Mul elementwise arithmetic as a route-control
+  provider-plan consumer for the existing vector-RHS-load path.
+- Required the elementwise arithmetic statement-plan builder to consume the
+  shared route-control provider plan before building setvl/load/binary/store
+  steps for ordinary elementwise routes.
+- Added focused C++ positive and fail-closed coverage for typed config,
+  selected capability, runtime AVL/VL, policy, same-analysis materialization,
+  and operand-binding ownership.
+- Updated the RVV plugin spec with the ordinary elementwise route-control
+  consumer contract.
 
 ### Git Commits
 
@@ -29,7 +38,15 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-05-25-stage2-rvv-elementwise-route-control-plan`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit/FileCheck for explicit/pre-realized/generic ordinary
+  elementwise artifacts: 7/7 passed.
+- [OK] Bounded changed-line authority scan found no new legacy/source-front-door
+  or mirror-only authority additions.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
 
 ### Status
 
@@ -524,6 +541,39 @@ Closed a production C++ base-memory provider-plan boundary that joins verified f
 ### Summary
 
 Integrated scalar_broadcast_macc_add with the shared RVV route-control provider-plan boundary before scalar MAcc statement planning, added focused C++ positive/fail-closed coverage, updated the RVV plugin spec, and verified focused plus full check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 215: Stage2 RVV elementwise arithmetic route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV elementwise arithmetic route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated ordinary Add/Sub/Mul elementwise arithmetic with the shared RVV route-control provider-plan boundary before statement construction, added focused fail-closed C++ coverage, updated the RVV plugin spec, and verified focused plus full check-tianchenrv.
 
 ### Main Changes
 

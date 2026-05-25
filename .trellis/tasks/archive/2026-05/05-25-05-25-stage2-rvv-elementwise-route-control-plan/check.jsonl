@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final diff against global RVV-first authority and no legacy/source-front-door/descriptor authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-control owner, elementwise statement-plan, typed config, AVL/VL, policy, family-provider, and mirror-only contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and only consumes provider-built route payloads."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit/runtime evidence expectations."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/config/policy fact authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review RVV plugin locality and absence of common/core semantic drift."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute boundary and descriptor/source-front-door exclusion."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-runtime-vl-policy-provider-plan/prd.md", "reason": "Regression reference for route-control provider-plan behavior and diagnostics."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-scalar-macc-route-control-provider-plan/prd.md", "reason": "Regression reference for scalar-broadcast MAcc route-control adoption pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-elementwise-arithmetic-route-family-ownership/prd.md", "reason": "Regression reference for elementwise family-plan behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-elementwise-arithmetic-statement-plan-ownership/prd.md", "reason": "Regression reference for elementwise statement-plan and provider consumption."}

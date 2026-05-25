@@ -864,6 +864,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
 
   bool plansRouteControl = false;
+  bool controlsOrdinaryElementwiseArithmetic = false;
   bool controlsBaseMemoryMovement = false;
   bool controlsStandaloneReduction = false;
   bool controlsScalarBroadcastMAcc = false;

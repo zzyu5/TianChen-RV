@@ -22788,11 +22788,23 @@ getRVVSelectedBodyRouteMaterializationFacts(
   return facts;
 }
 
+static bool isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(
+             description.operation) &&
+         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
-    RVVSelectedBodyOperationKind operation) {
-  return isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(operation) ||
-         isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation) ||
-         isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(operation);
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
+             description) ||
+         isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+             description.operation) ||
+         isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
+             description.operation) ||
+         isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+             description.operation);
 }
 
 static llvm::Error verifyRVVSelectedBodyRouteControlPlanMatchesTypedFacts(
@@ -22941,13 +22953,32 @@ getRVVSelectedBodyRouteControlProviderPlan(
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
   RVVSelectedBodyRouteControlProviderPlan plan;
-  if (!isRVVSelectedBodyRouteControlProviderPlanConsumer(
-          description.operation))
+  if (!isRVVSelectedBodyRouteControlProviderPlanConsumer(description))
     return plan;
 
   const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
-  if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
-          description.operation)) {
+  if (isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(description)) {
+    if (!materializationFacts.elementwiseArithmeticPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified elementwise "
+          "arithmetic route-family plan before provider route construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.elementwiseArithmeticRouteFamilyPlan ||
+        materializationFacts.elementwiseArithmeticPlan !=
+            &*analysis.elementwiseArithmeticRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires elementwise arithmetic "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan;
+    plan.controlsOrdinaryElementwiseArithmetic = true;
+  } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+                 description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
@@ -27189,6 +27220,23 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
     lhsStrideABI = residualOperandBindingFacts.lhsStrideABI;
     rhsStrideABI = residualOperandBindingFacts.rhsStrideABI;
     outStrideABI = residualOperandBindingFacts.outStrideABI;
+  }
+
+  if (isPlainArithmetic && !isBroadcastLoad) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts, context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsOrdinaryElementwiseArithmetic ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " ordinary elementwise arithmetic statement plan requires the "
+          "RVV-owned route-control provider plan before route statement "
+          "construction");
   }
 
   if (llvm::Error error = requireRVVElementwiseArithmeticStatementPlanABI(

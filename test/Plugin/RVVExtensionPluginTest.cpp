@@ -6447,6 +6447,8 @@ int runElementwiseArithmeticStatementPlanBoundaryTest(
       getRVVSelectedBodyMigratedRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseArithmeticRouteStatementPlan;
@@ -6462,6 +6464,7 @@ int runElementwiseArithmeticStatementPlanBoundaryTest(
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -6671,6 +6674,46 @@ module {
     if (!residualFacts)
       return fail("elementwise arithmetic statement-plan residual facts: " +
                   llvm::toString(residualFacts.takeError()));
+
+    if (ordinary) {
+      auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+          *analysis, *materializationFacts,
+          "elementwise arithmetic route-control provider unit test");
+      if (!routeControlPlan)
+        return fail("elementwise arithmetic route-control provider plan: " +
+                    llvm::toString(routeControlPlan.takeError()));
+      const auto *elementwiseRuntimeControlPlan =
+          &analysis->elementwiseArithmeticRouteFamilyPlan->runtimeControlPlan;
+      if (int result = expect(
+              routeControlPlan->plansRouteControl &&
+                  routeControlPlan->controlsOrdinaryElementwiseArithmetic &&
+                  routeControlPlan->runtimeControlPlan ==
+                      elementwiseRuntimeControlPlan &&
+                  routeControlPlan->typedConfigFacts ==
+                      &analysis->typedConfigFacts &&
+                  routeControlPlan->selectedTargetCapabilityFacts ==
+                      &analysis->selectedTargetCapabilityFacts,
+              "ordinary elementwise route-control provider plan joins typed "
+              "config, target capability, and runtime AVL/VL facts"))
+        return result;
+      if (int result = expect(
+              routeControlPlan->controlPlanIDMirror ==
+                      analysis->description.runtimeControlPlanID &&
+                  routeControlPlan->runtimeABIOrderMirror ==
+                      analysis->description.runtimeABIOrder &&
+                  routeControlPlan->tailPolicyMirror ==
+                      analysis->description.tailPolicy &&
+                  routeControlPlan->maskPolicyMirror ==
+                      analysis->description.maskPolicy &&
+                  routeControlPlan->selectedProviderMirror ==
+                      analysis->description.targetCapabilityProviderMirror &&
+                  routeControlPlan->selectedLegalityMirror ==
+                      analysis->description.targetCapabilityLegalityMirror &&
+                  elementwiseFacts->bindsOrdinaryElementwiseArithmetic,
+              "ordinary elementwise route-control provider plan carries "
+              "validated control mirrors before statement planning"))
+        return result;
+    }
 
     llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
         statementPlan =
@@ -6922,6 +6965,151 @@ module {
       {"elementwise arithmetic statement plan requires the verified "
        "elementwise arithmetic route-family plan",
        "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeControl = *addAnalysis;
+  staleRuntimeControl.elementwiseArithmeticRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto staleRuntimeControlMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRuntimeControl,
+          "elementwise arithmetic route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlMaterializationFacts)
+    return fail("stale elementwise runtime-control materialization facts: " +
+                llvm::toString(
+                    staleRuntimeControlMaterializationFacts.takeError()));
+  auto staleRuntimeControlElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleRuntimeControl,
+          "elementwise arithmetic route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlElementwiseFacts)
+    return fail("stale elementwise runtime-control binding facts: " +
+                llvm::toString(
+                    staleRuntimeControlElementwiseFacts.takeError()));
+  auto staleRuntimeControlResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          staleRuntimeControl,
+          "elementwise arithmetic route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlResidualFacts)
+    return fail("stale elementwise runtime-control residual facts: " +
+                llvm::toString(
+                    staleRuntimeControlResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              staleRuntimeControl, *staleRuntimeControlMaterializationFacts,
+              *staleRuntimeControlElementwiseFacts,
+              *staleRuntimeControlResidualFacts,
+              "elementwise arithmetic route-control stale runtime AVL unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePolicy = *addAnalysis;
+  stalePolicy.elementwiseArithmeticRouteFamilyPlan->runtimeControlPlan
+      .tailPolicy = "undisturbed";
+  auto stalePolicyMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          stalePolicy,
+          "elementwise arithmetic route-control stale policy unit test");
+  if (!stalePolicyMaterializationFacts)
+    return fail("stale elementwise policy materialization facts: " +
+                llvm::toString(stalePolicyMaterializationFacts.takeError()));
+  auto stalePolicyElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          stalePolicy,
+          "elementwise arithmetic route-control stale policy unit test");
+  if (!stalePolicyElementwiseFacts)
+    return fail("stale elementwise policy binding facts: " +
+                llvm::toString(stalePolicyElementwiseFacts.takeError()));
+  auto stalePolicyResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          stalePolicy,
+          "elementwise arithmetic route-control stale policy unit test");
+  if (!stalePolicyResidualFacts)
+    return fail("stale elementwise policy residual facts: " +
+                llvm::toString(stalePolicyResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              stalePolicy, *stalePolicyMaterializationFacts,
+              *stalePolicyElementwiseFacts, *stalePolicyResidualFacts,
+              "elementwise arithmetic route-control stale policy unit test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleTarget = *addAnalysis;
+  staleTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleTargetMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleTarget,
+          "elementwise arithmetic route-control stale target unit test");
+  if (!staleTargetMaterializationFacts)
+    return fail("stale elementwise target materialization facts: " +
+                llvm::toString(staleTargetMaterializationFacts.takeError()));
+  auto staleTargetElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleTarget,
+          "elementwise arithmetic route-control stale target unit test");
+  if (!staleTargetElementwiseFacts)
+    return fail("stale elementwise target binding facts: " +
+                llvm::toString(staleTargetElementwiseFacts.takeError()));
+  auto staleTargetResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          staleTarget,
+          "elementwise arithmetic route-control stale target unit test");
+  if (!staleTargetResidualFacts)
+    return fail("stale elementwise target residual facts: " +
+                llvm::toString(staleTargetResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              staleTarget, *staleTargetMaterializationFacts,
+              *staleTargetElementwiseFacts, *staleTargetResidualFacts,
+              "elementwise arithmetic route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedAddAnalysis = *addAnalysis;
+  auto copiedAddElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          copiedAddAnalysis,
+          "elementwise arithmetic stale-analysis route-control unit test");
+  if (!copiedAddElementwiseFacts)
+    return fail("copied elementwise binding facts: " +
+                llvm::toString(copiedAddElementwiseFacts.takeError()));
+  auto copiedAddResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          copiedAddAnalysis,
+          "elementwise arithmetic stale-analysis route-control unit test");
+  if (!copiedAddResidualFacts)
+    return fail("copied elementwise residual facts: " +
+                llvm::toString(copiedAddResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              copiedAddAnalysis, *addMaterializationFacts,
+              *copiedAddElementwiseFacts, *copiedAddResidualFacts,
+              "elementwise arithmetic stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires elementwise arithmetic "
+           "materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  auto staleOperandBindingFacts = *addElementwiseFacts;
+  staleOperandBindingFacts.bindsOrdinaryElementwiseArithmetic = false;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              *addAnalysis, *addMaterializationFacts,
+              staleOperandBindingFacts, *addResidualFacts,
+              "elementwise arithmetic statement plan stale binding unit test")
+              .takeError(),
+          {"elementwise arithmetic statement plan requires ordinary "
+           "elementwise operand-binding facts",
+           "before route statement construction"}))
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> scalarBroadcastSubAnalysis =
