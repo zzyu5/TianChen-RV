@@ -57,6 +57,42 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 237: Stage2 RVV computed-mask strided-input widening dot-reduce boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask strided-input widening dot-reduce boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the representative computed-mask runtime-strided-input widening dot-reduce evidence boundary by making explicit and pre-realized generated-bundle dry-run tests include `n=0` alongside `7,16,23`, then validating the existing RVV provider/direct-contraction owner path with real `ssh rvv` execution.
+
+### Main Changes
+
+- Updated explicit and pre-realized `computed_masked_strided_input_widening_dot_reduce_add` dry-run lit tests to pass `--runtime-count 0` and check `const size_t counts[] = {0, 7, 16, 23};`.
+- Confirmed the existing C++ path already carries compare-produced mask, runtime `lhs_stride`/`rhs_stride`, signed i16mf2-by-i16mf2 widening dot relation, accumulator seed, scalar output, runtime AVL/VL, route-family, route-control, math operand-binding, direct contraction owner, and provider-built route facts.
+- `ssh rvv` explicit and pre-realized generated-bundle runs both passed with `counts=0,7,16,23 lhs_stride=2 rhs_stride=3`.
+- Checks: focused computed-mask strided dot-reduce lit 4/4; focused non-regression lit 40/40; `./build/bin/tianchenrv-rvv-extension-plugin-test`; `git diff --check`; bounded authority scan; `cmake --build build --target check-tianchenrv -j2` passed 381/381.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this-commit` | `rvv: validate computed-mask strided dot-reduce boundary` |
+
+### Testing
+
+- [OK] Focused lit, C++ plugin smoke, explicit/pre-realized `ssh rvv`, authority scan, and full `check-tianchenrv`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 235: Stage2 RVV widening conversion dtype runtime artifact boundary
 
 **Date**: 2026-05-26

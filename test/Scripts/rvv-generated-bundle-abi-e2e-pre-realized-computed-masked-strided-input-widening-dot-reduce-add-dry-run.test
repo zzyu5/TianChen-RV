@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-strided-input-widening-dot-reduce-add --overwrite --op-kind computed_masked_strided_input_widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-strided-input-widening-dot-reduce-add --overwrite --op-kind computed_masked_strided_input_widening_dot_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-masked-strided-input-widening-dot-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MSDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-masked-strided-input-widening-dot-reduce-add/computed_masked_strided_input_widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-masked-strided-input-widening-dot-reduce-add/computed_masked_strided_input_widening_dot_reduce_add/rvv_generated_bundle_abi_computed_masked_strided_input_widening_dot_reduce_add_harness.c
@@ -81,5 +81,6 @@
 # HARNESS: size_t rhs_index = index * rhs_stride;
 # HARNESS: int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
 # HARNESS: compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_computed_masked_strided_input_widening_dot_reduce_add_ok counts=7,16,23 lhs_stride=2 rhs_stride=3
-# HARNESS: PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=7,16,23 lhs_stride=2 rhs_stride=3
+# HARNESS: const size_t counts[] = {0, 7, 16, 23};
+# HARNESS: tcrv_rvv_generated_bundle_abi_computed_masked_strided_input_widening_dot_reduce_add_ok counts=0,7,16,23 lhs_stride=2 rhs_stride=3
+# HARNESS: PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,7,16,23 lhs_stride=2 rhs_stride=3
