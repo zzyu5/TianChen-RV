@@ -146,3 +146,52 @@ Closed the bounded scalar_broadcast_macc_add selected exec-envelope ABI path by 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 210: Stage2 RVV target capability selected-route gating
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV target capability selected-route gating
+**Branch**: `main`
+
+### Summary
+
+Closed scalar_broadcast_macc_add selected-route gating through explicit tcrv.exec target/capability facts, provider legality mirrors, focused fail-closed tests, check-tianchenrv, and ssh rvv evidence.
+
+### Main Changes
+
+- Added RVV plugin-local selected target-capability facts collection from
+  `tcrv.exec.variant requires` and `TargetCapabilitySet`.
+- Gated route construction on a single available RVV provider, correct exact
+  `rvv` kind, non-ambiguous selected ownership, and optional
+  SEW/LMUL/policy compatibility with typed `tcrv_rvv` config facts.
+- Mirrored verified target capability provider/legality facts through provider
+  route metadata, target artifact validation, generated headers, dry-run
+  evidence, and real `ssh rvv` bundle evidence.
+- Added fail-closed verifier/provider tests and updated the bounded
+  `scalar_broadcast_macc_add` explicit/pre-realized fixtures.
+
+### Git Commits
+
+Pending final session commit in this turn.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] Focused C++ build and tests:
+  `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`
+- [OK] Focused 6-test lit set for target-capability gating, artifact/header
+  mirrors, and generated-bundle dry-runs.
+- [OK] `ssh rvv` generated-bundle ABI/e2e for
+  `scalar_broadcast_macc_add`, counts `7,16,23`, rhs scalars `-37,91`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`:
+  378/378 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

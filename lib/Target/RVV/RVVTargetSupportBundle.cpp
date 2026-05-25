@@ -168,6 +168,48 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         "candidate metadata must not carry route operand binding mirrors for a "
         "selected typed RVV body route without a binding plan");
   }
+  llvm::StringRef targetCapabilityProviderMirror =
+      lookupCandidateMetadataValue(
+          candidate, "tcrv_rvv.target_capability_provider_mirror");
+  llvm::StringRef targetCapabilityLegalityMirror =
+      lookupCandidateMetadataValue(
+          candidate, "tcrv_rvv.target_capability_legality_mirror");
+  if (!description.targetCapabilityProviderMirror.empty()) {
+    if (targetCapabilityProviderMirror.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.target_capability_provider_mirror provenance");
+    if (targetCapabilityProviderMirror !=
+        llvm::StringRef(description.targetCapabilityProviderMirror))
+      return makeRVVTargetRouteError(
+          llvm::Twine(
+              "candidate tcrv_rvv.target_capability_provider_mirror "
+              "provenance must mirror selected RVV target capability facts '") +
+          description.targetCapabilityProviderMirror + "' but was '" +
+          targetCapabilityProviderMirror + "'");
+  } else if (!targetCapabilityProviderMirror.empty()) {
+    return makeRVVTargetRouteError(
+        "candidate metadata must not carry target capability provider mirrors "
+        "for a selected typed RVV body route without provider facts");
+  }
+  if (!description.targetCapabilityLegalityMirror.empty()) {
+    if (targetCapabilityLegalityMirror.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.target_capability_legality_mirror provenance");
+    if (targetCapabilityLegalityMirror !=
+        llvm::StringRef(description.targetCapabilityLegalityMirror))
+      return makeRVVTargetRouteError(
+          llvm::Twine(
+              "candidate tcrv_rvv.target_capability_legality_mirror "
+              "provenance must mirror selected RVV target capability facts '") +
+          description.targetCapabilityLegalityMirror + "' but was '" +
+          targetCapabilityLegalityMirror + "'");
+  } else if (!targetCapabilityLegalityMirror.empty()) {
+    return makeRVVTargetRouteError(
+        "candidate metadata must not carry target capability legality mirrors "
+        "for a selected typed RVV body route without provider facts");
+  }
   return llvm::Error::success();
 }
 
@@ -657,6 +699,12 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"runtime_control_plan", "tcrv_rvv.runtime_control_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"provider_supported_mirror", "tcrv_rvv.provider_supported_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"target_capability_provider_mirror",
+       "tcrv_rvv.target_capability_provider_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"target_capability_legality_mirror",
+       "tcrv_rvv.target_capability_legality_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"route_operand_binding_plan",
        "tcrv_rvv.route_operand_binding_plan", "",

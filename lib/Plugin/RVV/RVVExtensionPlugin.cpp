@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
@@ -185,6 +186,12 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
 
   if (llvm::Error error = requireRVVSelectedVariant(variant))
     return error;
+  llvm::Expected<rvv::RVVSelectedTargetCapabilityFacts> targetCapabilityFacts =
+      rvv::collectRVVSelectedTargetCapabilityFacts(
+          variant, request.getCapabilities(),
+          "selected RVV lowering-boundary validation");
+  if (!targetCapabilityFacts)
+    return targetCapabilityFacts.takeError();
 
   auto boundary =
       llvm::dyn_cast_if_present<tcrv::rvv::WithVLOp>(request.getBoundary());
@@ -317,6 +324,12 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
   if (!originAttr || originAttr.getValue() != kRVVPluginName)
     return makeRVVPluginError(
         "materialized RVV variant must be owned by origin 'rvv-plugin'");
+
+  llvm::Expected<rvv::RVVSelectedTargetCapabilityFacts> targetCapabilityFacts =
+      rvv::collectRVVSelectedTargetCapabilityFacts(
+          variant, request.getCapabilities(), "RVV variant legality");
+  if (!targetCapabilityFacts)
+    return targetCapabilityFacts.takeError();
 
   return requireExplicitTypedRVVBody(variant);
 }

@@ -8,6 +8,7 @@
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
@@ -29,6 +30,264 @@ llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
           "TianChen-RV RVV plugin-owned EmitC route provider failed: ") +
           message,
       llvm::errc::invalid_argument);
+}
+
+llvm::Error makeRVVSelectedTargetCapabilityError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV selected target-capability gate failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
+constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
+constexpr llvm::StringLiteral kProfileCapabilityKind("profile");
+constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
+constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
+constexpr llvm::StringLiteral kSupportedSEWPropertyName("supported_sew");
+constexpr llvm::StringLiteral kSupportedLMULPropertyName("supported_lmul");
+constexpr llvm::StringLiteral kRequiredTailPolicyPropertyName(
+    "required_tail_policy");
+constexpr llvm::StringLiteral kRequiredMaskPolicyPropertyName(
+    "required_mask_policy");
+
+std::string joinRVVSelectedCapabilityProviderSymbols(
+    llvm::ArrayRef<const support::CapabilityDescriptor *> providers) {
+  std::string symbols;
+  llvm::raw_string_ostream stream(symbols);
+  for (std::size_t index = 0, count = providers.size(); index < count;
+       ++index) {
+    if (index != 0)
+      stream << ", ";
+    stream << "@" << providers[index]->getSymbolName();
+  }
+  return stream.str();
+}
+
+llvm::StringRef classifyRVVSatisfaction(
+    const support::CapabilityDescriptor &capability) {
+  if (capability.getID() == kRVVCapabilityID)
+    return "exact";
+  if (capability.providesID(kRVVCapabilityID))
+    return "provides";
+  if (capability.impliesID(kRVVCapabilityID))
+    return "implies";
+  return "unknown";
+}
+
+bool capabilityPropertyListContains(llvm::StringRef value,
+                                    llvm::StringRef expectedToken) {
+  llvm::SmallVector<llvm::StringRef, 8> tokens;
+  llvm::SplitString(value, tokens, ",;| \t\r\n");
+  for (llvm::StringRef token : tokens)
+    if (token.trim() == expectedToken)
+      return true;
+  return false;
+}
+
+bool containsRVVVectorISAHint(llvm::StringRef hints) {
+  std::string lower = hints.lower();
+  llvm::StringRef text(lower);
+  return text.contains("rv64gcv") || text.contains("rv32gcv") ||
+         text.contains("zve") || text.contains("zvl") ||
+         text.contains("zvfh") || text.contains("rvv");
+}
+
+std::string formatRVVSelectedCapabilityProviderMirror(
+    const support::CapabilityDescriptor &capability) {
+  std::string mirror;
+  llvm::raw_string_ostream stream(mirror);
+  stream << "selected_capability_provider_mirror:@"
+         << capability.getSymbolName() << ";id=" << capability.getID()
+         << ";kind=" << capability.getKind()
+         << ";rvv=" << classifyRVVSatisfaction(capability);
+  return stream.str();
+}
+
+std::string formatRVVSelectedCapabilityLegalityMirror(
+    const RVVSelectedTargetCapabilityFacts &facts,
+    const RVVSelectedBodyTypedConfigFacts &typedConfigFacts) {
+  std::string mirror;
+  llvm::raw_string_ostream stream(mirror);
+  stream << "selected_target_capability_legality_mirror:@"
+         << facts.selectedProviderSymbol << ";id=" << facts.selectedProviderID
+         << ";kind=" << facts.selectedProviderKind
+         << ";rvv=" << facts.rvvSatisfactionKind
+         << ";sew=" << typedConfigFacts.sew
+         << ";lmul=" << typedConfigFacts.lmul
+         << ";tail=" << typedConfigFacts.tailPolicy
+         << ";mask=" << typedConfigFacts.maskPolicy;
+  return stream.str();
+}
+
+llvm::Error verifyRVVCapabilityProfileProperties(
+    const support::CapabilityDescriptor &capability, llvm::StringRef context) {
+  llvm::StringRef architecture =
+      capability.getProperty(kArchitecturePropertyName).trim();
+  if (!architecture.empty() && architecture != "riscv64")
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        capability.getSymbolName() + " architecture fact '" + architecture +
+        "' is incompatible with RVV selected routes; expected 'riscv64'");
+
+  llvm::StringRef isaVectorHints =
+      capability.getProperty(kISAVectorHintsPropertyName).trim();
+  if (!isaVectorHints.empty() && !containsRVVVectorISAHint(isaVectorHints))
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        capability.getSymbolName() + " isa_vector_hints fact '" +
+        isaVectorHints + "' does not contain RVV vector ISA evidence");
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedTargetCapabilityFacts>
+collectRVVSelectedTargetCapabilityFacts(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities,
+    llvm::StringRef context) {
+  if (!variant)
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) +
+        " requires a materialized tcrv.exec.variant");
+
+  auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>(
+      kRequiresAttrName);
+  if (!requiresAttr || requiresAttr.empty())
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) +
+        " requires non-empty selected variant requires metadata carrying "
+        "exactly one RVV capability provider");
+
+  llvm::SmallVector<const support::CapabilityDescriptor *, 2>
+      selectedRVVProviders;
+  for (mlir::Attribute entry : requiresAttr) {
+    auto symbolRef = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(entry);
+    if (!symbolRef)
+      return makeRVVSelectedTargetCapabilityError(
+          llvm::Twine(context) +
+          " selected variant requires entry must be a symbol reference");
+
+    const support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbolRef.getValue());
+    if (!capability)
+      return makeRVVSelectedTargetCapabilityError(
+          llvm::Twine(context) + " selected variant requires entry @" +
+          symbolRef.getValue() +
+          " does not resolve in the tcrv.exec target capability set");
+
+    if (capability->satisfiesID(kRVVCapabilityID))
+      selectedRVVProviders.push_back(capability);
+  }
+
+  if (selectedRVVProviders.empty())
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) +
+        " requires exactly one selected RVV capability provider satisfying "
+        "id 'rvv'; no selected requires entry satisfied RVV capability");
+  if (selectedRVVProviders.size() > 1)
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) +
+        " requires exactly one selected RVV capability provider satisfying "
+        "id 'rvv'; ambiguous selected providers were " +
+        joinRVVSelectedCapabilityProviderSymbols(selectedRVVProviders));
+
+  const support::CapabilityDescriptor &capability =
+      *selectedRVVProviders.front();
+  if (!capability.isAvailable())
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        capability.getSymbolName() + " satisfying id 'rvv' is unavailable "
+        "(status = '" +
+        capability.getStatus() + "')");
+
+  if (capability.getID() == kRVVCapabilityID &&
+      capability.getKind() != kRVVCapabilityKind)
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        capability.getSymbolName() + " declares exact id 'rvv' but kind '" +
+        capability.getKind() + "'; expected kind 'isa-vector'");
+  if (capability.getID() != kRVVCapabilityID &&
+      capability.getKind() != kRVVCapabilityKind &&
+      capability.getKind() != kProfileCapabilityKind)
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        capability.getSymbolName() +
+        " satisfying id 'rvv' must be kind 'isa-vector' or 'profile', got '" +
+        capability.getKind() + "'");
+
+  if (llvm::Error error =
+          verifyRVVCapabilityProfileProperties(capability, context))
+    return std::move(error);
+
+  RVVSelectedTargetCapabilityFacts facts;
+  facts.selectedProviderSymbol = capability.getSymbolName().str();
+  facts.selectedProviderID = capability.getID().str();
+  facts.selectedProviderKind = capability.getKind().str();
+  facts.rvvSatisfactionKind = classifyRVVSatisfaction(capability).str();
+  facts.supportedSEW =
+      capability.getProperty(kSupportedSEWPropertyName).trim().str();
+  facts.supportedLMUL =
+      capability.getProperty(kSupportedLMULPropertyName).trim().str();
+  facts.requiredTailPolicy =
+      capability.getProperty(kRequiredTailPolicyPropertyName).trim().str();
+  facts.requiredMaskPolicy =
+      capability.getProperty(kRequiredMaskPolicyPropertyName).trim().str();
+  facts.providerMirror = formatRVVSelectedCapabilityProviderMirror(capability);
+  return facts;
+}
+
+llvm::Error verifyRVVSelectedTargetCapabilityForTypedConfig(
+    RVVSelectedTargetCapabilityFacts &facts,
+    const RVVSelectedBodyTypedConfigFacts &typedConfigFacts,
+    llvm::StringRef context) {
+  if (!facts.hasFacts())
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) +
+        " requires collected selected RVV target capability facts");
+  if (!typedConfigFacts.hasFacts())
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) +
+        " requires typed RVV body/config facts before capability gating");
+
+  std::string expectedSEW = llvm::Twine(typedConfigFacts.sew).str();
+  if (!facts.supportedSEW.empty() &&
+      !capabilityPropertyListContains(facts.supportedSEW, expectedSEW))
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        facts.selectedProviderSymbol + " supported_sew fact '" +
+        facts.supportedSEW + "' does not include typed body SEW " +
+        expectedSEW);
+
+  if (!facts.supportedLMUL.empty() &&
+      !capabilityPropertyListContains(facts.supportedLMUL,
+                                      typedConfigFacts.lmul))
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        facts.selectedProviderSymbol + " supported_lmul fact '" +
+        facts.supportedLMUL + "' does not include typed body LMUL '" +
+        typedConfigFacts.lmul + "'");
+
+  if (!facts.requiredTailPolicy.empty() &&
+      llvm::StringRef(facts.requiredTailPolicy) != typedConfigFacts.tailPolicy)
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        facts.selectedProviderSymbol + " required_tail_policy fact '" +
+        facts.requiredTailPolicy + "' does not match typed body tail policy '" +
+        typedConfigFacts.tailPolicy + "'");
+
+  if (!facts.requiredMaskPolicy.empty() &&
+      llvm::StringRef(facts.requiredMaskPolicy) != typedConfigFacts.maskPolicy)
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        facts.selectedProviderSymbol + " required_mask_policy fact '" +
+        facts.requiredMaskPolicy + "' does not match typed body mask policy '" +
+        typedConfigFacts.maskPolicy + "'");
+
+  facts.legalityMirror =
+      formatRVVSelectedCapabilityLegalityMirror(facts, typedConfigFacts);
+  return llvm::Error::success();
 }
 
 constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
@@ -29894,6 +30153,20 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.typedConfigFacts = *typedConfigFacts;
   analysis.description.elementTypeName =
       analysis.typedConfigFacts.elementTypeName;
+  llvm::Expected<RVVSelectedTargetCapabilityFacts> targetCapabilityFacts =
+      collectRVVSelectedTargetCapabilityFacts(
+          request.getVariant(), request.getCapabilities(),
+          "selected RVV route analysis target-capability gate");
+  if (!targetCapabilityFacts)
+    return targetCapabilityFacts.takeError();
+  if (llvm::Error error = verifyRVVSelectedTargetCapabilityForTypedConfig(
+          *targetCapabilityFacts, analysis.typedConfigFacts,
+          "selected RVV route analysis target-capability gate"))
+    return std::move(error);
+  analysis.description.targetCapabilityProviderMirror =
+      std::move(targetCapabilityFacts->providerMirror);
+  analysis.description.targetCapabilityLegalityMirror =
+      std::move(targetCapabilityFacts->legalityMirror);
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
@@ -33904,6 +34177,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
       {"tcrv_rvv.runtime_abi_order", description.runtimeABIOrder});
   metadata.push_back({"tcrv_rvv.runtime_avl_abi_parameter",
                       tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName()});
+  if (!description.targetCapabilityProviderMirror.empty())
+    metadata.push_back({"tcrv_rvv.target_capability_provider_mirror",
+                        description.targetCapabilityProviderMirror});
+  if (!description.targetCapabilityLegalityMirror.empty())
+    metadata.push_back({"tcrv_rvv.target_capability_legality_mirror",
+                        description.targetCapabilityLegalityMirror});
   if (!description.routeOperandBindingPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.route_operand_binding_plan",
                         description.routeOperandBindingPlanID});

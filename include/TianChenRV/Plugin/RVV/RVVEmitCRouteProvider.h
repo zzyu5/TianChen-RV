@@ -254,6 +254,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef sourceStrideSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  std::string targetCapabilityProviderMirror;
+  std::string targetCapabilityLegalityMirror;
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string execABIBindingSummary;
