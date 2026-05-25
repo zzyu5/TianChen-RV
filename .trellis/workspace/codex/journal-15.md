@@ -374,3 +374,45 @@ Pending final session commit in this turn.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 211: Stage2 RVV base memory-movement route-family boundary
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV base memory-movement route-family boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the base memory movement route-family evidence boundary for the strided executable fixture while preserving RVV plugin-owned provider planning and neutral EmitC/artifact consumption.
+
+### Main Changes
+
+- Created and archived Trellis task `stage2-rvv-base-memory-movement-route-family-boundary` from the Direction Brief.
+- Confirmed the production RVV provider/family path already owns base memory family plans and migrated statement plans for the six route-supported base memory forms at C++ route-planning/provider level.
+- Added generated-bundle `base_memory_movement_boundary` evidence for base memory operations, including structural authority, mirror-only route metadata, ordered statement callees, pointer roles, artifact paths, and runtime-count non-authority labeling.
+- Strengthened explicit and pre-realized `strided_load_unit_store` generated-bundle dry-run checks and the pre-realized selected-body target artifact mirror checks.
+- Updated the RVV plugin spec with durable generated-bundle and ssh-rvv evidence requirements for executable base memory movement routes.
+- Checks passed: py_compile, explicit/pre-realized dry-runs, focused lit/FileCheck tests, RVV plugin smoke binary, real ssh rvv correctness for counts 7,16,23 and stride bytes 4,8,12, git diff --check, and full check-tianchenrv 379/379.
+
+
+### Git Commits
+
+Pending final session commit in this turn.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] Explicit and pre-realized `strided_load_unit_store` generated-bundle dry-runs.
+- [OK] Focused script and target lit/FileCheck tests.
+- [OK] RVV plugin smoke binary and real `ssh rvv` correctness for counts `7,16,23` and stride bytes `4,8,12`.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` with 379/379 tests passing.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

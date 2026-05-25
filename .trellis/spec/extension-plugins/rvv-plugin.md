@@ -1414,6 +1414,11 @@ mirror, and not a route-support declaration by itself.
   masked load/store are absent -> fail closed before common EmitC.
 - Required source operation provenance for configure/load/store steps is absent
   or reports the wrong EmitC source role -> fail closed before common EmitC.
+- Generated-bundle evidence for a claimed executable base memory route must
+  expose a `base_memory_movement_boundary` summary whose authority is typed
+  `tcrv_rvv` body/config/runtime facts, whose `statement_plan` names the base
+  memory family and ordered pre-loop/loop callees, and whose route metadata is
+  explicitly mirror-only after provider route construction.
 
 ### 5. Good/Base/Bad Cases
 
@@ -1440,6 +1445,10 @@ mirror, and not a route-support declaration by itself.
 - C++ default/empty-plan coverage for unrelated route families.
 - Representative lit/FileCheck coverage proving existing explicit or
   pre-realized base memory selected-body artifacts still pass.
+- Generated-bundle dry-run and `ssh rvv` evidence for at least one executable
+  base memory route must check `base_memory_movement_boundary`, ordered
+  statement-plan callees, route-family mirror metadata, and runtime counts as
+  execution cases rather than memory route authority.
 - Bounded provider scan showing included base memory movement statement
   sequence construction is reached through the RVV-owned plan before the older
   generic provider-local statement assembly path.

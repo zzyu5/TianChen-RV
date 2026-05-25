@@ -33,6 +33,10 @@
 # STRIDEDLOAD-DAG: "value": "strided-load-unit-store"
 # STRIDEDLOAD-DAG: "key": "tcrv_rvv.runtime_abi_order"
 # STRIDEDLOAD-DAG: "value": "src,out,n,stride_bytes"
+# STRIDEDLOAD-DAG: "key": "tcrv_rvv.base_memory_movement_route_family_plan"
+# STRIDEDLOAD-DAG: "value": "rvv-base-memory-movement-route-family-plan.v1"
+# STRIDEDLOAD-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# STRIDEDLOAD-DAG: "value": "provider_supported_mirror:rvv-strided-load-unit-store-plan-validated"
 # STRIDEDLOAD-DAG: "key": "tcrv_rvv.strided_memory_layout"
 # STRIDEDLOAD-DAG: "value": "byte-strided-source-unit-stride-output-runtime-abi"
 # STRIDEDLOAD-DAG: "key": "tcrv_rvv.source_stride_source"
@@ -41,6 +45,15 @@
 # STRIDEDLOAD-DAG: "value": "strided-load"
 # STRIDEDLOAD-DAG: "key": "tcrv_rvv.destination_memory_form"
 # STRIDEDLOAD-DAG: "value": "unit-stride-store"
+# STRIDEDLOAD-DAG: "base_memory_movement_boundary": {
+# STRIDEDLOAD-DAG: "authority": "provider-derived typed tcrv_rvv base memory body/config/runtime facts"
+# STRIDEDLOAD-DAG: "family": "base memory movement"
+# STRIDEDLOAD-DAG: "pre_loop_callees": [
+# STRIDEDLOAD-DAG: "__riscv_vsetvl_e32m1"
+# STRIDEDLOAD-DAG: "loop_callees": [
+# STRIDEDLOAD-DAG: "__riscv_vlse32_v_i32m1"
+# STRIDEDLOAD-DAG: "__riscv_vse32_v_i32m1"
+# STRIDEDLOAD-DAG: "runtime_counts_are_execution_cases_not_memory_authority": true
 # STRIDEDLOAD-DAG: "typed_compute_op": "tcrv_rvv.move"
 # STRIDEDLOAD-DAG: "memory_form": "strided-load-unit-store"
 # STRIDEDLOAD-DAG: "byte_stride_coverage_contract": "runtime strided_load_unit_store cases must execute the same generated artifact with explicit runtime byte strides"

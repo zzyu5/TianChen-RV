@@ -1924,6 +1924,10 @@ class OpExpectation:
         return self.kind == "masked_unit_store"
 
     @property
+    def is_base_memory_movement(self) -> bool:
+        return self.kind in BASE_MEMORY_TARGET_LEAF_PROFILE_BY_KIND
+
+    @property
     def is_computed_masked_unit_load_store(self) -> bool:
         return self.kind == "computed_masked_unit_load_store"
 
@@ -4776,6 +4780,43 @@ MASK_TAIL_POLICY_METADATA_KEYS = (
     "tcrv_rvv.base_memory_movement_route_family_plan",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.masked_memory_layout",
+    "tcrv_rvv.mask_role",
+    "tcrv_rvv.mask_source",
+    "tcrv_rvv.mask_memory_form",
+    "tcrv_rvv.inactive_lane_contract",
+    "tcrv_rvv.masked_passthrough_layout",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
+)
+BASE_MEMORY_MOVEMENT_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.base_memory_movement_route_family_plan",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.strided_memory_layout",
+    "tcrv_rvv.source_stride_source",
+    "tcrv_rvv.destination_stride_source",
+    "tcrv_rvv.indexed_memory_layout",
+    "tcrv_rvv.index_source",
+    "tcrv_rvv.index_eew",
+    "tcrv_rvv.offset_unit",
+    "tcrv_rvv.index_uniqueness",
+    "tcrv_rvv.indexed_data_memory_form",
+    "tcrv_rvv.indexed_destination_memory_form",
     "tcrv_rvv.masked_memory_layout",
     "tcrv_rvv.mask_role",
     "tcrv_rvv.mask_source",
@@ -15590,6 +15631,36 @@ def mask_tail_policy_metadata_from_bundle(
     return metadata
 
 
+def base_memory_movement_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "base memory movement evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in BASE_MEMORY_MOVEMENT_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object base memory metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header base memory metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def compare_select_predicate_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
@@ -15782,6 +15853,188 @@ def mask_tail_policy_boundary_summary(
         },
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_policy_authority": True,
+    }
+
+
+def base_memory_movement_statement_plan(expectation: OpExpectation) -> dict[str, Any]:
+    loop_callees = [expectation.setvl_intrinsic]
+    selected_source_abi: dict[str, str] = {"n": "runtime-element-count"}
+    pointer_roles: dict[str, str] = {}
+
+    if expectation.is_strided_load_unit_store:
+        loop_callees.extend(
+            ["__riscv_vlse32_v_i32m1", expectation.unit_store_intrinsic]
+        )
+        selected_source_abi.update(
+            {
+                "src": "source-input-buffer",
+                "out": "output-buffer",
+                "stride_bytes": "source-byte-stride",
+            }
+        )
+        pointer_roles = {
+            "source": "src + loop_induction * stride_bytes",
+            "destination": "out + loop_induction",
+        }
+    elif expectation.is_unit_load_strided_store:
+        loop_callees.extend(
+            [expectation.unit_load_intrinsic, "__riscv_vsse32_v_i32m1"]
+        )
+        selected_source_abi.update(
+            {
+                "src": "lhs-input-buffer",
+                "dst": "output-buffer",
+                "dst_stride_bytes": "destination-byte-stride",
+            }
+        )
+        pointer_roles = {
+            "source": "src + loop_induction",
+            "destination": "dst + loop_induction * dst_stride_bytes",
+        }
+    elif expectation.is_indexed_gather_unit_store:
+        loop_callees.extend(
+            [
+                "__riscv_vle32_v_u32m1",
+                "__riscv_vmul_vx_u32m1",
+                "__riscv_vloxei32_v_i32m1",
+                expectation.unit_store_intrinsic,
+            ]
+        )
+        selected_source_abi.update(
+            {
+                "data": "lhs-input-buffer",
+                "index": "index-input-buffer",
+                "out": "output-buffer",
+            }
+        )
+        pointer_roles = {
+            "source": "data indexed by runtime index vector",
+            "destination": "out + loop_induction",
+            "index": "index + loop_induction",
+        }
+    elif expectation.is_indexed_scatter_unit_load:
+        loop_callees.extend(
+            [
+                expectation.unit_load_intrinsic,
+                "__riscv_vle32_v_u32m1",
+                "__riscv_vmul_vx_u32m1",
+                "__riscv_vsoxei32_v_i32m1",
+            ]
+        )
+        selected_source_abi.update(
+            {
+                "src": "lhs-input-buffer",
+                "index": "index-input-buffer",
+                "dst": "output-buffer",
+            }
+        )
+        pointer_roles = {
+            "source": "src + loop_induction",
+            "destination": "dst indexed by runtime index vector",
+            "index": "index + loop_induction",
+        }
+    elif expectation.is_masked_unit_load_store:
+        loop_callees.extend(
+            [
+                expectation.unit_load_intrinsic,
+                "__riscv_vmsne_vx_i32m1_b32",
+                expectation.unit_load_intrinsic,
+                "__riscv_vle32_v_i32m1_tumu",
+                expectation.unit_store_intrinsic,
+            ]
+        )
+        selected_source_abi.update(
+            {
+                "src": "lhs-input-buffer",
+                "mask": "mask-input-buffer",
+                "dst": "output-buffer",
+            }
+        )
+        pointer_roles = {
+            "source": "src + loop_induction",
+            "mask": "mask + loop_induction",
+            "passthrough": "dst + loop_induction",
+            "destination": "dst + loop_induction",
+        }
+    elif expectation.is_masked_unit_store:
+        loop_callees.extend(
+            [
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                "__riscv_vmsne_vx_i32m1_b32",
+                "__riscv_vse32_v_i32m1_m",
+            ]
+        )
+        selected_source_abi.update(
+            {
+                "src": "lhs-input-buffer",
+                "mask": "mask-input-buffer",
+                "dst": "output-buffer",
+            }
+        )
+        pointer_roles = {
+            "source": "src + loop_induction",
+            "mask": "mask + loop_induction",
+            "destination": "dst + loop_induction",
+        }
+    else:
+        raise EvidenceError(
+            f"{expectation.kind} has no base memory statement plan summary"
+        )
+
+    return {
+        "family": "base memory movement",
+        "pre_loop_callees": [expectation.setvl_intrinsic],
+        "loop_callees": loop_callees,
+        "selected_source_abi": selected_source_abi,
+        "pointer_roles": pointer_roles,
+    }
+
+
+def base_memory_movement_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_base_memory_movement:
+        return {}
+    return {
+        "source": (
+            "typed tcrv_rvv memory body/config/runtime facts -> RVV "
+            "base-memory route-family facts -> memory operand-binding facts "
+            "-> RVV-owned statement plan -> provider-built route"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv base memory body/config/runtime "
+            "facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "memory_movement_kind": expectation.kind,
+        "source_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+        },
+        "statement_plan": base_memory_movement_statement_plan(expectation),
+        "materialized_body": materialized_checks.get(
+            "base_memory_movement_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get("base_memory_movement_boundary", {}),
+        "route_metadata": base_memory_movement_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_memory_authority": True,
     }
 
 
@@ -16199,6 +16452,18 @@ def run_one_op_e2e(
             bundle_checks=bundle_checks,
             runtime_counts=runtime_counts,
         )
+        if expectation.is_base_memory_movement:
+            evidence["base_memory_movement_boundary"] = (
+                base_memory_movement_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
         if expectation.is_masked_unit_store:
             evidence["mask_tail_policy_boundary"] = (
                 mask_tail_policy_boundary_summary(
