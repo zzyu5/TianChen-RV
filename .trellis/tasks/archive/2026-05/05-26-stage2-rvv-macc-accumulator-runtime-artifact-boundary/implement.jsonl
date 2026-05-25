@@ -1,0 +1,28 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide RVV-first architecture, Stage1/Stage2 boundaries, and authority placement for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV executable support levels, selected-body realization, route-provider ownership, plain MAcc statement-plan boundary, artifact mirror metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract and rule that RVV semantics stay provider-owned."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/generated-bundle/ssh-rvv evidence and sentinel preservation policy."}
+{"file": ".trellis/tasks/05-26-stage2-rvv-macc-accumulator-runtime-artifact-boundary/prd.md", "reason": "Current task scope, acceptance criteria, and non-goals."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-standalone-reduction-scalar-result-runtime-boundary/prd.md", "reason": "Immediate unmasked scalar-result boundary predecessor and evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-computed-mask-standalone-reduction-scalar-boundary/prd.md", "reason": "Immediate computed-mask scalar-result predecessor and mirror/evidence pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "RVV route-family plan, materialization facts, math operand binding, and plain MAcc statement-plan API surface."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Route description metadata fields mirrored into provider route and target artifact metadata."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Production route analysis, route-family validation, materialization facts, math operand binding, plain MAcc statement plan, and metadata export logic."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production provider path that builds TCRVEmitCLowerableRoute from RVV-owned planning facts."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Pre-realized MAcc selected-body realization boundary before route analysis."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run/non-dry-run evidence, harness oracle, runtime counts, and MAcc boundary summaries."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused C++ provider/statement-plan/fail-closed coverage for MAcc and adjacent route families."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir", "reason": "Explicit selected-body macc_add target artifact fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir", "reason": "Pre-realized selected-body macc_add target artifact fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-macc-add-dry-run.test", "reason": "Explicit selected-body macc_add generated-bundle evidence fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-macc-add-dry-run.test", "reason": "Pre-realized selected-body macc_add generated-bundle evidence fixture."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implemented plain macc_add route-family plan derivation/validation, provider owner registry entry, route-control provider ownership, materialization facts, statement-plan dependency, route description validation, and metadata emission."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added plain MAcc route-family plan, materialization facts pointer, statement-plan pointer, provider verifier API, and route-control ownership marker."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added plain MAcc route-family mirror field to route descriptions."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Added plain MAcc route-family metadata to RVV target artifact evidence whitelist so header/object bundles preserve provider-owned mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Extended generated-bundle expected metadata for plain macc_add provider-supported mirrors and runtime-control/route-family evidence."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added positive and fail-closed C++ coverage for plain MAcc provider plan, route-control plan, statement plan, stale mirrors, stale runtime/control facts, and operand-binding role errors."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir", "reason": "Extended explicit selected-body macc_add PLAN/HEADER checks for runtime control, plain route-family, target leaf, provider mirror, header declarations, and C type mapping."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir", "reason": "Extended pre-realized macc_add PLAN/HEADER checks for the same provider-owned runtime/artifact boundary after selected-body realization."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-macc-add-dry-run.test", "reason": "Added zero/small/full/tail runtime counts and plain MAcc provider metadata checks to explicit generated-bundle dry-run evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-macc-add-dry-run.test", "reason": "Added zero/small/full/tail runtime counts and plain MAcc provider metadata checks to pre-realized generated-bundle dry-run evidence."}

@@ -1,5 +1,5 @@
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-macc-add --overwrite --op-kind macc_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-macc-add --overwrite --op-kind macc_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-macc-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="explicit-selected-body" --implicit-check-not="tcrv_rvv.typed_macc_pre_realized_body" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-macc-add/macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-macc-add/macc_add/rvv_generated_bundle_abi_macc_add_harness.c
@@ -26,6 +26,16 @@
 # MACC-DAG: "value": "macc_add"
 # MACC-DAG: "key": "rvv_selected_body_typed_compute_op"
 # MACC-DAG: "value": "tcrv_rvv.macc"
+# MACC-DAG: "key": "tcrv_rvv.runtime_control_plan"
+# MACC-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
+# MACC-DAG: "key": "tcrv_rvv.plain_macc_route_family_plan"
+# MACC-DAG: "value": "rvv-plain-macc-route-family-plan.v1"
+# MACC-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# MACC-DAG: "value": "rvv-v1-e32m1-plain-macc-add-leaf-profile.v1"
+# MACC-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# MACC-DAG: "value": "provider_supported_mirror:rvv-plain-macc-add-plan-validated"
+# MACC-DAG: "key": "tcrv_rvv.c_type_mapping"
+# MACC-DAG: "value": "vl:size_t,lhs/rhs/acc:signed-e32m1,result:signed-e32m1"
 # MACC-DAG: "key": "tcrv_rvv.macc_accumulator_layout"
 # MACC-DAG: "value": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "key": "tcrv_rvv.macc_result_layout"

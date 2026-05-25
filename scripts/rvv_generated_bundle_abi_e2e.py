@@ -133,6 +133,17 @@ PLAIN_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
 MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+PLAIN_MACC_ROUTE_FAMILY_PLAN = "rvv-plain-macc-route-family-plan.v1"
+PLAIN_MACC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-plain-macc-add-leaf-profile.v1"
+)
+PLAIN_MACC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-plain-macc-add-plan-validated"
+)
+PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
+PLAIN_MACC_C_TYPE_MAPPING = (
+    "vl:size_t,lhs/rhs/acc:signed-e32m1,result:signed-e32m1"
+)
 SCALAR_BROADCAST_MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,acc,out,n"
 SCALAR_BROADCAST_MACC_ROUTE_FAMILY_PLAN = (
     "rvv-scalar-broadcast-macc-route-family-plan.v1"
@@ -4926,6 +4937,8 @@ MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.runtime_avl_source",
     "tcrv_rvv.route_operand_binding_plan",
     "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.plain_macc_route_family_plan",
     "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
@@ -5687,6 +5700,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_macc_add:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.plain_macc_route_family_plan": (
+                    PLAIN_MACC_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": PLAIN_MACC_TARGET_LEAF_PROFILE,
+                "tcrv_rvv.provider_supported_mirror": (
+                    PLAIN_MACC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": PLAIN_MACC_C_TYPE_MAPPING,
                 "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.route_operand_binding_plan": (

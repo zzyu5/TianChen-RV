@@ -360,6 +360,30 @@ struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyPlainMAccRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef maccIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -771,6 +795,8 @@ struct RVVSelectedBodyRouteAnalysis {
       elementwiseArithmeticRouteFamilyPlan;
   std::optional<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
       scalarBroadcastElementwiseRouteFamilyPlan;
+  std::optional<RVVSelectedBodyPlainMAccRouteFamilyPlan>
+      plainMAccRouteFamilyPlan;
   std::optional<RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan>
       scalarBroadcastMAccRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
@@ -802,6 +828,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
       *elementwiseArithmeticPlan = nullptr;
   const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
       *scalarBroadcastPlan = nullptr;
+  const RVVSelectedBodyPlainMAccRouteFamilyPlan *plainMAccPlan = nullptr;
   const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan
       *scalarBroadcastMAccPlan = nullptr;
   const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
@@ -868,6 +895,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   bool controlsOrdinaryElementwiseArithmetic = false;
   bool controlsScalarBroadcastElementwise = false;
   bool controlsBaseMemoryMovement = false;
+  bool controlsPlainMAcc = false;
   bool controlsStandaloneReduction = false;
   bool controlsScalarBroadcastMAcc = false;
   bool controlsContraction = false;
@@ -1063,6 +1091,7 @@ struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
 };
 
 struct RVVSelectedBodyPlainMAccRouteStatementPlan {
+  const RVVSelectedBodyPlainMAccRouteFamilyPlan *plainMAccPlan = nullptr;
   const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan
       *scalarBroadcastMAccPlan = nullptr;
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
@@ -1347,6 +1376,12 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
 
 bool isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
+
+bool isRVVSelectedBodyPlainMAccRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyPlainMAccRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error
 verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans(

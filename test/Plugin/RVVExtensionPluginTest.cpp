@@ -3318,6 +3318,8 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
   RVVSelectedBodyRouteAnalysis missingElementwisePlan;
   missingElementwisePlan.description.operation =
       RVVSelectedBodyOperationKind::Add;
+  missingElementwisePlan.description.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
               missingElementwisePlan,
@@ -3438,15 +3440,16 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
       owners =
           getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners();
   if (int result =
-          expect(owners.size() == 4,
+          expect(owners.size() == 5,
                  "reduction/accumulation/contraction route-family owner "
-                 "registry has exactly four active owner entries"))
+                 "registry has exactly five active owner entries"))
     return result;
   if (int result = expect(
           owners[0].familyName == "contraction" &&
-              owners[1].familyName == "scalar-broadcast MAcc" &&
-              owners[2].familyName == "standalone reduction" &&
-              owners[3].familyName == "computed-mask accumulation",
+              owners[1].familyName == "plain MAcc" &&
+              owners[2].familyName == "scalar-broadcast MAcc" &&
+              owners[3].familyName == "standalone reduction" &&
+              owners[4].familyName == "computed-mask accumulation",
           "reduction/accumulation/contraction route-family owner registry "
           "preserves explicit math-cluster ownership"))
     return result;
@@ -3471,43 +3474,52 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
           "contraction owner classification is isolated"))
     return result;
   if (int result = expect(
-          owners[1].isConsumer(
-              RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
-              !owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+          owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
               !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "plain MAcc owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !owners[2].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !owners[2].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
           "scalar-broadcast MAcc owner classification is isolated"))
     return result;
   if (int result = expect(
-          owners[2].isConsumer(
+          owners[3].isConsumer(
               RVVSelectedBodyOperationKind::StandaloneReduceAdd) &&
-              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+              owners[3].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStandaloneReduceAdd) &&
-              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+              owners[3].isConsumer(RVVSelectedBodyOperationKind::
                                        RuntimeScalarComputedMaskStandaloneReduceAdd) &&
-              !owners[2].isConsumer(
+              !owners[3].isConsumer(
                   RVVSelectedBodyOperationKind::WideningDotReduceAdd) &&
-              !owners[2].isConsumer(
+              !owners[3].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
           "standalone reduction owner classification is isolated"))
     return result;
   if (int result = expect(
-          owners[3].isConsumer(
+          owners[4].isConsumer(
               RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
-              owners[3].isConsumer(RVVSelectedBodyOperationKind::
+              owners[4].isConsumer(RVVSelectedBodyOperationKind::
                                        RuntimeScalarComputedMaskedMAccAdd) &&
-              owners[3].isConsumer(RVVSelectedBodyOperationKind::
+              owners[4].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStandaloneReduceAdd) &&
-              !owners[3].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
-              !owners[3].isConsumer(
+              !owners[4].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !owners[4].isConsumer(
                   RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
-              !owners[3].isConsumer(
+              !owners[4].isConsumer(
                   RVVSelectedBodyOperationKind::WideningMAccAdd),
           "computed-mask accumulation owner classification is isolated"))
     return result;
 
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::MAccAdd,
         RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::StandaloneReduceAdd,
         RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
@@ -3516,7 +3528,7 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
             isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
                 op),
             "aggregate reduction/accumulation/contraction consumer predicate "
-            "is registry backed across all three owner families"))
+            "is registry backed across all five owner families"))
       return result;
   }
   if (int result = expect(
@@ -3557,6 +3569,16 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
               "reduction/accumulation/contraction owner registry unit test"),
           {"requires the scalar-broadcast MAcc route-family plan",
            "scalar_broadcast_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlainMAccPlan;
+  missingPlainMAccPlan.description.operation =
+      RVVSelectedBodyOperationKind::MAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              missingPlainMAccPlan,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"requires the plain MAcc route-family plan", "macc_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingAccumulationPlan;
@@ -3619,6 +3641,18 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
            "add"}))
     return result;
 
+  RVVSelectedBodyRouteAnalysis stalePlainMAccNonConsumer =
+      nonMathClusterAnalysis;
+  stalePlainMAccNonConsumer.plainMAccRouteFamilyPlan.emplace();
+  stalePlainMAccNonConsumer.plainMAccRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::MAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              stalePlainMAccNonConsumer,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"must not carry a plain MAcc route-family plan", "add"}))
+    return result;
+
   RVVSelectedBodyRouteAnalysis staleAccumulationNonConsumer =
       nonMathClusterAnalysis;
   staleAccumulationNonConsumer.computedMaskAccumulationRouteFamilyPlan
@@ -3634,6 +3668,7 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
 }
 
 int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -3679,7 +3714,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
           owners[1].isConsumer(RVVSelectedBodyOperationKind::WideningMAccAdd) &&
               owners[1].isConsumer(
                   RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
-              !owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
               !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add),
           "top-level math-cluster owner classification remains isolated"))
     return result;
@@ -3709,6 +3744,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
         RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::MAccAdd,
         RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::Add,
         RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
@@ -3719,13 +3755,6 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
             "backed across all active owner boundaries"))
       return result;
   }
-  if (int result = expect(
-          !isRVVSelectedBodyRouteFamilyProviderConsumer(
-              RVVSelectedBodyOperationKind::MAccAdd),
-          "unowned legacy MAcc route remains outside the top-level provider "
-          "owner boundary"))
-    return result;
-
   RVVSelectedBodyRouteAnalysis missingMemoryPlan;
   missingMemoryPlan.description.operation =
       RVVSelectedBodyOperationKind::StridedLoadUnitStore;
@@ -3759,9 +3788,21 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
            "scalar_broadcast_macc_add"}))
     return result;
 
+  RVVSelectedBodyRouteAnalysis missingPlainMAccPlan;
+  missingPlainMAccPlan.description.operation =
+      RVVSelectedBodyOperationKind::MAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingPlainMAccPlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the plain MAcc route-family plan", "macc_add"}))
+    return result;
+
   RVVSelectedBodyRouteAnalysis missingElementwisePlan;
   missingElementwisePlan.description.operation =
       RVVSelectedBodyOperationKind::Add;
+  missingElementwisePlan.description.memoryForm =
+      RVVSelectedBodyMemoryForm::VectorRHSLoad;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyRouteFamilyProviderPlans(
               missingElementwisePlan,
@@ -3823,8 +3864,8 @@ int runRouteControlProviderOwnerRegistryTest() {
                      RVVSelectedBodyRouteControlProviderOwner>
       owners = getRVVSelectedBodyRouteControlProviderOwners();
   if (int result =
-          expect(owners.size() == 13,
-                 "route-control provider owner registry has exactly thirteen "
+          expect(owners.size() == 14,
+                 "route-control provider owner registry has exactly fourteen "
                  "active adopted family entries"))
     return result;
 
@@ -3838,6 +3879,7 @@ int runRouteControlProviderOwnerRegistryTest() {
       "segment2 memory",
       "base memory movement",
       "standalone reduction",
+      "plain MAcc",
       "scalar-broadcast MAcc",
       "runtime scalar splat-store",
       "computed-mask accumulation",
@@ -3883,6 +3925,8 @@ int runRouteControlProviderOwnerRegistryTest() {
        "base memory movement"},
       {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
        RVVSelectedBodyMemoryForm::VectorRHSLoad, "standalone reduction"},
+      {RVVSelectedBodyOperationKind::MAccAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "plain MAcc"},
       {RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
        RVVSelectedBodyMemoryForm::RHSScalarBroadcast, "scalar-broadcast MAcc"},
       {RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
@@ -3925,7 +3969,7 @@ int runRouteControlProviderOwnerRegistryTest() {
 
   RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
   nonConsumerAnalysis.description = makeDescription(
-      RVVSelectedBodyOperationKind::MAccAdd,
+      RVVSelectedBodyOperationKind::ReduceAdd,
       RVVSelectedBodyMemoryForm::VectorRHSLoad);
   RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
   auto emptyRouteControl = getRVVSelectedBodyRouteControlProviderPlan(
@@ -3942,8 +3986,20 @@ int runRouteControlProviderOwnerRegistryTest() {
   if (int result =
           expect(!isRVVSelectedBodyRouteControlProviderConsumer(
                      nonConsumerAnalysis.description),
-                 "unadopted MAcc route remains outside the route-control owner "
+                 "non-adopted reduction route remains outside the route-control owner "
                  "registry"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlainMAccPlan;
+  missingPlainMAccPlan.description =
+      makeDescription(RVVSelectedBodyOperationKind::MAccAdd,
+                      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              missingPlainMAccPlan, emptyMaterializationFacts,
+              "route-control provider owner registry unit test")
+              .takeError(),
+          {"requires the verified plain MAcc route-family plan", "macc_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingElementwisePlan;
@@ -10410,6 +10466,42 @@ module {
   if (!mathFacts)
     return fail("plain MAcc statement-plan math facts: " +
                 llvm::toString(mathFacts.takeError()));
+  if (int result = expect(
+          analysis->plainMAccRouteFamilyPlan &&
+              analysis->description.plainMAccRouteFamilyPlanID ==
+                  "rvv-plain-macc-route-family-plan.v1" &&
+              analysis->description.providerSupportedMirror ==
+                  "provider_supported_mirror:rvv-plain-macc-add-plan-validated" &&
+              materializationFacts->plainMAccPlan ==
+                  &*analysis->plainMAccRouteFamilyPlan,
+          "plain MAcc analysis exposes provider-owned route-family plan, "
+          "mirror, and materialization facts"))
+    return result;
+
+  auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+      *analysis, *materializationFacts,
+      "plain MAcc route-control provider unit test");
+  if (!routeControlPlan)
+    return fail("plain MAcc route-control provider plan: " +
+                llvm::toString(routeControlPlan.takeError()));
+  if (int result = expect(
+          routeControlPlan->plansRouteControl &&
+              routeControlPlan->controlsPlainMAcc &&
+              routeControlPlan->runtimeControlPlan ==
+                  &analysis->plainMAccRouteFamilyPlan->runtimeControlPlan &&
+              routeControlPlan->typedConfigFacts ==
+                  &analysis->typedConfigFacts &&
+              routeControlPlan->selectedTargetCapabilityFacts ==
+                  &analysis->selectedTargetCapabilityFacts &&
+              routeControlPlan->runtimeABIOrderMirror ==
+                  analysis->description.runtimeABIOrder &&
+              routeControlPlan->tailPolicyMirror ==
+                  analysis->description.tailPolicy &&
+              routeControlPlan->maskPolicyMirror ==
+                  analysis->description.maskPolicy,
+          "plain MAcc route-control provider plan joins typed config, "
+          "target capability, runtime AVL/VL, and ABI-order facts"))
+    return result;
 
   auto statementPlan = getRVVSelectedBodyPlainMAccRouteStatementPlan(
       *analysis, *materializationFacts, *mathFacts,
@@ -10420,6 +10512,8 @@ module {
   if (int result = expect(
           statementPlan->plansPlainMAccRoute &&
               statementPlan->plansMAccAdd &&
+              statementPlan->plainMAccPlan ==
+                  materializationFacts->plainMAccPlan &&
               statementPlan->bindingPlan == mathFacts->bindingPlan,
           "statement plan exposes the expected macc_add sub-family and math "
           "operand-binding plan"))
@@ -10518,6 +10612,97 @@ module {
                        expectedBodyCallees[index] + "'"))
       return result;
   }
+
+  RVVSelectedBodyRouteAnalysis missingPlainFamilyPlan = *analysis;
+  missingPlainFamilyPlan.plainMAccRouteFamilyPlan.reset();
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingPlainFamilyPlan,
+              "plain MAcc missing family plan unit test"),
+          {"requires the plain MAcc route-family plan", "macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainFamilyMirror = *analysis;
+  stalePlainFamilyMirror.description.plainMAccRouteFamilyPlanID =
+      "rvv-stale-plain-macc-route-family-plan";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              stalePlainFamilyMirror,
+              "plain MAcc stale family mirror unit test"),
+          {"plain MAcc route-family plan mirror", "validated family plan"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainProviderMirror = *analysis;
+  stalePlainProviderMirror.description.providerSupportedMirror =
+      "provider_supported_mirror:metadata-derived-plain-macc";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              stalePlainProviderMirror,
+              "plain MAcc stale provider mirror unit test"),
+          {"plain MAcc route-family route, runtime, type, intrinsic, "
+           "layout, and result mirrors",
+           "validated family plan"}))
+    return result;
+
+  auto missingPlainStatementFamilyFacts = *materializationFacts;
+  missingPlainStatementFamilyFacts.plainMAccPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyPlainMAccRouteStatementPlan(
+              *analysis, missingPlainStatementFamilyFacts, *mathFacts,
+              "plain MAcc missing statement dependency unit test")
+              .takeError(),
+          {"plain MAcc statement plan requires the verified plain MAcc "
+           "route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *analysis, missingPlainStatementFamilyFacts,
+              "plain MAcc missing control-plan dependency unit test")
+              .takeError(),
+          {"route-control provider plan requires the verified plain MAcc "
+           "route-family plan",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainRuntimeControl = *analysis;
+  stalePlainRuntimeControl.plainMAccRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto stalePlainRuntimeControlFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          stalePlainRuntimeControl,
+          "plain MAcc route-control stale runtime AVL unit test");
+  if (!stalePlainRuntimeControlFacts)
+    return fail("stale plain MAcc runtime-control materialization facts: " +
+                llvm::toString(stalePlainRuntimeControlFacts.takeError()));
+  auto stalePlainRuntimeControlMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          stalePlainRuntimeControl,
+          "plain MAcc route-control stale runtime AVL unit test");
+  if (!stalePlainRuntimeControlMathFacts)
+    return fail("stale plain MAcc runtime-control math facts: " +
+                llvm::toString(stalePlainRuntimeControlMathFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyPlainMAccRouteStatementPlan(
+              stalePlainRuntimeControl, *stalePlainRuntimeControlFacts,
+              *stalePlainRuntimeControlMathFacts,
+              "plain MAcc route-control stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainOutputBinding = *analysis;
+  stalePlainOutputBinding.routeOperandBindingPlan.bindings[3].parameter.role =
+      RuntimeABIParameterRole::AccumulatorInputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              stalePlainOutputBinding,
+              "plain MAcc stale output binding unit test"),
+          {"logical operand 'out'", "output-buffer",
+           "accumulator-input-buffer"}))
+    return result;
 
   {
     constexpr llvm::StringLiteral scalarBroadcastSource = R"mlir(
