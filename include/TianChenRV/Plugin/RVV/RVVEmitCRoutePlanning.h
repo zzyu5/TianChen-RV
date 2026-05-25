@@ -1183,6 +1183,31 @@ struct RVVSelectedBodyMigratedRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyMigratedRouteStatementPlanOwner {
+  using ConsumerPredicate =
+      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
+  using StatementPlanBuilder = llvm::Error (*)(
+      RVVSelectedBodyRouteAnalysis &,
+      const RVVSelectedBodyRouteMaterializationFacts &,
+      const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts &,
+      const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
+      const RVVSelectedBodyMathRouteOperandBindingFacts &,
+      const RVVSelectedBodyResidualRouteOperandBindingFacts &,
+      RVVSelectedBodyMigratedRouteStatementPlan &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  RVVSelectedBodyMigratedRouteStatementPlanFamily family =
+      RVVSelectedBodyMigratedRouteStatementPlanFamily::None;
+  ConsumerPredicate isConsumer = nullptr;
+  StatementPlanBuilder buildStatementPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
+getRVVSelectedBodyMigratedRouteStatementPlanOwners();
+
+bool isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(

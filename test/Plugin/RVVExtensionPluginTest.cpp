@@ -3976,6 +3976,183 @@ int runRouteControlProviderOwnerRegistryTest() {
        "add"});
 }
 
+int runMigratedRouteStatementPlanOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlanOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyMigratedRouteStatementPlanConsumer;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyMigratedRouteStatementPlanOwner>
+      owners = getRVVSelectedBodyMigratedRouteStatementPlanOwners();
+  if (int result =
+          expect(owners.size() == 9,
+                 "migrated route statement-plan owner registry has exactly "
+                 "nine active family entries"))
+    return result;
+
+  struct ExpectedOwner {
+    llvm::StringRef name;
+    RVVSelectedBodyMigratedRouteStatementPlanFamily family;
+  };
+  const ExpectedOwner expectedOwners[] = {
+      {"elementwise arithmetic",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::ElementwiseArithmetic},
+      {"compare/select",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect},
+      {"widening conversion",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion},
+      {"standalone reduction",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction},
+      {"plain MAcc", RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc},
+      {"base memory movement",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::BaseMemoryMovement},
+      {"computed-mask memory",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::ComputedMaskMemory},
+      {"segment2 memory",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::Segment2Memory},
+      {"computed-mask accumulation",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::
+           ComputedMaskAccumulation},
+  };
+  for (std::size_t i = 0; i < owners.size(); ++i) {
+    if (int result = expect(
+            owners[i].familyName == expectedOwners[i].name &&
+                owners[i].family == expectedOwners[i].family,
+            "migrated route statement-plan owner registry preserves explicit "
+            "family ownership order"))
+      return result;
+    if (int result = expect(owners[i].isConsumer != nullptr &&
+                                owners[i].buildStatementPlan != nullptr,
+                            "migrated route statement-plan owner entries "
+                            "carry consumer and builder hooks"))
+      return result;
+  }
+
+  struct MigratedCase {
+    RVVSelectedBodyOperationKind operation;
+    RVVSelectedBodyMemoryForm memoryForm;
+    llvm::StringRef ownerName;
+  };
+  const MigratedCase migratedCases[] = {
+      {RVVSelectedBodyOperationKind::Add,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad,
+       "elementwise arithmetic"},
+      {RVVSelectedBodyOperationKind::CmpSelect,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "compare/select"},
+      {RVVSelectedBodyOperationKind::WidenI32ToI64,
+       RVVSelectedBodyMemoryForm::UnitStrideConversion, "widening conversion"},
+      {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
+       RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction,
+       "standalone reduction"},
+      {RVVSelectedBodyOperationKind::MAccAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "plain MAcc"},
+      {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+       RVVSelectedBodyMemoryForm::StridedLoadUnitStore,
+       "base memory movement"},
+      {RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore,
+       "computed-mask memory"},
+      {RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
+       RVVSelectedBodyMemoryForm::UnitLoadSegment2Store, "segment2 memory"},
+      {RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc,
+       "computed-mask accumulation"}};
+
+  auto makeDescription = [](RVVSelectedBodyOperationKind operation,
+                            RVVSelectedBodyMemoryForm memoryForm) {
+    RVVSelectedBodyEmitCRouteDescription description;
+    description.operation = operation;
+    description.memoryForm = memoryForm;
+    return description;
+  };
+  for (const MigratedCase &routeCase : migratedCases) {
+    RVVSelectedBodyEmitCRouteDescription description =
+        makeDescription(routeCase.operation, routeCase.memoryForm);
+    std::size_t matchCount = 0;
+    bool namedOwnerMatched = false;
+    for (const auto &owner : owners) {
+      if (!owner.isConsumer(description))
+        continue;
+      ++matchCount;
+      namedOwnerMatched |= owner.familyName == routeCase.ownerName;
+    }
+    if (int result =
+            expect(matchCount == 1 && namedOwnerMatched,
+                   "migrated route statement-plan owner registry classifies "
+                   "each migrated family exactly once"))
+      return result;
+    if (int result = expect(
+            isRVVSelectedBodyMigratedRouteStatementPlanConsumer(description),
+            "migrated route statement-plan consumer predicate is registry "
+            "backed"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
+  nonConsumerAnalysis.description = makeDescription(
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore);
+  RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+  RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+  auto emptyPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      nonConsumerAnalysis, emptyMaterializationFacts, emptyElementwiseFacts,
+      emptyMemoryFacts, emptyMathFacts, emptyResidualFacts,
+      "migrated statement-plan owner registry unit test");
+  if (!emptyPlan)
+    return fail("non-consumer migrated statement plan unexpectedly failed: " +
+                llvm::toString(emptyPlan.takeError()));
+  if (int result = expect(
+          !emptyPlan->plansMigratedRoute &&
+              emptyPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::None,
+          "non-migrated routes receive an empty migrated statement plan"))
+    return result;
+  if (int result = expect(
+          !isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
+              nonConsumerAnalysis.description),
+          "runtime scalar splat-store remains outside the migrated "
+          "statement-plan owner registry"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingElementwisePlan;
+  missingElementwisePlan.description =
+      makeDescription(RVVSelectedBodyOperationKind::Add,
+                      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  return expectErrorContains(
+      getRVVSelectedBodyMigratedRouteStatementPlan(
+          missingElementwisePlan, emptyMaterializationFacts,
+          emptyElementwiseFacts, emptyMemoryFacts, emptyMathFacts,
+          emptyResidualFacts,
+          "migrated statement-plan owner registry unit test")
+          .takeError(),
+      {"elementwise arithmetic statement plan requires the verified "
+       "elementwise arithmetic route-family plan",
+       "add"});
+}
+
 int runRouteMaterializationFactsBoundaryTest() {
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteMaterializationFacts;
@@ -15069,6 +15246,8 @@ int main() {
   if (int result = runTopLevelRouteFamilyProviderOwnerRegistryTest())
     return result;
   if (int result = runRouteControlProviderOwnerRegistryTest())
+    return result;
+  if (int result = runMigratedRouteStatementPlanOwnerRegistryTest())
     return result;
   if (int result = runRouteMaterializationFactsBoundaryTest())
     return result;

@@ -57,6 +57,59 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 228: Stage2 RVV route-provider family owner registry
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV route-provider family owner registry
+**Branch**: `main`
+
+### Summary
+
+Moved migrated RVV statement-plan provider consumption behind an explicit owner registry, preserved provider-built route behavior, documented the new executable API in the RVV plugin spec, and verified focused plus full checks.
+
+### Main Changes
+
+- Added `RVVSelectedBodyMigratedRouteStatementPlanOwner`, `getRVVSelectedBodyMigratedRouteStatementPlanOwners()`, and `isRVVSelectedBodyMigratedRouteStatementPlanConsumer(...)`.
+- Replaced the central manual sequence in `getRVVSelectedBodyMigratedRouteStatementPlan(...)` with registry-selected exact-one owner dispatch.
+- Covered migrated statement-plan owners for elementwise arithmetic, compare/select, widening conversion, standalone reduction, plain MAcc, base memory movement, computed-mask memory, segment2 memory, and computed-mask accumulation.
+- Added focused C++ coverage for owner count/order/family tags, hook presence, exact-once classification, non-consumer empty-plan behavior, and missing dependency failure through the migrated owner boundary.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to capture the migrated statement-plan owner registry signatures, contracts, validation matrix, and required tests.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-route-provider-family-owner-registry`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --op-kind cmp_select --runtime-count 0 --runtime-count 7 --runtime-count 23 --artifact-root artifacts/tmp/stage2_rvv_route_provider_owner_registry --run-id direct-route-entry-cmp-select --overwrite`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind add --runtime-count 0 --runtime-count 7 --runtime-count 23 --artifact-root artifacts/tmp/stage2_rvv_route_provider_owner_registry --run-id explicit-add-statement-plan --overwrite`
+- [OK] Added-line authority scan over touched C++/test files found no new legacy i32/source-front-door/descriptor/ABI/artifact/script/common-EmitC/metadata/route-id authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Runtime Evidence
+
+No `ssh rvv` rerun was needed because emitted target sequence, runtime ABI, dispatch/fallback behavior, statement order, and computation semantics were preserved; this round changed route-provider ownership dispatch only.
+
+### Continuation
+
+- Direct-provider contraction statement construction still lives in `RVVEmitCRouteProvider.cpp`; extract it into a route-provider owner in the next round while preserving its route-control and math operand-binding checks.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 227: Stage2 RVV selected-body realization owner-local hooks
 
 **Date**: 2026-05-25

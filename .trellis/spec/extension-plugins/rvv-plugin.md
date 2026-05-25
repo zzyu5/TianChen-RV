@@ -2492,6 +2492,23 @@ intrinsic mirrors, mask/address/accumulator mirrors, or artifact metadata.
 The durable planning/provider API is:
 
 ```c++
+struct RVVSelectedBodyMigratedRouteStatementPlanOwner {
+  family name;
+  migrated statement-plan family enum;
+  consumer predicate over RVVSelectedBodyEmitCRouteDescription;
+  statement-plan builder over RVVSelectedBodyRouteAnalysis,
+      route materialization facts,
+      elementwise/select operand-binding facts,
+      memory operand-binding facts,
+      math operand-binding facts,
+      residual operand-binding facts,
+      output migrated statement plan;
+};
+
+getRVVSelectedBodyMigratedRouteStatementPlanOwners()
+isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
+    RVVSelectedBodyEmitCRouteDescription)
+
 llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
 getRVVSelectedBodyMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
@@ -2512,6 +2529,13 @@ obtaining route materialization facts, and after obtaining the
 elementwise/select, memory, math, and residual operand-binding facts for the
 same analysis.
 
+The aggregate boundary must select statement-plan ownership through
+`getRVVSelectedBodyMigratedRouteStatementPlanOwners()`. Every migrated family
+must appear exactly once in that registry. The aggregate boundary may dispatch
+to family-specific builders, but it must not manually call every family getter
+from a central sequence and then infer ownership from whichever plan happens
+to return non-empty.
+
 ### 3. Contracts
 
 `RVVSelectedBodyMigratedRouteStatementPlan` is RVV-local provider input. It
@@ -2527,9 +2551,18 @@ may carry:
 
 This aggregate boundary is not a common EmitC fact, not artifact metadata, not
 an acceptance/status mirror, and not a route-support declaration by itself.
+The owner registry is dispatch/locality structure only. It must not merge
+family semantics, choose intrinsics, infer dtype/config, or weaken the owning
+family statement-plan validators.
 
 ### 4. Validation & Error Matrix
 
+- An owner registry entry lacks a consumer or builder hook -> fail closed
+  before statement construction.
+- More than one migrated statement-plan owner matches one selected route ->
+  fail closed with all matching owner names before provider route construction.
+- Exactly one migrated owner matches but its builder returns no migrated plan
+  or the wrong family tag -> fail closed before provider route construction.
 - A migrated-family route lacks its valid family statement plan -> fail closed
   before generic provider-local statement assembly and before common EmitC.
 - More than one migrated family claims the same selected route -> fail closed
@@ -2544,7 +2577,8 @@ an acceptance/status mirror, and not a route-support declaration by itself.
 ### 5. Good/Base/Bad Cases
 
 - Good: verified route-family plans -> materialization facts -> RVV-owned
-  operand-binding facts -> `RVVSelectedBodyMigratedRouteStatementPlan` ->
+  operand-binding facts -> owner registry selects exactly one migrated
+  statement-plan owner -> `RVVSelectedBodyMigratedRouteStatementPlan` ->
   provider attaches returned statements into `TCRVEmitCLowerableRoute`.
 - Base: widening MAcc, dot-reduction routes, computed-mask standalone reduction
   variants, residual runtime scalar splat-store, and future families remain
@@ -2558,6 +2592,9 @@ an acceptance/status mirror, and not a route-support declaration by itself.
 
 ### 6. Tests Required
 
+- Focused C++ tests for migrated statement-plan owner registry membership,
+  owner names, family tags, hook presence, exact-once classification for each
+  migrated family, and empty-plan behavior for unrelated routes.
 - Focused C++ tests for positive aggregate-boundary construction and provider
   consumption across representative migrated families.
 - Focused C++ fail-closed diagnostics for at least one missing or stale

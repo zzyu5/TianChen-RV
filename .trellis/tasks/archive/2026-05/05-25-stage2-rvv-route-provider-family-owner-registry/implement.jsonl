@@ -1,0 +1,7 @@
+{"file":".trellis/spec/index.md","reason":"Global RVV authority chain, stack boundary, and Stage1/Stage2 constraints."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV route-family ownership, route-control, materialization facts, migrated statement-plan provider consumption, fail-closed inventory."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Plugin route-provider ownership and registry boundaries."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Required C++/lit evidence and mirror-only artifact testing rules."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-control-registry-consolidation/prd.md","reason":"Predecessor route-control owner registry completion and continuation context."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-deferred-selected-body-owner-local-hooks/prd.md","reason":"Predecessor selected-body realization owner-local hook completion and upstream producer context."}
