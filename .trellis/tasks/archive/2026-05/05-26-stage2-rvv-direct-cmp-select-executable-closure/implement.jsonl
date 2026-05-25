@@ -1,0 +1,10 @@
+{"file":".trellis/spec/index.md","reason":"Project-wide RVV-first authority chain, stack boundaries, Stage1/Stage2 order, and source-of-truth rules."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-owned direct route-entry realization bridge, elementwise/compare-select realization, compare/select statement-plan, runtime AVL/VL, ABI binding, mirror metadata, and fail-closed contracts."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Generated-bundle compare/select predicate evidence and ssh rvv runtime/correctness evidence requirements."}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"mem_window/runtime_param ABI-role contract and prohibition on deriving RVV semantics from ABI strings or metadata."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Plugin-owned selected-body realization and route-provider registry/interface authority rules."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-provider-family-owner-registry/prd.md","reason":"Predecessor migrated statement-plan owner registry that includes compare/select and direct pre-realized cmp_select dry-run context."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-direct-contraction-executable-artifact-closure/prd.md","reason":"Recent direct-provider executable closure pattern and validation discipline."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-computed-mask-memory-executable-artifact-closure/prd.md","reason":"Recent migrated statement-plan executable closure pattern and validation discipline."}
+{"file":".trellis/tasks/archive/2026-05/05-20-stage2-rvv-cmp-select-executable-abi/prd.md","reason":"Prior cmp_select harness correctness oracle and predicate true/false lane evidence."}

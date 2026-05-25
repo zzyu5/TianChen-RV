@@ -1,0 +1,7 @@
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check selected pre-realized compare/select path against RVV plugin-owned route-entry realization, statement-plan, provider, and fail-closed rules."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check common EmitC remains neutral and consumes only provider-built routes."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check generated-bundle predicate evidence and ssh rvv runtime/correctness evidence."}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"Check ABI/mem_window/runtime_param facts are roles only and typed body consumes them."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-direct-contraction-executable-artifact-closure/prd.md","reason":"Compare final evidence discipline for recent direct-provider executable closure."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-computed-mask-memory-executable-artifact-closure/prd.md","reason":"Compare final evidence discipline for recent migrated statement-plan executable closure."}
+{"file":".trellis/tasks/archive/2026-05/05-20-stage2-rvv-cmp-select-executable-abi/prd.md","reason":"Verify cmp_select predicate true/false correctness oracle is preserved on current HEAD."}

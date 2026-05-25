@@ -1462,3 +1462,67 @@ Closed executable evidence for computed_masked_indexed_scatter_store_unit_load: 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 230: Stage2 RVV direct cmp-select executable closure
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV direct cmp-select executable closure
+**Branch**: `main`
+
+### Summary
+
+Closed executable evidence for direct pre-realized route-entry cmp_select on current HEAD: dry-run, ssh rvv counts 1,7,16,23,257, direct-contraction non-regression dry-run, cmp-select lit, authority scans, git diff --check, and check-tianchenrv passed; no production code change was needed.
+
+### Main Changes
+
+- Created and archived the Trellis task for the executable closure.
+- Confirmed no production compiler/script/test repair was needed: current HEAD
+  already carries `cmp_select` from the selected pre-realized route-entry body
+  through RVV selected-body realization, the plain compare-select family plan,
+  route-control and operand-binding facts, migrated compare/select statement
+  plan ownership, provider-built `TCRVEmitCLowerableRoute`, common EmitC,
+  generated bundle export, and external ABI harness generation.
+- Captured executable `ssh rvv` evidence for pre-realized `cmp_select` using
+  runtime counts `1,7,16,23,257`.
+- Verified direct-provider non-regression with a dry-run
+  `computed_masked_strided_input_widening_dot_reduce_add` generated-bundle
+  path.
+- Recorded that no `.trellis/spec/**` update was needed because this round
+  discovered no new durable contract; it closed evidence for existing direct
+  route-entry compare/select ownership and generated-bundle evidence contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-26-stage2-rvv-direct-cmp-select-executable-closure`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Chosen route dry-run generated bundle under
+  `artifacts/tmp/stage2_rvv_direct_cmp_select_executable_closure/pre-realized-cmp-select-dry`
+- [OK] Chosen route non-dry-run `ssh rvv` generated-bundle execution:
+  `PASS op=cmp_select counts=1,7,16,23,257`
+- [OK] Remote execution reported predicate true/false lane coverage for
+  multi-lane counts `7,16,23,257`.
+- [OK] Direct-contraction non-regression dry-run under
+  `artifacts/tmp/stage2_rvv_direct_cmp_select_executable_closure/direct-contraction-nonregression-dry`
+- [OK] Focused compare/select lit: 10/10 selected tests passed.
+- [OK] Bounded current-path authority scan found only existing
+  provider-derived intrinsic mirrors, descriptor/source-front-door negative
+  checks, and legacy fail-closed fixtures; no production files changed in this
+  task.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
