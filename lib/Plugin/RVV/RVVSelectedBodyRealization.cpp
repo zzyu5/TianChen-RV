@@ -830,12 +830,18 @@ bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
 }
 
 bool isPreRealizedRVVComputedMaskMAccRouteEntryOp(mlir::Operation *op) {
-  auto body =
-      llvm::dyn_cast<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op);
-  if (!body)
-    return false;
-  return isPreRealizedComputedMaskMAccOpKind(body.getOpKind()) &&
-         isPreRealizedComputedMaskMAccMemoryForm(body.getMemoryForm());
+  if (auto body =
+          llvm::dyn_cast<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(
+              op))
+    return isPreRealizedComputedMaskMAccOpKind(body.getOpKind()) &&
+           isPreRealizedComputedMaskMAccMemoryForm(body.getMemoryForm());
+  if (auto body = llvm::dyn_cast<
+          tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(op))
+    return isPreRealizedRuntimeScalarComputedMaskMAccOpKind(
+               body.getOpKind()) &&
+           isPreRealizedRuntimeScalarComputedMaskMAccMemoryForm(
+               body.getMemoryForm());
+  return false;
 }
 
 bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {

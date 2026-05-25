@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and RVV-first route authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV runtime ABI binding, selected-body realization owners, route-entry bridge, runtime-scalar, computed-mask MAcc, provider facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route ownership and provider-built TCRVEmitCLowerableRoute boundary."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, typed-body, realization, and route-provider authority contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/generated-bundle/ssh-rvv evidence requirements for runtime-scalar computed-mask MAcc."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first checks for selected RVV capability and typed config legality."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-owned realization/provider locality and common-core boundary."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure runtime scalar compute stays in tcrv_rvv extension body, not tcrv.exec or common EmitC."}

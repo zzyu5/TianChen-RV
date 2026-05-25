@@ -156,3 +156,55 @@ Made direct route-entry computed-mask select a first-class RVV compare/select ow
 ### Next Steps
 
 - None - task complete
+
+
+## Session 239: Stage2 RVV runtime scalar ABI route-entry owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV runtime scalar ABI route-entry owner
+**Branch**: `main`
+
+### Summary
+
+Made runtime_scalar_cmp_masked_macc_add direct route-entry eligible through the RVV computed-mask MAcc owner, added runtime-scalar boundary evidence and focused dry-run/ssh rvv validation.
+
+### Main Changes
+
+- `RVVSelectedBodyRealization.cpp`: accepted
+  `TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp` through the
+  computed-mask MAcc route-entry owner predicate.
+- `rvv_generated_bundle_abi_e2e.py`: enabled bounded direct route-entry mode
+  for `runtime_scalar_cmp_masked_macc_add` and emitted runtime-scalar
+  computed-mask MAcc boundary evidence.
+- `RVVExtensionPluginTest.cpp`: added positive direct route-entry coverage and
+  owner-local fail-closed diagnostics for wrong runtime scalar role/op kind.
+- Added focused direct pre-realized generated-bundle dry-run coverage and
+  updated the MLIR testing contract for runtime-scalar computed-mask MAcc
+  evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused `FileCheck` for direct pre-realized
+  `runtime_scalar_cmp_masked_macc_add` dry-run evidence and harness.
+- [OK] `ssh rvv` direct pre-realized runtime scalar MAcc run, counts
+  `0,7,16,23,257`, scalars `-37,91`.
+- [OK] direct route-entry non-regression dry-runs for computed-mask select,
+  plain MAcc, scalar-broadcast MAcc, computed-mask MAcc, and computed-mask
+  contraction.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (384/384)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

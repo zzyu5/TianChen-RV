@@ -218,6 +218,11 @@ The per-op evidence JSON should expose a bounded summary key such as:
   AVL/VL must be mirrored from provider-validated route facts.
 - `selected_abi_roles` must identify compare operands, payload operands,
   accumulator input, output, and runtime `n` in the selected ABI order.
+- For runtime-scalar computed-mask MAcc, the selected ABI role summary must
+  identify `rhs_scalar` as the `rhs-scalar-value` runtime ABI input, scalar
+  splat source, and compare RHS for the same-VL mask producer. Evidence must
+  not infer this scalar from a constant, ABI name, route id, artifact name, or
+  harness convention.
 - `statement_plan` and `emitted_cpp` must prove the compare mask, active MAcc,
   merge/pass-through, store, loop induction, and runtime VL operands use the
   provider-selected operand bindings.
@@ -263,6 +268,10 @@ The per-op evidence JSON should expose a bounded summary key such as:
 
 - lit/FileCheck for the generated-bundle dry-run must check representative
   `computed_masked_macc_boundary` fields and mirror metadata.
+- Runtime-scalar computed-mask MAcc dry-run coverage must also check the
+  runtime scalar values, route-operand binding for `rhs_scalar` as
+  `abi|splat|cmp-rhs`, and the generated harness call that passes the scalar
+  ABI argument into the same generated artifact.
 - Target artifact tests must check provider-owned predicate, mask role/source,
   accumulator/result layout, runtime AVL/VL, typed config, ABI roles, and
   provider-supported mirror fields before relying on generated artifacts.

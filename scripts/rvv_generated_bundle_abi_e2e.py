@@ -1816,6 +1816,7 @@ class OpExpectation:
             or self.is_macc_add
             or self.is_scalar_broadcast_macc_add
             or self.is_computed_masked_macc_add
+            or self.is_runtime_scalar_computed_masked_macc_add
             or self.is_widening_macc_add
             or self.is_widening_dot_reduce_add
             or self.is_strided_input_widening_dot_reduce_add
@@ -16552,7 +16553,8 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "computed_mask_select/computed_mask_select_sle, and "
                 "strided_load_unit_store/standalone_reduce_add/"
                 "macc_add/scalar_broadcast_macc_add/"
-                "computed_masked_macc_add/contraction "
+                "computed_masked_macc_add/"
+                "runtime_scalar_cmp_masked_macc_add/contraction "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -17676,22 +17678,81 @@ def computed_masked_macc_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if not expectation.is_computed_masked_macc_add:
+    is_runtime_scalar = expectation.is_runtime_scalar_computed_masked_macc_add
+    if not (expectation.is_computed_masked_macc_add or is_runtime_scalar):
         return {}
     computed_macc_intrinsic = (
         f"__riscv_vmacc_vv_{expectation.element_type}{expectation.lmul}"
     )
-    return {
-        "source": (
-            "typed tcrv_rvv.masked_macc body/config/runtime facts -> "
-            "computed-mask accumulation family plan -> math operand-binding "
-            "facts -> route-control provider plan -> RVV-owned statement plan "
-            "-> emitted compare, active MAcc, merge, and store"
-        ),
-        "authority": (
-            "provider-derived typed tcrv_rvv computed-mask "
+    source = (
+        "typed tcrv_rvv.masked_macc body/config/runtime facts -> "
+        "computed-mask accumulation family plan -> math operand-binding "
+        "facts -> route-control provider plan -> RVV-owned statement plan "
+        "-> emitted compare, active MAcc, merge, and store"
+    )
+    authority = (
+        "provider-derived typed tcrv_rvv computed-mask "
+        "multiply-accumulate body/config/runtime facts"
+    )
+    selected_source_abi = {
+        "cmp_lhs": "lhs-input-buffer",
+        "cmp_rhs": "rhs-input-buffer",
+        "lhs": "dot-lhs-input-buffer",
+        "rhs": "dot-rhs-input-buffer",
+        "acc": "accumulator-input-buffer",
+        "out": "output-buffer",
+        "n": "runtime-element-count",
+    }
+    loop_callees = [
+        expectation.setvl_intrinsic,
+        expectation.unit_load_intrinsic,
+        expectation.unit_load_intrinsic,
+        expectation.unit_load_intrinsic,
+        expectation.unit_load_intrinsic,
+        expectation.unit_load_intrinsic,
+        expectation.compare_intrinsic,
+        computed_macc_intrinsic,
+        expectation.select_intrinsic,
+        expectation.unit_store_intrinsic,
+    ]
+    compare_operand_order = "cmp_lhs,cmp_rhs,vl"
+    if is_runtime_scalar:
+        source = (
+            "typed tcrv_rvv.masked_macc body/config/runtime scalar facts -> "
+            "runtime-scalar splat compare RHS -> computed-mask accumulation "
+            "family plan -> math operand-binding facts -> route-control "
+            "provider plan -> RVV-owned statement plan -> emitted compare, "
+            "active MAcc, merge, and store"
+        )
+        authority = (
+            "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
             "multiply-accumulate body/config/runtime facts"
-        ),
+        )
+        selected_source_abi = {
+            "cmp_lhs": "lhs-input-buffer",
+            "rhs_scalar": "rhs-scalar-value",
+            "lhs": "dot-lhs-input-buffer",
+            "rhs": "dot-rhs-input-buffer",
+            "acc": "accumulator-input-buffer",
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        }
+        loop_callees = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            "runtime-scalar-splat-rhs",
+            expectation.unit_load_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.compare_intrinsic,
+            computed_macc_intrinsic,
+            expectation.select_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        compare_operand_order = "cmp_lhs,rhs_scalar_splat,vl"
+    return {
+        "source": source,
+        "authority": authority,
         "artifact_metadata_role": "mirror-only-after-provider-route",
         "macc_kind": "add",
         "compare_predicate_kind": expectation.compare_predicate_kind,
@@ -17722,31 +17783,12 @@ def computed_masked_macc_boundary_summary(
             "layout": MACC_ADD_RESULT_LAYOUT,
             "abi_role": "output-buffer",
         },
-        "selected_source_abi": {
-            "cmp_lhs": "lhs-input-buffer",
-            "cmp_rhs": "rhs-input-buffer",
-            "lhs": "dot-lhs-input-buffer",
-            "rhs": "dot-rhs-input-buffer",
-            "acc": "accumulator-input-buffer",
-            "out": "output-buffer",
-            "n": "runtime-element-count",
-        },
+        "selected_source_abi": selected_source_abi,
         "statement_plan": {
             "family": "computed-mask accumulation MAcc",
             "pre_loop_callees": [expectation.setvl_intrinsic],
-            "loop_callees": [
-                expectation.setvl_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.unit_load_intrinsic,
-                expectation.compare_intrinsic,
-                computed_macc_intrinsic,
-                expectation.select_intrinsic,
-                expectation.unit_store_intrinsic,
-            ],
-            "compare_operand_order": "cmp_lhs,cmp_rhs,vl",
+            "loop_callees": loop_callees,
+            "compare_operand_order": compare_operand_order,
             "macc_operand_order": "acc,lhs,rhs,vl",
             "merge_operand_order": "acc,active_macc,mask,vl",
             "store_pointer": "out + loop_induction",
@@ -18080,7 +18122,10 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_computed_masked_macc_add:
+        if (
+            expectation.is_computed_masked_macc_add
+            or expectation.is_runtime_scalar_computed_masked_macc_add
+        ):
             evidence["computed_masked_macc_boundary"] = (
                 computed_masked_macc_boundary_summary(
                     expectation=expectation,
