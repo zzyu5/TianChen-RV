@@ -692,10 +692,10 @@ attached to `TCRVEmitCLowerableRoute`.
 The required consumers are mature ordinary elementwise arithmetic,
 scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
 select, widening conversion, non-segment computed-mask memory, segment2 memory,
-base memory movement, standalone reduction, scalar-broadcast MAcc, and runtime
-scalar splat-store families. Other migrated families may continue to use their
-existing family-local checks until they are explicitly moved onto this
-boundary.
+base memory movement, standalone reduction, scalar-broadcast MAcc, runtime
+scalar splat-store, and computed-mask accumulation MAcc families. Other
+migrated families may continue to use their existing family-local checks until
+they are explicitly moved onto this boundary.
 
 ### 2. Signatures
 
@@ -731,7 +731,7 @@ carry:
   elementwise arithmetic, plain compare/select, computed-mask select,
   widening conversion, non-segment computed-mask memory, segment2 memory, base
   memory movement, standalone reduction, scalar-broadcast MAcc, runtime scalar
-  splat-store, or future adopted families;
+  splat-store, computed-mask accumulation MAcc, or future adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -793,6 +793,12 @@ fields only after provider route construction.
   splat-store family plan verifier with scalar input, vector result, memory-form,
   splat/store leaves, and runtime-control facts -> materialization facts ->
   residual operand-binding facts -> route-control provider plan ->
+  provider-built route.
+- Good: typed computed-mask MAcc `tcrv_rvv` body -> computed-mask accumulation
+  family plan verifier with vector/runtime-scalar mask-producer facts,
+  accumulator/MAcc classification, inactive-lane contracts, and runtime-control
+  facts -> materialization facts -> math operand-binding facts ->
+  route-control provider plan -> computed-mask accumulation statement plan ->
   provider-built route.
 - Base: migrated families not yet adopted by the route-control plan retain
   their family-local verifier checks and receive an empty route-control plan.
@@ -2022,9 +2028,10 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
 
 `RVVEmitCRouteProvider` must call this boundary after
 `verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
-obtaining route materialization facts, and after obtaining math operand-binding
-facts for the same analysis. Non-consumer route families receive an
-empty/default statement plan.
+obtaining route materialization facts, after obtaining math operand-binding
+facts for the same analysis, and after the computed-mask accumulation MAcc path
+has consumed `RVVSelectedBodyRouteControlProviderPlan`. Non-consumer route
+families receive an empty/default statement plan.
 
 ### 3. Contracts
 
@@ -2041,9 +2048,10 @@ provider input. It may carry:
   active MAcc compute, masked merge/passthrough, store, operands, and results.
 
 The plan must be derived only from verified typed body/config/runtime facts,
-route materialization facts, and RVV-owned math operand-binding facts. It is
-not a common EmitC fact, not artifact metadata, not an acceptance/status mirror,
-and not a route-support declaration by itself.
+route materialization facts, RVV-owned math operand-binding facts, and the
+RVV-owned route-control provider plan. It is not a common EmitC fact, not
+artifact metadata, not an acceptance/status mirror, and not a route-support
+declaration by itself.
 
 ### 4. Validation & Error Matrix
 
@@ -2056,6 +2064,10 @@ and not a route-support declaration by itself.
 - The verified family plan has stale route-shape markers such as wrong
   runtime-scalar producer, vector-compare producer, vector-MAcc suffix, or
   scalar-horizontal suffix -> fail closed before common EmitC.
+- An included computed-mask MAcc route lacks the shared route-control provider
+  plan, has stale same-analysis materialization/control ownership, or carries
+  policy/runtime ABI/capability mirrors that disagree with route-control facts
+  -> fail closed before route statement construction.
 - Required ABI roles such as `cmp_lhs`, `cmp_rhs` or `rhs_scalar`, payload
   `lhs`/`rhs`, `acc`, `out`, and runtime count are absent -> fail closed with
   the logical operand name and operation/memory-form context.
@@ -2069,8 +2081,8 @@ and not a route-support declaration by itself.
 ### 5. Good/Base/Bad Cases
 
 - Good: typed computed-mask MAcc `tcrv_rvv` body -> family plan verifier ->
-  materialization facts -> math operand-binding facts -> RVV-owned statement
-  plan -> provider-built route.
+  materialization facts -> math operand-binding facts -> route-control provider
+  plan -> RVV-owned statement plan -> provider-built route.
 - Base: computed-mask standalone reductions, widening dot reductions, plain
   MAcc, memory, compare/select, residual runtime scalar splat-store, and future
   families keep their own statement construction surfaces and receive an empty
@@ -2083,9 +2095,12 @@ and not a route-support declaration by itself.
 ### 6. Tests Required
 
 - C++ tests for positive statement-plan construction and provider consumption
-  for computed-mask MAcc and runtime-scalar computed-mask MAcc.
+  for computed-mask MAcc and runtime-scalar computed-mask MAcc, including
+  positive route-control provider-plan consumption before statement planning.
 - C++ fail-closed diagnostics for at least one missing or stale
-  statement-plan dependency before route statement construction.
+  statement-plan dependency before route statement construction, including
+  stale route-control, runtime AVL/VL, policy, selected capability,
+  mask-producer/classification, and math operand-binding facts.
 - C++ default/empty-plan coverage for unrelated route families.
 - Representative lit/FileCheck coverage proving existing explicit or
   pre-realized computed-mask MAcc selected-body artifacts still pass.
@@ -2113,6 +2128,7 @@ Correct:
 verified computed-mask accumulation family plan
   -> RVVSelectedBodyRouteMaterializationFacts
   -> RVV-owned math operand-binding facts
+  -> RVVSelectedBodyRouteControlProviderPlan
   -> RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```

@@ -22879,6 +22879,20 @@ static bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
              RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
 }
 
+static bool isRVVSelectedBodyComputedMaskAccumulationRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskUnitStrideMAcc;
+  default:
+    return false;
+  }
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
@@ -22891,6 +22905,8 @@ static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
          isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description) ||
          isRVVSelectedBodySegment2MemoryRouteControlConsumer(description) ||
          isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
+             description) ||
+         isRVVSelectedBodyComputedMaskAccumulationRouteControlConsumer(
              description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
@@ -23397,6 +23413,81 @@ getRVVSelectedBodyRouteControlProviderPlan(
 
     runtimeControlPlan = &runtimeSplatPlan.runtimeControlPlan;
     plan.controlsRuntimeScalarSplatStore = true;
+  } else if (isRVVSelectedBodyComputedMaskAccumulationRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.computedMaskAccumulationPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified computed-mask "
+          "accumulation route-family plan before provider route construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.computedMaskAccumulationRouteFamilyPlan ||
+        materializationFacts.computedMaskAccumulationPlan !=
+            &*analysis.computedMaskAccumulationRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask accumulation "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+        &accumulationPlan = *materializationFacts.computedMaskAccumulationPlan;
+    const bool isRuntimeScalar =
+        description.operation ==
+        RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
+    if (accumulationPlan.operation != description.operation ||
+        accumulationPlan.memoryForm != description.memoryForm ||
+        !accumulationPlan.usesVectorMAccSuffix ||
+        accumulationPlan.usesScalarHorizontalReductionSuffix ||
+        accumulationPlan.usesVectorCompareProducer != !isRuntimeScalar ||
+        accumulationPlan.usesRuntimeScalarProducer != isRuntimeScalar ||
+        accumulationPlan.maskProducerSource !=
+            (isRuntimeScalar ? "runtime-scalar-splat-compare-rhs"
+                             : "vector-compare-rhs-load") ||
+        accumulationPlan.accumulatorContract !=
+            "vector-accumulator-input-preserves-inactive-lanes" ||
+        accumulationPlan.resultContract !=
+            "vector-macc-result-stored-to-output-buffer" ||
+        accumulationPlan.inactiveLaneContract !=
+            "masked-macc-false-lanes-preserve-accumulator" ||
+        accumulationPlan.maskedPassthroughLayout !=
+            "accumulator-vector-preserves-inactive-lanes")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask accumulation "
+          "mask-producer, MAcc classification, accumulator, and memory-form "
+          "facts from the verified route-family plan before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    if (materializationFacts.setVLLeaf !=
+            accumulationPlan.setVLIntrinsic ||
+        materializationFacts.vectorLoadLeaf !=
+            accumulationPlan.vectorLoadIntrinsic ||
+        materializationFacts.compareLeaf != accumulationPlan.compareIntrinsic ||
+        materializationFacts.storeLeaf != accumulationPlan.storeIntrinsic ||
+        materializationFacts.maskedMergeLeaf != description.maskedMergeIntrinsic ||
+        materializationFacts.elementwiseComputeLeaf != description.intrinsic ||
+        materializationFacts.resultVectorTypeName !=
+            accumulationPlan.vectorTypeName ||
+        materializationFacts.resultVectorCType !=
+            accumulationPlan.vectorCType ||
+        materializationFacts.maskTypeName != accumulationPlan.maskTypeName ||
+        materializationFacts.maskCType != accumulationPlan.maskCType ||
+        (isRuntimeScalar &&
+         materializationFacts.rhsScalarBroadcastLeaf !=
+             accumulationPlan.rhsScalarSplatIntrinsic))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask accumulation "
+          "materialization facts to mirror the verified accumulation family "
+          "plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    runtimeControlPlan = &accumulationPlan.runtimeControlPlan;
+    plan.controlsComputedMaskAccumulation = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -30769,6 +30860,34 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
         llvm::Twine(context) +
         " computed-mask accumulation statement plan requires computed-mask "
         "MAcc math operand-binding facts before route statement construction");
+  if (!mathOperandBindingFacts.bindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires the RVV-owned "
+        "math operand-binding plan before route statement construction");
+  if (mathOperandBindingFacts.bindingPlan != &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires math "
+        "operand-binding facts from the same selected route analysis before "
+        "route statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsComputedMaskAccumulation ||
+      routeControlPlan->runtimeControlPlan !=
+          &accumulationPlan.runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires the RVV-owned "
+        "route-control provider plan before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   const support::RuntimeABIParameter *compareLhsABI =
       mathOperandBindingFacts.lhsABI;

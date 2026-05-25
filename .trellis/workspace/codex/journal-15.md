@@ -57,6 +57,65 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 223: Stage2 RVV computed-mask accumulation route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV computed-mask accumulation route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated existing computed-mask MAcc accumulation routes with the shared RVV
+route-control provider plan before computed-mask accumulation statement
+planning, added focused fail-closed C++ coverage, updated the RVV plugin spec,
+and verified focused/full checks.
+
+### Main Changes
+
+- Added `controlsComputedMaskAccumulation` to
+  `RVVSelectedBodyRouteControlProviderPlan`.
+- Made `computed_masked_macc_add` and
+  `runtime_scalar_cmp_masked_macc_add` route-control consumers for their
+  existing computed-mask accumulation memory forms.
+- Required route-control construction to validate same-analysis accumulation
+  family/materialization facts, runtime AVL/VL, typed config, selected target
+  capability, policy, runtime ABI, mask-producer classification,
+  accumulator/MAcc contracts, materialization leaves, and mirrors before
+  computed-mask accumulation statement construction.
+- Required the computed-mask accumulation statement-plan builder to consume the
+  route-control provider plan and same-analysis math operand-binding facts
+  before building setvl/load/splat/compare/MAcc/merge/store statements.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record computed
+  mask accumulation MAcc as a route-control provider-plan consumer.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-computed-mask-accum-route-control`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded added-line authority scan; broad scan only reported spec
+  mirror-only wording, local `result` variables, and intentional negative
+  `metadata_n`; narrow scan found no route-id/descriptor/source-front-door/
+  source-artifact/direct-C/source-export/legacy-i32/script/common-EmitC/
+  metadata/artifact-derived authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379 tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 221: Stage2 RVV widening conversion route-control provider-plan integration
 
 **Date**: 2026-05-25

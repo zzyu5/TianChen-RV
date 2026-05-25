@@ -11561,6 +11561,7 @@ int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
@@ -11574,6 +11575,7 @@ int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer;
@@ -11740,6 +11742,27 @@ module {
     if (!mathFacts)
       return fail("computed-mask accumulation math facts: " +
                   llvm::toString(mathFacts.takeError()));
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, *materializationFacts,
+            "computed-mask accumulation statement plan provider unit test");
+    if (!routeControlPlan)
+      return fail("computed-mask accumulation route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsComputedMaskAccumulation &&
+                routeControlPlan->runtimeControlPlan ==
+                    &materializationFacts->computedMaskAccumulationPlan
+                         ->runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            "computed-mask accumulation route-control provider plan joins "
+            "typed config, target capability, runtime control, and family "
+            "materialization facts"))
+      return result;
 
     llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
         statementPlan =
@@ -11876,6 +11899,128 @@ module {
           {"computed-mask accumulation statement plan requires the verified "
            "computed-mask accumulation route-family plan",
            "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRouteControl = *computedMaskedMAccAnalysis;
+  auto staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask accumulation stale-analysis route-control unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask accumulation stale-analysis materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  staleRouteControlFacts->computedMaskAccumulationPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask accumulation stale-analysis route-control unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires the verified computed-mask "
+           "accumulation route-family plan",
+           "computed_masked_macc_add"}))
+    return result;
+
+  staleRouteControl = *computedMaskedMAccAnalysis;
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask accumulation same-analysis route-control unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask accumulation same-analysis materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  auto foreignComputedMaskAccumulationPlan =
+      *staleRouteControl.computedMaskAccumulationRouteFamilyPlan;
+  staleRouteControlFacts->computedMaskAccumulationPlan =
+      &foreignComputedMaskAccumulationPlan;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask accumulation same-analysis route-control unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask accumulation "
+           "materialization facts from the same selected route analysis",
+           "computed_masked_macc_add"}))
+    return result;
+
+  staleRouteControl = *computedMaskedMAccAnalysis;
+  staleRouteControl.computedMaskAccumulationRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLASource = "metadata_n";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask accumulation stale runtime AVL unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask accumulation stale runtime AVL materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask accumulation stale runtime AVL unit test")
+              .takeError(),
+          {"runtime AVL/VL control plan invalid",
+           "route-control provider plan",
+           "must derive runtime AVL source from runtime_abi:n"}))
+    return result;
+
+  staleRouteControl = *computedMaskedMAccAnalysis;
+  staleRouteControl.computedMaskAccumulationRouteFamilyPlan->runtimeControlPlan
+      .maskPolicy = "undisturbed";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask accumulation stale mask policy unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask accumulation stale mask policy materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask accumulation stale mask policy unit test")
+              .takeError(),
+          {"route-control provider plan mask policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  staleRouteControl = *computedMaskedMAccAnalysis;
+  staleRouteControl.selectedTargetCapabilityFacts.supportedSEW = "64";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask accumulation stale target unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask accumulation stale target materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask accumulation stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  staleRouteControl = *computedMaskedMAccAnalysis;
+  staleRouteControl.computedMaskAccumulationRouteFamilyPlan
+      ->usesVectorMAccSuffix = false;
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask accumulation stale MAcc classification unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask accumulation stale MAcc classification "
+                "materialization facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask accumulation stale MAcc classification unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask accumulation "
+           "mask-producer, MAcc classification, accumulator, and memory-form "
+           "facts",
+           "computed_masked_macc_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis unrelatedAnalysis;
