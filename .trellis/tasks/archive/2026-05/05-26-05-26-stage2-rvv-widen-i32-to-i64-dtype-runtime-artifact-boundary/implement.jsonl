@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV-first authority chain, Stage 2 scope, and no descriptor/source-front-door/common-EmitC authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body/config/runtime facts, selected-body realization, route-provider validation, widening conversion, migrated statement-plan consumption, and artifact mirror rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutral materialization boundary and TCRVEmitCLowerableRoute authority constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle conversion/SEW policy evidence, runtime count interpretation, ssh rvv evidence, and direct/pre-realized artifact conventions."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-computed-mask-macc-accumulator-mask-artifact-boundary/prd.md", "reason": "Previous artifact-boundary closure pattern and non-regression boundary for computed_masked_macc_add."}

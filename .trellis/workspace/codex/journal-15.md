@@ -57,6 +57,59 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 235: Stage2 RVV widening conversion dtype runtime artifact boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV widening conversion dtype/runtime artifact boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the representative signed `widen_i32_to_i64` generated-bundle evidence
+boundary by promoting i32->i64 into the conversion/SEW policy evidence path,
+adding `n=0` coverage, and strengthening the generated harness to check signed
+widening, wide-magnitude inputs, and output sentinel preservation.
+
+### Main Changes
+
+- Added `conversion_sew_policy_boundary` evidence for `widen_i32_to_i64`, using
+  provider-derived typed `tcrv_rvv` body/config/runtime facts as the authority.
+- Updated explicit and pre-realized `widen_i32_to_i64` dry-run tests to cover
+  runtime counts `0,7,16,23` and check source/result type policy, conversion
+  relation, source load, widening intrinsic, store intrinsic, loop VL use, and
+  mirror-only artifact metadata.
+- Strengthened the generated i32->i64 harness with alternating signed
+  wide-magnitude inputs, sign-extension checks, and tail sentinel preservation.
+
+### Git Commits
+
+(Included in the final task commit.)
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] explicit and pre-realized `widen_i32_to_i64` generated-bundle dry-runs
+  with runtime counts `0,7,16,23`.
+- [OK] manual FileCheck coverage for both updated dry-run lit tests.
+- [OK] explicit and pre-realized selected-body target artifact FileCheck
+  coverage for `widen_i32_to_i64`.
+- [OK] `ssh rvv` pre-realized `widen_i32_to_i64` generated-bundle execution
+  over counts `0,7,16,23`, with sign-extension and tail preservation.
+- [OK] `ssh rvv` pre-realized `macc_add` and `computed_masked_macc_add`
+  generated-bundle non-regressions over counts `0,7,16,23`.
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 380/380.
+- [OK] `git diff --check` and bounded authority scan.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 228: Stage2 RVV direct-provider contraction route-provider owner
 
 **Date**: 2026-05-25

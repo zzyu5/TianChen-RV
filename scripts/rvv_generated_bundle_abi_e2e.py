@@ -2055,7 +2055,7 @@ class OpExpectation:
 
     @property
     def has_conversion_sew_policy_boundary(self) -> bool:
-        return self.is_widen_i16_to_i32
+        return self.is_widening_conversion
 
     @property
     def conversion_source_element_c_type(self) -> str:
@@ -2198,7 +2198,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-widen-i32-to-i64-emitc-route",
         typed_compute_op="tcrv_rvv.widening_convert",
         memory_form="unit-stride-conversion",
-        lhs_initializer="(int32_t)(((int)(index % 31) - 15) * 65537)",
+        lhs_initializer=(
+            "((index % 2) == 0 "
+            "? (int32_t)(-((int32_t)(index + 1) * 65537)) "
+            ": (int32_t)(((int32_t)(index + 1) * 65537)))"
+        ),
         rhs_initializer="unused",
         expected_expression="(int64_t)lhs[index]",
         out_initializer=I64_OUT_SENTINEL,
@@ -3781,7 +3785,11 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-widen-i32-to-i64-emitc-route",
         typed_compute_op="tcrv_rvv.widening_convert",
         memory_form="unit-stride-conversion",
-        lhs_initializer="(int32_t)((int)(index % 29) - 14)",
+        lhs_initializer=(
+            "((index % 2) == 0 "
+            "? (int32_t)(-((int32_t)(index + 1) * 65537)) "
+            ": (int32_t)(((int32_t)(index + 1) * 65537)))"
+        ),
         rhs_initializer="unused",
         expected_expression="(int64_t)lhs[index]",
         out_initializer=I64_OUT_SENTINEL,
@@ -13719,7 +13727,9 @@ int main(void) {{
 
 static int run_case(size_t n) {{
   /* expected: {expectation.expected_expression} */
-  size_t alloc_n = n == 0 ? 1 : n;
+  size_t alloc_n = n + 5;
+  if (alloc_n == 5 && n == 0)
+    alloc_n = 6;
   int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   int64_t *out = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
   if (!lhs || !out) {{
@@ -13729,15 +13739,24 @@ static int run_case(size_t n) {{
     return 11;
   }}
 
-  for (size_t index = 0; index < n; ++index) {{
+  for (size_t index = 0; index < alloc_n; ++index) {{
     lhs[index] = {expectation.lhs_initializer};
     out[index] = {expectation.out_initializer};
   }}
 
   {expectation.function_name}(lhs, out, n);
 
+  size_t negative_lanes = 0;
+  size_t positive_lanes = 0;
+  size_t wide_magnitude_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
     int64_t expected = {expectation.expected_expression};
+    if (lhs[index] < 0)
+      ++negative_lanes;
+    if (lhs[index] > 0)
+      ++positive_lanes;
+    if (lhs[index] > 32767 || lhs[index] < -32768)
+      ++wide_magnitude_lanes;
     if (out[index] != expected) {{
       fprintf(stderr,
               "{expectation.kind} mismatch n=%zu index=%zu got=%lld expected=%lld lhs=%d\\n",
@@ -13746,11 +13765,47 @@ static int run_case(size_t n) {{
       free(out);
       return 12;
     }}
+    if (lhs[index] < 0 && out[index] >= 0) {{
+      fprintf(stderr,
+              "{expectation.kind} sign-extension failed n=%zu index=%zu lhs=%d out=%lld\\n",
+              n, index, lhs[index], (long long)out[index]);
+      free(lhs);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%lld sentinel=%lld\\n",
+              n, index, (long long)out[index],
+              (long long){expectation.out_initializer});
+      free(lhs);
+      free(out);
+      return 14;
+    }}
+  }}
+
+  if (n > 1 && (negative_lanes == 0 || positive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} sign-extension coverage missing n=%zu negative_lanes=%zu positive_lanes=%zu\\n",
+            n, negative_lanes, positive_lanes);
+    free(lhs);
+    free(out);
+    return 15;
+  }}
+  if (n > 0 && wide_magnitude_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} wide-magnitude coverage missing n=%zu\\n", n);
+    free(lhs);
+    free(out);
+    return 16;
   }}
 
   free(lhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok\\n", n);
+  printf("{expectation.kind} case n=%zu ok sign_extension_checked wide_magnitude_checked tail_preserved\\n", n);
   return 0;
 }}
 
