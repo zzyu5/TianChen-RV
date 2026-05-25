@@ -57,6 +57,67 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 220: Stage2 RVV segment2 memory route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV segment2 memory route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated existing plain and computed-mask segment2 memory statement planning
+with the shared RVV route-control provider-plan boundary before segment2
+statement construction. The route-control owner now validates same-analysis
+family/materialization facts, runtime AVL/VL, typed config, selected
+capability, policy, segment direction, memory form, computed-mask segment facts,
+runtime ABI mirrors, and operand-binding ownership before provider route
+attachment.
+
+### Main Changes
+
+- Added `controlsSegment2Memory` to
+  `RVVSelectedBodyRouteControlProviderPlan`.
+- Made the four existing production-active segment2 memory routes explicit
+  route-control consumers:
+  `segment2_deinterleave_unit_store`, `segment2_interleave_unit_load`,
+  `computed_masked_segment2_load_unit_store`, and
+  `computed_masked_segment2_store_unit_load`.
+- Required `getRVVSelectedBodySegment2MemoryRouteStatementPlan(...)` to consume
+  the route-control provider plan before constructing segment2 setvl/load/
+  compare/tuple/segment/store statements.
+- Added focused C++ positive and fail-closed coverage for segment2
+  route-control consumption, stale same-analysis materialization, runtime AVL,
+  policy, capability, runtime ABI mirror, direction, memory-form, and operand
+  binding facts.
+- Updated the RVV plugin spec to list segment2 memory as a route-control
+  consumer and to document the segment2 statement-plan route-control dependency.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-segment2-route-control`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] Bounded added-line authority scan: only spec mirror-only text, ordinary
+  `description` field access, and negative stale `metadata_n` ABI mirror test
+  matched; no new source-front-door, descriptor, common-EmitC, artifact/script,
+  or legacy-i32 authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Runtime Evidence
+
+No `ssh rvv` rerun was needed because emitted target statement order, runtime
+ABI, target mirrors, generated artifacts, and runtime behavior were unchanged.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 214: Stage2 RVV runtime AVL/VL and policy provider-plan boundary
 
 **Date**: 2026-05-25

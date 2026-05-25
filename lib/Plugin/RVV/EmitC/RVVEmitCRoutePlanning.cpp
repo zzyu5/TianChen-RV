@@ -22844,6 +22844,26 @@ static bool isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(
   }
 }
 
+static bool isRVVSelectedBodySegment2MemoryRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
+  default:
+    return false;
+  }
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
@@ -22853,6 +22873,7 @@ static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
          isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(description) ||
          isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(description) ||
          isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description) ||
+         isRVVSelectedBodySegment2MemoryRouteControlConsumer(description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
          isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
@@ -23141,6 +23162,101 @@ getRVVSelectedBodyRouteControlProviderPlan(
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
     runtimeControlPlan = &computedPlan.runtimeControlPlan;
     plan.controlsComputedMaskMemory = true;
+  } else if (isRVVSelectedBodySegment2MemoryRouteControlConsumer(
+                 description)) {
+    const bool isPlainDeinterleave =
+        description.operation ==
+        RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+    const bool isPlainInterleave =
+        description.operation ==
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+    const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
+    const bool isComputedMaskSegment2Load =
+        description.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+    const bool isComputedMaskSegment2Store =
+        description.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+
+    if (isPlainSegment2) {
+      if (!materializationFacts.segment2MemoryPlan)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " route-control provider plan requires the verified plain "
+            "segment2 memory route-family plan before provider route "
+            "construction for operation '" +
+            stringifyRVVSelectedBodyOperationKind(description.operation) +
+            "'");
+      if (!analysis.segment2MemoryRouteFamilyPlan ||
+          materializationFacts.segment2MemoryPlan !=
+              &*analysis.segment2MemoryRouteFamilyPlan)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " route-control provider plan requires plain segment2 memory "
+            "materialization facts from the same selected route analysis "
+            "before provider route construction for operation '" +
+            stringifyRVVSelectedBodyOperationKind(description.operation) +
+            "'");
+
+      const RVVSelectedBodySegment2MemoryRouteFamilyPlan &segmentPlan =
+          *materializationFacts.segment2MemoryPlan;
+      if (segmentPlan.operation != description.operation ||
+          segmentPlan.memoryForm != description.memoryForm ||
+          segmentPlan.usesDeinterleaveLoad != isPlainDeinterleave ||
+          segmentPlan.usesInterleaveStore != isPlainInterleave ||
+          segmentPlan.segmentCount != 2)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " route-control provider plan requires plain segment2 memory "
+            "direction and memory-form facts from the verified route-family "
+            "plan before provider route construction for operation '" +
+            stringifyRVVSelectedBodyOperationKind(description.operation) +
+            "'");
+      runtimeControlPlan = &segmentPlan.runtimeControlPlan;
+    } else {
+      if (!materializationFacts.computedMaskMemoryPlan)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " route-control provider plan requires the verified "
+            "computed-mask segment2 memory route-family plan before provider "
+            "route construction for operation '" +
+            stringifyRVVSelectedBodyOperationKind(description.operation) +
+            "'");
+      if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+          materializationFacts.computedMaskMemoryPlan !=
+              &*analysis.computedMaskMemoryRouteFamilyPlan)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " route-control provider plan requires computed-mask segment2 "
+            "memory materialization facts from the same selected route "
+            "analysis before provider route construction for operation '" +
+            stringifyRVVSelectedBodyOperationKind(description.operation) +
+            "'");
+
+      const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+          *materializationFacts.computedMaskMemoryPlan;
+      if (computedPlan.operation != description.operation ||
+          computedPlan.memoryForm != description.memoryForm ||
+          computedPlan.usesRuntimeScalarProducer ||
+          !computedPlan.usesVectorCompareProducer ||
+          computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
+          computedPlan.usesStoreOnly != isComputedMaskSegment2Store ||
+          computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
+          computedPlan.usesSegment2Store != isComputedMaskSegment2Store ||
+          computedPlan.maskProducerSource !=
+              getComputedMaskMemoryProducerSource(description.operation) ||
+          computedPlan.segmentCount != 2)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " route-control provider plan requires computed-mask segment2 "
+            "mask-producer, direction, and memory-form facts from the "
+            "verified route-family plan before provider route construction "
+            "for operation '" +
+            stringifyRVVSelectedBodyOperationKind(description.operation) +
+            "'");
+      runtimeControlPlan = &computedPlan.runtimeControlPlan;
+    }
+    plan.controlsSegment2Memory = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -29989,6 +30105,39 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
         llvm::Twine(context) +
         " segment2 memory statement plan requires computed-mask memory "
         "operand-binding facts before route statement construction");
+  if (!memoryOperandBindingFacts.bindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires RVV-owned memory "
+        "operand-binding facts before route statement construction");
+  if (memoryOperandBindingFacts.bindingPlan != &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires memory operand-binding "
+        "facts from the same selected route analysis before route statement "
+        "construction");
+
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *plainPlan =
+      materializationFacts.segment2MemoryPlan;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan *computedPlan =
+      materializationFacts.computedMaskMemoryPlan;
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  const RVVRuntimeAVLVLControlPlan *expectedRuntimeControlPlan =
+      isPlainSegment2 ? &plainPlan->runtimeControlPlan
+                      : &computedPlan->runtimeControlPlan;
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsSegment2Memory ||
+      routeControlPlan->runtimeControlPlan != expectedRuntimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 memory statement plan requires the RVV-owned "
+        "route-control provider plan before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   const support::RuntimeABIParameter *compareLhsABI =
       memoryOperandBindingFacts.compareLhsABI;
@@ -30035,10 +30184,6 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
           runtimeElementCountABI, "n", description, context))
     return std::move(error);
 
-  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *plainPlan =
-      materializationFacts.segment2MemoryPlan;
-  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan *computedPlan =
-      materializationFacts.computedMaskMemoryPlan;
   llvm::StringRef setVLIntrinsic =
       isPlainSegment2 ? plainPlan->setVLIntrinsic : computedPlan->setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic =

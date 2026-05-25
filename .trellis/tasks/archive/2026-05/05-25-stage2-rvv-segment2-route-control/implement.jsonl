@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 ordering, and common red lines for this RVV route-control task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, route-control provider-plan boundary, segment2 memory statement-plan boundary, artifacts, and mirror-only constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and FileCheck evidence expectations plus ssh rvv boundary for runtime claims."}

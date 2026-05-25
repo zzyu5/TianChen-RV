@@ -5163,6 +5163,27 @@ module {
       return fail("computed-mask segment2 memory facts: " +
                   llvm::toString(memoryFacts.takeError()));
 
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts,
+        "computed-mask segment2 statement plan provider unit test");
+    if (!routeControlPlan)
+      return fail("computed-mask segment2 route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsSegment2Memory &&
+                !routeControlPlan->controlsComputedMaskMemory &&
+                routeControlPlan->runtimeControlPlan ==
+                    &analysis.computedMaskMemoryRouteFamilyPlan
+                         ->runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            "computed-mask segment2 route-control provider plan joins typed "
+            "config, target capability, and segment2 runtime control"))
+      return result;
+
     llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
         statementPlan = getRVVSelectedBodySegment2MemoryRouteStatementPlan(
             analysis, *materializationFacts, *memoryFacts,
@@ -5927,6 +5948,110 @@ module {
                 llvm::toString(staleSegment2MemoryFacts.takeError()));
   auto missingSegment2PlanFacts = *staleSegment2MaterializationFacts;
   missingSegment2PlanFacts.computedMaskMemoryPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *segmentStoreAnalysis, missingSegment2PlanFacts,
+              "computed-mask segment2 route-control missing dependency unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires the verified computed-mask "
+           "segment2 memory route-family plan",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSegment2Direction =
+      *segmentStoreAnalysis;
+  staleSegment2Direction.computedMaskMemoryRouteFamilyPlan->usesSegment2Store =
+      false;
+  auto staleSegment2DirectionFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleSegment2Direction,
+          "computed-mask segment2 route-control stale direction unit test");
+  if (!staleSegment2DirectionFacts)
+    return fail("stale computed-mask segment2 direction facts: " +
+                llvm::toString(staleSegment2DirectionFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleSegment2Direction, *staleSegment2DirectionFacts,
+              "computed-mask segment2 route-control stale direction unit test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask segment2 "
+           "mask-producer, direction, and memory-form facts",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSegment2MemoryForm =
+      *segmentStoreAnalysis;
+  staleSegment2MemoryForm.computedMaskMemoryRouteFamilyPlan->memoryForm =
+      RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
+  auto staleSegment2MemoryFormFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleSegment2MemoryForm,
+          "computed-mask segment2 route-control stale memory-form unit test");
+  if (!staleSegment2MemoryFormFacts)
+    return fail("stale computed-mask segment2 memory-form facts: " +
+                llvm::toString(staleSegment2MemoryFormFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleSegment2MemoryForm, *staleSegment2MemoryFormFacts,
+              "computed-mask segment2 route-control stale memory-form unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask segment2 "
+           "mask-producer, direction, and memory-form facts",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSegment2Policy = *segmentStoreAnalysis;
+  staleSegment2Policy.computedMaskMemoryRouteFamilyPlan->runtimeControlPlan
+      .maskPolicy = "undisturbed";
+  auto staleSegment2PolicyFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleSegment2Policy,
+      "computed-mask segment2 route-control stale policy unit test");
+  if (!staleSegment2PolicyFacts)
+    return fail("stale computed-mask segment2 policy facts: " +
+                llvm::toString(staleSegment2PolicyFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleSegment2Policy, *staleSegment2PolicyFacts,
+              "computed-mask segment2 route-control stale policy unit test")
+              .takeError(),
+          {"route-control provider plan mask policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedSegment2Analysis = *segmentStoreAnalysis;
+  auto copiedSegment2MemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          copiedSegment2Analysis,
+          "computed-mask segment2 stale-analysis route-control unit test");
+  if (!copiedSegment2MemoryFacts)
+    return fail("copied computed-mask segment2 memory facts: " +
+                llvm::toString(copiedSegment2MemoryFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              copiedSegment2Analysis, *staleSegment2MaterializationFacts,
+              *copiedSegment2MemoryFacts,
+              "computed-mask segment2 stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask segment2 "
+           "memory materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  auto staleSegment2OperandBindingFacts = *staleSegment2MemoryFacts;
+  staleSegment2OperandBindingFacts.bindsSegment2Memory = false;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              *segmentStoreAnalysis, *staleSegment2MaterializationFacts,
+              staleSegment2OperandBindingFacts,
+              "computed-mask segment2 stale operand-binding unit test")
+              .takeError(),
+          {"segment2 memory statement plan requires segment2 memory "
+           "operand-binding facts",
+           "before route statement construction"}))
+    return result;
+
   return expectErrorContains(
       getRVVSelectedBodySegment2MemoryRouteStatementPlan(
           *segmentStoreAnalysis, missingSegment2PlanFacts,
@@ -5941,6 +6066,8 @@ module {
 int runPlainSegment2MemoryRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
@@ -6117,6 +6244,26 @@ module {
       return fail("plain segment2 memory facts: " +
                   llvm::toString(memoryFacts.takeError()));
 
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts,
+        "plain segment2 statement plan provider unit test");
+    if (!routeControlPlan)
+      return fail("plain segment2 route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsSegment2Memory &&
+                routeControlPlan->runtimeControlPlan ==
+                    &analysis.segment2MemoryRouteFamilyPlan
+                         ->runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            "plain segment2 route-control provider plan joins typed config, "
+            "target capability, and segment2 runtime control"))
+      return result;
+
     llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
         statementPlan = getRVVSelectedBodySegment2MemoryRouteStatementPlan(
             analysis, *materializationFacts, *memoryFacts,
@@ -6247,6 +6394,144 @@ module {
            "__riscv_vget_v_i32m1x2_i32m1",
            "__riscv_vget_v_i32m1x2_i32m1", "__riscv_vse32_v_i32m1",
            "__riscv_vse32_v_i32m1"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleDeinterleaveDirection =
+      *deinterleaveAnalysis;
+  staleDeinterleaveDirection.segment2MemoryRouteFamilyPlan
+      ->usesDeinterleaveLoad = false;
+  auto staleDeinterleaveDirectionFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleDeinterleaveDirection,
+          "plain segment2 route-control stale direction unit test");
+  if (!staleDeinterleaveDirectionFacts)
+    return fail("stale plain segment2 direction materialization facts: " +
+                llvm::toString(staleDeinterleaveDirectionFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleDeinterleaveDirection, *staleDeinterleaveDirectionFacts,
+              "plain segment2 route-control stale direction unit test")
+              .takeError(),
+          {"route-control provider plan requires plain segment2 memory "
+           "direction and memory-form facts",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleDeinterleaveTarget =
+      *deinterleaveAnalysis;
+  staleDeinterleaveTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleDeinterleaveTargetFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleDeinterleaveTarget,
+          "plain segment2 route-control stale target unit test");
+  if (!staleDeinterleaveTargetFacts)
+    return fail("stale plain segment2 target materialization facts: " +
+                llvm::toString(staleDeinterleaveTargetFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleDeinterleaveTarget, *staleDeinterleaveTargetFacts,
+              "plain segment2 route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleDeinterleaveRuntimeMirror =
+      *deinterleaveAnalysis;
+  staleDeinterleaveRuntimeMirror.description.runtimeABIOrder =
+      "src,out0,out1,metadata_n";
+  auto staleDeinterleaveRuntimeMirrorFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleDeinterleaveRuntimeMirror,
+          "plain segment2 route-control stale runtime ABI mirror unit test");
+  if (!staleDeinterleaveRuntimeMirrorFacts)
+    return fail("stale plain segment2 runtime ABI mirror facts: " +
+                llvm::toString(
+                    staleDeinterleaveRuntimeMirrorFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleDeinterleaveRuntimeMirror,
+              *staleDeinterleaveRuntimeMirrorFacts,
+              "plain segment2 route-control stale runtime ABI mirror unit test")
+              .takeError(),
+          {"route-control provider plan description runtime ABI order",
+           "src,out0,out1,n", "src,out0,out1,metadata_n"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeControl = *deinterleaveAnalysis;
+  staleRuntimeControl.segment2MemoryRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto staleRuntimeControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeControl,
+      "plain segment2 route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlFacts)
+    return fail("stale plain segment2 runtime-control materialization facts: " +
+                llvm::toString(staleRuntimeControlFacts.takeError()));
+  auto staleRuntimeControlMemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          staleRuntimeControl,
+          "plain segment2 route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlMemoryFacts)
+    return fail("stale plain segment2 runtime-control memory facts: " +
+                llvm::toString(staleRuntimeControlMemoryFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              staleRuntimeControl, *staleRuntimeControlFacts,
+              *staleRuntimeControlMemoryFacts,
+              "plain segment2 route-control stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedDeinterleaveAnalysis =
+      *deinterleaveAnalysis;
+  auto copiedDeinterleaveMemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          copiedDeinterleaveAnalysis,
+          "plain segment2 stale-analysis route-control unit test");
+  if (!copiedDeinterleaveMemoryFacts)
+    return fail("copied plain segment2 memory facts: " +
+                llvm::toString(copiedDeinterleaveMemoryFacts.takeError()));
+  auto deinterleaveMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *deinterleaveAnalysis,
+          "plain segment2 stale-analysis route-control unit test");
+  if (!deinterleaveMaterializationFacts)
+    return fail("plain segment2 materialization facts for stale analysis: " +
+                llvm::toString(deinterleaveMaterializationFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              copiedDeinterleaveAnalysis, *deinterleaveMaterializationFacts,
+              *copiedDeinterleaveMemoryFacts,
+              "plain segment2 stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires plain segment2 memory "
+           "materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  auto staleDeinterleaveOperandBindingFacts = *deinterleaveBindingFacts;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              *deinterleaveAnalysis, *deinterleaveMaterializationFacts,
+              *copiedDeinterleaveMemoryFacts,
+              "plain segment2 stale operand-binding ownership unit test")
+              .takeError(),
+          {"segment2 memory statement plan requires memory operand-binding "
+           "facts from the same selected route analysis",
+           "before route statement construction"}))
+    return result;
+  staleDeinterleaveOperandBindingFacts.bindsSegment2Memory = false;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+              *deinterleaveAnalysis, *deinterleaveMaterializationFacts,
+              staleDeinterleaveOperandBindingFacts,
+              "plain segment2 stale operand-binding unit test")
+              .takeError(),
+          {"segment2 memory statement plan requires segment2 memory "
+           "operand-binding facts",
+           "before route statement construction"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *deinterleaveAnalysis;

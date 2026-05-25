@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture, Stage 2 RVV scope, and forbidden authority sources."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-control consumer contracts, segment2 statement-plan ownership, fail-closed diagnostics, and mirror-only metadata."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, generated evidence boundaries, and ssh rvv claim policy."}

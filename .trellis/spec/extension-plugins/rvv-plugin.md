@@ -691,10 +691,10 @@ attached to `TCRVEmitCLowerableRoute`.
 
 The required consumers are mature ordinary elementwise arithmetic,
 scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
-select, non-segment computed-mask memory, base memory movement, standalone
-reduction, and scalar-broadcast MAcc families. Other migrated families may
-continue to use their existing family-local checks until they are explicitly
-moved onto this boundary.
+select, non-segment computed-mask memory, segment2 memory, base memory
+movement, standalone reduction, and scalar-broadcast MAcc families. Other
+migrated families may continue to use their existing family-local checks until
+they are explicitly moved onto this boundary.
 
 ### 2. Signatures
 
@@ -728,8 +728,8 @@ carry:
 - a pointer to the owning family `RVVRuntimeAVLVLControlPlan`;
 - consumer flags for ordinary elementwise arithmetic, scalar-broadcast
   elementwise arithmetic, plain compare/select, computed-mask select,
-  non-segment computed-mask memory, base memory movement, standalone
-  reduction, scalar-broadcast MAcc, or future adopted families;
+  non-segment computed-mask memory, segment2 memory, base memory movement,
+  standalone reduction, scalar-broadcast MAcc, or future adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -778,6 +778,11 @@ fields only after provider route construction.
   facts -> materialization facts -> memory operand-binding facts ->
   route-control provider plan -> computed-mask memory statement plan ->
   provider-built route.
+- Good: typed segment2 memory `tcrv_rvv` body -> plain segment2 or
+  computed-mask memory family plan verifier with segment direction, memory-form,
+  field-role, mask-producer where applicable, and runtime-control facts ->
+  materialization facts -> memory operand-binding facts -> route-control
+  provider plan -> segment2 memory statement plan -> provider-built route.
 - Base: migrated families not yet adopted by the route-control plan retain
   their family-local verifier checks and receive an empty route-control plan.
 - Bad: a family statement plan reads tail policy, mask policy, runtime `n`,
@@ -1577,9 +1582,10 @@ input. It may carry:
   passthrough handling where needed, and store steps.
 
 The plan must be derived only from verified typed body/config/runtime facts,
-route materialization facts, and RVV-owned memory operand-binding facts. It is
-not a common EmitC fact, not artifact metadata, not an acceptance/status
-mirror, and not a route-support declaration by itself.
+route materialization facts, RVV-owned memory operand-binding facts, and the
+RVV-owned route-control provider plan. It is not a common EmitC fact, not
+artifact metadata, not an acceptance/status mirror, and not a route-support
+declaration by itself.
 
 ### 4. Validation & Error Matrix
 
@@ -1895,6 +1901,12 @@ mirror, and not a route-support declaration by itself.
   memory family plan -> fail closed before route statement construction.
 - An included route lacks required memory operand-binding facts -> fail closed
   before route statement construction.
+- An included route lacks the shared route-control provider plan, carries stale
+  materialization facts from another selected route analysis, has wrong runtime
+  AVL/VL control facts, stale segment direction or memory-form facts, stale
+  computed-mask segment facts, or has SEW/LMUL/policy/capability mirrors that
+  disagree with the typed body/config and selected target facts -> fail closed
+  before route statement construction.
 - Required ABI roles such as `src`, `dst`, `cmp_lhs`, `cmp_rhs`, `field0`,
   `field1`, and runtime count are absent -> fail closed with the logical
   operand name and operation/memory-form context.
@@ -1908,8 +1920,8 @@ mirror, and not a route-support declaration by itself.
 ### 5. Good/Base/Bad Cases
 
 - Good: typed segment2 `tcrv_rvv` body -> family plan verifier ->
-  materialization facts -> memory operand-binding facts -> RVV-owned statement
-  plan -> provider-built route.
+  materialization facts -> memory operand-binding facts -> route-control
+  provider plan -> RVV-owned statement plan -> provider-built route.
 - Base: base memory, non-segment computed-mask memory, compare/select, math,
   residual runtime scalar splat-store, and future families keep their own
   statement construction surfaces and receive an empty segment2 memory
@@ -1927,7 +1939,9 @@ mirror, and not a route-support declaration by itself.
   interleave/unit-load, computed-mask segment2 load/unit-store, and
   computed-mask segment2 store/unit-load.
 - C++ fail-closed diagnostics for at least one missing or stale
-  statement-plan dependency before route statement construction.
+  statement-plan dependency before route statement construction, including
+  missing/stale route-control, same-analysis materialization, runtime AVL/VL,
+  policy/capability, segment direction, memory-form, and operand-binding facts.
 - C++ default/empty-plan coverage for unrelated route families.
 - Representative lit/FileCheck coverage proving existing explicit or
   pre-realized segment2 selected-body artifacts still pass.
