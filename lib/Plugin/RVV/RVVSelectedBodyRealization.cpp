@@ -327,8 +327,7 @@ bool isPreRealizedScalarBroadcastMAccOpKind(llvm::StringRef opKind) {
 }
 
 bool isPreRealizedComputedMaskMAccOpKind(llvm::StringRef opKind) {
-  return opKind == "computed_masked_macc_add" ||
-         isPreRealizedRuntimeScalarComputedMaskMAccOpKind(opKind);
+  return opKind == "computed_masked_macc_add";
 }
 
 bool isPreRealizedMAccMemoryForm(llvm::StringRef memoryForm) {
@@ -795,12 +794,25 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
 }
 
-bool isPreRealizedRVVScalarBroadcastMAccRouteEntryOp(mlir::Operation *op) {
+bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
   auto body = llvm::dyn_cast<tcrv::rvv::TypedMAccPreRealizedBodyOp>(op);
   if (!body)
     return false;
-  return isPreRealizedScalarBroadcastMAccOpKind(body.getOpKind()) &&
-         isPreRealizedScalarBroadcastMAccMemoryForm(body.getMemoryForm());
+  if (isPreRealizedScalarBroadcastMAccBody(body.getOpKind(),
+                                           body.getMemoryForm()))
+    return isPreRealizedScalarBroadcastMAccOpKind(body.getOpKind()) &&
+           isPreRealizedScalarBroadcastMAccMemoryForm(body.getMemoryForm());
+  return body.getOpKind() == "macc_add" &&
+         body.getMemoryForm() == "vector-rhs-load";
+}
+
+bool isPreRealizedRVVComputedMaskMAccRouteEntryOp(mlir::Operation *op) {
+  auto body =
+      llvm::dyn_cast<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op);
+  if (!body)
+    return false;
+  return isPreRealizedComputedMaskMAccOpKind(body.getOpKind()) &&
+         isPreRealizedComputedMaskMAccMemoryForm(body.getMemoryForm());
 }
 
 bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
@@ -1062,10 +1074,10 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
        isPreRealizedRVVStandaloneReductionRouteEntryOp,
        realizePreRealizedRVVStandaloneReductionOwner},
-      {"MAcc", isPreRealizedRVVMAccOwnerOp,
-       isPreRealizedRVVScalarBroadcastMAccRouteEntryOp,
+      {"MAcc", isPreRealizedRVVMAccOwnerOp, isPreRealizedRVVMAccRouteEntryOp,
        realizePreRealizedRVVMAccOwner},
-      {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp, nullptr,
+      {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp,
+       isPreRealizedRVVComputedMaskMAccRouteEntryOp,
        realizePreRealizedRVVComputedMaskMAccOwner},
       {"contraction", isPreRealizedRVVContractionOwnerOp,
        isPreRealizedRVVContractionOwnerOp,
@@ -5999,7 +6011,8 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedMAccCompute(
     llvm::StringRef maskMemoryForm, llvm::StringRef accumulatorLayout,
     llvm::StringRef resultLayout, mlir::Value mask, mlir::Value lhs,
     mlir::Value rhs, mlir::Value accumulator, mlir::Value vl) {
-  if (!isPreRealizedComputedMaskMAccOpKind(opKind))
+  if (!(isPreRealizedComputedMaskMAccOpKind(opKind) ||
+        isPreRealizedRuntimeScalarComputedMaskMAccOpKind(opKind)))
     return makeRVVPluginError(
         "pre-realized RVV selected-body computed-mask macc realization "
         "supports only op_kind 'computed_masked_macc_add' or "
@@ -7642,7 +7655,8 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise/compare-select, base memory movement, "
-        "standalone reduction, scalar-broadcast macc, or contraction "
+        "standalone reduction, plain/scalar-broadcast macc, computed-mask "
+        "macc, or contraction "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");
 

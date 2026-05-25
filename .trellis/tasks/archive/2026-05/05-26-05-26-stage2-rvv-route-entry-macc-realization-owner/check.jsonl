@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify completed work preserves global TianChen-RV/RVV-first authority and Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route-entry MAcc realization, provider handoff, statement-plan ownership, and fail-closed behavior match RVV plugin contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and no metadata/route-id/source-front-door authority was introduced."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle and ssh-rvv evidence satisfy direct route-entry and computed-mask MAcc evidence contracts."}

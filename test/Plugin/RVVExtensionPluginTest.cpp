@@ -1145,7 +1145,7 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
 
   const llvm::StringRef routeEntryOwners[] = {
       "elementwise/compare-select", "standalone reduction", "MAcc",
-      "contraction", "base memory movement"};
+      "computed-mask MAcc", "contraction", "base memory movement"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1248,6 +1248,14 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_standalone_reduce_pre_realized_body %lhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "unit-stride-standalone-reduction", op_kind = "standalone_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-standalone-reduction-lane0-to-output-scalar", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_scalar_broadcast_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
@@ -1255,6 +1263,16 @@ module {
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs_scalar, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "rhs-scalar-broadcast-macc", op_kind = "scalar_broadcast_macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_computed_masked_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_macc_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-stride-macc", op_kind = "computed_masked_macc_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_owner_mismatch_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1270,6 +1288,16 @@ module {
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs_scalar, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "rhs-scalar-broadcast-macc", op_kind = "scalar_broadcast_macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_computed_masked_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_macc_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-stride-macc", op_kind = "computed_masked_macc_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_owner_negative_runtime_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
@@ -1403,6 +1431,26 @@ module {
                    llvm::Twine("pre-realized @") + variantName +
                        " is consumed before route facts are collected"))
       return result;
+    if (expectedProviderPlanID == "rvv-plain-macc-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 3 &&
+                  countNestedOps(variant, "tcrv_rvv.macc") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("direct route-entry @") + variantName +
+                  " realizes lhs/rhs/acc loads, macc, and store"))
+        return result;
+    }
+    if (expectedProviderPlanID ==
+        "rvv-computed-mask-accumulation-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 5 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.masked_macc") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("direct route-entry @") + variantName +
+                  " realizes compare/load/masked_macc/store structure"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       if (int result = expectSuccess(
@@ -1437,7 +1485,11 @@ module {
                     expectedProviderPlanID ||
                 routeDescription->baseMemoryMovementRouteFamilyPlanID ==
                     expectedProviderPlanID ||
+                routeDescription->plainMAccRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
                 routeDescription->scalarBroadcastMAccRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->accumulationRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->standaloneReductionRouteFamilyPlanID ==
                     expectedProviderPlanID,
@@ -1488,10 +1540,22 @@ module {
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
+          "rvv_pre_route_macc_add", "tcrv_rvv.typed_macc_pre_realized_body",
+          "MAcc", "rvv-plain-macc-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
           "rvv_pre_route_scalar_broadcast_macc_add",
           "tcrv_rvv.typed_macc_pre_realized_body",
           "MAcc",
           "rvv-scalar-broadcast-macc-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_computed_masked_macc_add",
+          "tcrv_rvv.typed_computed_mask_macc_pre_realized_body",
+          "computed-mask MAcc",
+          "rvv-computed-mask-accumulation-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
 
@@ -1578,6 +1642,115 @@ module {
            "role 'runtime-element-count' before RVV selected-body realization"}))
     return result;
   runtimeN->setAttr("role", originalRuntimeNRole);
+
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *computedMaskMAccOwner = nullptr;
+  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
+       tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
+    if (owner.familyName == "computed-mask MAcc")
+      computedMaskMAccOwner = &owner;
+  }
+  if (int result = expect(computedMaskMAccOwner != nullptr &&
+                              computedMaskMAccOwner->realize != nullptr &&
+                              computedMaskMAccOwner->isRouteEntryConsumer !=
+                                  nullptr,
+                          "found computed-mask MAcc owner-local direct "
+                          "route-entry realization hook"))
+    return result;
+  VariantOp negativeComputedMaskMAccVariant = findVariant(
+      kernel, "rvv_pre_route_owner_negative_computed_masked_macc_add");
+  auto negativeComputedMaskMAccBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(
+      findFirstNestedOp(
+          negativeComputedMaskMAccVariant,
+          "tcrv_rvv.typed_computed_mask_macc_pre_realized_body"));
+  if (int result = expect(negativeComputedMaskMAccBody != nullptr,
+                          "found computed-mask MAcc pre-realized body for "
+                          "owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          computedMaskMAccOwner->isRouteEntryConsumer(
+              negativeComputedMaskMAccBody.getOperation()),
+          "computed-mask MAcc negative fixture is route-entry eligible before "
+          "targeted fact mutation"))
+    return result;
+  auto expectComputedMaskMAccOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        computedMaskMAccOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativeComputedMaskMAccVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            negativeComputedMaskMAccBody.getOperation());
+    if (invalid)
+      return fail("computed-mask MAcc owner-local hook accepted invalid typed "
+                  "body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativeComputedMaskMAccBody->setAttr(
+      "mask_source", attrBuilder.getStringAttr("metadata-mask-source"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only mask_source",
+           "compare-produced-mask-same-vl-scope"}))
+    return result;
+  negativeComputedMaskMAccBody->setAttr(
+      "mask_source",
+      attrBuilder.getStringAttr("compare-produced-mask-same-vl-scope"));
+
+  negativeComputedMaskMAccBody->setAttr(
+      "accumulator_layout",
+      attrBuilder.getStringAttr("metadata-accumulator-layout"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only "
+           "accumulator_layout",
+           "separate-i32-vector-accumulator-input"}))
+    return result;
+  negativeComputedMaskMAccBody->setAttr(
+      "accumulator_layout",
+      attrBuilder.getStringAttr("separate-i32-vector-accumulator-input"));
+
+  negativeComputedMaskMAccBody->setAttr(
+      "result_layout", attrBuilder.getStringAttr("metadata-result-layout"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only result_layout",
+           "store-multiply-accumulate-result-to-output-buffer"}))
+    return result;
+  negativeComputedMaskMAccBody->setAttr(
+      "result_layout",
+      attrBuilder.getStringAttr(
+          "store-multiply-accumulate-result-to-output-buffer"));
+
+  negativeComputedMaskMAccBody->setAttr("lmul",
+                                        attrBuilder.getStringAttr("m2"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body requires SEW32 LMUL m1"}))
+    return result;
+  negativeComputedMaskMAccBody->setAttr("lmul",
+                                        attrBuilder.getStringAttr("m1"));
+
+  mlir::Operation *computedMaskRuntimeN =
+      negativeComputedMaskMAccBody.getN().getDefiningOp();
+  mlir::Attribute originalComputedMaskRuntimeNRole =
+      computedMaskRuntimeN->getAttr("role");
+  computedMaskRuntimeN->setAttr("role",
+                                attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc runtime n/AVL operand must bind runtime ABI "
+           "role 'runtime-element-count'"}))
+    return result;
+  computedMaskRuntimeN->setAttr("role", originalComputedMaskRuntimeNRole);
+
+  negativeComputedMaskMAccBody->setAttr(
+      "op_kind",
+      attrBuilder.getStringAttr("runtime_scalar_cmp_masked_macc_add"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only op_kind",
+           "computed_masked_macc_add"}))
+    return result;
+  negativeComputedMaskMAccBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("computed_masked_macc_add"));
 
   const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
       *runtimeSplatOwner = nullptr;
