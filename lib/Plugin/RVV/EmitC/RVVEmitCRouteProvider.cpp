@@ -1066,6 +1066,23 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool isRuntimeScalarSplatStore =
       description.operation ==
       RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  if (isRuntimeScalarSplatStore) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts,
+            "selected RVV EmitC route construction");
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsRuntimeScalarSplatStore ||
+        !materializationFacts.runtimeScalarSplatStorePlan ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.runtimeScalarSplatStorePlan
+                 ->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          "runtime scalar splat-store provider requires the RVV-owned "
+          "route-control provider plan before route statement construction");
+  }
   llvm::StringRef lhsResultName =
       isRVVSelectedBodyMemoryMovementRoute(description.operation)
           ? description.resultName

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-15.md`
-- **Total Sessions**: 219
+- **Total Sessions**: 220
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-15.md` | ~745 | Active |
+| `journal-15.md` | ~917 | Active |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
@@ -43,6 +43,9 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 222 | 2026-05-25 | Stage2 RVV runtime scalar splat-store route-control provider-plan integration | same-commit | `main` |
+| 221 | 2026-05-25 | Stage2 RVV widening conversion route-control provider-plan integration | 853832d5 | `main` |
+| 220 | 2026-05-25 | Stage2 RVV segment2 memory route-control provider-plan integration | 0f12989c | `main` |
 | 219 | 2026-05-25 | Stage2 RVV computed-mask memory route-control | same-commit | `main` |
 | 218 | 2026-05-25 | Stage2 RVV computed-mask select route-control provider plan | same-commit | `main` |
 | 217 | 2026-05-25 | Stage2 RVV plain compare-select route-control provider-plan integration | pending-final-session-commit | `main` |

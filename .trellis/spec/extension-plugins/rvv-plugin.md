@@ -692,10 +692,10 @@ attached to `TCRVEmitCLowerableRoute`.
 The required consumers are mature ordinary elementwise arithmetic,
 scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
 select, widening conversion, non-segment computed-mask memory, segment2 memory,
-base memory movement, standalone reduction, and scalar-broadcast MAcc families.
-Other
-migrated families may continue to use their existing family-local checks until
-they are explicitly moved onto this boundary.
+base memory movement, standalone reduction, scalar-broadcast MAcc, and runtime
+scalar splat-store families. Other migrated families may continue to use their
+existing family-local checks until they are explicitly moved onto this
+boundary.
 
 ### 2. Signatures
 
@@ -730,8 +730,8 @@ carry:
 - consumer flags for ordinary elementwise arithmetic, scalar-broadcast
   elementwise arithmetic, plain compare/select, computed-mask select,
   widening conversion, non-segment computed-mask memory, segment2 memory, base
-  memory movement, standalone reduction, scalar-broadcast MAcc, or future
-  adopted families;
+  memory movement, standalone reduction, scalar-broadcast MAcc, runtime scalar
+  splat-store, or future adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -789,6 +789,11 @@ fields only after provider route construction.
   field-role, mask-producer where applicable, and runtime-control facts ->
   materialization facts -> memory operand-binding facts -> route-control
   provider plan -> segment2 memory statement plan -> provider-built route.
+- Good: typed runtime scalar splat-store `tcrv_rvv` body -> runtime scalar
+  splat-store family plan verifier with scalar input, vector result, memory-form,
+  splat/store leaves, and runtime-control facts -> materialization facts ->
+  residual operand-binding facts -> route-control provider plan ->
+  provider-built route.
 - Base: migrated families not yet adopted by the route-control plan retain
   their family-local verifier checks and receive an empty route-control plan.
 - Bad: a family statement plan reads tail policy, mask policy, runtime `n`,

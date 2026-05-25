@@ -22871,6 +22871,14 @@ static bool isRVVSelectedBodyWideningConversionRouteControlConsumer(
          description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
 }
 
+static bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
+             description.operation) &&
+         description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
@@ -22882,6 +22890,8 @@ static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
          isRVVSelectedBodyWideningConversionRouteControlConsumer(description) ||
          isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description) ||
          isRVVSelectedBodySegment2MemoryRouteControlConsumer(description) ||
+         isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
+             description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
          isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
@@ -23332,6 +23342,61 @@ getRVVSelectedBodyRouteControlProviderPlan(
 
     runtimeControlPlan = &conversionPlan.runtimeControlPlan;
     plan.controlsWideningConversion = true;
+  } else if (isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.runtimeScalarSplatStorePlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified runtime scalar "
+          "splat-store route-family plan before provider route construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.runtimeScalarSplatStoreRouteFamilyPlan ||
+        materializationFacts.runtimeScalarSplatStorePlan !=
+            &*analysis.runtimeScalarSplatStoreRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires runtime scalar splat-store "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
+        &runtimeSplatPlan = *materializationFacts.runtimeScalarSplatStorePlan;
+    if (runtimeSplatPlan.operation != description.operation ||
+        runtimeSplatPlan.memoryForm != description.memoryForm ||
+        runtimeSplatPlan.vlCType != description.vlCType ||
+        runtimeSplatPlan.vectorTypeName != description.vectorTypeName ||
+        runtimeSplatPlan.vectorCType != description.vectorCType ||
+        runtimeSplatPlan.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeSplatPlan.rhsScalarSplatIntrinsic !=
+            description.rhsBroadcastIntrinsic ||
+        runtimeSplatPlan.storeIntrinsic != description.storeIntrinsic ||
+        runtimeSplatPlan.resultName != description.resultName)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires runtime scalar splat-store "
+          "type, scalar-splat, store, and memory-form facts from the verified "
+          "route-family plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    if (materializationFacts.setVLLeaf != runtimeSplatPlan.setVLIntrinsic ||
+        materializationFacts.rhsScalarBroadcastLeaf !=
+            runtimeSplatPlan.rhsScalarSplatIntrinsic ||
+        materializationFacts.storeLeaf != runtimeSplatPlan.storeIntrinsic ||
+        materializationFacts.resultVectorTypeName !=
+            runtimeSplatPlan.vectorTypeName ||
+        materializationFacts.resultVectorCType !=
+            runtimeSplatPlan.vectorCType)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires runtime scalar splat-store "
+          "materialization facts to mirror the verified splat-store family "
+          "plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    runtimeControlPlan = &runtimeSplatPlan.runtimeControlPlan;
+    plan.controlsRuntimeScalarSplatStore = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)

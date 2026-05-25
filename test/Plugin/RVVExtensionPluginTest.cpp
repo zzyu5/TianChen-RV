@@ -1762,6 +1762,8 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
       getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer;
@@ -2134,6 +2136,157 @@ module {
                   "rvv-route-operand-binding:runtime_i32_splat_store.v1",
           "runtime_i32_splat_store plan must carry runtime control, scalar "
           "splat, store, and binding facts"))
+    return result;
+  auto expectRuntimeSplatRouteControl =
+      [&](RVVSelectedBodyRouteAnalysis &analysis) -> int {
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, "runtime splat-store route-control provider unit test");
+    if (!materializationFacts)
+      return fail("runtime splat-store route-control materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto residualFacts = getRVVSelectedBodyResidualRouteOperandBindingFacts(
+        analysis, "runtime splat-store route-control provider unit test");
+    if (!residualFacts)
+      return fail("runtime splat-store residual binding facts: " +
+                  llvm::toString(residualFacts.takeError()));
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts,
+        "runtime splat-store route-control provider unit test");
+    if (!routeControlPlan)
+      return fail("runtime splat-store route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    const auto *runtimeControlPlan =
+        &analysis.runtimeScalarSplatStoreRouteFamilyPlan->runtimeControlPlan;
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsRuntimeScalarSplatStore &&
+                routeControlPlan->runtimeControlPlan == runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            "runtime_i32_splat_store route-control provider plan joins typed "
+            "config, target capability, and runtime AVL/VL facts"))
+      return result;
+    if (int result = expect(
+            residualFacts->bindsRuntimeScalarSplatStore &&
+                residualFacts->rhsScalarABI->cName == "rhs_scalar" &&
+                residualFacts->outABI->cName == "out" &&
+                residualFacts->runtimeElementCountABI->cName == "n",
+            "runtime_i32_splat_store route-control test also sees residual "
+            "scalar, output, and runtime count bindings"))
+      return result;
+    return expect(
+        routeControlPlan->controlPlanIDMirror ==
+                analysis.description.runtimeControlPlanID &&
+            routeControlPlan->runtimeABIOrderMirror ==
+                analysis.description.runtimeABIOrder &&
+            routeControlPlan->tailPolicyMirror ==
+                analysis.description.tailPolicy &&
+            routeControlPlan->maskPolicyMirror ==
+                analysis.description.maskPolicy &&
+            routeControlPlan->selectedProviderMirror ==
+                analysis.description.targetCapabilityProviderMirror &&
+            routeControlPlan->selectedLegalityMirror ==
+                analysis.description.targetCapabilityLegalityMirror,
+        "runtime_i32_splat_store route-control provider plan carries "
+        "validated mirrors before statement planning");
+  };
+  if (int result = expectRuntimeSplatRouteControl(*runtimeSplatAnalysis))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeSplatControl =
+      *runtimeSplatAnalysis;
+  missingRuntimeSplatControl.runtimeScalarSplatStoreRouteFamilyPlan.reset();
+  auto missingRuntimeSplatControlFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          missingRuntimeSplatControl,
+          "runtime splat-store route-control missing family unit test");
+  if (!missingRuntimeSplatControlFacts)
+    return fail("runtime splat-store missing family materialization facts: " +
+                llvm::toString(missingRuntimeSplatControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              missingRuntimeSplatControl, *missingRuntimeSplatControlFacts,
+              "runtime splat-store route-control missing family unit test")
+              .takeError(),
+          {"route-control provider plan requires the verified runtime scalar "
+           "splat-store route-family plan",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedRuntimeSplatControl =
+      *runtimeSplatAnalysis;
+  auto runtimeSplatMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeSplatAnalysis,
+          "runtime splat-store route-control same-analysis unit test");
+  if (!runtimeSplatMaterializationFacts)
+    return fail("runtime splat-store same-analysis materialization facts: " +
+                llvm::toString(runtimeSplatMaterializationFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              copiedRuntimeSplatControl, *runtimeSplatMaterializationFacts,
+              "runtime splat-store route-control same-analysis unit test")
+              .takeError(),
+          {"runtime scalar splat-store materialization facts from the same "
+           "selected route analysis",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSplatPolicy = *runtimeSplatAnalysis;
+  staleSplatPolicy.runtimeScalarSplatStoreRouteFamilyPlan->runtimeControlPlan
+      .tailPolicy = "undisturbed";
+  auto staleSplatPolicyFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleSplatPolicy, "runtime splat-store route-control stale policy unit test");
+  if (!staleSplatPolicyFacts)
+    return fail("runtime splat-store stale policy materialization facts: " +
+                llvm::toString(staleSplatPolicyFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleSplatPolicy, *staleSplatPolicyFacts,
+              "runtime splat-store route-control stale policy unit test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSplatTarget = *runtimeSplatAnalysis;
+  staleSplatTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleSplatTargetFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleSplatTarget, "runtime splat-store route-control stale target unit test");
+  if (!staleSplatTargetFacts)
+    return fail("runtime splat-store stale target materialization facts: " +
+                llvm::toString(staleSplatTargetFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleSplatTarget, *staleSplatTargetFacts,
+              "runtime splat-store route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSplatMaterialization =
+      *runtimeSplatAnalysis;
+  auto staleSplatMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleSplatMaterialization,
+          "runtime splat-store route-control stale materialization unit test");
+  if (!staleSplatMaterializationFacts)
+    return fail("runtime splat-store stale materialization facts: " +
+                llvm::toString(staleSplatMaterializationFacts.takeError()));
+  staleSplatMaterializationFacts->rhsScalarBroadcastLeaf =
+      "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleSplatMaterialization, *staleSplatMaterializationFacts,
+              "runtime splat-store route-control stale materialization unit "
+              "test")
+              .takeError(),
+          {"runtime scalar splat-store materialization facts to mirror the "
+           "verified splat-store family plan",
+           "runtime_i32_splat_store"}))
     return result;
 
   stale = *runtimeSplatAnalysis;

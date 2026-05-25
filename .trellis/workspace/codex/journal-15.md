@@ -34,7 +34,7 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 
 | Hash | Message |
 |------|---------|
-| `pending-final-session-commit` | (see git log) |
+| `same-commit` | (see git log) |
 
 ### Testing
 
@@ -873,6 +873,58 @@ Integrated non-segment computed-mask memory route planning with the shared RVV r
   `artifacts/tmp/stage2_rvv_computed_mask_memory_route_control/pre-realized-computed-mask-memory-route-control-dry`
 - [OK] focused lit filter over `Target/RVV` and `Scripts`: 53 selected tests
 - [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379 tests
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 222: Stage2 RVV runtime scalar splat-store route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV runtime scalar splat-store route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated runtime_i32_splat_store with the shared RVV route-control provider plan, added focused fail-closed C++ coverage, updated RVV plugin spec, and verified focused/full checks.
+
+### Main Changes
+
+- Added `controlsRuntimeScalarSplatStore` to the shared
+  `RVVSelectedBodyRouteControlProviderPlan`.
+- Made existing `runtime_i32_splat_store` route-control construction require
+  same-analysis runtime scalar splat-store family/materialization facts before
+  exposing runtime AVL/VL, typed config, selected capability, scalar splat,
+  store, vector result, policy, and mirror facts.
+- Required the runtime scalar splat-store provider path to consume the
+  route-control plan before fallback splat/store statement construction.
+- Added focused C++ positive/fail-closed coverage and updated the RVV plugin
+  spec to list runtime scalar splat-store as a route-control consumer.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-runtime-scalar-splat-store-route-control`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] focused lit filter `(runtime-i32-splat-store|runtime-scalar-splat-store)`: 5 selected tests
+- [OK] generated-bundle dry-run for explicit and pre-realized `runtime_i32_splat_store`
+  under `artifacts/tmp/stage2_runtime_scalar_splat_store_route_control`
+- [OK] bounded added-line authority scan; only a negative stale intrinsic mirror
+  test added `__riscv_vle32_v_i32m1`
 - [OK] `cmake --build build --target check-tianchenrv -j2`: 379 tests
 
 ### Status
