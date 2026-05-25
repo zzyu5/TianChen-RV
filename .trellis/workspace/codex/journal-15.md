@@ -1343,3 +1343,59 @@ No `ssh rvv` rerun was needed because emitted RVV body semantics, runtime ABI, d
 ### Next Steps
 
 - None - task complete
+
+
+## Session 228: Stage2 RVV direct contraction executable artifact closure
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV direct contraction executable artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed executable evidence for computed_masked_strided_input_widening_dot_reduce_add: pre-realized selected-body generated bundle compiled and ran on ssh rvv for counts 1,7,17,33,257; migrated add statement-plan dry-run, authority scan, git diff --check, task validation, and check-tianchenrv passed. No production code change was needed because current HEAD already satisfied the runtime/artifact boundary.
+
+### Main Changes
+
+- Created and archived the Trellis task for the executable artifact closure.
+- Confirmed no production compiler/script repair was needed: current HEAD already
+  carried the owner-driven direct contraction route through selected-body
+  realization, the direct contraction route-provider owner,
+  `TCRVEmitCLowerableRoute`, common EmitC materialization, target bundle export,
+  and external ABI harness generation.
+- Captured executable `ssh rvv` evidence for
+  `computed_masked_strided_input_widening_dot_reduce_add` using the
+  pre-realized selected-body fixture and runtime counts `1,7,17,33,257`.
+- Verified migrated statement-plan owner non-regression with a dry-run `add`
+  generated-bundle path.
+- Recorded that no `.trellis/spec/**` update was needed because this round
+  discovered no new durable contract; it closed evidence for existing contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-26-stage2-rvv-direct-contraction-executable-artifact-closure`
+- [OK] Chosen route dry-run generated bundle under
+  `artifacts/tmp/stage2_rvv_direct_contraction_executable_artifact_closure/pre-realized-computed-mask-strided-dry`
+- [OK] Chosen route non-dry-run `ssh rvv` generated-bundle execution:
+  `PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=1,7,17,33,257 lhs_stride=2 rhs_stride=3`
+- [OK] Migrated statement-plan dry-run under
+  `artifacts/tmp/stage2_rvv_direct_contraction_executable_artifact_closure/migrated-add-statement-plan-dry`
+- [OK] Bounded current-path authority scan found only existing provider-derived
+  intrinsic mirrors, descriptor/source-front-door negative checks, and legacy
+  fail-closed fixtures; no production files changed in this task.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
