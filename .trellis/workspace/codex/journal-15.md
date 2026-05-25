@@ -712,3 +712,49 @@ Computed-mask select now consumes the shared RVV route-control provider plan bef
 ### Next Steps
 
 - None - task complete
+
+
+## Session 219: Stage2 RVV computed-mask memory route-control
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV computed-mask memory route-control
+**Branch**: `main`
+
+### Summary
+
+Integrated non-segment computed-mask memory route planning with the shared RVV route-control provider plan, added fail-closed provider tests, updated RVV plugin spec, ran focused RVV tests, generated-bundle dry-run, and check-tianchenrv.
+
+### Main Changes
+
+- Added computed-mask memory consumption of `RVVSelectedBodyRouteControlProviderPlan`
+  for the existing non-segment runtime-scalar, unit, strided, indexed gather,
+  and indexed scatter computed-mask memory routes.
+- Required same-analysis computed-mask memory family/materialization facts,
+  route-control ownership, memory operand binding, runtime ABI mirrors,
+  mask-producer facts, memory-form facts, typed config, selected capability,
+  and policy facts before statement-plan construction.
+- Added focused provider positive/negative coverage and updated the RVV plugin
+  spec for the computed-mask memory route-control boundary.
+
+### Git Commits
+
+- same-commit
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] computed-mask memory generated-bundle dry-run under
+  `artifacts/tmp/stage2_rvv_computed_mask_memory_route_control/pre-realized-computed-mask-memory-route-control-dry`
+- [OK] focused lit filter over `Target/RVV` and `Scripts`: 53 selected tests
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379 tests
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

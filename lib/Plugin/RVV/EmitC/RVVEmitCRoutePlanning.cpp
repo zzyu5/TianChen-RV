@@ -22815,6 +22815,35 @@ static bool isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(
       description.operation);
 }
 
+static bool isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
+  default:
+    return false;
+  }
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
@@ -22823,6 +22852,7 @@ static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
              description) ||
          isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(description) ||
          isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(description) ||
+         isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
          isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
@@ -23064,6 +23094,53 @@ getRVVSelectedBodyRouteControlProviderPlan(
     runtimeControlPlan =
         &materializationFacts.computedMaskSelectPlan->runtimeControlPlan;
     plan.controlsComputedMaskSelect = true;
+  } else if (isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.computedMaskMemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified "
+          "computed-mask memory route-family plan before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+        materializationFacts.computedMaskMemoryPlan !=
+            &*analysis.computedMaskMemoryRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask memory "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+        *materializationFacts.computedMaskMemoryPlan;
+    const bool isRuntimeScalarProducer =
+        description.operation ==
+            RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+        description.operation ==
+            RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+    if (computedPlan.operation != description.operation ||
+        computedPlan.memoryForm != description.memoryForm ||
+        computedPlan.usesRuntimeScalarProducer != isRuntimeScalarProducer ||
+        computedPlan.usesVectorCompareProducer == isRuntimeScalarProducer ||
+        computedPlan.usesSegment2Load || computedPlan.usesSegment2Store ||
+        computedPlan.maskProducerSource !=
+            getComputedMaskMemoryProducerSource(description.operation) ||
+        computedPlan.usesStoreOnly !=
+            isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
+                description.operation) ||
+        computedPlan.usesLoadMerge !=
+            isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
+                description.operation))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask memory "
+          "mask-producer and memory-form facts from the verified route-family "
+          "plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan = &computedPlan.runtimeControlPlan;
+    plan.controlsComputedMaskMemory = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -29384,6 +29461,19 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
         llvm::Twine(context) +
         " computed-mask memory statement plan requires computed-mask memory "
         "operand-binding facts before route statement construction");
+  if (!memoryOperandBindingFacts.bindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires the RVV-owned memory "
+        "operand-binding plan before route statement construction");
+  if (memoryOperandBindingFacts.bindingPlan !=
+      &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires memory "
+        "operand-binding facts from the same selected route analysis before "
+        "route statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   if (isRuntimeScalar &&
       !memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
     return makeRVVEmitCRouteProviderError(
@@ -29396,6 +29486,21 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
         llvm::Twine(context) +
         " computed-mask memory statement plan excludes segment2 memory "
         "operand-binding facts in this round");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsComputedMaskMemory ||
+      routeControlPlan->runtimeControlPlan != &computedPlan.runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires the RVV-owned "
+        "route-control provider plan before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   const support::RuntimeABIParameter *compareLhsABI =
       memoryOperandBindingFacts.compareLhsABI;

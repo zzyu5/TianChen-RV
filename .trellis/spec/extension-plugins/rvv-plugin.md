@@ -691,9 +691,10 @@ attached to `TCRVEmitCLowerableRoute`.
 
 The required consumers are mature ordinary elementwise arithmetic,
 scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
-select, base memory movement, standalone reduction, and scalar-broadcast MAcc
-families. Other migrated families may continue to use their existing
-family-local checks until they are explicitly moved onto this boundary.
+select, non-segment computed-mask memory, base memory movement, standalone
+reduction, and scalar-broadcast MAcc families. Other migrated families may
+continue to use their existing family-local checks until they are explicitly
+moved onto this boundary.
 
 ### 2. Signatures
 
@@ -726,9 +727,9 @@ carry:
 - a pointer to the same-analysis selected target capability facts;
 - a pointer to the owning family `RVVRuntimeAVLVLControlPlan`;
 - consumer flags for ordinary elementwise arithmetic, scalar-broadcast
-  elementwise arithmetic, plain compare/select, computed-mask select, base
-  memory movement, standalone reduction, scalar-broadcast MAcc, or future
-  adopted families;
+  elementwise arithmetic, plain compare/select, computed-mask select,
+  non-segment computed-mask memory, base memory movement, standalone
+  reduction, scalar-broadcast MAcc, or future adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -771,6 +772,11 @@ fields only after provider route construction.
   family plan verifier with vector/runtime-scalar producer-source facts ->
   materialization facts -> elementwise/select operand-binding facts ->
   route-control provider plan -> compare/select statement plan ->
+  provider-built route.
+- Good: typed non-segment computed-mask memory `tcrv_rvv` body ->
+  computed-mask memory family plan verifier with mask-producer and memory-form
+  facts -> materialization facts -> memory operand-binding facts ->
+  route-control provider plan -> computed-mask memory statement plan ->
   provider-built route.
 - Base: migrated families not yet adopted by the route-control plan retain
   their family-local verifier checks and receive an empty route-control plan.
@@ -1663,12 +1669,13 @@ For production-active non-segment computed-mask memory movement routes,
 `RVVEmitCRouteProvider` must not locally recreate the route statement sequence
 from operation names, ABI strings, memory-form branches, mask-producer
 mirrors, or intrinsic mirrors after RVV-owned family plans, materialization
-facts, and memory operand-binding facts have been validated. The RVV planning
-layer must expose one RVV-owned statement-plan boundary for runtime-scalar
-computed-mask store/load-store, computed-mask unit load/store, computed-mask
-strided store, computed-mask strided load/unit-store, computed-mask indexed
-gather/unit-store, and computed-mask indexed scatter/unit-load where those
-routes are production-active.
+facts, memory operand-binding facts, and the shared route-control provider
+plan have been validated. The RVV planning layer must expose one RVV-owned
+statement-plan boundary for runtime-scalar computed-mask store/load-store,
+computed-mask unit load/store, computed-mask strided store, computed-mask
+strided load/unit-store, computed-mask indexed gather/unit-store, and
+computed-mask indexed scatter/unit-load where those routes are
+production-active.
 
 Computed-mask segment2 memory remains outside this boundary until a dedicated
 segment2 statement-plan owner takes it. Segment2 computed-mask memory routes
@@ -1698,9 +1705,11 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
 `RVVEmitCRouteProvider` must call this boundary after
 `verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
 obtaining route materialization facts, and after obtaining the memory
-operand-binding facts for the same analysis. Non-consumer route families and
-excluded computed-mask segment2 routes receive an empty/default statement
-plan.
+operand-binding facts for the same analysis. Included non-segment
+computed-mask memory routes must consume
+`RVVSelectedBodyRouteControlProviderPlan` before statement construction.
+Non-consumer route families and excluded computed-mask segment2 routes receive
+an empty/default statement plan.
 
 ### 3. Contracts
 
@@ -1720,9 +1729,10 @@ input. It may carry:
   required by the selected route.
 
 The plan must be derived only from verified typed body/config/runtime facts,
-route materialization facts, and RVV-owned memory operand-binding facts. It is
-not a common EmitC fact, not artifact metadata, not an acceptance/status
-mirror, and not a route-support declaration by itself.
+route materialization facts, RVV-owned memory operand-binding facts, and the
+RVV-owned route-control provider plan. It is not a common EmitC fact, not
+artifact metadata, not an acceptance/status mirror, and not a route-support
+declaration by itself.
 
 ### 4. Validation & Error Matrix
 
@@ -1732,8 +1742,16 @@ mirror, and not a route-support declaration by itself.
   empty plan and leave segment2 statement construction to its own owner.
 - An included computed-mask memory route has no verified computed-mask memory
   family plan -> fail closed before route statement construction.
+- An included computed-mask memory route lacks the shared route-control
+  provider plan, carries stale materialization facts from another selected
+  route analysis, has wrong runtime AVL/VL control facts, stale mask-producer
+  or memory-form facts, or has SEW/LMUL/policy/capability mirrors that
+  disagree with the typed body/config and selected target facts -> fail closed
+  before route statement construction.
 - An included route lacks required memory operand-binding facts -> fail closed
   before route statement construction.
+- An included route carries memory operand-binding facts from another selected
+  route analysis -> fail closed before route statement construction.
 - Required ABI roles such as `cmp_lhs`, `cmp_rhs`, `rhs_scalar`, `src`,
   `dst`/`out`, `index`, runtime count, source stride, or destination stride
   are absent -> fail closed with the logical operand name and operation/
@@ -1749,8 +1767,8 @@ mirror, and not a route-support declaration by itself.
 ### 5. Good/Base/Bad Cases
 
 - Good: typed computed-mask memory `tcrv_rvv` body -> family plan verifier ->
-  materialization facts -> memory operand-binding facts -> RVV-owned statement
-  plan -> provider-built route.
+  materialization facts -> memory operand-binding facts -> route-control
+  provider plan -> RVV-owned statement plan -> provider-built route.
 - Base: computed-mask segment2 memory, base memory, compare/select, math,
   residual runtime scalar splat-store, and future families keep their own
   statement construction surfaces and receive an empty computed-mask memory
@@ -1768,7 +1786,9 @@ mirror, and not a route-support declaration by itself.
   load/store, strided store, strided load/unit-store, indexed gather/unit-store,
   and indexed scatter/unit-load.
 - C++ fail-closed diagnostics for at least one missing or stale statement-plan
-  dependency before route statement construction.
+  dependency before route statement construction, including stale
+  route-control analysis, runtime AVL/VL control, policy/capability,
+  mask-producer, memory-form, and memory operand-binding facts.
 - C++ default/empty-plan coverage for unrelated route families and excluded
   computed-mask segment2 memory routes.
 - Representative lit/FileCheck coverage proving existing explicit or
@@ -1799,6 +1819,7 @@ Correct:
 verified route-family plans
   -> RVVSelectedBodyRouteMaterializationFacts
   -> RVV-owned memory operand-binding facts
+  -> RVVSelectedBodyRouteControlProviderPlan
   -> RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```

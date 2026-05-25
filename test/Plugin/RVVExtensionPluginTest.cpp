@@ -3395,6 +3395,7 @@ int runElementwiseSelectOperandBindingFactsBoundaryTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -3741,6 +3742,7 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -4677,7 +4679,10 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
       getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodySegment2MemoryRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -5011,6 +5016,46 @@ module {
       return fail("computed-mask memory statement-plan memory facts: " +
                   llvm::toString(memoryFacts.takeError()));
 
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts,
+        "computed-mask memory route-control provider unit test");
+    if (!routeControlPlan)
+      return fail("computed-mask memory route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    const auto *computedMaskMemoryRuntimeControlPlan =
+        &analysis.computedMaskMemoryRouteFamilyPlan->runtimeControlPlan;
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsComputedMaskMemory &&
+                routeControlPlan->runtimeControlPlan ==
+                    computedMaskMemoryRuntimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts &&
+                memoryFacts->bindsComputedMaskMemory &&
+                memoryFacts->bindingPlan == &analysis.routeOperandBindingPlan,
+            "computed-mask memory route-control provider plan joins typed "
+            "config, target capability, memory-family, operand-binding, and "
+            "runtime AVL/VL facts"))
+      return result;
+    if (int result = expect(
+            routeControlPlan->controlPlanIDMirror ==
+                    analysis.description.runtimeControlPlanID &&
+                routeControlPlan->runtimeABIOrderMirror ==
+                    analysis.description.runtimeABIOrder &&
+                routeControlPlan->tailPolicyMirror ==
+                    analysis.description.tailPolicy &&
+                routeControlPlan->maskPolicyMirror ==
+                    analysis.description.maskPolicy &&
+                routeControlPlan->selectedProviderMirror ==
+                    analysis.description.targetCapabilityProviderMirror &&
+                routeControlPlan->selectedLegalityMirror ==
+                    analysis.description.targetCapabilityLegalityMirror,
+            "computed-mask memory route-control provider plan carries "
+            "validated control mirrors before statement planning"))
+      return result;
+
     llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
         statementPlan =
             getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
@@ -5255,16 +5300,201 @@ module {
   if (!runtimeScalarMaterializationFacts)
     return fail("runtime-scalar computed-mask materialization facts: " +
                 llvm::toString(runtimeScalarMaterializationFacts.takeError()));
-  runtimeScalarMaterializationFacts->computedMaskMemoryPlan = nullptr;
+  auto missingRuntimeScalarMaterializationFacts =
+      *runtimeScalarMaterializationFacts;
+  missingRuntimeScalarMaterializationFacts.computedMaskMemoryPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *runtimeScalarAnalysis, missingRuntimeScalarMaterializationFacts,
+              "computed-mask memory route-control missing dependency test")
+              .takeError(),
+          {"route-control provider plan requires the verified computed-mask "
+           "memory route-family plan",
+           "before provider route construction"}))
+    return result;
   if (int result = expectErrorContains(
           getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
-              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarAnalysis, missingRuntimeScalarMaterializationFacts,
               *runtimeScalarBindingFacts,
               "computed-mask memory statement plan missing dependency test")
               .takeError(),
           {"computed-mask memory statement plan requires the verified "
            "computed-mask memory route-family plan",
            "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeControl = *runtimeScalarAnalysis;
+  staleRuntimeControl.computedMaskMemoryRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto staleRuntimeControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeControl,
+      "computed-mask memory route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlFacts)
+    return fail("stale computed-mask memory runtime-control materialization "
+                "facts: " +
+                llvm::toString(staleRuntimeControlFacts.takeError()));
+  auto staleRuntimeControlMemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          staleRuntimeControl,
+          "computed-mask memory route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlMemoryFacts)
+    return fail("stale computed-mask memory runtime-control binding facts: " +
+                llvm::toString(staleRuntimeControlMemoryFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              staleRuntimeControl, *staleRuntimeControlFacts,
+              *staleRuntimeControlMemoryFacts,
+              "computed-mask memory route-control stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleMaskPolicy = *runtimeScalarAnalysis;
+  staleMaskPolicy.computedMaskMemoryRouteFamilyPlan->runtimeControlPlan
+      .maskPolicy = "agnostic";
+  auto staleMaskPolicyFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleMaskPolicy,
+      "computed-mask memory route-control stale mask policy unit test");
+  if (!staleMaskPolicyFacts)
+    return fail("stale computed-mask memory mask policy materialization facts: " +
+                llvm::toString(staleMaskPolicyFacts.takeError()));
+  auto staleMaskPolicyMemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          staleMaskPolicy,
+          "computed-mask memory route-control stale mask policy unit test");
+  if (!staleMaskPolicyMemoryFacts)
+    return fail("stale computed-mask memory mask policy binding facts: " +
+                llvm::toString(staleMaskPolicyMemoryFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              staleMaskPolicy, *staleMaskPolicyFacts,
+              *staleMaskPolicyMemoryFacts,
+              "computed-mask memory route-control stale mask policy unit test")
+              .takeError(),
+          {"route-control provider plan mask policy", "undisturbed",
+           "agnostic"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleTarget = *runtimeScalarAnalysis;
+  staleTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleTargetFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleTarget, "computed-mask memory route-control stale target unit test");
+  if (!staleTargetFacts)
+    return fail("stale computed-mask memory target materialization facts: " +
+                llvm::toString(staleTargetFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleTarget, *staleTargetFacts,
+              "computed-mask memory route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedRuntimeScalarAnalysis =
+      *runtimeScalarAnalysis;
+  auto copiedRuntimeScalarMemoryFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          copiedRuntimeScalarAnalysis,
+          "computed-mask memory stale-analysis route-control unit test");
+  if (!copiedRuntimeScalarMemoryFacts)
+    return fail("copied computed-mask memory binding facts: " +
+                llvm::toString(copiedRuntimeScalarMemoryFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              copiedRuntimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *copiedRuntimeScalarMemoryFacts,
+              "computed-mask memory stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask memory "
+           "materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  auto staleRuntimeScalarOperandBindingFacts = *runtimeScalarBindingFacts;
+  staleRuntimeScalarOperandBindingFacts.bindsComputedMaskMemory = false;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              staleRuntimeScalarOperandBindingFacts,
+              "computed-mask memory stale operand-binding unit test")
+              .takeError(),
+          {"computed-mask memory statement plan requires computed-mask memory "
+           "operand-binding facts",
+           "before route statement construction"}))
+    return result;
+
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *copiedRuntimeScalarMemoryFacts,
+              "computed-mask memory stale operand-binding ownership unit test")
+              .takeError(),
+          {"computed-mask memory statement plan requires memory "
+           "operand-binding facts from the same selected route analysis",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeMirror = *runtimeScalarAnalysis;
+  staleRuntimeMirror.description.runtimeABIOrder =
+      "lhs,rhs_scalar,src,dst,metadata_n";
+  auto staleRuntimeMirrorFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeMirror,
+      "computed-mask memory route-control stale runtime ABI mirror unit test");
+  if (!staleRuntimeMirrorFacts)
+    return fail("stale computed-mask memory runtime ABI mirror facts: " +
+                llvm::toString(staleRuntimeMirrorFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRuntimeMirror, *staleRuntimeMirrorFacts,
+              "computed-mask memory route-control stale runtime ABI mirror "
+              "unit test")
+              .takeError(),
+          {"route-control provider plan description runtime ABI order",
+           "lhs,rhs_scalar,src,dst,n",
+           "lhs,rhs_scalar,src,dst,metadata_n"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleMaskProducer = *runtimeScalarAnalysis;
+  staleMaskProducer.computedMaskMemoryRouteFamilyPlan->maskProducerSource =
+      "vector-compare-rhs-load";
+  auto staleMaskProducerFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleMaskProducer,
+      "computed-mask memory route-control stale mask-producer unit test");
+  if (!staleMaskProducerFacts)
+    return fail("stale computed-mask memory mask-producer materialization "
+                "facts: " +
+                llvm::toString(staleMaskProducerFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleMaskProducer, *staleMaskProducerFacts,
+              "computed-mask memory route-control stale mask-producer unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask memory "
+           "mask-producer and memory-form facts",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleMemoryForm = *runtimeScalarAnalysis;
+  staleMemoryForm.computedMaskMemoryRouteFamilyPlan->memoryForm =
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
+  auto staleMemoryFormFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleMemoryForm,
+      "computed-mask memory route-control stale memory-form unit test");
+  if (!staleMemoryFormFacts)
+    return fail("stale computed-mask memory memory-form materialization "
+                "facts: " +
+                llvm::toString(staleMemoryFormFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleMemoryForm, *staleMemoryFormFacts,
+              "computed-mask memory route-control stale memory-form unit test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask memory "
+           "mask-producer and memory-form facts",
+           "before provider route construction"}))
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarLoadStoreAnalysis =

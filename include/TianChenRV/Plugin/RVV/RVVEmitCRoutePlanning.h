@@ -871,6 +871,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   bool controlsScalarBroadcastMAcc = false;
   bool controlsPlainCompareSelect = false;
   bool controlsComputedMaskSelect = false;
+  bool controlsComputedMaskMemory = false;
 
   llvm::StringRef controlPlanIDMirror;
   llvm::StringRef configContractIDMirror;
