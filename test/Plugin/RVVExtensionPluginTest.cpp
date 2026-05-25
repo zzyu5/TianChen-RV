@@ -1759,6 +1759,9 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer;
@@ -1946,6 +1949,54 @@ module {
           "scalar_broadcast_add plan must carry runtime control, RHS scalar "
           "splat, arithmetic, and binding facts"))
     return result;
+  auto expectScalarBroadcastRouteControl =
+      [&](RVVSelectedBodyRouteAnalysis &analysis,
+          llvm::StringRef operationName) -> int {
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, "scalar-broadcast route-control provider unit test");
+    if (!materializationFacts)
+      return fail("scalar-broadcast route-control materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts,
+        "scalar-broadcast route-control provider unit test");
+    if (!routeControlPlan)
+      return fail("scalar-broadcast elementwise route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    const auto *runtimeControlPlan =
+        &analysis.scalarBroadcastElementwiseRouteFamilyPlan->runtimeControlPlan;
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsScalarBroadcastElementwise &&
+                routeControlPlan->runtimeControlPlan == runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            llvm::Twine(operationName) +
+                " route-control provider plan joins typed config, target "
+                "capability, and runtime AVL/VL facts"))
+      return result;
+    return expect(
+        routeControlPlan->controlPlanIDMirror ==
+                analysis.description.runtimeControlPlanID &&
+            routeControlPlan->runtimeABIOrderMirror ==
+                analysis.description.runtimeABIOrder &&
+            routeControlPlan->tailPolicyMirror ==
+                analysis.description.tailPolicy &&
+            routeControlPlan->maskPolicyMirror ==
+                analysis.description.maskPolicy &&
+            routeControlPlan->selectedProviderMirror ==
+                analysis.description.targetCapabilityProviderMirror &&
+            routeControlPlan->selectedLegalityMirror ==
+                analysis.description.targetCapabilityLegalityMirror,
+        llvm::Twine(operationName) +
+            " route-control provider plan carries validated mirrors before "
+            "statement planning");
+  };
+  if (int result =
+          expectScalarBroadcastRouteControl(*addAnalysis, "scalar_broadcast_add"))
+    return result;
 
   RVVSelectedBodyRouteAnalysis stale = *addAnalysis;
   stale.description.runtimeAVLASource = "metadata-selected-avl";
@@ -2024,6 +2075,9 @@ module {
           "scalar_broadcast_sub plan must keep sub operation and binding "
           "facts isolated"))
     return result;
+  if (int result =
+          expectScalarBroadcastRouteControl(*subAnalysis, "scalar_broadcast_sub"))
+    return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> mulAnalysis =
       analyzeRouteInModule(*module, "scalar_broadcast_mul_provider_kernel",
@@ -2046,6 +2100,9 @@ module {
               "rvv-route-operand-binding:scalar_broadcast_mul.v1",
       "scalar_broadcast_mul plan must keep mul operation and binding facts "
       "isolated"))
+    return result;
+  if (int result =
+          expectScalarBroadcastRouteControl(*mulAnalysis, "scalar_broadcast_mul"))
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeSplatAnalysis =
@@ -6553,6 +6610,23 @@ module {
     }
   }
 
+  tcrv.exec.kernel @stmt_scalar_broadcast_mul_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_mul attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_mul, sew = 32 : i64, source_kernel = "stmt_scalar_broadcast_mul_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %b = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %r = tcrv_rvv.binary %a, %b, %vl {kind = "mul"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %r, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
   tcrv.exec.kernel @stmt_masked_add_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @rvv_masked_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
@@ -6675,7 +6749,7 @@ module {
       return fail("elementwise arithmetic statement-plan residual facts: " +
                   llvm::toString(residualFacts.takeError()));
 
-    if (ordinary) {
+    if (ordinary || scalarBroadcast) {
       auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
           *analysis, *materializationFacts,
           "elementwise arithmetic route-control provider unit test");
@@ -6683,18 +6757,27 @@ module {
         return fail("elementwise arithmetic route-control provider plan: " +
                     llvm::toString(routeControlPlan.takeError()));
       const auto *elementwiseRuntimeControlPlan =
-          &analysis->elementwiseArithmeticRouteFamilyPlan->runtimeControlPlan;
+          ordinary ? &analysis->elementwiseArithmeticRouteFamilyPlan
+                          ->runtimeControlPlan
+                   : &analysis->scalarBroadcastElementwiseRouteFamilyPlan
+                          ->runtimeControlPlan;
       if (int result = expect(
               routeControlPlan->plansRouteControl &&
-                  routeControlPlan->controlsOrdinaryElementwiseArithmetic &&
+                  (ordinary
+                       ? routeControlPlan
+                             ->controlsOrdinaryElementwiseArithmetic
+                       : routeControlPlan
+                             ->controlsScalarBroadcastElementwise) &&
                   routeControlPlan->runtimeControlPlan ==
                       elementwiseRuntimeControlPlan &&
                   routeControlPlan->typedConfigFacts ==
                       &analysis->typedConfigFacts &&
                   routeControlPlan->selectedTargetCapabilityFacts ==
                       &analysis->selectedTargetCapabilityFacts,
-              "ordinary elementwise route-control provider plan joins typed "
-              "config, target capability, and runtime AVL/VL facts"))
+              llvm::Twine(ordinary ? "ordinary" : "scalar-broadcast") +
+                  llvm::Twine(
+                      " elementwise route-control provider plan joins typed "
+                      "config, target capability, and runtime AVL/VL facts")))
         return result;
       if (int result = expect(
               routeControlPlan->controlPlanIDMirror ==
@@ -6709,9 +6792,14 @@ module {
                       analysis->description.targetCapabilityProviderMirror &&
                   routeControlPlan->selectedLegalityMirror ==
                       analysis->description.targetCapabilityLegalityMirror &&
-                  elementwiseFacts->bindsOrdinaryElementwiseArithmetic,
-              "ordinary elementwise route-control provider plan carries "
-              "validated control mirrors before statement planning"))
+                  (ordinary ? elementwiseFacts
+                                  ->bindsOrdinaryElementwiseArithmetic
+                            : elementwiseFacts
+                                  ->bindsScalarBroadcastElementwise),
+              llvm::Twine(ordinary ? "ordinary" : "scalar-broadcast") +
+                  llvm::Twine(
+                      " elementwise route-control provider plan carries "
+                      "validated control mirrors before statement planning")))
         return result;
     }
 
@@ -6840,6 +6928,13 @@ module {
           false, true, false, false,
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmv_v_x_i32m1", "__riscv_vsub_vv_i32m1",
+           "__riscv_vse32_v_i32m1"}))
+    return result;
+  if (int result = expectStatementPlan(
+          "stmt_scalar_broadcast_mul_kernel", "rvv_scalar_broadcast_mul",
+          false, true, false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmv_v_x_i32m1", "__riscv_vmul_vv_i32m1",
            "__riscv_vse32_v_i32m1"}))
     return result;
   if (int result = expectStatementPlan(
@@ -7168,16 +7263,184 @@ module {
            "before route statement construction",
            "scalar_broadcast_sub"}))
     return result;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyMigratedRouteStatementPlan(
+              *scalarBroadcastSubAnalysis, staleScalarBroadcastFacts,
+              *scalarBroadcastSubElementwiseFacts, emptyMemoryFacts,
+              emptyMathFacts, *scalarBroadcastSubResidualFacts,
+              "scalar-broadcast migrated statement-plan stale dependency unit "
+              "test")
+              .takeError(),
+          {"scalar-broadcast elementwise route-family plan",
+           "before route statement construction", "scalar_broadcast_sub"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarRuntimeControl =
+      *scalarBroadcastSubAnalysis;
+  staleScalarRuntimeControl.scalarBroadcastElementwiseRouteFamilyPlan
+      ->runtimeControlPlan.runtimeAVLParameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  auto staleScalarRuntimeControlFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleScalarRuntimeControl,
+          "scalar-broadcast elementwise route-control stale runtime AVL unit "
+          "test");
+  if (!staleScalarRuntimeControlFacts)
+    return fail("stale scalar-broadcast runtime-control materialization "
+                "facts: " +
+                llvm::toString(staleScalarRuntimeControlFacts.takeError()));
+  auto staleScalarRuntimeControlElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleScalarRuntimeControl,
+          "scalar-broadcast elementwise route-control stale runtime AVL unit "
+          "test");
+  if (!staleScalarRuntimeControlElementwiseFacts)
+    return fail("stale scalar-broadcast runtime-control binding facts: " +
+                llvm::toString(
+                    staleScalarRuntimeControlElementwiseFacts.takeError()));
+  auto staleScalarRuntimeControlResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          staleScalarRuntimeControl,
+          "scalar-broadcast elementwise route-control stale runtime AVL unit "
+          "test");
+  if (!staleScalarRuntimeControlResidualFacts)
+    return fail("stale scalar-broadcast runtime-control residual facts: " +
+                llvm::toString(
+                    staleScalarRuntimeControlResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              staleScalarRuntimeControl, *staleScalarRuntimeControlFacts,
+              *staleScalarRuntimeControlElementwiseFacts,
+              *staleScalarRuntimeControlResidualFacts,
+              "scalar-broadcast elementwise route-control stale runtime AVL "
+              "unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarPolicy =
+      *scalarBroadcastSubAnalysis;
+  staleScalarPolicy.scalarBroadcastElementwiseRouteFamilyPlan
+      ->runtimeControlPlan.tailPolicy = "undisturbed";
+  auto staleScalarPolicyFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleScalarPolicy,
+      "scalar-broadcast elementwise route-control stale policy unit test");
+  if (!staleScalarPolicyFacts)
+    return fail("stale scalar-broadcast policy materialization facts: " +
+                llvm::toString(staleScalarPolicyFacts.takeError()));
+  auto staleScalarPolicyElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleScalarPolicy,
+          "scalar-broadcast elementwise route-control stale policy unit test");
+  if (!staleScalarPolicyElementwiseFacts)
+    return fail("stale scalar-broadcast policy binding facts: " +
+                llvm::toString(staleScalarPolicyElementwiseFacts.takeError()));
+  auto staleScalarPolicyResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          staleScalarPolicy,
+          "scalar-broadcast elementwise route-control stale policy unit test");
+  if (!staleScalarPolicyResidualFacts)
+    return fail("stale scalar-broadcast policy residual facts: " +
+                llvm::toString(staleScalarPolicyResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              staleScalarPolicy, *staleScalarPolicyFacts,
+              *staleScalarPolicyElementwiseFacts,
+              *staleScalarPolicyResidualFacts,
+              "scalar-broadcast elementwise route-control stale policy unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarTarget =
+      *scalarBroadcastSubAnalysis;
+  staleScalarTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleScalarTargetFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleScalarTarget,
+      "scalar-broadcast elementwise route-control stale target unit test");
+  if (!staleScalarTargetFacts)
+    return fail("stale scalar-broadcast target materialization facts: " +
+                llvm::toString(staleScalarTargetFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleScalarTarget, *staleScalarTargetFacts,
+              "scalar-broadcast elementwise route-control stale target unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedScalarBroadcastAnalysis =
+      *scalarBroadcastSubAnalysis;
+  auto copiedScalarBroadcastElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          copiedScalarBroadcastAnalysis,
+          "scalar-broadcast elementwise stale-analysis route-control unit "
+          "test");
+  if (!copiedScalarBroadcastElementwiseFacts)
+    return fail("copied scalar-broadcast binding facts: " +
+                llvm::toString(
+                    copiedScalarBroadcastElementwiseFacts.takeError()));
+  auto copiedScalarBroadcastResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          copiedScalarBroadcastAnalysis,
+          "scalar-broadcast elementwise stale-analysis route-control unit "
+          "test");
+  if (!copiedScalarBroadcastResidualFacts)
+    return fail("copied scalar-broadcast residual facts: " +
+                llvm::toString(copiedScalarBroadcastResidualFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              copiedScalarBroadcastAnalysis,
+              *scalarBroadcastSubMaterializationFacts,
+              *copiedScalarBroadcastElementwiseFacts,
+              *copiedScalarBroadcastResidualFacts,
+              "scalar-broadcast elementwise stale-analysis route-control unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires scalar-broadcast elementwise "
+           "materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarRuntimeMirror =
+      *scalarBroadcastSubAnalysis;
+  staleScalarRuntimeMirror.description.runtimeABIOrder =
+      "lhs,rhs_scalar,out,metadata_n";
+  auto staleScalarRuntimeMirrorFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleScalarRuntimeMirror,
+          "scalar-broadcast elementwise route-control stale runtime ABI "
+          "mirror unit test");
+  if (!staleScalarRuntimeMirrorFacts)
+    return fail("stale scalar-broadcast runtime ABI mirror facts: " +
+                llvm::toString(staleScalarRuntimeMirrorFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleScalarRuntimeMirror, *staleScalarRuntimeMirrorFacts,
+              "scalar-broadcast elementwise route-control stale runtime ABI "
+              "mirror unit test")
+              .takeError(),
+          {"route-control provider plan description runtime ABI order",
+           "lhs,rhs_scalar,out,n", "lhs,rhs_scalar,out,metadata_n"}))
+    return result;
+
+  auto staleScalarOperandBindingFacts = *scalarBroadcastSubElementwiseFacts;
+  staleScalarOperandBindingFacts.bindsScalarBroadcastElementwise = false;
   return expectErrorContains(
-      getRVVSelectedBodyMigratedRouteStatementPlan(
-          *scalarBroadcastSubAnalysis, staleScalarBroadcastFacts,
-          *scalarBroadcastSubElementwiseFacts, emptyMemoryFacts,
-          emptyMathFacts, *scalarBroadcastSubResidualFacts,
-          "scalar-broadcast migrated statement-plan stale dependency unit "
+      getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+          *scalarBroadcastSubAnalysis, *scalarBroadcastSubMaterializationFacts,
+          staleScalarOperandBindingFacts, *scalarBroadcastSubResidualFacts,
+          "scalar-broadcast elementwise statement plan stale binding unit "
           "test")
           .takeError(),
-      {"scalar-broadcast elementwise route-family plan",
-       "before route statement construction", "scalar_broadcast_sub"});
+      {"elementwise arithmetic statement plan requires scalar-broadcast "
+       "operand-binding facts",
+       "before route statement construction"});
 }
 
 int runCompareSelectStatementPlanBoundaryTest(mlir::MLIRContext &context) {

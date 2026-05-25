@@ -596,3 +596,42 @@ Integrated ordinary Add/Sub/Mul elementwise arithmetic with the shared RVV route
 ### Next Steps
 
 - None - task complete
+
+
+## Session 216: Stage2 RVV scalar-broadcast route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV scalar-broadcast route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated scalar-broadcast elementwise Add/Sub/Mul with the shared RVV route-control provider-plan boundary.
+
+### Main Changes
+
+- Added scalar-broadcast elementwise Add/Sub/Mul as RVV route-control consumers through `controlsScalarBroadcastElementwise`.
+- Required scalar-broadcast route-control construction to use same-analysis scalar-broadcast route-family and materialization facts before exposing AVL/VL, policy, typed config, selected target capability, runtime ABI, and mirror facts.
+- Required the scalar-broadcast elementwise statement-plan boundary to consume the RVV-owned route-control provider plan before setvl/load/splat/binary/store statement construction.
+- Extended focused RVV plugin tests with positive add/sub/mul control-plan evidence and negative fail-closed cases for stale runtime AVL role, policy mismatch, unsupported selected capability, stale same-analysis facts, runtime ABI mirror mismatch, and stale scalar operand binding.
+- Updated the RVV plugin spec to list scalar-broadcast elementwise arithmetic as an explicit route-control provider-plan consumer.
+- Validation passed: task validate, git diff --check, RVV extension plugin test build/run, tcrv-opt/tcrv-translate build, focused scalar-broadcast lit/FileCheck filter, bounded authority scan, and check-tianchenrv.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

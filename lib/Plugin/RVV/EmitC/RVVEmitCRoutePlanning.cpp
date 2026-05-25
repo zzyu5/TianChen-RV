@@ -22795,9 +22795,19 @@ static bool isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
          description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
 }
 
+static bool isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+             description.operation) &&
+         description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
+             description) ||
+         isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
              description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
@@ -22977,6 +22987,27 @@ getRVVSelectedBodyRouteControlProviderPlan(
     runtimeControlPlan =
         &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan;
     plan.controlsOrdinaryElementwiseArithmetic = true;
+  } else if (isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.scalarBroadcastPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified "
+          "scalar-broadcast elementwise route-family plan before provider "
+          "route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.scalarBroadcastElementwiseRouteFamilyPlan ||
+        materializationFacts.scalarBroadcastPlan !=
+            &*analysis.scalarBroadcastElementwiseRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires scalar-broadcast "
+          "elementwise materialization facts from the same selected route "
+          "analysis before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.scalarBroadcastPlan->runtimeControlPlan;
+    plan.controlsScalarBroadcastElementwise = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -27237,6 +27268,23 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
           " ordinary elementwise arithmetic statement plan requires the "
           "RVV-owned route-control provider plan before route statement "
           "construction");
+  }
+  if (isScalarBroadcastElementwise) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts, context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsScalarBroadcastElementwise ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.scalarBroadcastPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " scalar-broadcast elementwise statement plan requires the "
+          "RVV-owned route-control provider plan before route statement "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   }
 
   if (llvm::Error error = requireRVVElementwiseArithmeticStatementPlanABI(
