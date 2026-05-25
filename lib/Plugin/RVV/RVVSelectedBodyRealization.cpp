@@ -16,8 +16,8 @@
 namespace tianchenrv::plugin::rvv {
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
-    const VariantLoweringBoundaryRequest &request);
+realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
 
 namespace {
 
@@ -827,12 +827,6 @@ realizePreRealizedRVVElementwiseCompareSelectOwner(
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVExistingFamilyOwner(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *) {
-  return realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(request);
-}
-
-llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVStandaloneReductionOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
 
@@ -842,6 +836,60 @@ realizePreRealizedRVVMAccOwner(const VariantLoweringBoundaryRequest &request,
 
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVBaseMemoryMovementOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp,
+    llvm::StringRef ownerName,
+    RVVSelectedBodyRealizationOwner::ConsumerPredicate isOwnedBody) {
+  if (!bodyOp)
+    return makeRVVPluginError(llvm::Twine(ownerName) +
+                              " selected-body realization owner requires a "
+                              "pre-realized RVV body op");
+  if (!isOwnedBody || !isOwnedBody(bodyOp))
+    return makeRVVPluginError(
+        llvm::Twine(ownerName) +
+        " selected-body realization owner received a body outside its "
+        "RVV-owned realization family");
+  return realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(request,
+                                                                 bodyOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRuntimeScalarSplatStoreOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRuntimeScalarComputedMaskStoreOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVReductionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVComputedMaskMAccOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVContractionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVWideningConversionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVComputedMaskMemoryOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSegment2MemoryOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
 
 bool isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp(mlir::Operation *op) {
@@ -923,6 +971,76 @@ bool isPreRealizedRVVSegment2MemoryOwnerOp(mlir::Operation *op) {
       op);
 }
 
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRuntimeScalarSplatStoreOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "runtime scalar splat-store",
+      isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRuntimeScalarComputedMaskStoreOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "runtime scalar computed-mask store",
+      isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "runtime scalar computed-mask load-store",
+      isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVReductionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "reduction", isPreRealizedRVVReductionOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVComputedMaskMAccOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "computed-mask MAcc",
+      isPreRealizedRVVComputedMaskMAccOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVContractionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "contraction", isPreRealizedRVVContractionOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVWideningConversionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "widening conversion",
+      isPreRealizedRVVWideningConversionOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVComputedMaskMemoryOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "computed-mask memory",
+      isPreRealizedRVVComputedMaskMemoryOwnerOp);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSegment2MemoryOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
+      request, bodyOp, "segment2 memory",
+      isPreRealizedRVVSegment2MemoryOwnerOp);
+}
+
 llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
 getRVVSelectedBodyRealizationOwnerRegistry() {
   static const RVVSelectedBodyRealizationOwner owners[] = {
@@ -932,15 +1050,15 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVElementwiseCompareSelectOwner},
       {"runtime scalar splat-store",
        isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVRuntimeScalarSplatStoreOwner},
       {"runtime scalar computed-mask store",
        isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVRuntimeScalarComputedMaskStoreOwner},
       {"runtime scalar computed-mask load-store",
        isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwner},
       {"reduction", isPreRealizedRVVReductionOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVReductionOwner},
       {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
        isPreRealizedRVVStandaloneReductionRouteEntryOp,
        realizePreRealizedRVVStandaloneReductionOwner},
@@ -948,18 +1066,18 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        isPreRealizedRVVScalarBroadcastMAccRouteEntryOp,
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVComputedMaskMAccOwner},
       {"contraction", isPreRealizedRVVContractionOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner},
+       realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
-       nullptr, realizePreRealizedRVVExistingFamilyOwner},
+       nullptr, realizePreRealizedRVVWideningConversionOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
        isPreRealizedRVVBaseMemoryMovementRouteEntryOp,
        realizePreRealizedRVVBaseMemoryMovementOwner},
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
-       nullptr, realizePreRealizedRVVExistingFamilyOwner},
+       nullptr, realizePreRealizedRVVComputedMaskMemoryOwner},
       {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp, nullptr,
-       realizePreRealizedRVVExistingFamilyOwner}};
+       realizePreRealizedRVVSegment2MemoryOwner}};
   return owners;
 }
 
@@ -7530,45 +7648,35 @@ realizePreRealizedRVVRouteEntrySelectedBody(
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
-    const VariantLoweringBoundaryRequest &request) {
+realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   tcrv::exec::VariantOp variant = request.getVariant();
   tcrv::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
         "pre-realized RVV selected-body realization requires materialized "
         "kernel and variant");
-
-  llvm::Expected<mlir::Operation *> bodyOp =
-      findUniquePreRealizedRVVSelectedBody(variant);
   if (!bodyOp)
-    return bodyOp.takeError();
+    return makeRVVPluginError(
+        "owner-local RVV selected-body realization requires a pre-realized "
+        "body op");
 
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
 
-  if (isPreRealizedRVVStandaloneReductionOwnerOp(*bodyOp) ||
-      isPreRealizedRVVMAccOwnerOp(*bodyOp) ||
-      isPreRealizedRVVBaseMemoryMovementOwnerOp(*bodyOp))
+  if (isPreRealizedRVVElementwiseCompareSelectClusterOp(bodyOp) ||
+      isPreRealizedRVVStandaloneReductionOwnerOp(bodyOp) ||
+      isPreRealizedRVVMAccOwnerOp(bodyOp) ||
+      isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp))
     return makeRVVPluginError(
-        "pre-realized RVV selected-body shared existing-family helper no "
-        "longer owns route-entry-capable standalone reduction, MAcc, or base "
-        "memory movement families; the selected-body realization owner "
-        "registry must dispatch those families through owner-local hooks");
-
-  llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
-      elementwiseCompareSelectRealization =
-          realizePreRealizedRVVElementwiseCompareSelectCluster(request,
-                                                               *bodyOp);
-  if (!elementwiseCompareSelectRealization)
-    return elementwiseCompareSelectRealization.takeError();
-  if (elementwiseCompareSelectRealization->applies())
-    return elementwiseCompareSelectRealization->boundary;
+        "pre-realized RVV owner-local branch helper does not own "
+        "elementwise/compare-select or route-entry-capable standalone "
+        "reduction, MAcc, or base memory movement families");
 
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (!isPreRealizedRuntimeScalarSplatStoreOpKind(body.getOpKind()))
       return makeRVVPluginError(
           "pre-realized runtime scalar splat-store realization supports only "
@@ -7614,7 +7722,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto body =
-          llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(*bodyOp)) {
+          llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error = validatePreRealizedRVVSelectedBody(request, body))
       return std::move(error);
 
@@ -7697,7 +7805,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto compareSelectBody =
           llvm::dyn_cast<tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error = validatePreRealizedRVVSelectedCompareSelectBody(
             request, compareSelectBody))
       return std::move(error);
@@ -7740,7 +7848,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto computedMaskSelectBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp>(*bodyOp)) {
+          tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskSelectBody(
                 request, computedMaskSelectBody))
@@ -7795,7 +7903,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
 	  if (auto runtimeScalarCompareSelectBody = llvm::dyn_cast<
 	          tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp>(
-	          *bodyOp)) {
+	          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarCompareSelectBody(
                 request, runtimeScalarCompareSelectBody))
@@ -7868,7 +7976,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 	  if (auto runtimeScalarDualCompareBody = llvm::dyn_cast<
 	          tcrv::rvv::
 	              TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
-	          *bodyOp)) {
+	          bodyOp)) {
 	    if (llvm::Error error =
 	            validatePreRealizedRVVSelectedRuntimeScalarDualCompareMaskAndSelectBody(
 	                request, runtimeScalarDualCompareBody))
@@ -7960,7 +8068,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
 	  if (auto runtimeScalarComputedMaskStoreBody = llvm::dyn_cast<
 	          tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
                 request, runtimeScalarComputedMaskStoreBody))
@@ -8023,7 +8131,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   if (auto runtimeScalarComputedMaskLoadStoreBody = llvm::dyn_cast<
           tcrv::rvv::
               TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
                 request, runtimeScalarComputedMaskLoadStoreBody))
@@ -8096,7 +8204,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto reduceBody =
-          llvm::dyn_cast<tcrv::rvv::TypedReducePreRealizedBodyOp>(*bodyOp)) {
+          llvm::dyn_cast<tcrv::rvv::TypedReducePreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedReduceBody(request, reduceBody))
       return std::move(error);
@@ -8139,7 +8247,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto standaloneReduceBody =
           llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error = validatePreRealizedRVVSelectedStandaloneReduceBody(
             request, standaloneReduceBody))
       return std::move(error);
@@ -8190,7 +8298,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto maskedStandaloneReduceBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
                 request, maskedStandaloneReduceBody))
@@ -8266,7 +8374,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   if (auto runtimeScalarMaskedStandaloneReduceBody = llvm::dyn_cast<
           tcrv::rvv::
               TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
                 request, runtimeScalarMaskedStandaloneReduceBody))
@@ -8345,7 +8453,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto maccBody =
-          llvm::dyn_cast<tcrv::rvv::TypedMAccPreRealizedBodyOp>(*bodyOp)) {
+          llvm::dyn_cast<tcrv::rvv::TypedMAccPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedMAccBody(request, maccBody))
       return std::move(error);
@@ -8420,7 +8528,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto maskedMAccBody =
           llvm::dyn_cast<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskMAccBody(request,
                                                                maskedMAccBody))
@@ -8482,7 +8590,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto runtimeScalarMaskedMAccBody = llvm::dyn_cast<
           tcrv::rvv::
-              TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(*bodyOp)) {
+              TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
                 request, runtimeScalarMaskedMAccBody))
@@ -8561,7 +8669,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto wideningMAccBody =
           llvm::dyn_cast<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedWideningMAccBody(request,
                                                            wideningMAccBody))
@@ -8571,7 +8679,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto dotReduceBody = llvm::dyn_cast<
-          tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp>(*bodyOp)) {
+          tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedWideningDotReduceBody(
                 request, dotReduceBody))
@@ -8583,7 +8691,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   if (auto stridedDotReduceBody =
           llvm::dyn_cast<tcrv::rvv::
                              TypedStridedInputWideningDotReducePreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
                 request, stridedDotReduceBody))
@@ -8596,7 +8704,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   if (auto maskedDotReduceBody =
           llvm::dyn_cast<tcrv::rvv::
                              TypedComputedMaskWideningDotReducePreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
                 request, maskedDotReduceBody))
@@ -8608,7 +8716,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   if (auto maskedStridedDotReduceBody =
           llvm::dyn_cast<tcrv::rvv::
                              TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
                 request, maskedStridedDotReduceBody))
@@ -8620,7 +8728,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto conversionBody =
           llvm::dyn_cast<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedWideningConversionBody(
                 request, conversionBody))
@@ -8662,7 +8770,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto stridedMemoryBody =
           llvm::dyn_cast<tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error = validatePreRealizedRVVSelectedStridedMemoryBody(
             request, stridedMemoryBody))
       return std::move(error);
@@ -8700,7 +8808,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto stridedStoreBody =
           llvm::dyn_cast<tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedStridedStoreMemoryBody(
                 request, stridedStoreBody))
@@ -8739,7 +8847,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto indexedGatherBody = llvm::dyn_cast<
-          tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(*bodyOp)) {
+          tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
                 request, indexedGatherBody))
@@ -8781,7 +8889,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto indexedScatterBody = llvm::dyn_cast<
-          tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(*bodyOp)) {
+          tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
                 request, indexedScatterBody))
@@ -8825,7 +8933,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto maskedMemoryBody =
           llvm::dyn_cast<tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(
-              *bodyOp)) {
+              bodyOp)) {
     if (llvm::Error error = validatePreRealizedRVVSelectedMaskedMemoryBody(
             request, maskedMemoryBody))
       return std::move(error);
@@ -8876,7 +8984,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
   }
 
   if (auto computedMaskMemoryBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(*bodyOp)) {
+          tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskMemoryBody(
                 request, computedMaskMemoryBody))
@@ -8929,7 +9037,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto computedMaskStridedStoreBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
                 request, computedMaskStridedStoreBody))
@@ -8977,7 +9085,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto computedMaskStridedLoadBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
                 request, computedMaskStridedLoadBody))
@@ -9032,7 +9140,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto computedMaskIndexedGatherBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
                 request, computedMaskIndexedGatherBody))
@@ -9094,7 +9202,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto computedMaskIndexedScatterBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
                 request, computedMaskIndexedScatterBody))
@@ -9149,7 +9257,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto computedMaskSegment2LoadBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
                 request, computedMaskSegment2LoadBody))
@@ -9215,7 +9323,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto computedMaskSegment2StoreBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
                 request, computedMaskSegment2StoreBody))
@@ -9274,7 +9382,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto segment2Body = llvm::dyn_cast<
           tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
                 request, segment2Body))
@@ -9320,7 +9428,7 @@ realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
 
   if (auto segment2Body = llvm::dyn_cast<
           tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
-          *bodyOp)) {
+          bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
                 request, segment2Body))

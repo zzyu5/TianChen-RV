@@ -1165,54 +1165,44 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
         return &owner;
     return nullptr;
   };
-  const RVVSelectedBodyRealizationOwner *sharedContinuationOwner =
-      findOwner("runtime scalar splat-store");
-  if (int result = expect(sharedContinuationOwner != nullptr,
-                          "found deferred shared-helper continuation owner"))
-    return result;
-  const RVVSelectedBodyRealizationOwner::RealizationHook
-      sharedContinuationHook = sharedContinuationOwner->realize;
-  const llvm::StringRef migratedOwners[] = {"standalone reduction", "MAcc",
-                                            "base memory movement"};
-  for (llvm::StringRef migratedOwnerName : migratedOwners) {
-    const RVVSelectedBodyRealizationOwner *owner = findOwner(migratedOwnerName);
-    if (int result =
-            expect(owner != nullptr,
-                   llvm::Twine("found migrated selected-body realization "
-                               "owner ") +
-                       migratedOwnerName))
-      return result;
-    if (int result =
-            expect(owner->realize != sharedContinuationHook,
-                   llvm::Twine("migrated owner ") + migratedOwnerName +
-                       " uses an owner-local realization hook instead of the "
-                       "shared existing-family continuation helper"))
-      return result;
+  for (const RVVSelectedBodyRealizationOwner &lhs : owners) {
+    for (const RVVSelectedBodyRealizationOwner &rhs : owners) {
+      if (&lhs >= &rhs)
+        continue;
+      if (int result = expect(
+              lhs.realize != rhs.realize,
+              llvm::Twine("selected-body realization owners ") +
+                  lhs.familyName + " and " + rhs.familyName +
+                  " use distinct owner-local realization hooks"))
+        return result;
+    }
   }
 
-  const llvm::StringRef deferredOwners[] = {
+  const llvm::StringRef ownerLocalMigratedOwners[] = {
       "runtime scalar splat-store",
       "runtime scalar computed-mask store",
       "runtime scalar computed-mask load-store",
       "reduction",
+      "standalone reduction",
+      "MAcc",
       "computed-mask MAcc",
       "contraction",
       "widening conversion",
+      "base memory movement",
       "computed-mask memory",
       "segment2 memory"};
-  for (llvm::StringRef deferredOwnerName : deferredOwners) {
-    const RVVSelectedBodyRealizationOwner *owner = findOwner(deferredOwnerName);
+  for (llvm::StringRef migratedOwnerName : ownerLocalMigratedOwners) {
+    const RVVSelectedBodyRealizationOwner *owner = findOwner(migratedOwnerName);
     if (int result =
             expect(owner != nullptr,
-                   llvm::Twine("found deferred selected-body realization "
+                   llvm::Twine("found owner-local selected-body realization "
                                "owner ") +
-                       deferredOwnerName))
+                       migratedOwnerName))
       return result;
     if (int result =
-            expect(owner->realize == sharedContinuationHook,
-                   llvm::Twine("deferred owner ") + deferredOwnerName +
-                       " remains the explicit shared-helper continuation "
-                       "point"))
+            expect(owner->realize != nullptr,
+                   llvm::Twine("owner-local selected-body realization owner ") +
+                       migratedOwnerName + " has a realization hook"))
       return result;
   }
 
@@ -1280,6 +1270,12 @@ module {
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs_scalar, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "rhs-scalar-broadcast-macc", op_kind = "scalar_broadcast_macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_owner_negative_runtime_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_i32_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1582,6 +1578,99 @@ module {
            "role 'runtime-element-count' before RVV selected-body realization"}))
     return result;
   runtimeN->setAttr("role", originalRuntimeNRole);
+
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *runtimeSplatOwner = nullptr;
+  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
+       tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
+    if (owner.familyName == "runtime scalar splat-store")
+      runtimeSplatOwner = &owner;
+  }
+  if (int result =
+          expect(runtimeSplatOwner != nullptr &&
+                     runtimeSplatOwner->realize != nullptr,
+                 "found migrated runtime scalar splat-store owner-local "
+                 "realization hook"))
+    return result;
+  mlir::OpBuilder runtimeNullBodyBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeNullBody =
+      runtimeSplatOwner->realize(
+          VariantLoweringBoundaryRequest(
+              nonOwnedBaseVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, runtimeNullBodyBuilder),
+          nullptr);
+  if (runtimeNullBody)
+    return fail("runtime scalar splat-store owner-local hook accepted a null "
+                "body");
+  if (int result = expectErrorContains(
+          runtimeNullBody.takeError(),
+          {"runtime scalar splat-store selected-body realization owner "
+           "requires a pre-realized RVV body op"}))
+    return result;
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeOwnerMismatch =
+      runtimeSplatOwner->realize(
+          VariantLoweringBoundaryRequest(
+              nonOwnedBaseVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, ownerMismatchBuilder),
+          nonOwnedBaseBody);
+  if (runtimeOwnerMismatch)
+    return fail("runtime scalar splat-store owner-local hook accepted a "
+                "base-memory body");
+  if (int result = expectErrorContains(
+          runtimeOwnerMismatch.takeError(),
+          {"runtime scalar splat-store selected-body realization owner "
+           "received a body outside its RVV-owned realization family"}))
+    return result;
+
+  VariantOp runtimeSplatVariant =
+      findVariant(kernel, "rvv_pre_owner_negative_runtime_splat_store");
+  auto runtimeSplatBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
+      findFirstNestedOp(
+          runtimeSplatVariant,
+          "tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body"));
+  if (int result = expect(runtimeSplatBody != nullptr,
+                          "found runtime scalar splat-store pre-realized body "
+                          "for owner-local negative tests"))
+    return result;
+  runtimeSplatBody->setAttr("op_kind",
+                            attrBuilder.getStringAttr("scalar_broadcast_add"));
+  mlir::OpBuilder runtimeInvalidBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalidRuntimeSplat =
+      runtimeSplatOwner->realize(
+          VariantLoweringBoundaryRequest(
+              runtimeSplatVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, runtimeInvalidBuilder),
+          runtimeSplatBody.getOperation());
+  if (invalidRuntimeSplat)
+    return fail("runtime scalar splat-store owner-local hook accepted invalid "
+                "typed body facts");
+  if (int result = expectErrorContains(
+          invalidRuntimeSplat.takeError(),
+          {"pre-realized runtime scalar splat-store realization supports only "
+           "op_kind 'runtime_i32_splat_store'"}))
+    return result;
+  runtimeSplatBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("runtime_i32_splat_store"));
+
+  mlir::OpBuilder runtimeRealizeBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeRealized =
+      tianchenrv::plugin::rvv::realizePreRealizedRVVSelectedBody(
+          VariantLoweringBoundaryRequest(
+              runtimeSplatVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, runtimeRealizeBuilder));
+  if (!runtimeRealized)
+    return fail("runtime scalar splat-store owner-local realization: " +
+                llvm::toString(runtimeRealized.takeError()));
+  if (int result = expect(
+          countNestedOps(runtimeSplatVariant,
+                         "tcrv_rvv.typed_runtime_scalar_splat_store_"
+                         "pre_realized_body") == 0 &&
+              countNestedOps(runtimeSplatVariant, "tcrv_rvv.setvl") == 1 &&
+              countNestedOps(runtimeSplatVariant, "tcrv_rvv.with_vl") == 1,
+          "runtime scalar splat-store owner-local hook consumes the "
+          "pre-realized body into realized setvl/with_vl"))
+    return result;
 
   VariantOp reduceVariant = findVariant(kernel, "rvv_pre_route_reduce");
   mlir::Operation *reducePreRealized =

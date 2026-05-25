@@ -1180,3 +1180,52 @@ Added an RVV selected-body realization owner registry, routed pre-realized body 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 227: Stage2 RVV deferred selected-body realization owner-local hooks
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV deferred selected-body realization owner-local hooks
+**Branch**: `main`
+
+### Summary
+
+Migrated the remaining deferred RVV selected-body realization owners to registry-selected owner-local hooks, preserved route-control/provider behavior, added focused owner-local coverage, and verified full check-tianchenrv.
+
+### Main Changes
+
+- Migrated the remaining deferred selected-body realization owners to distinct owner-local registry hooks: runtime scalar splat-store, runtime scalar computed-mask store/load-store, reduction, computed-mask MAcc, contraction, widening conversion, computed-mask memory, and segment2 memory.
+- Removed the active shared existing-family realization helper from registry authority. The remaining private materialization branch takes the already selected body from an owner-local hook and does not rediscover or classify the owner/body.
+- Preserved route-entry ownership for elementwise/compare-select, standalone reduction, MAcc, and base memory movement while keeping non-route-entry families fail-closed at the direct route-entry bridge.
+- Strengthened C++ registry coverage so all thirteen selected-body realization owners use distinct hook pointers and route-entry eligibility remains owner-scoped.
+- Added runtime scalar splat-store owner-local negative coverage for null body dispatch, non-owned body dispatch, and wrong op_kind, plus successful owner-local realization to setvl/with_vl.
+- Self-repaired owner-local wrapper null-body handling so `llvm::isa`-based owner predicates are not called with null operations.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-25-stage2-rvv-deferred-selected-body-owner-local-hooks`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --dry-run` for pre-realized computed-mask MAcc, pre-realized runtime scalar splat-store, and explicit runtime scalar splat-store selected body.
+- [OK] Bounded added-line authority scan found no new source-front-door, descriptor, common-EmitC, artifact/script, route-id, ABI-string, or legacy-i32 authority.
+- [OK] `cmake --build build --target check-tianchenrv`: 379/379 passed.
+
+### Runtime Evidence
+
+No `ssh rvv` rerun was needed because emitted RVV body semantics, runtime ABI, dispatch/fallback behavior, statement order, and target artifact semantics were preserved; this round changed selected-body realization ownership and fail-closed dispatch only.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-15.md`
-- **Total Sessions**: 226
+- **Total Sessions**: 227
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-15.md` | ~1139 | Active |
+| `journal-15.md` | ~1231 | Active |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
@@ -43,6 +43,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 227 | 2026-05-25 | Stage2 RVV deferred selected-body realization owner-local hooks | pending-final-session-commit | `main` |
 | 226 | 2026-05-25 | Stage2 RVV selected-body realization owner registry | this commit | `main` |
 | 225 | 2026-05-25 | Stage2 RVV route-control owner registry consolidation | pending-final-session-commit | `main` |
 | 224 | 2026-05-25 | Stage2 RVV contraction route-control provider-plan integration | pending-final-session-commit | `main` |
