@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and RVV stage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization owner registry, route-control consumption, and mirror-only constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and route authority stays provider-built."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin-local registry and selected-body realization hook boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check selected-body artifact evidence and fail-closed test coverage."}

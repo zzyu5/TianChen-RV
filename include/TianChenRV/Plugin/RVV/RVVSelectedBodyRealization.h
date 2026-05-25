@@ -5,8 +5,29 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/Operation.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 
 namespace tianchenrv::plugin::rvv {
+
+struct RVVSelectedBodyRealizationOwner {
+  using ConsumerPredicate = bool (*)(mlir::Operation *);
+  using RealizationHook = llvm::Expected<tcrv::rvv::WithVLOp> (*)(
+      const VariantLoweringBoundaryRequest &, mlir::Operation *);
+
+  llvm::StringLiteral familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ConsumerPredicate isRouteEntryConsumer = nullptr;
+  RealizationHook realize = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
+getRVVSelectedBodyRealizationOwners();
+
+llvm::Expected<const RVVSelectedBodyRealizationOwner *>
+getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
+                                          llvm::StringRef context);
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
 

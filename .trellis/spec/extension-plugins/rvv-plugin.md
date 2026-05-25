@@ -217,6 +217,142 @@ prefetch/software-pipeline structure
 accumulator/reduction layout
 ```
 
+## Selected-Body Realization Owner Registry
+
+### 1. Scope / Trigger
+
+When a selected RVV variant contains a pre-realized `tcrv_rvv` body, the
+production realization entrypoint must select one RVV plugin-local realization
+owner before creating `setvl`, `with_vl`, loads, stores, compute, mask,
+accumulator, reduction, memory, or segment operations. The owner registry sits
+upstream of route-family analysis, route-control provider plans, and
+`TCRVEmitCLowerableRoute` construction.
+
+### 2. Signatures
+
+The durable C++ surface is:
+
+```c++
+struct RVVSelectedBodyRealizationOwner {
+  llvm::StringLiteral familyName;
+  bool (*isConsumer)(mlir::Operation *);
+  bool (*isRouteEntryConsumer)(mlir::Operation *);
+  llvm::Expected<tcrv::rvv::WithVLOp> (*realize)(
+      const VariantLoweringBoundaryRequest &, mlir::Operation *);
+};
+
+llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
+getRVVSelectedBodyRealizationOwners();
+
+llvm::Expected<const RVVSelectedBodyRealizationOwner *>
+getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
+                                          llvm::StringRef context);
+```
+
+`realizePreRealizedRVVSelectedBody(...)` must dispatch through this owner
+registry. Direct route-entry realization must use the same registry and then
+check `isRouteEntryConsumer`, not a separate route-entry allowlist as route
+authority.
+
+### 3. Contracts
+
+The registry owns only selected-body realization family classification and
+realization dispatch. Each owner must have an explicit family name, a
+structural consumer predicate, and a realization hook. Route-entry eligibility
+is narrower than realization support and must remain owner-scoped.
+
+Currently supported realization-owner families are:
+
+- elementwise/compare-select;
+- runtime scalar splat-store;
+- runtime scalar computed-mask store;
+- runtime scalar computed-mask load-store;
+- reduction;
+- standalone reduction;
+- MAcc;
+- computed-mask MAcc;
+- contraction;
+- widening conversion;
+- base memory movement;
+- computed-mask memory;
+- segment2 memory.
+
+Owner predicates may inspect typed pre-realized op classes and RVV-owned attrs
+such as `op_kind`, `memory_form`, mask facts, layout facts, accumulator/result
+layout, SEW, LMUL, policy, and runtime-control roles. The predicates must not
+derive realization or route support from route ids, artifact names, test names,
+ABI strings, descriptors, scripts, common EmitC, source-front-door markers, or
+legacy i32 helper names.
+
+### 4. Validation & Error Matrix
+
+- Null body operation -> fail closed before owner selection.
+- No matching owner for a pre-realized body -> fail closed before realization.
+- More than one owner matches a body -> fail closed before realization.
+- Owner has no realization hook -> fail closed before creating realized ops.
+- Direct route-entry path reaches a realized-but-not-route-entry owner ->
+  fail closed with a route-entry realization diagnostic.
+- Owner-specific validator rejects runtime AVL/VL source, ABI role/order,
+  mem_window/imported value role, typed config, SEW/LMUL, policy,
+  operation kind, memory form, mask/passthrough, accumulator/result layout, or
+  selected capability facts -> fail closed before creating provider facts.
+- Provider route analysis sees any pre-realized body after realization should
+  have run -> fail closed with a selected-body realization diagnostic.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected RVV variant -> registry selects one realization owner ->
+  owner validates typed/config/runtime/capability facts -> realized
+  `tcrv_rvv` body -> route-family analysis -> route-control provider plan ->
+  provider-built route.
+- Good: direct route-entry bridge -> registry selects a route-entry-capable
+  owner -> pre-realized body is consumed -> target artifact mirrors provider
+  route facts after construction.
+- Base: a supported selected-body realization family that is not route-entry
+  capable still realizes through the owner registry when the explicit selected
+  lowering-boundary path is used.
+- Bad: route-entry realization keeps a separate central allowlist that can
+  drift from the production realization registry.
+- Bad: common EmitC, target artifacts, scripts, descriptors, route ids, or ABI
+  strings infer realization family, dtype, SEW/LMUL, policy, or route support.
+
+### 6. Tests Required
+
+- C++ registry tests must assert owner names, owner count, non-null consumer
+  and realization hooks, and route-entry eligibility being narrower than
+  realization support.
+- C++ route-path tests must prove at least one elementwise/compare-select
+  owner and one route-entry owner realize a pre-realized body before provider
+  facts are collected.
+- Negative tests must prove unsupported route-entry families still fail
+  closed before route construction.
+- Representative lit/FileCheck or generated-bundle dry-runs must prove
+  pre-realized route-entry artifacts still consume the pre-realized body and
+  explicit selected-body artifacts remain unaffected.
+- Changed-line scans must show no new name-, route-id-, metadata-,
+  descriptor-, ABI-string-, script-, artifact-, common-EmitC-,
+  source-front-door-, or legacy-i32-derived realization authority.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+direct route-entry path
+  -> central string allowlist says op_kind looks supported
+  -> route provider consumes pre-realized body or metadata
+```
+
+Correct:
+
+```text
+direct route-entry path
+  -> selected-body realization owner registry selects exactly one owner
+  -> owner validates typed/config/runtime/capability facts
+  -> owner materializes realized tcrv_rvv body
+  -> route-control registry and route provider consume realized structure
+```
+
 ## Elementwise/Compare-Select Selected-Body Realization Boundary
 
 ### 1. Scope / Trigger

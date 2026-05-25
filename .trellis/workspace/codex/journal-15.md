@@ -437,7 +437,11 @@ Closed scalar_broadcast_macc_add as a bounded multi-family selected-body composi
 
 ### Main Changes
 
-(Add details)
+- Added `RVVSelectedBodyRealizationOwner` plus public owner registry lookup APIs.
+- Routed pre-realized body discovery, route-entry realization selection, and the public selected-body realization entrypoint through owner selection.
+- Preserved existing family validators/materializers while documenting the remaining continuation point: split non-elementwise owner hooks out of the shared existing-family branch helper.
+- Added owner-registry C++ coverage and representative route-path owner matching for elementwise/compare-select, base memory movement, standalone reduction, and non-route-entry reduction.
+- Added RVV plugin spec contracts for selected-body realization owner registry signatures, validation/error behavior, and tests.
 
 ### Git Commits
 
@@ -447,7 +451,15 @@ Closed scalar_broadcast_macc_add as a bounded multi-family selected-body composi
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Representative `tcrv-opt` / `tcrv-translate` paths for pre-realized compare/select, pre-realized strided-load/unit-store, and explicit selected-body add.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --op-kind cmp_select --op-kind strided_load_unit_store --runtime-count 0 --runtime-count 7 --runtime-count 23 --stride-bytes 4 ...`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind add --runtime-count 0 --runtime-count 7 --runtime-count 23 ...`
+- [OK] Negative direct route-entry dry-run for `reduce_add` failed closed before bundle generation.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+- [OK] `git diff --check`
+- [OK] Changed-line authority scan over touched C++/test files found no new legacy i32/source-front-door/descriptor/ABI/artifact/common-EmitC route-authority additions.
 
 ### Status
 
@@ -1072,6 +1084,51 @@ Consolidated adopted RVV route-control consumers behind a plugin-local owner reg
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 226: Stage2 RVV selected-body realization owner registry
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV selected-body realization owner registry
+**Branch**: `main`
+
+### Summary
+
+Added an RVV selected-body realization owner registry, routed pre-realized body discovery/route-entry/public realization through owner selection, preserved existing family validators/materializers, added C++ owner/path coverage, documented the registry contract, and verified focused/full checks plus generated-bundle dry-runs.
+
+### Main Changes
+
+- Added `RVVSelectedBodyRealizationOwner` plus public owner registry lookup APIs.
+- Routed pre-realized body discovery, route-entry realization selection, and the public selected-body realization entrypoint through owner selection.
+- Preserved existing family validators/materializers while documenting the remaining continuation point: split non-elementwise owner hooks out of the shared existing-family branch helper.
+- Added owner-registry C++ coverage and representative route-path owner matching for elementwise/compare-select, base memory movement, standalone reduction, and non-route-entry reduction.
+- Added RVV plugin spec contracts for selected-body realization owner registry signatures, validation/error behavior, and tests.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Representative `tcrv-opt` / `tcrv-translate` paths for pre-realized compare/select, pre-realized strided-load/unit-store, and explicit selected-body add.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --op-kind cmp_select --op-kind strided_load_unit_store --runtime-count 0 --runtime-count 7 --runtime-count 23 --stride-bytes 4 ...`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind add --runtime-count 0 --runtime-count 7 --runtime-count 23 ...`
+- [OK] Negative direct route-entry dry-run for `reduce_add` failed closed before bundle generation.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+- [OK] `git diff --check`
+- [OK] Changed-line authority scan over touched C++/test files found no new legacy i32/source-front-door/descriptor/ABI/artifact/common-EmitC route-authority additions.
 
 ### Status
 

@@ -6,12 +6,19 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Errc.h"
 
 #include <cstdint>
 #include <optional>
+#include <string>
 
 namespace tianchenrv::plugin::rvv {
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
+    const VariantLoweringBoundaryRequest &request);
+
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
@@ -805,11 +812,179 @@ bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
          isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm());
 }
 
-bool isPreRealizedRVVRouteEntrySelectedBodyOp(mlir::Operation *op) {
-  return isPreRealizedRVVElementwiseCompareSelectClusterOp(op) ||
-         isPreRealizedRVVBaseMemoryMovementRouteEntryOp(op) ||
-         isPreRealizedRVVStandaloneReductionRouteEntryOp(op) ||
-         isPreRealizedRVVScalarBroadcastMAccRouteEntryOp(op);
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVElementwiseCompareSelectOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  llvm::Expected<RVVElementwiseCompareSelectRealizationResult> realization =
+      realizePreRealizedRVVElementwiseCompareSelectCluster(request, bodyOp);
+  if (!realization)
+    return realization.takeError();
+  if (!realization->applies())
+    return makeRVVPluginError(
+        "elementwise/compare-select selected-body realization owner received "
+        "a body outside its RVV-owned realization family");
+  return realization->boundary;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVExistingFamilyOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *) {
+  return realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(request);
+}
+
+bool isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
+      op);
+}
+
+bool isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp(
+    mlir::Operation *op) {
+  return llvm::isa<
+      tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp(
+    mlir::Operation *op) {
+  return llvm::isa<
+      tcrv::rvv::TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVReductionOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedReducePreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVStandaloneReductionOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
+                   tcrv::rvv::TypedComputedMaskStandaloneReducePreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp>(
+      op);
+}
+
+bool isPreRealizedRVVMAccOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedMAccPreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVComputedMaskMAccOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(
+      op);
+}
+
+bool isPreRealizedRVVContractionOwnerOp(mlir::Operation *op) {
+  return llvm::isa<
+      tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
+      tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
+      tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp,
+      tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
+      tcrv::rvv::
+          TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVWideningConversionOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVBaseMemoryMovementOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVComputedMaskMemoryOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
+                   tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
+                   tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp,
+                   tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
+      op);
+}
+
+bool isPreRealizedRVVSegment2MemoryOwnerOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
+                   tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
+                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+      op);
+}
+
+llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
+getRVVSelectedBodyRealizationOwnerRegistry() {
+  static const RVVSelectedBodyRealizationOwner owners[] = {
+      {"elementwise/compare-select",
+       isPreRealizedRVVElementwiseCompareSelectClusterOp,
+       isPreRealizedRVVElementwiseCompareSelectClusterOp,
+       realizePreRealizedRVVElementwiseCompareSelectOwner},
+      {"runtime scalar splat-store",
+       isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"runtime scalar computed-mask store",
+       isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"runtime scalar computed-mask load-store",
+       isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"reduction", isPreRealizedRVVReductionOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
+       isPreRealizedRVVStandaloneReductionRouteEntryOp,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"MAcc", isPreRealizedRVVMAccOwnerOp,
+       isPreRealizedRVVScalarBroadcastMAccRouteEntryOp,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"contraction", isPreRealizedRVVContractionOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
+       nullptr, realizePreRealizedRVVExistingFamilyOwner},
+      {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
+       isPreRealizedRVVBaseMemoryMovementRouteEntryOp,
+       realizePreRealizedRVVExistingFamilyOwner},
+      {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
+       nullptr, realizePreRealizedRVVExistingFamilyOwner},
+      {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp, nullptr,
+       realizePreRealizedRVVExistingFamilyOwner}};
+  return owners;
+}
+
+llvm::Expected<const RVVSelectedBodyRealizationOwner *>
+getUniqueRVVSelectedBodyRealizationOwner(mlir::Operation *bodyOp,
+                                         llvm::StringRef context) {
+  if (!bodyOp)
+    return makeRVVPluginError(llvm::Twine(context) +
+                              " requires a pre-realized RVV body op");
+
+  llvm::SmallVector<const RVVSelectedBodyRealizationOwner *, 2> matches;
+  for (const RVVSelectedBodyRealizationOwner &owner :
+       getRVVSelectedBodyRealizationOwnerRegistry()) {
+    if (owner.isConsumer && owner.isConsumer(bodyOp))
+      matches.push_back(&owner);
+  }
+
+  if (matches.empty())
+    return makeRVVPluginError(
+        llvm::Twine(context) +
+        " has no selected-body realization owner for pre-realized op '" +
+        bodyOp->getName().getStringRef() + "'");
+  if (matches.size() > 1) {
+    std::string owners;
+    llvm::raw_string_ostream os(owners);
+    for (const RVVSelectedBodyRealizationOwner *owner : matches) {
+      if (!owners.empty())
+        os << ", ";
+      os << owner->familyName;
+    }
+    os.flush();
+    return makeRVVPluginError(
+        llvm::Twine(context) +
+        " found ambiguous selected-body realization owners for pre-realized op '" +
+        bodyOp->getName().getStringRef() + "': " + owners);
+  }
+  return matches.front();
 }
 
 llvm::Expected<mlir::Operation *>
@@ -820,96 +995,34 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
 
   llvm::SmallVector<mlir::Operation *, 2> bodies;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarSplatStorePreRealizedBodyOp,
-                  tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
-                  tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
-	                  tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
-	                  tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
-	                  tcrv::rvv::
-	                      TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp,
-	                  tcrv::rvv::
-	                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp,
-                  tcrv::rvv::TypedReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskStandaloneReducePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedMAccPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp,
-                  tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
-                  tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
-                  tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskIndexedGatherPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskIndexedScatterPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
-                  tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
-            op))
-      bodies.push_back(op);
+    for (const RVVSelectedBodyRealizationOwner &owner :
+         getRVVSelectedBodyRealizationOwnerRegistry()) {
+      if (owner.isConsumer && owner.isConsumer(op)) {
+        bodies.push_back(op);
+        return;
+      }
+    }
   });
 
-  if (bodies.size() != 1)
+  if (bodies.size() == 1) {
+    llvm::Expected<const RVVSelectedBodyRealizationOwner *> owner =
+        getUniqueRVVSelectedBodyRealizationOwner(
+            bodies.front(), "selected RVV realization owner registry");
+    if (!owner)
+      return owner.takeError();
+    return bodies.front();
+  }
+
+  if (bodies.empty())
     return makeRVVPluginError(
-        "selected RVV realization requires exactly one "
-        "tcrv_rvv.typed_binary_pre_realized_body or "
-        "tcrv_rvv.typed_masked_binary_pre_realized_body or "
-        "tcrv_rvv.typed_compare_select_pre_realized_body or "
-	        "tcrv_rvv.typed_computed_mask_select_pre_realized_body or "
-	        "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body or "
-	        "tcrv_rvv."
-	        "typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body "
-	        "or "
-	        "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body "
-        "or "
-        "tcrv_rvv.typed_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_standalone_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_macc_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_macc_pre_realized_body or "
-        "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body "
-        "or "
-        "tcrv_rvv.typed_widening_macc_pre_realized_body or "
-        "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_strided_input_widening_dot_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_widening_conversion_pre_realized_body or "
-        "tcrv_rvv.typed_strided_memory_pre_realized_body or "
-        "tcrv_rvv.typed_strided_store_memory_pre_realized_body or "
-        "tcrv_rvv.typed_indexed_gather_memory_pre_realized_body or "
-        "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body or "
-        "tcrv_rvv.typed_masked_memory_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_memory_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_strided_store_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_indexed_gather_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body or "
-        "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body or "
-        "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body op when no realized "
-        "setvl/with_vl body is present");
-  return bodies.front();
+        "selected RVV realization requires exactly one registry-owned "
+        "pre-realized tcrv_rvv body when no realized setvl/with_vl body is "
+        "present");
+
+  return makeRVVPluginError(
+      "selected RVV realization requires exactly one registry-owned "
+      "pre-realized tcrv_rvv body when no realized setvl/with_vl body is "
+      "present; multiple pre-realized bodies matched the owner registry");
 }
 
 llvm::Error validatePreRealizedRVVSelectedBody(
@@ -6303,60 +6416,32 @@ realizePreRealizedRVVSelectedContractionFamily(
 
 } // namespace
 
+llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
+getRVVSelectedBodyRealizationOwners() {
+  return getRVVSelectedBodyRealizationOwnerRegistry();
+}
+
+llvm::Expected<const RVVSelectedBodyRealizationOwner *>
+getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
+                                          llvm::StringRef context) {
+  return getUniqueRVVSelectedBodyRealizationOwner(bodyOp, context);
+}
+
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   if (!variant || variant.getBody().empty())
     return false;
 
   bool found = false;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarSplatStorePreRealizedBodyOp,
-                  tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
-                  tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
-	                  tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
-	                  tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
-	                  tcrv::rvv::
-	                      TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp,
-	                  tcrv::rvv::
-	                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp,
-                  tcrv::rvv::TypedReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskStandaloneReducePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedMAccPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp,
-                  tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
-                  tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
-                  tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskIndexedGatherPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedComputedMaskIndexedScatterPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
-                  tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
-            op))
-      found = true;
+    if (found)
+      return;
+    for (const RVVSelectedBodyRealizationOwner &owner :
+         getRVVSelectedBodyRealizationOwnerRegistry()) {
+      if (owner.isConsumer && owner.isConsumer(op)) {
+        found = true;
+        return;
+      }
+    }
   });
   return found;
 }
@@ -6385,7 +6470,15 @@ bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
   variant.getBody().walk([&](mlir::Operation *op) {
     if (found)
       return;
-    if (isPreRealizedRVVRouteEntrySelectedBodyOp(op))
+    llvm::Expected<const RVVSelectedBodyRealizationOwner *> owner =
+        getRVVSelectedBodyRealizationOwnerForBody(
+            op, "selected-body route-entry realization owner lookup");
+    if (!owner) {
+      llvm::consumeError(owner.takeError());
+      return;
+    }
+    if ((*owner)->isRouteEntryConsumer &&
+        (*owner)->isRouteEntryConsumer(op))
       found = true;
   });
   return found;
@@ -6848,18 +6941,24 @@ realizePreRealizedRVVRouteEntrySelectedBody(
       findUniquePreRealizedRVVSelectedBody(variant);
   if (!bodyOp)
     return bodyOp.takeError();
-  if (!isPreRealizedRVVRouteEntrySelectedBodyOp(*bodyOp))
+  llvm::Expected<const RVVSelectedBodyRealizationOwner *> owner =
+      getRVVSelectedBodyRealizationOwnerForBody(
+          *bodyOp, "selected-body route-entry realization owner registry");
+  if (!owner)
+    return owner.takeError();
+  if (!(*owner)->isRouteEntryConsumer ||
+      !(*owner)->isRouteEntryConsumer(*bodyOp))
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise/compare-select, base memory movement, "
         "standalone reduction, or scalar-broadcast macc tcrv_rvv bodies; "
         "selected body belongs to another RVV realization family");
 
-  return realizePreRealizedRVVSelectedBody(request);
+  return (*owner)->realize(request, *bodyOp);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVSelectedBody(
+realizePreRealizedRVVSelectedBodyWithExistingFamilyBranches(
     const VariantLoweringBoundaryRequest &request) {
   tcrv::exec::VariantOp variant = request.getVariant();
   tcrv::exec::KernelOp kernel = request.getKernel();
@@ -8678,6 +8777,33 @@ realizePreRealizedRVVSelectedBody(
 
   return makeRVVPluginError(
       "selected RVV realization found an unsupported pre-realized body op");
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedBody(
+    const VariantLoweringBoundaryRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body realization requires materialized "
+        "kernel and variant");
+
+  llvm::Expected<mlir::Operation *> bodyOp =
+      findUniquePreRealizedRVVSelectedBody(variant);
+  if (!bodyOp)
+    return bodyOp.takeError();
+
+  llvm::Expected<const RVVSelectedBodyRealizationOwner *> owner =
+      getRVVSelectedBodyRealizationOwnerForBody(
+          *bodyOp, "pre-realized RVV selected-body realization owner registry");
+  if (!owner)
+    return owner.takeError();
+  if (!(*owner)->realize)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected-body realization owner '") +
+        (*owner)->familyName + "' has no realization hook");
+  return (*owner)->realize(request, *bodyOp);
 }
 
 } // namespace tianchenrv::plugin::rvv

@@ -1102,6 +1102,70 @@ module {
        "tcrv_rvv.setvl"});
 }
 
+int runSelectedBodyRealizationOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners;
+
+  llvm::ArrayRef<RVVSelectedBodyRealizationOwner> owners =
+      getRVVSelectedBodyRealizationOwners();
+  if (int result = expect(
+          owners.size() == 13,
+          "selected-body realization owner registry has exactly thirteen "
+          "active pre-realized family entries"))
+    return result;
+
+  const llvm::StringRef expectedNames[] = {
+      "elementwise/compare-select",
+      "runtime scalar splat-store",
+      "runtime scalar computed-mask store",
+      "runtime scalar computed-mask load-store",
+      "reduction",
+      "standalone reduction",
+      "MAcc",
+      "computed-mask MAcc",
+      "contraction",
+      "widening conversion",
+      "base memory movement",
+      "computed-mask memory",
+      "segment2 memory"};
+  for (std::size_t i = 0; i < owners.size(); ++i) {
+    if (int result = expect(
+            owners[i].familyName == expectedNames[i],
+            "selected-body realization owner registry preserves explicit "
+            "family ownership order"))
+      return result;
+    if (int result =
+            expect(owners[i].isConsumer != nullptr &&
+                       owners[i].realize != nullptr,
+                   "selected-body realization owner entries carry consumer "
+                   "and realization hooks"))
+      return result;
+  }
+
+  const llvm::StringRef routeEntryOwners[] = {
+      "elementwise/compare-select", "standalone reduction", "MAcc",
+      "base memory movement"};
+  for (const RVVSelectedBodyRealizationOwner &owner : owners) {
+    bool expectedRouteEntry = false;
+    for (llvm::StringRef routeEntryOwner : routeEntryOwners)
+      expectedRouteEntry |= owner.familyName == routeEntryOwner;
+    if (int result =
+            expect((owner.isRouteEntryConsumer != nullptr) ==
+                       expectedRouteEntry,
+                   "selected-body realization route-entry eligibility is "
+                   "explicitly owner-scoped"))
+      return result;
+  }
+
+  return expectErrorContains(
+      getRVVSelectedBodyRealizationOwnerForBody(
+          nullptr, "selected-body realization owner registry null test")
+          .takeError(),
+      {"selected-body realization owner registry null test",
+       "requires a pre-realized RVV body op"});
+}
+
 int runPreRealizedSelectedBodyProductionRoutePathTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
@@ -1162,6 +1226,7 @@ module {
 
   auto exerciseVariant =
       [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          llvm::StringRef expectedOwnerName,
           llvm::StringRef expectedProviderPlanID,
           bool buildRouteBeforePlan) -> int {
     VariantOp variant = findVariant(kernel, variantName);
@@ -1187,6 +1252,34 @@ module {
             beforeRealization.takeError(),
             {"selected-body realization boundary must run before route facts",
              "pre-realized tcrv_rvv body"}))
+      return result;
+
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found registry-owned pre-realized "
+                                        "body for @") +
+                                variantName))
+      return result;
+    llvm::Expected<const tianchenrv::plugin::rvv::
+                       RVVSelectedBodyRealizationOwner *>
+        owner = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyRealizationOwnerForBody(
+                preRealized, "selected-body realization owner registry "
+                             "production route-path test");
+    if (!owner)
+      return fail(llvm::Twine("selected-body realization owner lookup for @") +
+                  variantName + ": " + llvm::toString(owner.takeError()));
+    if (int result =
+            expect((*owner)->familyName == expectedOwnerName,
+                   llvm::Twine("pre-realized @") + variantName +
+                       " is owned by the expected realization family"))
+      return result;
+    if (int result = expect(
+            (*owner)->isRouteEntryConsumer != nullptr &&
+                (*owner)->isRouteEntryConsumer(preRealized),
+            llvm::Twine("pre-realized @") + variantName +
+                " is route-entry eligible through its owner registry entry"))
       return result;
 
     if (buildRouteBeforePlan) {
@@ -1290,29 +1383,51 @@ module {
 
   if (int result = exerciseVariant(
           "rvv_pre_route_add", "tcrv_rvv.typed_binary_pre_realized_body",
+          "elementwise/compare-select",
           "rvv-elementwise-arithmetic-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
           "rvv_pre_route_cmp_select",
           "tcrv_rvv.typed_compare_select_pre_realized_body",
+          "elementwise/compare-select",
           "rvv-plain-compare-select-route-family-plan.v1",
           /*buildRouteBeforePlan=*/false))
     return result;
   if (int result = exerciseVariant(
           "rvv_pre_route_strided_load_unit_store",
           "tcrv_rvv.typed_strided_memory_pre_realized_body",
+          "base memory movement",
           "rvv-base-memory-movement-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
           "rvv_pre_route_standalone_reduce_add",
           "tcrv_rvv.typed_standalone_reduce_pre_realized_body",
+          "standalone reduction",
           "rvv-standalone-reduction-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
 
   VariantOp reduceVariant = findVariant(kernel, "rvv_pre_route_reduce");
+  mlir::Operation *reducePreRealized =
+      findFirstNestedOp(reduceVariant,
+                        "tcrv_rvv.typed_reduce_pre_realized_body");
+  llvm::Expected<const tianchenrv::plugin::rvv::
+                     RVVSelectedBodyRealizationOwner *>
+      reduceOwner =
+          tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody(
+              reducePreRealized,
+              "selected-body realization owner registry reduction test");
+  if (!reduceOwner)
+    return fail("selected-body realization reduction owner lookup: " +
+                llvm::toString(reduceOwner.takeError()));
+  if (int result =
+          expect((*reduceOwner)->familyName == "reduction" &&
+                     (*reduceOwner)->isRouteEntryConsumer == nullptr,
+                 "ordinary reduction is represented by one owner and is not a "
+                 "route-entry-supported realization family"))
+    return result;
   VariantEmissionPlan reducePlan;
   if (int result = expectErrorContains(
           registry.buildVariantEmissionPlan(
@@ -14661,6 +14776,8 @@ int main() {
     return result;
   if (int result =
           runElementwiseCompareSelectRealizationBoundaryTest(context))
+    return result;
+  if (int result = runSelectedBodyRealizationOwnerRegistryTest())
     return result;
   if (int result =
           runPreRealizedSelectedBodyProductionRoutePathTest(context))
