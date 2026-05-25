@@ -10335,6 +10335,10 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer;
@@ -10472,6 +10476,414 @@ module {
                   tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID(),
           "computed-mask strided widening dot-reduction must carry computed "
           "mask, strided-input, dot-reduction, and runtime control facts"))
+    return result;
+
+  auto expectContractionRouteControl =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef label,
+          bool expectedWideningMAcc, bool expectedDotReduction,
+          bool expectedComputedMask, bool expectedStridedInput) -> int {
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, label);
+    if (!materializationFacts)
+      return fail((llvm::Twine(label) +
+                   " contraction materialization facts: " +
+                   llvm::toString(materializationFacts.takeError()))
+                      .str());
+    auto mathFacts =
+        getRVVSelectedBodyMathRouteOperandBindingFacts(analysis, label);
+    if (!mathFacts)
+      return fail((llvm::Twine(label) +
+                   " contraction math operand-binding facts: " +
+                   llvm::toString(mathFacts.takeError()))
+                      .str());
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts, label);
+    if (!routeControlPlan)
+      return fail((llvm::Twine(label) +
+                   " contraction route-control provider plan: " +
+                   llvm::toString(routeControlPlan.takeError()))
+                      .str());
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsContraction &&
+                routeControlPlan->runtimeControlPlan ==
+                    &materializationFacts->contractionPlan
+                         ->runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            "contraction route-control provider plan joins typed config, "
+            "selected capability, runtime control, and family materialization "
+            "facts"))
+      return result;
+    if (int result = expect(
+            analysis.contractionRouteFamilyPlan &&
+                analysis.contractionRouteFamilyPlan->usesWideningMAcc ==
+                    expectedWideningMAcc &&
+                analysis.contractionRouteFamilyPlan->usesDotReduction ==
+                    expectedDotReduction &&
+                analysis.contractionRouteFamilyPlan->usesComputedMask ==
+                    expectedComputedMask &&
+                analysis.contractionRouteFamilyPlan->usesStridedInputs ==
+                    expectedStridedInput,
+            "contraction route-control provider plan preserves family "
+            "classification facts"))
+      return result;
+
+    bool hasExpectedBindingFacts = false;
+    switch (analysis.description.operation) {
+    case RVVSelectedBodyOperationKind::WideningMAccAdd:
+      hasExpectedBindingFacts = mathFacts->bindsWideningMAcc;
+      break;
+    case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+      hasExpectedBindingFacts = mathFacts->bindsWideningDotReduction;
+      break;
+    case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+      hasExpectedBindingFacts =
+          mathFacts->bindsStridedInputWideningDotReduction;
+      break;
+    case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+      hasExpectedBindingFacts =
+          mathFacts->bindsComputedMaskWideningDotReduction;
+      break;
+    case RVVSelectedBodyOperationKind::
+        ComputedMaskStridedInputWideningDotReduceAdd:
+      hasExpectedBindingFacts =
+          mathFacts->bindsComputedMaskStridedInputWideningDotReduction;
+      break;
+    default:
+      break;
+    }
+    return expect(hasExpectedBindingFacts,
+                  "contraction direct provider sees the matching RVV-owned "
+                  "math operand-binding facts before statement construction");
+  };
+
+  if (int result = expectContractionRouteControl(
+          *computedStridedAnalysis,
+          "computed-mask strided contraction route-control unit test", false,
+          true, true, true))
+    return result;
+
+  constexpr llvm::StringLiteral plainDotSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_plain_dot_route_control_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_plain_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_plain_dot, sew = 32 : i64, source_kernel = "rvv_plain_dot_route_control_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %sum = tcrv_rvv.widening_dot_reduce %a, %b, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", kind = "signed_widening_dot_reduce_add", result_layout = "store-dot-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  constexpr llvm::StringLiteral stridedDotSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_strided_dot_route_control_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_strided_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_strided_dot, sew = 32 : i64, source_kernel = "rvv_strided_dot_route_control_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.strided_load %lhs, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %b = tcrv_rvv.strided_load %rhs, %rhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %sum = tcrv_rvv.widening_dot_reduce %a, %b, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", kind = "signed_widening_dot_reduce_add", result_layout = "store-dot-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  constexpr llvm::StringLiteral maskedDotSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_masked_dot_route_control_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_masked_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_masked_dot, sew = 32 : i64, source_kernel = "rvv_masked_dot_route_control_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_widening_dot_reduce %mask, %a, %b, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", kind = "signed_masked_widening_dot_reduce_add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-dot-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  auto analyzeContractionRouteControlSource =
+      [&](llvm::StringRef sourceText, llvm::StringRef kernelName,
+          llvm::StringRef variantName) -> llvm::Expected<RVVSelectedBodyRouteAnalysis> {
+    mlir::OwningOpRef<mlir::ModuleOp> routeControlModule =
+        parseModule(context, sourceText);
+    if (!routeControlModule)
+      return llvm::createStringError(
+          llvm::inconvertibleErrorCode(),
+          "failed to parse contraction route-control test module");
+    return analyzeRouteInModule(*routeControlModule, kernelName, variantName);
+  };
+
+  auto plainDotAnalysis = analyzeContractionRouteControlSource(
+      plainDotSource, "rvv_plain_dot_route_control_kernel",
+      "rvv_plain_dot");
+  if (!plainDotAnalysis)
+    return fail("analyze plain widening dot route-control route: " +
+                llvm::toString(plainDotAnalysis.takeError()));
+  if (int result = expectContractionRouteControl(
+          *plainDotAnalysis, "plain widening dot route-control unit test",
+          false, true, false, false))
+    return result;
+
+  auto stridedDotAnalysis = analyzeContractionRouteControlSource(
+      stridedDotSource, "rvv_strided_dot_route_control_kernel",
+      "rvv_strided_dot");
+  if (!stridedDotAnalysis)
+    return fail("analyze strided widening dot route-control route: " +
+                llvm::toString(stridedDotAnalysis.takeError()));
+  if (int result = expectContractionRouteControl(
+          *stridedDotAnalysis, "strided widening dot route-control unit test",
+          false, true, false, true))
+    return result;
+
+  auto maskedDotAnalysis = analyzeContractionRouteControlSource(
+      maskedDotSource, "rvv_masked_dot_route_control_kernel",
+      "rvv_masked_dot");
+  if (!maskedDotAnalysis)
+    return fail("analyze computed-mask widening dot route-control route: " +
+                llvm::toString(maskedDotAnalysis.takeError()));
+  if (int result = expectContractionRouteControl(
+          *maskedDotAnalysis,
+          "computed-mask widening dot route-control unit test", false, true,
+          true, false))
+    return result;
+
+  auto computedStridedRouteControlFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *computedStridedAnalysis,
+          "computed-mask strided contraction route-control negative setup");
+  if (!computedStridedRouteControlFacts)
+    return fail("computed-mask strided route-control materialization facts: " +
+                llvm::toString(computedStridedRouteControlFacts.takeError()));
+
+  auto missingContractionMaterialization = *computedStridedRouteControlFacts;
+  missingContractionMaterialization.contractionPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *computedStridedAnalysis, missingContractionMaterialization,
+              "computed-mask strided contraction route-control missing plan")
+              .takeError(),
+          {"route-control provider plan requires the verified contraction "
+           "route-family plan",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  auto foreignContractionPlan =
+      *computedStridedAnalysis->contractionRouteFamilyPlan;
+  auto staleContractionMaterialization = *computedStridedRouteControlFacts;
+  staleContractionMaterialization.contractionPlan = &foreignContractionPlan;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *computedStridedAnalysis, staleContractionMaterialization,
+              "computed-mask strided contraction route-control stale analysis")
+              .takeError(),
+          {"route-control provider plan requires contraction materialization "
+           "facts from the same selected route analysis",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.contractionRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale runtime AVL unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale runtime AVL materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.contractionRouteFamilyPlan->runtimeControlPlan.tailPolicy =
+      "undisturbed";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale policy unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale policy materialization facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale policy unit test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.selectedTargetCapabilityFacts.supportedSEW = "64";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale target unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale target materialization facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.description.runtimeABIOrder =
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,metadata_n,lhs_stride,rhs_stride";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale runtime ABI mirror unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale runtime ABI materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale runtime ABI mirror "
+              "unit test")
+              .takeError(),
+          {"route-control provider plan requires contraction classification, "
+           "runtime ABI, and memory-form facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.contractionRouteFamilyPlan->usesDotReduction = false;
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale classification unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale classification materialization "
+                "facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale classification unit "
+              "test")
+              .takeError(),
+          {"route-control provider plan requires contraction classification, "
+           "runtime ABI, and memory-form facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.contractionRouteFamilyPlan->accumulatorLayout =
+      "metadata-selected-accumulator-layout";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale layout unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale layout materialization facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale layout unit test")
+              .takeError(),
+          {"route-control provider plan requires contraction widening "
+           "dot-reduction accumulator, result, product, seed, and compute "
+           "facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.contractionRouteFamilyPlan->stridedMemoryLayout =
+      "metadata-selected-strided-layout";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale stride unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale stride materialization facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale stride unit test")
+              .takeError(),
+          {"route-control provider plan requires strided-input contraction "
+           "layout and stride-source facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  staleRouteControl = *computedStridedAnalysis;
+  staleRouteControl.contractionRouteFamilyPlan->maskSource =
+      "metadata-selected-mask-source";
+  staleRouteControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRouteControl,
+      "computed-mask strided contraction stale mask unit test");
+  if (!staleRouteControlFacts)
+    return fail("computed-mask strided stale mask materialization facts: " +
+                llvm::toString(staleRouteControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControl, *staleRouteControlFacts,
+              "computed-mask strided contraction stale mask unit test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask contraction "
+           "producer, mask, merge, and inactive-lane facts",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
+    return result;
+
+  auto staleLeafMaterialization = *computedStridedRouteControlFacts;
+  staleLeafMaterialization.wideningProductLeaf =
+      "metadata-selected-widening-product";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *computedStridedAnalysis, staleLeafMaterialization,
+              "computed-mask strided contraction stale materialization leaf "
+              "unit test")
+              .takeError(),
+          {"route-control provider plan requires contraction materialization "
+           "facts to mirror the verified contraction family plan",
+           "computed_masked_strided_input_widening_dot_reduce_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleProvider = *computedStridedAnalysis;
@@ -10701,6 +11113,10 @@ module {
               maccAnalysis->description.maskRole.empty() &&
               maccAnalysis->description.stridedLoadIntrinsic.empty(),
           "widening_macc_add must carry only widening MAcc contraction facts"))
+    return result;
+  if (int result = expectContractionRouteControl(
+          *maccAnalysis, "widening MAcc contraction route-control unit test",
+          true, false, false, false))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleMAcc = *maccAnalysis;

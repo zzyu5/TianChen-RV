@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the implementation stays within the RVV-first authority chain and does not reintroduce descriptor/source-front-door authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-control provider-plan consumption, contraction ownership, direct provider gating, and mirror-only metadata compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral materializer of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit evidence and runtime-evidence claims are appropriate for the changed behavior."}

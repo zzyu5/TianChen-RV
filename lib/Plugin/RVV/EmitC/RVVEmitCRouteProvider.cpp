@@ -273,6 +273,53 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsPlainStandaloneReduction =
       materializationFacts.emitsPlainStandaloneReduction;
 
+  if (isRVVSelectedBodyContractionRouteFamilyConsumer(description.operation)) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts,
+            "selected RVV EmitC route construction");
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsContraction ||
+        !materializationFacts.contractionPlan ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.contractionPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          "contraction provider requires the RVV-owned route-control "
+          "provider plan before route statement construction");
+
+    bool hasContractionBindingFacts = false;
+    switch (description.operation) {
+    case RVVSelectedBodyOperationKind::WideningMAccAdd:
+      hasContractionBindingFacts = mathOperandBindingFacts.bindsWideningMAcc;
+      break;
+    case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+      hasContractionBindingFacts =
+          mathOperandBindingFacts.bindsWideningDotReduction;
+      break;
+    case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+      hasContractionBindingFacts =
+          mathOperandBindingFacts.bindsStridedInputWideningDotReduction;
+      break;
+    case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+      hasContractionBindingFacts =
+          mathOperandBindingFacts.bindsComputedMaskWideningDotReduction;
+      break;
+    case RVVSelectedBodyOperationKind::
+        ComputedMaskStridedInputWideningDotReduceAdd:
+      hasContractionBindingFacts = mathOperandBindingFacts
+                                       .bindsComputedMaskStridedInputWideningDotReduction;
+      break;
+    default:
+      break;
+    }
+    if (!hasContractionBindingFacts)
+      return makeRVVEmitCRouteProviderError(
+          "contraction provider requires RVV-owned math operand-binding facts "
+          "before route statement construction");
+  }
+
   const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
       materializationFacts.typedConfigFacts;
 

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 RVV boundaries, and descriptor/source-front-door prohibitions."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin scope and pre-development checklist for extension-family work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Typed RVV config, route-control provider-plan boundary, contraction family/provider, materialization, math binding, mirror-only metadata, and testing requirements."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist and common EmitC neutrality boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC mirror-only constraints."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required testing/evidence policy for RVV compiler changes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit evidence, ssh rvv evidence rules, and mirror-only artifact requirements."}

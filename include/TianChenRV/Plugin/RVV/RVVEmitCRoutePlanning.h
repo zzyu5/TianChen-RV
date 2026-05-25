@@ -869,6 +869,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   bool controlsBaseMemoryMovement = false;
   bool controlsStandaloneReduction = false;
   bool controlsScalarBroadcastMAcc = false;
+  bool controlsContraction = false;
   bool controlsPlainCompareSelect = false;
   bool controlsComputedMaskSelect = false;
   bool controlsWideningConversion = false;

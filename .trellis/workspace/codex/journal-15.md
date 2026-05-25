@@ -993,3 +993,57 @@ Integrated runtime_i32_splat_store with the shared RVV route-control provider pl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 224: Stage2 RVV contraction route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV contraction route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated existing RVV contraction direct-provider routes with the shared route-control provider plan before provider construction; added focused fail-closed C++ coverage, updated RVV plugin spec, and verified focused plus full check-tianchenrv.
+
+### Main Changes
+
+- Added `controlsContraction` to `RVVSelectedBodyRouteControlProviderPlan`.
+- Made the five active contraction routes consume the shared route-control
+  provider plan before direct provider statement construction:
+  `widening_macc_add`, `widening_dot_reduce_add`,
+  `strided_input_widening_dot_reduce_add`,
+  `computed_masked_widening_dot_reduce_add`, and
+  `computed_masked_strided_input_widening_dot_reduce_add`.
+- Route-control construction now validates same-analysis contraction family
+  and materialization facts, typed config, selected capability, runtime
+  AVL/VL, policy, runtime ABI, widening MAcc/dot classification,
+  accumulator/result layout, optional strided-input facts, optional
+  computed-mask facts, and materialization leaves.
+- Direct provider construction now requires the route-control plan and
+  RVV-owned math operand-binding facts before emitting contraction statements.
+- Updated the RVV plugin spec to record contraction as a route-control
+  consumer while preserving the direct-provider path and avoiding a
+  wrapper-only statement-plan requirement.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-05-25-stage2-rvv-contraction-route-control-provider-plan`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded authority scan over touched planning/provider/test/spec files
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379 tests
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

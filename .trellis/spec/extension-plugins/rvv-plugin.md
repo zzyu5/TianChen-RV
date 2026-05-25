@@ -693,9 +693,11 @@ The required consumers are mature ordinary elementwise arithmetic,
 scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
 select, widening conversion, non-segment computed-mask memory, segment2 memory,
 base memory movement, standalone reduction, scalar-broadcast MAcc, runtime
-scalar splat-store, and computed-mask accumulation MAcc families. Other
-migrated families may continue to use their existing family-local checks until
-they are explicitly moved onto this boundary.
+scalar splat-store, computed-mask accumulation MAcc, and contraction families.
+Contraction may remain a direct-provider path only after consuming this
+boundary; it does not need a wrapper-only statement-plan layer. Other migrated
+families may continue to use their existing family-local checks until they are
+explicitly moved onto this boundary.
 
 ### 2. Signatures
 
@@ -731,7 +733,8 @@ carry:
   elementwise arithmetic, plain compare/select, computed-mask select,
   widening conversion, non-segment computed-mask memory, segment2 memory, base
   memory movement, standalone reduction, scalar-broadcast MAcc, runtime scalar
-  splat-store, computed-mask accumulation MAcc, or future adopted families;
+  splat-store, computed-mask accumulation MAcc, contraction, or future adopted
+  families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -800,6 +803,12 @@ fields only after provider route construction.
   facts -> materialization facts -> math operand-binding facts ->
   route-control provider plan -> computed-mask accumulation statement plan ->
   provider-built route.
+- Good: typed contraction `tcrv_rvv` body -> contraction family plan verifier
+  with widening MAcc or widening dot-reduction classification, accumulator and
+  result layout, optional strided-input facts, optional computed-mask producer
+  facts, and runtime-control facts -> materialization facts -> math
+  operand-binding facts -> route-control provider plan -> direct contraction
+  provider statement construction -> provider-built route.
 - Base: migrated families not yet adopted by the route-control plan retain
   their family-local verifier checks and receive an empty route-control plan.
 - Bad: a family statement plan reads tail policy, mask policy, runtime `n`,
@@ -811,6 +820,9 @@ fields only after provider route construction.
 - C++ positive coverage for every family that adopts the route-control plan,
   asserting that typed config facts, selected target capability facts, and the
   family runtime-control plan are joined before statement planning.
+- For direct-provider adopters such as contraction, C++ positive coverage must
+  assert the route-control provider plan is consumed before direct statement
+  construction, without requiring a wrapper-only statement-plan layer.
 - C++ fail-closed diagnostics for stale materialization facts, missing or
   invalid runtime AVL/VL control facts, policy mismatches, and stale selected
   target capability facts.
