@@ -1876,6 +1876,9 @@ constexpr llvm::StringLiteral kRVVStandaloneReductionResultLayout(
     "store-standalone-reduction-lane0-to-output-scalar");
 constexpr llvm::StringLiteral kRVVStandaloneReductionStoreVL("1");
 constexpr llvm::StringLiteral
+    kRVVStandaloneReductionScalarResultRuntimeBoundary(
+        "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1");
+constexpr llvm::StringLiteral
     kRVVMaskedCompareMaskSource("compare-produced-mask-same-vl-scope");
 constexpr llvm::StringLiteral
     kRVVMaskedPredicateMaskRole("predicate-mask-produced-by-compare");
@@ -9695,6 +9698,80 @@ llvm::Error requireRVVSelectedBodyStandaloneReductionPlanField(
       field + " '" + expected + "' but found '" + actual + "'");
 }
 
+llvm::Error requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+    const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan,
+    unsigned index, llvm::StringRef logicalName, llvm::StringRef expectedCName,
+    llvm::StringRef expectedCType,
+    support::RuntimeABIParameterRole expectedRole,
+    support::RuntimeABIParameterOwnership expectedOwnership) {
+  if (plan.runtimeABIParameters.size() <= index)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("standalone reduction scalar result ABI for operation '") +
+        stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+        logicalName + " runtime ABI parameter at index " + llvm::Twine(index));
+
+  const support::RuntimeABIParameter &parameter =
+      plan.runtimeABIParameters[index];
+  if (parameter.cName == expectedCName && parameter.cType == expectedCType &&
+      parameter.role == expectedRole && parameter.ownership == expectedOwnership)
+    return llvm::Error::success();
+
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("standalone reduction scalar result ABI for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      logicalName + " runtime ABI parameter " + llvm::Twine(index) +
+      " to be c_name '" + expectedCName + "', c_type '" + expectedCType +
+      "', role '" + support::stringifyRuntimeABIParameterRole(expectedRole) +
+      "', ownership '" +
+      support::stringifyRuntimeABIParameterOwnership(expectedOwnership) +
+      "' but found c_name '" + parameter.cName + "', c_type '" +
+      parameter.cType + "', role '" +
+      support::stringifyRuntimeABIParameterRole(parameter.role) +
+      "', ownership '" +
+      support::stringifyRuntimeABIParameterOwnership(parameter.ownership) +
+      "'");
+}
+
+llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
+    const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan) {
+  const bool isComputedMask =
+      isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
+          plan.operation) ||
+      isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+          plan.operation);
+  const unsigned expectedSize = isComputedMask ? 6 : 4;
+  if (plan.runtimeABIParameters.size() != expectedSize)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("standalone reduction scalar result ABI for operation '") +
+        stringifyRVVSelectedBodyOperationKind(plan.operation) +
+        "' requires runtime ABI order '" + plan.runtimeABIOrder +
+        "' with exactly " + llvm::Twine(expectedSize) + " parameters");
+
+  const unsigned accumulatorIndex = isComputedMask ? 3 : 1;
+  const unsigned outputIndex = isComputedMask ? 4 : 2;
+  const unsigned runtimeNIndex = isComputedMask ? 5 : 3;
+  if (llvm::Error error =
+          requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+              plan, accumulatorIndex, "scalar seed accumulator", "acc",
+              "const int32_t *",
+              support::RuntimeABIParameterRole::AccumulatorInputBuffer,
+              support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+              plan, outputIndex, "scalar output", "out", "int32_t *",
+              support::RuntimeABIParameterRole::OutputBuffer,
+              support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+              plan, runtimeNIndex, "runtime AVL element count", "n", "size_t",
+              support::RuntimeABIParameterRole::RuntimeElementCount,
+              support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+    return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan) {
   if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
@@ -9894,7 +9971,15 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
           kRVVStandaloneReductionStoreVL))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "scalar result runtime boundary",
+          plan.scalarResultRuntimeBoundary,
+          kRVVStandaloneReductionScalarResultRuntimeBoundary))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "result name", plan.resultName, expectedResultName))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(plan))
     return error;
   if (llvm::Error error =
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(
@@ -10033,6 +10118,8 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       isComputedMask ? analysis.slice.maskedStandaloneReduceOp.getResultLayout()
                      : analysis.slice.standaloneReduceOp.getResultLayout();
   plan.reductionStoreVL = kRVVStandaloneReductionStoreVL;
+  plan.scalarResultRuntimeBoundary =
+      kRVVStandaloneReductionScalarResultRuntimeBoundary;
   if (isComputedMask) {
     plan.inactiveLaneZeroingRequirement =
         plan.operation == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd ||
@@ -10090,6 +10177,8 @@ void applyRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   description.reductionAccumulatorLayout = plan.accumulatorLayout;
   description.reductionResultLayout = plan.resultLayout;
   description.reductionStoreVL = plan.reductionStoreVL;
+  description.standaloneReductionScalarResultRuntimeBoundary =
+      plan.scalarResultRuntimeBoundary;
   description.inactiveLaneZeroingRequirement =
       plan.inactiveLaneZeroingRequirement;
   description.resultName = plan.resultName;
@@ -22039,6 +22128,8 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
           plan.accumulatorLayout ||
       analysis.description.reductionResultLayout != plan.resultLayout ||
       analysis.description.reductionStoreVL != plan.reductionStoreVL ||
+      analysis.description.standaloneReductionScalarResultRuntimeBoundary !=
+          plan.scalarResultRuntimeBoundary ||
       analysis.description.inactiveLaneZeroingRequirement !=
           plan.inactiveLaneZeroingRequirement ||
       analysis.description.maskRole != plan.maskRole ||
@@ -36163,6 +36254,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "reduction store VL", description.reductionStoreVL,
             kRVVStandaloneReductionStoreVL))
       return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar result runtime boundary",
+            description.standaloneReductionScalarResultRuntimeBoundary,
+            kRVVStandaloneReductionScalarResultRuntimeBoundary))
+      return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "reduction accumulator layout",
@@ -36171,6 +36267,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "reduction result layout",
             description.reductionResultLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar result runtime boundary",
+            description.standaloneReductionScalarResultRuntimeBoundary, ""))
       return error;
     if (operationProfile.operation !=
             RVVSelectedBodyOperationKind::WideningDotReduceAdd &&
@@ -37412,6 +37512,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.standaloneReductionRouteFamilyPlanID.empty())
     metadata.push_back({"tcrv_rvv.standalone_reduction_route_family_plan",
                         description.standaloneReductionRouteFamilyPlanID});
+  if (!description.standaloneReductionScalarResultRuntimeBoundary.empty())
+    metadata.push_back(
+        {"tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+         description.standaloneReductionScalarResultRuntimeBoundary});
   if (!description.contractionRouteFamilyPlanID.empty())
     metadata.push_back({"tcrv_rvv.contraction_route_family_plan",
                         description.contractionRouteFamilyPlanID});

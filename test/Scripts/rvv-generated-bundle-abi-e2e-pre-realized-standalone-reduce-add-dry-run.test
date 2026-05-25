@@ -41,6 +41,8 @@
 # REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
 # REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_route_family_plan"
 # REDUCE-DAG: "value": "rvv-standalone-reduction-route-family-plan.v1"
+# REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary"
+# REDUCE-DAG: "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
 # REDUCE-DAG: "key": "tcrv_rvv.provider_supported_mirror"
 # REDUCE-DAG: "value": "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
 # REDUCE-DAG: "key": "tcrv_rvv.reduction_accumulator_layout"
@@ -54,6 +56,7 @@
 # REDUCE-DAG: "reduction_accumulation_boundary": {
 # REDUCE-DAG: "authority": "provider-derived typed tcrv_rvv reduction/accumulation body/config/runtime facts"
 # REDUCE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# REDUCE-DAG: "scalar_result_runtime_boundary": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
 # REDUCE-DAG: "reduction_kind": "add"
 # REDUCE-DAG: "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
 # REDUCE-DAG: "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input"

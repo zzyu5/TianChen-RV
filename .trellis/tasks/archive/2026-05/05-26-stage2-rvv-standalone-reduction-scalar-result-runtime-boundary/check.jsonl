@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance check against global stack and RVV-first authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final compliance check for standalone reduction scalar-result ownership and diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final compliance check that common EmitC remains neutral."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Final runtime artifact and evidence compliance check."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Final plugin-local ownership and route-provider interface compliance check."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final focused test and evidence compliance check."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Final selected-body/route-control authority compliance check."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Final shared checklist for RVV route/lowering/artifact/testing changes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle metadata, boundary summary, and ssh rvv scalar-result evidence path."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused owner validation and fail-closed scalar output ABI diagnostics."}

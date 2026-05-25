@@ -1526,3 +1526,68 @@ Closed executable evidence for direct pre-realized route-entry cmp_select on cur
 ### Next Steps
 
 - None - task complete
+
+
+## Session 231: Stage2 RVV standalone reduction scalar-result runtime boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV standalone reduction scalar-result runtime boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the representative `standalone_reduce_add` scalar-result runtime
+boundary with a production repair: the RVV standalone reduction family plan and
+route description now carry a provider-derived scalar-result runtime boundary,
+validate `acc/out/n` ABI layout before route materialization, mirror the field
+through artifact metadata/header evidence only after provider validation, and
+prove generated RVV scalar-result behavior on `ssh rvv`.
+
+### Main Changes
+
+- Added `scalarResultRuntimeBoundary` to the standalone reduction route-family
+  plan and a mirrored route-description field.
+- Added targeted owner-side validation that standalone reduction routes require
+  `acc` as `const int32_t *` accumulator input, `out` as `int32_t *` scalar
+  output, and `n` as `size_t` runtime AVL.
+- Exposed the validated boundary through config metadata and RVV target header
+  metadata evidence without making metadata route authority.
+- Updated generated-bundle expected metadata, boundary summary, and dry-run
+  checks for the scalar-result runtime boundary.
+- Added focused provider tests for the mirrored scalar-result boundary and
+  fail-closed scalar output ABI diagnostics.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Standalone reduction dry-run generated bundle for counts `7,16,23`.
+- [OK] Direct pre-realized standalone reduction dry-run generated bundle for
+  counts `0,7,16,23`.
+- [OK] Manual FileCheck for explicit and pre-realized standalone reduction
+  PLAN/HEADER/REALIZED checks.
+- [OK] Manual FileCheck for updated generated-bundle evidence and harness
+  checks.
+- [OK] Non-dry-run `ssh rvv` execution:
+  `PASS op=standalone_reduce_add counts=0,7,16,23 seeds=-11,17`.
+- [OK] Direct pre-realized `cmp_select` non-regression dry-run.
+- [OK] Bounded added-diff authority scan found no new legacy i32,
+  source-front-door, descriptor, direct-C/source-export, metadata-derived,
+  script-derived, artifact-name-derived, or route-id-derived authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -233,6 +233,9 @@ WIDENING_DOT_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 STANDALONE_REDUCE_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-input"
 STANDALONE_REDUCE_RESULT_LAYOUT = "store-standalone-reduction-lane0-to-output-scalar"
 STANDALONE_REDUCE_STORE_VL = "1"
+STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY = (
+    "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
+)
 STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "lhs,acc,out,n"
 COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,src,acc,out,n"
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER = (
@@ -4890,6 +4893,7 @@ REDUCTION_ACCUMULATION_METADATA_KEYS = (
     "tcrv_rvv.route_operand_binding_plan",
     "tcrv_rvv.route_operand_binding_operands",
     "tcrv_rvv.standalone_reduction_route_family_plan",
+    "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
     "tcrv_rvv.required_header_declarations",
@@ -5343,6 +5347,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                 ),
+                "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
+                    STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
@@ -5386,6 +5393,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
                 "tcrv_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
+                    STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
                 "tcrv_rvv.target_leaf_profile": (
                     COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
@@ -5455,6 +5465,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
                 "tcrv_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
+                    STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
@@ -16165,6 +16178,9 @@ def reduction_accumulation_boundary_summary(
             "body/config/runtime facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
+        "scalar_result_runtime_boundary": (
+            STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
+        ),
         "reduction_kind": expectation.standalone_reduction_kind,
         "source_type_policy": {
             "element_type": expectation.element_type,
@@ -16188,7 +16204,7 @@ def reduction_accumulation_boundary_summary(
         },
         "reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
         "selected_source_abi": {
-            "lhs": "source-input-buffer",
+            "lhs": "lhs-input-buffer",
             "acc": "accumulator-input-buffer",
             "out": "output-buffer",
             "n": "runtime-element-count",
@@ -16225,6 +16241,9 @@ def reduction_accumulation_boundary_summary(
         "artifact_abi": {
             "prototype": bundle_checks["header"]["prototype"],
             "runtime_abi_order": expectation.runtime_abi_order,
+            "scalar_result_runtime_boundary": (
+                STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
+            ),
         },
         "empty_count_behavior": (
             "pre-loop scalar seed store initializes out[0] before the "

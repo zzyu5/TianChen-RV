@@ -12823,6 +12823,17 @@ module {
               *plainAnalysis, "standalone reduction provider unit test"),
           "valid standalone reduction family provider plan"))
     return result;
+  if (int result = expect(
+          plainAnalysis->standaloneReductionRouteFamilyPlan
+                  ->scalarResultRuntimeBoundary ==
+              "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1" &&
+              plainAnalysis->description
+                      .standaloneReductionScalarResultRuntimeBoundary ==
+                  plainAnalysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultRuntimeBoundary,
+          "standalone reduction scalar-result runtime boundary must be "
+          "provider-derived and mirrored from the family plan"))
+    return result;
 
   RVVSelectedBodyRouteAnalysis stale = *plainAnalysis;
   stale.standaloneReductionRouteFamilyPlan->operation =
@@ -12841,6 +12852,26 @@ module {
               stale, "standalone reduction provider unit test"),
           {"standalone reduction route-family mirrors",
            "validated family plan"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.description.standaloneReductionScalarResultRuntimeBoundary =
+      "metadata-selected-scalar-result";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.standaloneReductionRouteFamilyPlan->runtimeABIParameters[2].cType =
+      "const int32_t *";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction scalar result ABI", "scalar output",
+           "int32_t *"}))
     return result;
 
   stale = *plainAnalysis;

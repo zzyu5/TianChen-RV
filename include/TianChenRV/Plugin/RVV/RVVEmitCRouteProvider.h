@@ -215,6 +215,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;
   llvm::StringRef reductionStoreVL;
+  llvm::StringRef standaloneReductionScalarResultRuntimeBoundary;
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
   llvm::StringRef wideningMAccAccumulatorLayout;
