@@ -290,6 +290,266 @@ llvm::Error verifyRVVSelectedTargetCapabilityForTypedConfig(
   return llvm::Error::success();
 }
 
+struct RVVSelectedDispatchEnvelopeFacts {
+  std::string selectedDispatchCaseMirror;
+  std::string selectedDispatchFallbackMirror;
+
+  bool hasFacts() const { return !selectedDispatchCaseMirror.empty(); }
+};
+
+constexpr llvm::StringLiteral kTargetAttrName("target");
+constexpr llvm::StringLiteral kOriginAttrName("origin");
+constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
+constexpr llvm::StringLiteral kRuntimeGuardRequiredAttrName(
+    "runtime_guard_required");
+constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
+constexpr llvm::StringLiteral kABIRoleAttrName("abi_role");
+constexpr llvm::StringLiteral kDispatchAvailabilityGuardRoleValue(
+    "dispatch-availability-guard");
+
+tcrv::exec::VariantOp findDirectKernelVariant(tcrv::exec::KernelOp kernel,
+                                              llvm::StringRef symbol) {
+  if (!kernel || kernel.getBody().empty())
+    return {};
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (variant && variant.getSymName() == symbol)
+      return variant;
+  }
+  return {};
+}
+
+mlir::Operation *findDirectKernelSymbol(tcrv::exec::KernelOp kernel,
+                                        llvm::StringRef symbol) {
+  if (!kernel || kernel.getBody().empty())
+    return nullptr;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto symbolAttr = op.getAttrOfType<mlir::StringAttr>("sym_name");
+    if (symbolAttr && symbolAttr.getValue() == symbol)
+      return &op;
+  }
+  return nullptr;
+}
+
+std::string getOptionalStringAttr(mlir::Operation *op,
+                                  llvm::StringRef attrName) {
+  auto attr = op ? op->getAttrOfType<mlir::StringAttr>(attrName)
+                 : mlir::StringAttr();
+  return attr ? attr.getValue().str() : std::string();
+}
+
+llvm::Error verifyDispatchRuntimeGuardLink(tcrv::exec::KernelOp kernel,
+                                           tcrv::exec::DispatchCaseOp op,
+                                           llvm::StringRef context,
+                                           std::string &guardMirror) {
+  auto required = op->getAttrOfType<mlir::BoolAttr>(
+      kRuntimeGuardRequiredAttrName);
+  if (!required || !required.getValue()) {
+    guardMirror = "runtime_guard_required=false;runtime_guard=none";
+    return llvm::Error::success();
+  }
+
+  auto guard = op->getAttrOfType<mlir::FlatSymbolRefAttr>(
+      kRuntimeGuardAttrName);
+  if (!guard)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected dispatch case declares runtime_guard_required=true but "
+        "does not link runtime_guard to a same-kernel "
+        "dispatch-availability-guard runtime_param before RVV route "
+        "construction");
+
+  mlir::Operation *resolved = findDirectKernelSymbol(kernel, guard.getValue());
+  if (!resolved)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " selected dispatch case runtime_guard @" +
+        guard.getValue() + " does not resolve in the same tcrv.exec.kernel");
+
+  auto runtimeParam = llvm::dyn_cast<tcrv::exec::RuntimeParamOp>(resolved);
+  if (!runtimeParam)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " selected dispatch case runtime_guard @" +
+        guard.getValue() +
+        " resolves to a direct sibling symbol that is not a "
+        "tcrv.exec.runtime_param");
+
+  auto role = runtimeParam->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);
+  if (!role || role.getValue() != kDispatchAvailabilityGuardRoleValue)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " selected dispatch case runtime_guard @" +
+        guard.getValue() +
+        " must reference a tcrv.exec.runtime_param with ABI role '" +
+        kDispatchAvailabilityGuardRoleValue + "'");
+
+  guardMirror =
+      (llvm::Twine("runtime_guard_required=true;runtime_guard=@") +
+       guard.getValue())
+          .str();
+  return llvm::Error::success();
+}
+
+std::string formatRVVSelectedDispatchCaseMirror(
+    tcrv::exec::DispatchCaseOp dispatchCase, tcrv::exec::VariantOp variant,
+    llvm::StringRef guardMirror) {
+  std::string mirror;
+  llvm::raw_string_ostream stream(mirror);
+  stream << "selected_dispatch_case_mirror:@" << variant.getSymName()
+         << ";role=" << stringifyVariantEmissionRole(
+                            VariantEmissionRole::DispatchCase)
+         << ";" << guardMirror;
+  std::string origin = getOptionalStringAttr(dispatchCase.getOperation(),
+                                             kOriginAttrName);
+  if (!origin.empty())
+    stream << ";origin=" << origin;
+  std::string policy = getOptionalStringAttr(dispatchCase.getOperation(),
+                                             kPolicyAttrName);
+  if (!policy.empty())
+    stream << ";policy=" << policy;
+  return stream.str();
+}
+
+std::string formatRVVSelectedDispatchFallbackMirror(
+    tcrv::exec::FallbackOp fallback, tcrv::exec::VariantOp variant) {
+  std::string mirror;
+  llvm::raw_string_ostream stream(mirror);
+  stream << "selected_dispatch_fallback_mirror:@" << variant.getSymName()
+         << ";role=" << stringifyVariantEmissionRole(
+                            VariantEmissionRole::DispatchFallback)
+         << ";fallback_role=" << kConservativeFallbackRoleValue;
+  std::string origin = getOptionalStringAttr(fallback.getOperation(),
+                                             kOriginAttrName);
+  if (!origin.empty())
+    stream << ";origin=" << origin;
+  std::string policy =
+      getOptionalStringAttr(fallback.getOperation(), kPolicyAttrName);
+  if (!policy.empty())
+    stream << ";policy=" << policy;
+  return stream.str();
+}
+
+llvm::Expected<RVVSelectedDispatchEnvelopeFacts>
+collectRVVSelectedDispatchEnvelopeFacts(
+    const VariantEmitCLowerableRequest &request, llvm::StringRef context) {
+  RVVSelectedDispatchEnvelopeFacts facts;
+  if (request.getRole() == VariantEmissionRole::DirectVariant)
+    return facts;
+
+  if (request.getRole() == VariantEmissionRole::DispatchFallback)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " refuses RVV route construction for a dispatch fallback role; "
+        "fallback linkage is an explicit tcrv.exec envelope boundary and is "
+        "not RVV route authority");
+
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  tcrv::exec::VariantOp selectedVariant = request.getVariant();
+  if (!kernel || kernel.getBody().empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a materialized tcrv.exec.kernel with a selected dispatch");
+  if (!selectedVariant)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a materialized selected tcrv.exec.variant");
+
+  tcrv::exec::DispatchOp selectedDispatch;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto dispatch = llvm::dyn_cast<tcrv::exec::DispatchOp>(op);
+    if (!dispatch)
+      continue;
+    if (selectedDispatch)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " requires exactly one direct tcrv.exec.dispatch before RVV "
+          "dispatch-case route construction");
+    selectedDispatch = dispatch;
+  }
+  if (!selectedDispatch)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a direct tcrv.exec.dispatch before RVV dispatch-case "
+        "route construction");
+
+  tcrv::exec::DispatchCaseOp selectedCase;
+  tcrv::exec::FallbackOp fallbackOp;
+  tcrv::exec::VariantOp fallbackVariant;
+  unsigned caseCount = 0;
+  unsigned fallbackCount = 0;
+
+  for (mlir::Operation &op : selectedDispatch.getBody().front()) {
+    if (auto dispatchCase = llvm::dyn_cast<tcrv::exec::DispatchCaseOp>(op)) {
+      ++caseCount;
+      auto target =
+          dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+              kTargetAttrName);
+      if (target && target.getValue() == selectedVariant.getSymName()) {
+        if (selectedCase)
+          return makeRVVEmitCRouteProviderError(
+              llvm::Twine(context) +
+              " found multiple dispatch cases for the selected RVV variant @"
+              + selectedVariant.getSymName());
+        selectedCase = dispatchCase;
+      }
+      continue;
+    }
+
+    if (auto fallback = llvm::dyn_cast<tcrv::exec::FallbackOp>(op)) {
+      ++fallbackCount;
+      auto target =
+          fallback->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+      if (!target)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected dispatch fallback is missing a variant target");
+      fallbackVariant = findDirectKernelVariant(kernel, target.getValue());
+      if (!fallbackVariant)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) + " selected dispatch fallback target @" +
+            target.getValue() +
+            " does not resolve to a direct sibling tcrv.exec.variant");
+      fallbackOp = fallback;
+      continue;
+    }
+  }
+
+  if (caseCount == 0 || !selectedCase)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the selected RVV variant to be referenced by a "
+        "tcrv.exec.dispatch case before route construction");
+  if (fallbackCount != 1 || !fallbackOp || !fallbackVariant)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires exactly one explicit tcrv.exec.fallback target before RVV "
+        "dispatch-case route construction");
+
+  auto fallbackRole = fallbackVariant->getAttrOfType<mlir::StringAttr>(
+      kFallbackRoleAttrName);
+  if (!fallbackRole ||
+      fallbackRole.getValue() != kConservativeFallbackRoleValue)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " selected dispatch fallback target @" +
+        fallbackVariant.getSymName() +
+        " must be a fallback-eligible tcrv.exec.variant with "
+        "fallback_role='conservative'");
+
+  std::string guardMirror;
+  if (llvm::Error error =
+          verifyDispatchRuntimeGuardLink(kernel, selectedCase, context,
+                                         guardMirror))
+    return std::move(error);
+
+  facts.selectedDispatchCaseMirror =
+      formatRVVSelectedDispatchCaseMirror(selectedCase, selectedVariant,
+                                          guardMirror);
+  facts.selectedDispatchFallbackMirror =
+      formatRVVSelectedDispatchFallbackMirror(fallbackOp, fallbackVariant);
+  return facts;
+}
+
 constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingPlanID(
@@ -30168,6 +30428,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.targetCapabilityLegalityMirror =
       std::move(targetCapabilityFacts->legalityMirror);
 
+  llvm::Expected<RVVSelectedDispatchEnvelopeFacts> dispatchEnvelopeFacts =
+      collectRVVSelectedDispatchEnvelopeFacts(
+          request, "selected RVV route analysis dispatch/fallback envelope");
+  if (!dispatchEnvelopeFacts)
+    return dispatchEnvelopeFacts.takeError();
+  analysis.description.selectedDispatchCaseMirror =
+      std::move(dispatchEnvelopeFacts->selectedDispatchCaseMirror);
+  analysis.description.selectedDispatchFallbackMirror =
+      std::move(dispatchEnvelopeFacts->selectedDispatchFallbackMirror);
+
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
           routeProfile->operation.operationMnemonic);
@@ -34183,6 +34453,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.targetCapabilityLegalityMirror.empty())
     metadata.push_back({"tcrv_rvv.target_capability_legality_mirror",
                         description.targetCapabilityLegalityMirror});
+  if (!description.selectedDispatchCaseMirror.empty())
+    metadata.push_back({"tcrv_rvv.selected_dispatch_case_mirror",
+                        description.selectedDispatchCaseMirror});
+  if (!description.selectedDispatchFallbackMirror.empty())
+    metadata.push_back({"tcrv_rvv.selected_dispatch_fallback_mirror",
+                        description.selectedDispatchFallbackMirror});
   if (!description.routeOperandBindingPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.route_operand_binding_plan",
                         description.routeOperandBindingPlanID});

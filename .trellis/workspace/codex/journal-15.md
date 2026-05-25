@@ -40,6 +40,64 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 211: Stage2 RVV selected dispatch fallback envelope closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV selected dispatch fallback envelope closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded scalar_broadcast_macc_add selected dispatch/fallback
+envelope by requiring structural tcrv.exec dispatch-case and fallback facts
+before RVV route construction, mirroring the verified envelope through
+provider/artifact/header evidence, and proving the selected legal generated
+bundle on ssh rvv.
+
+### Main Changes
+
+- Added RVV provider-side selected dispatch envelope collection for dispatch
+  case routes, including selected case, runtime guard, and fallback variant
+  coherence checks.
+- Kept fallback as an envelope boundary by refusing RVV route construction for
+  dispatch-fallback roles and by requiring fallback targets to be direct
+  conservative fallback variants.
+- Mirrored `tcrv_rvv.selected_dispatch_case_mirror` and
+  `tcrv_rvv.selected_dispatch_fallback_mirror` through route metadata,
+  target bundle validation, and generated header evidence.
+- Added positive artifact/header FileCheck coverage and negative diagnostics
+  for missing required runtime guard, wrong guard role, missing fallback target,
+  and ineligible fallback target, alongside existing capability-gating
+  negatives.
+
+### Git Commits
+
+Pending final session commit in this turn.
+
+### Testing
+
+- [OK] Focused lit for selected dispatch/fallback envelope, explicit and
+  pre-realized scalar_broadcast_macc_add artifact/header mirrors, and existing
+  target-capability gating coverage: 5/5 passed.
+- [OK] Generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/selected-dispatch-fallback-envelope-dry`.
+- [OK] Real `ssh rvv` generated-bundle ABI/e2e for
+  `scalar_broadcast_macc_add`, counts `7,16,23`, rhs scalars `-37,91`.
+- [OK] Changed-line authority scan found no new descriptor/source-front-door,
+  common-EmitC, harness, name-derived, metadata-derived, or legacy i32 route
+  authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j 8`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 207: Stage2 RVV multi-family selected-body composition closure
 
 **Date**: 2026-05-25

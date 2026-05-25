@@ -210,6 +210,45 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         "candidate metadata must not carry target capability legality mirrors "
         "for a selected typed RVV body route without provider facts");
   }
+  llvm::StringRef selectedDispatchCaseMirror = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.selected_dispatch_case_mirror");
+  llvm::StringRef selectedDispatchFallbackMirror = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.selected_dispatch_fallback_mirror");
+  if (!description.selectedDispatchCaseMirror.empty()) {
+    if (selectedDispatchCaseMirror.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.selected_dispatch_case_mirror provenance");
+    if (selectedDispatchCaseMirror !=
+        llvm::StringRef(description.selectedDispatchCaseMirror))
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate tcrv_rvv.selected_dispatch_case_mirror "
+                      "provenance must mirror selected dispatch case facts '") +
+          description.selectedDispatchCaseMirror + "' but was '" +
+          selectedDispatchCaseMirror + "'");
+  } else if (!selectedDispatchCaseMirror.empty()) {
+    return makeRVVTargetRouteError(
+        "candidate metadata must not carry selected dispatch case mirrors for "
+        "a selected typed RVV body route without dispatch-case envelope facts");
+  }
+  if (!description.selectedDispatchFallbackMirror.empty()) {
+    if (selectedDispatchFallbackMirror.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.selected_dispatch_fallback_mirror provenance");
+    if (selectedDispatchFallbackMirror !=
+        llvm::StringRef(description.selectedDispatchFallbackMirror))
+      return makeRVVTargetRouteError(
+          llvm::Twine(
+              "candidate tcrv_rvv.selected_dispatch_fallback_mirror "
+              "provenance must mirror selected dispatch fallback facts '") +
+          description.selectedDispatchFallbackMirror + "' but was '" +
+          selectedDispatchFallbackMirror + "'");
+  } else if (!selectedDispatchFallbackMirror.empty()) {
+    return makeRVVTargetRouteError(
+        "candidate metadata must not carry selected dispatch fallback mirrors "
+        "for a selected typed RVV body route without dispatch fallback facts");
+  }
   return llvm::Error::success();
 }
 
@@ -705,6 +744,12 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"target_capability_legality_mirror",
        "tcrv_rvv.target_capability_legality_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"selected_dispatch_case_mirror",
+       "tcrv_rvv.selected_dispatch_case_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"selected_dispatch_fallback_mirror",
+       "tcrv_rvv.selected_dispatch_fallback_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"route_operand_binding_plan",
        "tcrv_rvv.route_operand_binding_plan", "",
