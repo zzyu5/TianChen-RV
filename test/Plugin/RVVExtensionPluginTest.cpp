@@ -11248,6 +11248,8 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyDirectContractionRouteProviderOwners;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteProviderPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyDirectContractionRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMathRouteOperandBindingFacts;
@@ -11322,13 +11324,11 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
     return result;
   RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
   nonConsumerAnalysis.description = nonConsumerDescription;
-  tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts
-      emptyMaterializationFacts;
-  tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts
-      emptyMathFacts;
+  tianchenrv::plugin::rvv::RVVSelectedBodyDirectContractionRouteProviderPlan
+      emptyDirectProviderPlan;
   auto emptyDirectStatementPlan =
       getRVVSelectedBodyDirectContractionRouteStatementPlan(
-          nonConsumerAnalysis, emptyMaterializationFacts, emptyMathFacts,
+          nonConsumerAnalysis, emptyDirectProviderPlan,
           "direct contraction owner non-consumer unit test");
   if (!emptyDirectStatementPlan)
     return fail("non-consumer direct contraction statement plan unexpectedly "
@@ -11502,6 +11502,13 @@ module {
                    " contraction route-control provider plan: " +
                    llvm::toString(routeControlPlan.takeError()))
                       .str());
+    auto directProviderPlan = getRVVSelectedBodyDirectContractionRouteProviderPlan(
+        analysis, *materializationFacts, *mathFacts, label);
+    if (!directProviderPlan)
+      return fail((llvm::Twine(label) +
+                   " direct contraction provider plan: " +
+                   llvm::toString(directProviderPlan.takeError()))
+                      .str());
     if (int result = expect(
             routeControlPlan->plansRouteControl &&
                 routeControlPlan->controlsContraction &&
@@ -11529,6 +11536,60 @@ module {
             "contraction route-control provider plan preserves family "
             "classification facts"))
       return result;
+    if (int result = expect(
+            directProviderPlan->plansDirectContractionRoute &&
+                directProviderPlan->contractionPlan ==
+                    materializationFacts->contractionPlan &&
+                directProviderPlan->routeControlPlan.controlsContraction &&
+                directProviderPlan->routeControlPlan.runtimeControlPlan ==
+                    &materializationFacts->contractionPlan
+                         ->runtimeControlPlan &&
+                directProviderPlan->plansWideningMAcc ==
+                    expectedWideningMAcc &&
+                directProviderPlan->plansDotReduction ==
+                    expectedDotReduction &&
+                directProviderPlan->plansComputedMask ==
+                    expectedComputedMask &&
+                directProviderPlan->plansStridedInput ==
+                    expectedStridedInput,
+            "direct contraction provider plan carries family, route-control, "
+            "mask, and stride classification facts before route construction"))
+      return result;
+    if (int result = expect(
+            directProviderPlan->runtimeElementCountABI &&
+                directProviderPlan->accumulatorABI &&
+                directProviderPlan->outABI &&
+                directProviderPlan->setVLLeaf ==
+                    materializationFacts->setVLLeaf &&
+                directProviderPlan->contractionComputeLeaf ==
+                    materializationFacts->contractionComputeLeaf &&
+                directProviderPlan->storeLeaf == materializationFacts->storeLeaf,
+            "direct contraction provider plan exposes runtime, accumulator, "
+            "result, and materialization leaves before statement construction"))
+      return result;
+    if (expectedComputedMask)
+      if (int result = expect(
+              directProviderPlan->lhsABI && directProviderPlan->rhsABI &&
+                  directProviderPlan->dotLHSABI &&
+                  directProviderPlan->dotRHSABI &&
+                  directProviderPlan->compareLeaf ==
+                      materializationFacts->compareLeaf &&
+                  directProviderPlan->maskedWideningProductLeaf ==
+                      materializationFacts->maskedWideningProductLeaf &&
+                  directProviderPlan->maskedMergeLeaf ==
+                      materializationFacts->maskedMergeLeaf,
+              "computed-mask direct contraction provider plan exposes compare "
+              "producer, dot payload, masked product, and merge facts"))
+        return result;
+    if (expectedStridedInput)
+      if (int result = expect(
+              directProviderPlan->lhsStrideABI &&
+                  directProviderPlan->rhsStrideABI &&
+                  directProviderPlan->stridedSourceLoadLeaf ==
+                      materializationFacts->stridedSourceLoadLeaf,
+              "strided direct contraction provider plan exposes lhs/rhs stride "
+              "ABI and strided source-load facts"))
+        return result;
 
     bool hasExpectedBindingFacts = false;
     switch (analysis.description.operation) {
@@ -11564,7 +11625,7 @@ module {
 
     auto directStatementPlan =
         getRVVSelectedBodyDirectContractionRouteStatementPlan(
-            analysis, *materializationFacts, *mathFacts, label);
+            analysis, *directProviderPlan, label);
     if (!directStatementPlan)
       return fail((llvm::Twine(label) +
                    " direct contraction route-provider statement plan: " +
@@ -11837,12 +11898,12 @@ module {
   auto missingDirectMaterialization = *computedStridedRouteControlFacts;
   missingDirectMaterialization.contractionPlan = nullptr;
   if (int result = expectErrorContains(
-          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+          getRVVSelectedBodyDirectContractionRouteProviderPlan(
               *computedStridedAnalysis, missingDirectMaterialization,
               *computedStridedMathFacts,
               "computed-mask strided direct contraction missing plan")
               .takeError(),
-          {"direct contraction route-provider owner requires the verified "
+          {"direct contraction provider plan requires the verified "
            "contraction route-family materialization facts",
            "computed_masked_strided_input_widening_dot_reduce_add"}))
     return result;
@@ -11850,12 +11911,12 @@ module {
   tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts
       missingDirectMathFacts;
   if (int result = expectErrorContains(
-          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+          getRVVSelectedBodyDirectContractionRouteProviderPlan(
               *computedStridedAnalysis, *computedStridedRouteControlFacts,
               missingDirectMathFacts,
               "computed-mask strided direct contraction missing math facts")
               .takeError(),
-          {"direct contraction route-provider owner requires same-analysis "
+          {"direct contraction provider plan requires same-analysis "
            "RVV-owned math operand-binding facts",
            "computed_masked_strided_input_widening_dot_reduce_add"}))
     return result;
@@ -11863,7 +11924,7 @@ module {
   auto missingDirectLeafFacts = *computedStridedRouteControlFacts;
   missingDirectLeafFacts.vectorLoadLeaf = "";
   if (int result = expectErrorContains(
-          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+          getRVVSelectedBodyDirectContractionRouteProviderPlan(
               *computedStridedAnalysis, missingDirectLeafFacts,
               *computedStridedMathFacts,
               "computed-mask strided direct contraction missing leaf")
@@ -11943,7 +12004,7 @@ module {
     return fail("computed-mask strided stale policy math facts: " +
                 llvm::toString(staleRouteControlMathFacts.takeError()));
   if (int result = expectErrorContains(
-          getRVVSelectedBodyDirectContractionRouteStatementPlan(
+          getRVVSelectedBodyDirectContractionRouteProviderPlan(
               staleRouteControl, *staleRouteControlFacts,
               *staleRouteControlMathFacts,
               "computed-mask strided direct contraction stale policy unit test")

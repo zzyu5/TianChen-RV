@@ -1189,6 +1189,44 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyDirectContractionRouteProviderPlan {
+  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
+  RVVSelectedBodyRouteControlProviderPlan routeControlPlan;
+
+  bool plansDirectContractionRoute = false;
+  bool plansWideningMAcc = false;
+  bool plansDotReduction = false;
+  bool plansComputedMask = false;
+  bool plansStridedInput = false;
+
+  const support::RuntimeABIParameter *lhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *dotLHSABI = nullptr;
+  const support::RuntimeABIParameter *dotRHSABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *outABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+  const support::RuntimeABIParameter *lhsStrideABI = nullptr;
+  const support::RuntimeABIParameter *rhsStrideABI = nullptr;
+
+  llvm::StringRef vlCType;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef maskCType;
+
+  llvm::StringRef setVLLeaf;
+  llvm::StringRef sourceLoadLeaf;
+  llvm::StringRef vectorLoadLeaf;
+  llvm::StringRef stridedSourceLoadLeaf;
+  llvm::StringRef storeLeaf;
+  llvm::StringRef contractionComputeLeaf;
+  llvm::StringRef wideningProductLeaf;
+  llvm::StringRef maskedWideningProductLeaf;
+  llvm::StringRef scalarSeedSplatLeaf;
+  llvm::StringRef compareLeaf;
+  llvm::StringRef maskedMergeLeaf;
+};
+
 struct RVVSelectedBodyDirectContractionRouteStatementPlan {
   const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
 
@@ -1208,8 +1246,7 @@ struct RVVSelectedBodyDirectContractionRouteProviderOwner {
       bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
   using StatementPlanBuilder = llvm::Error (*)(
       RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      const RVVSelectedBodyMathRouteOperandBindingFacts &,
+      const RVVSelectedBodyDirectContractionRouteProviderPlan &,
       RVVSelectedBodyDirectContractionRouteStatementPlan &, llvm::StringRef);
 
   llvm::StringRef familyName;
@@ -1551,11 +1588,17 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-getRVVSelectedBodyDirectContractionRouteStatementPlan(
+llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
+getRVVSelectedBodyDirectContractionRouteProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
+getRVVSelectedBodyDirectContractionRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
     llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>

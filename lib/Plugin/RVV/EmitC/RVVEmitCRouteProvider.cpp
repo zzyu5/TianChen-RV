@@ -297,6 +297,16 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           "selected RVV EmitC route construction"))
     return error;
 
+  llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
+      directContractionProviderPlanOrError =
+          getRVVSelectedBodyDirectContractionRouteProviderPlan(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!directContractionProviderPlanOrError)
+    return directContractionProviderPlanOrError.takeError();
+  const RVVSelectedBodyDirectContractionRouteProviderPlan
+      directContractionProviderPlan = *directContractionProviderPlanOrError;
+
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
@@ -348,7 +358,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
       directContractionStatementPlanOrError =
           getRVVSelectedBodyDirectContractionRouteStatementPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
+              analysis, directContractionProviderPlan,
               "selected RVV EmitC route construction");
   if (!directContractionStatementPlanOrError)
     return directContractionStatementPlanOrError.takeError();

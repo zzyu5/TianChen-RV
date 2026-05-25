@@ -28959,8 +28959,7 @@ llvm::Error addRVVDirectContractionStatementPlanLoopStep(
 
 llvm::Error buildDirectContractionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
     RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
     llvm::StringRef context) {
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
@@ -28968,215 +28967,65 @@ llvm::Error buildDirectContractionRouteStatementPlan(
 
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
-  if (!isRVVSelectedBodyDirectContractionRouteProviderOwnerConsumer(description))
+  const bool isConsumer =
+      isRVVSelectedBodyDirectContractionRouteProviderOwnerConsumer(description);
+  if (!isConsumer) {
+    if (providerPlan.plansDirectContractionRoute)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction route-provider owner received a provider plan "
+          "for non-contraction operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
     return llvm::Error::success();
+  }
 
-  if (llvm::Error error =
-          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(analysis,
-                                                                   context))
-    return error;
-
-  if (!materializationFacts.contractionPlan)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction route-provider owner requires the verified "
-        "contraction route-family materialization facts before route statement "
-        "construction for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
-      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
-                                                 context);
-  if (!routeControlPlan)
-    return routeControlPlan.takeError();
-  if (!routeControlPlan->plansRouteControl ||
-      !routeControlPlan->controlsContraction ||
-      routeControlPlan->runtimeControlPlan !=
-          &materializationFacts.contractionPlan->runtimeControlPlan)
+  if (!providerPlan.plansDirectContractionRoute ||
+      !providerPlan.contractionPlan ||
+      !providerPlan.routeControlPlan.plansRouteControl ||
+      !providerPlan.routeControlPlan.controlsContraction ||
+      providerPlan.routeControlPlan.runtimeControlPlan !=
+          &providerPlan.contractionPlan->runtimeControlPlan)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " direct contraction route-provider owner requires the RVV-owned "
-        "route-control provider plan before route statement construction for "
-        "operation '" +
+        "direct contraction provider plan before route statement construction "
+        "for operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
-  if (!mathOperandBindingFacts.bindsMathCluster ||
-      mathOperandBindingFacts.bindingPlan != &analysis.routeOperandBindingPlan)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction route-provider owner requires same-analysis "
-        "RVV-owned math operand-binding facts before route statement "
-        "construction for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-  const bool isWideningMAcc =
-      description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
-  const bool isDotReduction =
-      isRVVSelectedBodyContractionDotReduction(description.operation);
-  const bool isComputedMask =
-      isRVVSelectedBodyContractionComputedMask(description.operation);
-  const bool isStridedInput =
-      isRVVSelectedBodyContractionStridedInputs(description.operation);
-
-  bool hasContractionBindingFacts = false;
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::WideningMAccAdd:
-    hasContractionBindingFacts = mathOperandBindingFacts.bindsWideningMAcc;
-    break;
-  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
-    hasContractionBindingFacts =
-        mathOperandBindingFacts.bindsWideningDotReduction;
-    break;
-  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
-    hasContractionBindingFacts =
-        mathOperandBindingFacts.bindsStridedInputWideningDotReduction;
-    break;
-  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
-    hasContractionBindingFacts =
-        mathOperandBindingFacts.bindsComputedMaskWideningDotReduction;
-    break;
-  case RVVSelectedBodyOperationKind::
-      ComputedMaskStridedInputWideningDotReduceAdd:
-    hasContractionBindingFacts = mathOperandBindingFacts
-                                     .bindsComputedMaskStridedInputWideningDotReduction;
-    break;
-  default:
-    break;
-  }
-  if (!hasContractionBindingFacts)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction route-provider owner requires RVV-owned math "
-        "operand-binding facts before route statement construction for "
-        "operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
+  const bool isWideningMAcc = providerPlan.plansWideningMAcc;
+  const bool isDotReduction = providerPlan.plansDotReduction;
+  const bool isComputedMask = providerPlan.plansComputedMask;
+  const bool isStridedInput = providerPlan.plansStridedInput;
+  const RVVSelectedBodyDirectContractionRouteProviderPlan &materializationFacts =
+      providerPlan;
   const support::RuntimeABIParameter *boundLHSABI =
-      mathOperandBindingFacts.lhsABI;
+      providerPlan.lhsABI;
   const support::RuntimeABIParameter *boundRHSABI =
-      mathOperandBindingFacts.rhsABI;
+      providerPlan.rhsABI;
   const support::RuntimeABIParameter *boundDotLHSABI =
-      mathOperandBindingFacts.dotLHSABI;
+      providerPlan.dotLHSABI;
   const support::RuntimeABIParameter *boundDotRHSABI =
-      mathOperandBindingFacts.dotRHSABI;
+      providerPlan.dotRHSABI;
   const support::RuntimeABIParameter *boundAccumulatorABI =
-      mathOperandBindingFacts.accumulatorABI;
-  const support::RuntimeABIParameter *boundOutABI =
-      mathOperandBindingFacts.outABI;
+      providerPlan.accumulatorABI;
+  const support::RuntimeABIParameter *boundOutABI = providerPlan.outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
-      mathOperandBindingFacts.runtimeElementCountABI;
+      providerPlan.runtimeElementCountABI;
   const support::RuntimeABIParameter *boundLHSStrideABI =
-      mathOperandBindingFacts.lhsStrideABI;
+      providerPlan.lhsStrideABI;
   const support::RuntimeABIParameter *boundRHSStrideABI =
-      mathOperandBindingFacts.rhsStrideABI;
-
-  if (isComputedMask) {
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundLHSABI, "compare lhs", description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundRHSABI, "compare rhs", description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundDotLHSABI, "dot lhs", description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundDotRHSABI, "dot rhs", description, context))
-      return error;
-  } else {
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundLHSABI, "lhs", description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundRHSABI, "rhs", description, context))
-      return error;
-  }
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-          boundAccumulatorABI, "accumulator", description, context))
-    return error;
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-          boundOutABI, "out", description, context))
-    return error;
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-          boundRuntimeElementCountABI, "runtime element count", description,
-          context))
-    return error;
-  if (isStridedInput) {
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundLHSStrideABI, "lhs stride", description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
-            boundRHSStrideABI, "rhs stride", description, context))
-      return error;
-  }
-
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-          materializationFacts.setVLLeaf, "setvl leaf", description, context))
-    return error;
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-          materializationFacts.storeLeaf, "store leaf", description, context))
-    return error;
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-          materializationFacts.contractionComputeLeaf, "contraction compute leaf",
-          description, context))
-    return error;
-  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-          materializationFacts.sourceLoadLeaf, "source load leaf", description,
-          context))
-    return error;
-  if (isWideningMAcc) {
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.vectorLoadLeaf, "accumulator load leaf",
-            description, context))
-      return error;
-  }
-  if (isDotReduction) {
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.wideningProductLeaf, "widening product leaf",
-            description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.scalarSeedSplatLeaf, "scalar seed splat leaf",
-            description, context))
-      return error;
-  }
-  if (isComputedMask) {
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.vectorLoadLeaf, "compare vector load leaf",
-            description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.compareLeaf, "compare leaf", description,
-            context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.maskedWideningProductLeaf,
-            "masked widening product leaf", description, context))
-      return error;
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.maskedMergeLeaf, "masked merge leaf",
-            description, context))
-      return error;
-  }
-  if (isStridedInput)
-    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
-            materializationFacts.stridedSourceLoadLeaf,
-            "strided source load leaf", description, context))
-      return error;
+      providerPlan.rhsStrideABI;
 
   RVVSelectedBodyRouteSlice &slice = analysis.slice;
-  const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
-      materializationFacts.typedConfigFacts;
-  const llvm::StringRef vlCType = typedConfigFacts.vlCType;
-  const llvm::StringRef resultVectorCType = typedConfigFacts.vectorCType;
-  const llvm::StringRef sourceVectorCType =
-      materializationFacts.sourceVectorCType;
-  const llvm::StringRef maskCType = materializationFacts.maskCType;
+  const llvm::StringRef vlCType = providerPlan.vlCType;
+  const llvm::StringRef resultVectorCType = providerPlan.resultVectorCType;
+  const llvm::StringRef sourceVectorCType = providerPlan.sourceVectorCType;
+  const llvm::StringRef maskCType = providerPlan.maskCType;
   const llvm::StringRef inductionName = description.emitCLoopInductionName;
   const llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
   const llvm::StringRef loopVLName = description.emitCLoopVLName;
 
-  plan.contractionPlan = materializationFacts.contractionPlan;
+  plan.contractionPlan = providerPlan.contractionPlan;
   plan.plansDirectContractionRoute = true;
   plan.plansWideningMAcc = isWideningMAcc;
   plan.plansDotReduction = isDotReduction;
@@ -29459,6 +29308,243 @@ llvm::Error buildDirectContractionRouteStatementPlan(
 }
 
 } // namespace
+
+llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
+getRVVSelectedBodyDirectContractionRouteProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyDirectContractionRouteProviderPlan plan;
+  if (!isRVVSelectedBodyDirectContractionRouteProviderOwnerConsumer(description))
+    return plan;
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(analysis,
+                                                                   context))
+    return std::move(error);
+
+  if (!materializationFacts.contractionPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction provider plan requires the verified contraction "
+        "route-family materialization facts before route construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsContraction ||
+      routeControlPlan->runtimeControlPlan !=
+          &materializationFacts.contractionPlan->runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction provider plan requires the RVV-owned route-control "
+        "provider plan before route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (!mathOperandBindingFacts.bindsMathCluster ||
+      mathOperandBindingFacts.bindingPlan != &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction provider plan requires same-analysis RVV-owned "
+        "math operand-binding facts before route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const bool isWideningMAcc =
+      description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
+  const bool isDotReduction =
+      isRVVSelectedBodyContractionDotReduction(description.operation);
+  const bool isComputedMask =
+      isRVVSelectedBodyContractionComputedMask(description.operation);
+  const bool isStridedInput =
+      isRVVSelectedBodyContractionStridedInputs(description.operation);
+
+  bool hasContractionBindingFacts = false;
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::WideningMAccAdd:
+    hasContractionBindingFacts = mathOperandBindingFacts.bindsWideningMAcc;
+    break;
+  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+    hasContractionBindingFacts =
+        mathOperandBindingFacts.bindsWideningDotReduction;
+    break;
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+    hasContractionBindingFacts =
+        mathOperandBindingFacts.bindsStridedInputWideningDotReduction;
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+    hasContractionBindingFacts =
+        mathOperandBindingFacts.bindsComputedMaskWideningDotReduction;
+    break;
+  case RVVSelectedBodyOperationKind::
+      ComputedMaskStridedInputWideningDotReduceAdd:
+    hasContractionBindingFacts =
+        mathOperandBindingFacts.bindsComputedMaskStridedInputWideningDotReduction;
+    break;
+  default:
+    break;
+  }
+  if (!hasContractionBindingFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction provider plan requires RVV-owned math "
+        "operand-binding facts before route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const support::RuntimeABIParameter *boundLHSABI =
+      mathOperandBindingFacts.lhsABI;
+  const support::RuntimeABIParameter *boundRHSABI =
+      mathOperandBindingFacts.rhsABI;
+  const support::RuntimeABIParameter *boundDotLHSABI =
+      mathOperandBindingFacts.dotLHSABI;
+  const support::RuntimeABIParameter *boundDotRHSABI =
+      mathOperandBindingFacts.dotRHSABI;
+  const support::RuntimeABIParameter *boundAccumulatorABI =
+      mathOperandBindingFacts.accumulatorABI;
+  const support::RuntimeABIParameter *boundOutABI =
+      mathOperandBindingFacts.outABI;
+  const support::RuntimeABIParameter *boundRuntimeElementCountABI =
+      mathOperandBindingFacts.runtimeElementCountABI;
+  const support::RuntimeABIParameter *boundLHSStrideABI =
+      mathOperandBindingFacts.lhsStrideABI;
+  const support::RuntimeABIParameter *boundRHSStrideABI =
+      mathOperandBindingFacts.rhsStrideABI;
+
+  if (isComputedMask) {
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundLHSABI, "compare lhs", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundRHSABI, "compare rhs", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundDotLHSABI, "dot lhs", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundDotRHSABI, "dot rhs", description, context))
+      return std::move(error);
+  } else {
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundLHSABI, "lhs", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundRHSABI, "rhs", description, context))
+      return std::move(error);
+  }
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+          boundAccumulatorABI, "accumulator", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+          boundOutABI, "out", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+          boundRuntimeElementCountABI, "runtime element count", description,
+          context))
+    return std::move(error);
+  if (isStridedInput) {
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundLHSStrideABI, "lhs stride", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanABI(
+            boundRHSStrideABI, "rhs stride", description, context))
+      return std::move(error);
+  }
+
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+          materializationFacts.setVLLeaf, "setvl leaf", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+          materializationFacts.storeLeaf, "store leaf", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+          materializationFacts.contractionComputeLeaf, "contraction compute leaf",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+          materializationFacts.sourceLoadLeaf, "source load leaf", description,
+          context))
+    return std::move(error);
+  if (isWideningMAcc) {
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.vectorLoadLeaf, "accumulator load leaf",
+            description, context))
+      return std::move(error);
+  }
+  if (isDotReduction) {
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.wideningProductLeaf, "widening product leaf",
+            description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.scalarSeedSplatLeaf, "scalar seed splat leaf",
+            description, context))
+      return std::move(error);
+  }
+  if (isComputedMask) {
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.vectorLoadLeaf, "compare vector load leaf",
+            description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.compareLeaf, "compare leaf", description,
+            context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.maskedWideningProductLeaf,
+            "masked widening product leaf", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.maskedMergeLeaf, "masked merge leaf",
+            description, context))
+      return std::move(error);
+  }
+  if (isStridedInput)
+    if (llvm::Error error = requireRVVDirectContractionStatementPlanLeaf(
+            materializationFacts.stridedSourceLoadLeaf,
+            "strided source load leaf", description, context))
+      return std::move(error);
+
+  plan.contractionPlan = materializationFacts.contractionPlan;
+  plan.routeControlPlan = std::move(*routeControlPlan);
+  plan.plansDirectContractionRoute = true;
+  plan.plansWideningMAcc = isWideningMAcc;
+  plan.plansDotReduction = isDotReduction;
+  plan.plansComputedMask = isComputedMask;
+  plan.plansStridedInput = isStridedInput;
+  plan.lhsABI = boundLHSABI;
+  plan.rhsABI = boundRHSABI;
+  plan.dotLHSABI = boundDotLHSABI;
+  plan.dotRHSABI = boundDotRHSABI;
+  plan.accumulatorABI = boundAccumulatorABI;
+  plan.outABI = boundOutABI;
+  plan.runtimeElementCountABI = boundRuntimeElementCountABI;
+  plan.lhsStrideABI = boundLHSStrideABI;
+  plan.rhsStrideABI = boundRHSStrideABI;
+  plan.vlCType = materializationFacts.typedConfigFacts.vlCType;
+  plan.resultVectorCType = materializationFacts.typedConfigFacts.vectorCType;
+  plan.sourceVectorCType = materializationFacts.sourceVectorCType;
+  plan.maskCType = materializationFacts.maskCType;
+  plan.setVLLeaf = materializationFacts.setVLLeaf;
+  plan.sourceLoadLeaf = materializationFacts.sourceLoadLeaf;
+  plan.vectorLoadLeaf = materializationFacts.vectorLoadLeaf;
+  plan.stridedSourceLoadLeaf = materializationFacts.stridedSourceLoadLeaf;
+  plan.storeLeaf = materializationFacts.storeLeaf;
+  plan.contractionComputeLeaf = materializationFacts.contractionComputeLeaf;
+  plan.wideningProductLeaf = materializationFacts.wideningProductLeaf;
+  plan.maskedWideningProductLeaf =
+      materializationFacts.maskedWideningProductLeaf;
+  plan.scalarSeedSplatLeaf = materializationFacts.scalarSeedSplatLeaf;
+  plan.compareLeaf = materializationFacts.compareLeaf;
+  plan.maskedMergeLeaf = materializationFacts.maskedMergeLeaf;
+  return plan;
+}
 
 llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
 getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
@@ -33025,8 +33111,7 @@ bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
 llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
 getRVVSelectedBodyDirectContractionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
     llvm::StringRef context) {
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
@@ -33065,13 +33150,28 @@ getRVVSelectedBodyDirectContractionRouteStatementPlan(
         owners);
   }
 
-  if (selectedOwners.empty())
+  if (selectedOwners.empty()) {
+    if (providerPlan.plansDirectContractionRoute)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction route-provider owner registry has no owner for "
+          "a prevalidated provider plan for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
     return plan;
+  }
+
+  if (!providerPlan.plansDirectContractionRoute)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route-provider owner requires a prevalidated "
+        "direct contraction provider plan before statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   const RVVSelectedBodyDirectContractionRouteProviderOwner &owner =
       *selectedOwners.front();
   if (llvm::Error error = owner.buildStatementPlan(
-          analysis, materializationFacts, mathOperandBindingFacts, plan, context))
+          analysis, providerPlan, plan, context))
     return std::move(error);
   if (!plan.plansDirectContractionRoute)
     return makeRVVEmitCRouteProviderError(

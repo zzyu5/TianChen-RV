@@ -57,6 +57,58 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 238: Stage2 RVV contraction route-family production owner consolidation
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV contraction route-family production owner consolidation
+**Branch**: `main`
+
+### Summary
+
+Consolidated the widening MAcc / widening dot-reduce direct contraction
+provider boundary by adding a structured RVV-owned direct contraction provider
+plan that is validated before `TCRVEmitCLowerableRoute` construction and then
+consumed by the direct contraction statement owner.
+
+### Main Changes
+
+- Added `RVVSelectedBodyDirectContractionRouteProviderPlan` and
+  `getRVVSelectedBodyDirectContractionRouteProviderPlan(...)`.
+- Rewired `RVVEmitCRouteProvider.cpp` to obtain the provider plan before route
+  object construction.
+- Changed direct contraction statement planning to consume the provider plan
+  instead of rediscovering family/materialization/route-control/math-binding
+  facts.
+- Extended RVV plugin C++ tests for positive provider-plan use and fail-closed
+  diagnostics across unit-stride, computed-mask, strided-input, and
+  computed-mask strided widening-dot-reduce routes.
+- Updated the RVV plugin spec with the durable provider-plan API boundary.
+
+### Testing
+
+- [OK] Task validation.
+- [OK] Focused RVV plugin build and `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `tcrv-opt`, `tcrv-translate`, and RVV plugin test build.
+- [OK] Representative computed-mask strided widening-dot-reduce pre-realized
+  generated-bundle dry-run for counts `0,7,16,23`.
+- [OK] Representative computed-mask strided widening-dot-reduce pre-realized
+  generated-bundle `ssh rvv` run for counts `0,7,16,23`: PASS with
+  `lhs_stride=2 rhs_stride=3`.
+- [OK] Bounded authority scan found no new positive legacy-i32, descriptor,
+  source-front-door, route-id, ABI-string, artifact-name, script, metadata, or
+  common-EmitC authority leaks.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 381/381 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 237: Stage2 RVV computed-mask strided-input widening dot-reduce boundary
 
 **Date**: 2026-05-26
