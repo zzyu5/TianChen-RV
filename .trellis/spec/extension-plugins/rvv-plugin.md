@@ -690,10 +690,10 @@ verification and materialization facts, and before family statement plans are
 attached to `TCRVEmitCLowerableRoute`.
 
 The required consumers are mature ordinary elementwise arithmetic,
-scalar-broadcast elementwise arithmetic, plain compare/select, base memory
-movement, standalone reduction, and scalar-broadcast MAcc families. Other
-migrated families may continue to use their existing family-local checks until
-they are explicitly moved onto this boundary.
+scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
+select, base memory movement, standalone reduction, and scalar-broadcast MAcc
+families. Other migrated families may continue to use their existing
+family-local checks until they are explicitly moved onto this boundary.
 
 ### 2. Signatures
 
@@ -726,8 +726,9 @@ carry:
 - a pointer to the same-analysis selected target capability facts;
 - a pointer to the owning family `RVVRuntimeAVLVLControlPlan`;
 - consumer flags for ordinary elementwise arithmetic, scalar-broadcast
-  elementwise arithmetic, plain compare/select, base memory movement,
-  standalone reduction, scalar-broadcast MAcc, or future adopted families;
+  elementwise arithmetic, plain compare/select, computed-mask select, base
+  memory movement, standalone reduction, scalar-broadcast MAcc, or future
+  adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -766,6 +767,11 @@ fields only after provider route construction.
   family plan verifier -> materialization facts -> elementwise/select
   operand-binding facts -> route-control provider plan -> compare/select
   statement plan -> provider-built route.
+- Good: typed computed-mask select `tcrv_rvv` body -> computed-mask select
+  family plan verifier with vector/runtime-scalar producer-source facts ->
+  materialization facts -> elementwise/select operand-binding facts ->
+  route-control provider plan -> compare/select statement plan ->
+  provider-built route.
 - Base: migrated families not yet adopted by the route-control plan retain
   their family-local verifier checks and receive an empty route-control plan.
 - Bad: a family statement plan reads tail policy, mask policy, runtime `n`,
@@ -1365,8 +1371,9 @@ For mature selected-body compare/select routes, `RVVEmitCRouteProvider` must
 not locally recreate the route statement sequence from operation names, ABI
 strings, or memory-form branches after RVV-owned family plans,
 materialization facts, and operand-binding facts have been validated. Plain
-compare-select must additionally consume the shared route-control provider
-plan before statement construction. The RVV planning layer must expose one
+compare-select and computed-mask select must additionally consume the shared
+route-control provider plan before statement construction. The RVV planning
+layer must expose one
 RVV-owned statement-plan boundary for plain compare-select, computed-mask
 select, runtime-scalar computed-mask select, and runtime-scalar dual
 compare-mask-and-select where those routes are production-active.
@@ -1414,9 +1421,10 @@ It may carry:
 
 The plan must be derived only from verified typed body/config/runtime facts,
 route materialization facts, RVV-owned elementwise/select operand-binding
-facts, and for plain compare/select the RVV-owned route-control provider plan.
-It is not a common EmitC fact, not artifact metadata, not an acceptance/status
-mirror, and not a route-support declaration by itself.
+facts, and for plain compare/select and computed-mask select the RVV-owned
+route-control provider plan. It is not a common EmitC fact, not artifact
+metadata, not an acceptance/status mirror, and not a route-support declaration
+by itself.
 
 ### 4. Validation & Error Matrix
 
@@ -1430,6 +1438,12 @@ mirror, and not a route-support declaration by itself.
   route analysis, has wrong runtime AVL/VL control facts, or has SEW/LMUL/
   policy/capability mirrors that disagree with the typed body/config and
   selected target facts -> fail closed before route statement construction.
+- An included computed-mask select route lacks the shared route-control
+  provider plan, carries stale materialization facts from another selected
+  route analysis, has wrong runtime AVL/VL control facts, stale vector or
+  runtime-scalar mask-producer facts, stale operand-binding facts, or has
+  SEW/LMUL/policy/capability mirrors that disagree with the typed body/config
+  and selected target facts -> fail closed before route statement construction.
 - An included route lacks the required elementwise/select operand-binding
   facts -> fail closed before route statement construction.
 - Required ABI roles such as `lhs`, `rhs`, `cmp_lhs`, `cmp_rhs`,
@@ -1449,6 +1463,10 @@ mirror, and not a route-support declaration by itself.
   materialization facts -> elementwise/select operand-binding facts ->
   route-control provider plan -> RVV-owned statement plan -> provider-built
   route.
+- Good: typed computed-mask select `tcrv_rvv` body -> family plan verifier
+  with producer-source facts -> materialization facts -> elementwise/select
+  operand-binding facts -> route-control provider plan -> RVV-owned statement
+  plan -> provider-built route.
 - Base: memory, math, residual runtime scalar splat-store, and future
   families keep their own statement construction surfaces and receive an empty
   compare/select statement plan.
@@ -1492,6 +1510,7 @@ Correct:
 verified route-family plans
   -> RVVSelectedBodyRouteMaterializationFacts
   -> RVV-owned elementwise/select operand-binding facts
+  -> RVVSelectedBodyRouteControlProviderPlan for adopted sub-families
   -> RVVSelectedBodyCompareSelectRouteStatementPlan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```

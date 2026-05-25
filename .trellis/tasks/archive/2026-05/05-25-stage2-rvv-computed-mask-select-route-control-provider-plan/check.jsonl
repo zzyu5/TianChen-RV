@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global RVV-first authority chain and Stage 2 scope after implementation."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Verify extension plugin checklist and RVV Stage 2 routing compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask select route-control, compare/select statement-plan, provider, selected-body, artifact, and mirror-only compliance."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Verify provider-built RVV route and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains a neutral consumer of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/lit/generated-bundle/ssh rvv evidence expectations and claim boundaries."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability/config/policy authority is structural and plugin-validated."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV route-control migration stayed plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute, descriptor, common EmitC, or tcrv.exec semantic drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-runtime-vl-policy-provider-plan/prd.md", "reason": "Compare final route-control consumer evidence with the source boundary task."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-elementwise-route-control-plan/prd.md", "reason": "Compare fail-closed and provider-plan patterns with ordinary elementwise."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-scalar-broadcast-route-control/prd.md", "reason": "Compare fail-closed and provider-plan patterns with scalar-broadcast elementwise."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-scalar-macc-route-control-provider-plan/prd.md", "reason": "Compare fail-closed and route-control statement-plan patterns with scalar MAcc."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-plain-compare-select-route-control-plan/prd.md", "reason": "Compare final computed-mask integration against immediate plain compare/select integration."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-compare-select-statement-plan-ownership/prd.md", "reason": "Verify compare/select statement-plan ownership remains intact."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-computed-mask-select-route-family-interface/prd.md", "reason": "Verify computed-mask select family facts are preserved."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-computed-mask-select-provider-binding-closure/prd.md", "reason": "Verify computed-mask select provider binding remains authoritative."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-computed-mask-select-producer-source-family/prd.md", "reason": "Verify computed-mask select producer-source facts remain authoritative."}

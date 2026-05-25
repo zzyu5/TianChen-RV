@@ -7632,6 +7632,49 @@ module {
               "validated control mirrors before statement planning"))
         return result;
     }
+    if (computedMask || runtimeScalar) {
+      auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+          *analysis, *materializationFacts,
+          "computed-mask select route-control provider unit test");
+      if (!routeControlPlan)
+        return fail("computed-mask select route-control provider plan: " +
+                    llvm::toString(routeControlPlan.takeError()));
+      const auto *computedRuntimeControlPlan =
+          &analysis->computedMaskSelectRouteFamilyPlan->runtimeControlPlan;
+      if (int result = expect(
+              routeControlPlan->plansRouteControl &&
+                  routeControlPlan->controlsComputedMaskSelect &&
+                  routeControlPlan->runtimeControlPlan ==
+                      computedRuntimeControlPlan &&
+                  routeControlPlan->typedConfigFacts ==
+                      &analysis->typedConfigFacts &&
+                  routeControlPlan->selectedTargetCapabilityFacts ==
+                      &analysis->selectedTargetCapabilityFacts,
+              "computed-mask select route-control provider plan joins typed "
+              "config, target capability, producer-family, and runtime AVL/VL "
+              "facts"))
+        return result;
+      if (int result = expect(
+              routeControlPlan->controlPlanIDMirror ==
+                      analysis->description.runtimeControlPlanID &&
+                  routeControlPlan->runtimeABIOrderMirror ==
+                      analysis->description.runtimeABIOrder &&
+                  routeControlPlan->tailPolicyMirror ==
+                      analysis->description.tailPolicy &&
+                  routeControlPlan->maskPolicyMirror ==
+                      analysis->description.maskPolicy &&
+                  routeControlPlan->selectedProviderMirror ==
+                      analysis->description.targetCapabilityProviderMirror &&
+                  routeControlPlan->selectedLegalityMirror ==
+                      analysis->description.targetCapabilityLegalityMirror &&
+                  ((computedMask &&
+                    elementwiseFacts->bindsComputedMaskSelect) ||
+                   (runtimeScalar &&
+                    elementwiseFacts->bindsRuntimeScalarComputedMaskSelect)),
+              "computed-mask select route-control provider plan carries "
+              "validated control mirrors before statement planning"))
+        return result;
+    }
 
     llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
         statementPlan = getRVVSelectedBodyCompareSelectRouteStatementPlan(
@@ -7789,6 +7832,15 @@ module {
   auto staleMaterializationFacts = *computedMaterializationFacts;
   staleMaterializationFacts.computedMaskSelectPlan = nullptr;
   if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              *computedAnalysis, staleMaterializationFacts,
+              "computed-mask select missing control-plan dependency unit test")
+              .takeError(),
+          {"route-control provider plan requires the verified computed-mask "
+           "select route-family plan",
+           "before provider route construction"}))
+    return result;
+  if (int result = expectErrorContains(
           getRVVSelectedBodyCompareSelectRouteStatementPlan(
               *computedAnalysis, staleMaterializationFacts,
               *computedElementwiseFacts,
@@ -7796,6 +7848,150 @@ module {
               .takeError(),
           {"compare/select statement plan requires the verified computed-mask "
            "select route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedRuntimeControl =
+      *computedAnalysis;
+  staleComputedRuntimeControl.computedMaskSelectRouteFamilyPlan
+      ->runtimeControlPlan.runtimeAVLParameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  auto staleComputedRuntimeFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleComputedRuntimeControl,
+          "computed-mask select route-control stale runtime AVL unit test");
+  if (!staleComputedRuntimeFacts)
+    return fail("stale computed-mask select runtime-control materialization "
+                "facts: " +
+                llvm::toString(staleComputedRuntimeFacts.takeError()));
+  auto staleComputedRuntimeElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleComputedRuntimeControl,
+          "computed-mask select route-control stale runtime AVL unit test");
+  if (!staleComputedRuntimeElementwiseFacts)
+    return fail("stale computed-mask select runtime-control binding facts: " +
+                llvm::toString(
+                    staleComputedRuntimeElementwiseFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              staleComputedRuntimeControl, *staleComputedRuntimeFacts,
+              *staleComputedRuntimeElementwiseFacts,
+              "computed-mask select route-control stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedMaskPolicy = *computedAnalysis;
+  staleComputedMaskPolicy.computedMaskSelectRouteFamilyPlan->runtimeControlPlan
+      .maskPolicy = "undisturbed";
+  auto staleComputedMaskPolicyFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleComputedMaskPolicy,
+          "computed-mask select route-control stale mask policy unit test");
+  if (!staleComputedMaskPolicyFacts)
+    return fail("stale computed-mask select mask policy materialization "
+                "facts: " +
+                llvm::toString(staleComputedMaskPolicyFacts.takeError()));
+  auto staleComputedMaskPolicyElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          staleComputedMaskPolicy,
+          "computed-mask select route-control stale mask policy unit test");
+  if (!staleComputedMaskPolicyElementwiseFacts)
+    return fail("stale computed-mask select mask policy binding facts: " +
+                llvm::toString(
+                    staleComputedMaskPolicyElementwiseFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              staleComputedMaskPolicy, *staleComputedMaskPolicyFacts,
+              *staleComputedMaskPolicyElementwiseFacts,
+              "computed-mask select route-control stale mask policy unit test")
+              .takeError(),
+          {"route-control provider plan mask policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedTarget = *computedAnalysis;
+  staleComputedTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleComputedTargetFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleComputedTarget,
+      "computed-mask select route-control stale target unit test");
+  if (!staleComputedTargetFacts)
+    return fail("stale computed-mask select target materialization facts: " +
+                llvm::toString(staleComputedTargetFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleComputedTarget, *staleComputedTargetFacts,
+              "computed-mask select route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis copiedComputedAnalysis = *computedAnalysis;
+  auto copiedComputedElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          copiedComputedAnalysis,
+          "computed-mask select stale-analysis route-control unit test");
+  if (!copiedComputedElementwiseFacts)
+    return fail("copied computed-mask select binding facts: " +
+                llvm::toString(copiedComputedElementwiseFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              copiedComputedAnalysis, *computedMaterializationFacts,
+              *copiedComputedElementwiseFacts,
+              "computed-mask select stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires computed-mask select "
+           "materialization facts from the same selected route analysis",
+           "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedRuntimeMirror =
+      *computedAnalysis;
+  staleComputedRuntimeMirror.description.runtimeABIOrder =
+      "cmp_lhs,cmp_rhs,true_value,false_value,out,metadata_n";
+  auto staleComputedRuntimeMirrorFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleComputedRuntimeMirror,
+          "computed-mask select route-control stale runtime ABI mirror unit "
+          "test");
+  if (!staleComputedRuntimeMirrorFacts)
+    return fail("stale computed-mask select runtime ABI mirror facts: " +
+                llvm::toString(staleComputedRuntimeMirrorFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleComputedRuntimeMirror, *staleComputedRuntimeMirrorFacts,
+              "computed-mask select route-control stale runtime ABI mirror "
+              "unit test")
+              .takeError(),
+          {"route-control provider plan description runtime ABI order",
+           "cmp_lhs,cmp_rhs,true_value,false_value,out,n",
+           "cmp_lhs,cmp_rhs,true_value,false_value,out,metadata_n"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedProducer = *computedAnalysis;
+  staleComputedProducer.computedMaskSelectRouteFamilyPlan
+      ->usesVectorCompareProducer = false;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+              staleComputedProducer,
+              "computed-mask select stale producer-source unit test")
+              .takeError(),
+          {"computed_mask_select requires a vector compare producer plan",
+           "before binding elementwise/select operands"}))
+    return result;
+
+  auto staleComputedOperandBindingFacts = *computedElementwiseFacts;
+  staleComputedOperandBindingFacts.bindsComputedMaskSelect = false;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              *computedAnalysis, *computedMaterializationFacts,
+              staleComputedOperandBindingFacts,
+              "computed-mask select statement plan stale binding unit test")
+              .takeError(),
+          {"compare/select statement plan requires computed-mask select "
+           "operand-binding facts",
            "before route statement construction"}))
     return result;
 

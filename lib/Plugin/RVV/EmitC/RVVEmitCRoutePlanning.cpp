@@ -22809,6 +22809,12 @@ static bool isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(
       description.operation);
 }
 
+static bool isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
+      description.operation);
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
@@ -22816,6 +22822,7 @@ static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
          isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
              description) ||
          isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(description) ||
+         isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
              description.operation) ||
          isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
@@ -23036,6 +23043,27 @@ getRVVSelectedBodyRouteControlProviderPlan(
     runtimeControlPlan =
         &materializationFacts.plainCompareSelectPlan->runtimeControlPlan;
     plan.controlsPlainCompareSelect = true;
+  } else if (isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.computedMaskSelectPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified "
+          "computed-mask select route-family plan before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.computedMaskSelectRouteFamilyPlan ||
+        materializationFacts.computedMaskSelectPlan !=
+            &*analysis.computedMaskSelectRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask select "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.computedMaskSelectPlan->runtimeControlPlan;
+    plan.controlsComputedMaskSelect = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -27705,6 +27733,21 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
           " compare/select statement plan requires runtime-scalar "
           "computed-mask select operand-binding facts before route statement "
           "construction");
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts, context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsComputedMaskSelect ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.computedMaskSelectPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask select statement plan requires the RVV-owned "
+          "route-control provider plan before route statement construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   }
 
   const support::RuntimeABIParameter *lhsABI =

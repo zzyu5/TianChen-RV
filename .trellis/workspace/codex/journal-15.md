@@ -675,3 +675,40 @@ Integrated the existing plain cmp_select route with the shared RVV route-control
 ### Next Steps
 
 - None - task complete
+
+
+## Session 218: Stage2 RVV computed-mask select route-control provider plan
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV computed-mask select route-control provider plan
+**Branch**: `main`
+
+### Summary
+
+Computed-mask select now consumes the shared RVV route-control provider plan before compare/select statement-plan construction; focused/full checks passed.
+
+### Main Changes
+
+- Added `controlsComputedMaskSelect` and route-control provider-plan consumption for vector, runtime-scalar, and dual runtime-scalar computed-mask select variants.
+- Compare/select statement planning now fail-closes before route construction when computed-mask select lacks same-analysis route-control, materialization, runtime AVL/VL, policy, capability, producer-source, or operand-binding facts.
+- Updated the RVV plugin spec to list computed-mask select as an adopted route-control consumer.
+- Verification: task validate; `tianchenrv-rvv-extension-plugin-test`; focused compare/select lit 16/16; generated-bundle dry-run for pre-realized `computed_mask_select`; `git diff --check`; `check-tianchenrv` 379/379.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

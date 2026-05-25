@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-15.md`
-- **Total Sessions**: 217
+- **Total Sessions**: 218
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-15.md` | ~677 | Active |
+| `journal-15.md` | ~714 | Active |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
@@ -43,6 +43,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 218 | 2026-05-25 | Stage2 RVV computed-mask select route-control provider plan | same-commit | `main` |
 | 217 | 2026-05-25 | Stage2 RVV plain compare-select route-control provider-plan integration | pending-final-session-commit | `main` |
 | 216 | 2026-05-25 | Stage2 RVV scalar-broadcast route-control provider-plan integration | pending-final-session-commit | `main` |
 | 215 | 2026-05-25 | Stage2 RVV elementwise arithmetic route-control provider-plan integration | pending-final-session-commit | `main` |
