@@ -57,6 +57,69 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 221: Stage2 RVV widening conversion route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV widening conversion route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated the existing active RVV widening conversion routes with the shared
+route-control provider-plan boundary before widening conversion statement
+planning. The route-control owner now validates same-analysis conversion
+family/materialization facts, runtime AVL/VL, typed config, selected
+capability, policy, source/result type policy, conversion-form facts, runtime
+ABI mirrors, and math operand-binding ownership before provider route
+attachment.
+
+### Main Changes
+
+- Added `controlsWideningConversion` to
+  `RVVSelectedBodyRouteControlProviderPlan`.
+- Made the existing `widen_i32_to_i64` and `widen_i16_to_i32` routes explicit
+  route-control consumers without adding conversion coverage.
+- Required `getRVVSelectedBodyWideningConversionRouteStatementPlan(...)` to
+  consume the route-control provider plan before constructing setvl/load/
+  convert/store statements.
+- Migrated `widen_i32_to_i64` through the same widening conversion
+  statement-plan path already used by `widen_i16_to_i32`, keeping emitted
+  semantics and ABI unchanged.
+- Added focused C++ positive and fail-closed coverage for conversion
+  route-control consumption, stale same-analysis materialization, stale
+  source/type markers, policy mismatch, unsupported capability/config, and
+  provider statement-plan attachment.
+- Updated the RVV plugin spec to list widening conversion as a route-control
+  consumer.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-widening-conversion-route-control`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit/FileCheck and dry-run script filter from `build/test`:
+  60 selected tests passed for `widen-i(16|32)|widening-conversion|conversion`.
+- [OK] Bounded added-line authority scan found no new source-front-door,
+  descriptor, direct-C/source-export, common-EmitC, artifact/script, route-id,
+  ABI-string, or legacy-i32 authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Runtime Evidence
+
+No `ssh rvv` rerun was needed because emitted target statement order, runtime
+ABI, target mirrors, generated-bundle script behavior, and runtime behavior
+were unchanged.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 220: Stage2 RVV segment2 memory route-control provider-plan integration
 
 **Date**: 2026-05-25

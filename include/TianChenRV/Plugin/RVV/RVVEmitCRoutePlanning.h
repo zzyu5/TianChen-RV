@@ -871,6 +871,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   bool controlsScalarBroadcastMAcc = false;
   bool controlsPlainCompareSelect = false;
   bool controlsComputedMaskSelect = false;
+  bool controlsWideningConversion = false;
   bool controlsComputedMaskMemory = false;
   bool controlsSegment2Memory = false;
 
@@ -1017,6 +1018,7 @@ struct RVVSelectedBodyWideningConversionRouteStatementPlan {
       *wideningConversionPlan = nullptr;
 
   bool plansWideningConversionRoute = false;
+  bool plansWidenI32ToI64 = false;
   bool plansWidenI16ToI32 = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>

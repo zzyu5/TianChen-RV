@@ -691,8 +691,9 @@ attached to `TCRVEmitCLowerableRoute`.
 
 The required consumers are mature ordinary elementwise arithmetic,
 scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
-select, non-segment computed-mask memory, segment2 memory, base memory
-movement, standalone reduction, and scalar-broadcast MAcc families. Other
+select, widening conversion, non-segment computed-mask memory, segment2 memory,
+base memory movement, standalone reduction, and scalar-broadcast MAcc families.
+Other
 migrated families may continue to use their existing family-local checks until
 they are explicitly moved onto this boundary.
 
@@ -728,8 +729,9 @@ carry:
 - a pointer to the owning family `RVVRuntimeAVLVLControlPlan`;
 - consumer flags for ordinary elementwise arithmetic, scalar-broadcast
   elementwise arithmetic, plain compare/select, computed-mask select,
-  non-segment computed-mask memory, segment2 memory, base memory movement,
-  standalone reduction, scalar-broadcast MAcc, or future adopted families;
+  widening conversion, non-segment computed-mask memory, segment2 memory, base
+  memory movement, standalone reduction, scalar-broadcast MAcc, or future
+  adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -773,6 +775,10 @@ fields only after provider route construction.
   materialization facts -> elementwise/select operand-binding facts ->
   route-control provider plan -> compare/select statement plan ->
   provider-built route.
+- Good: typed widening conversion `tcrv_rvv` body -> widening conversion
+  family plan verifier with source/result type policy and conversion-form facts
+  -> materialization facts -> math operand-binding facts -> route-control
+  provider plan -> widening conversion statement plan -> provider-built route.
 - Good: typed non-segment computed-mask memory `tcrv_rvv` body ->
   computed-mask memory family plan verifier with mask-producer and memory-form
   facts -> materialization facts -> memory operand-binding facts ->

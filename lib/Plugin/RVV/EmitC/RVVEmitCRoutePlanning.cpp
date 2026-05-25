@@ -22864,6 +22864,13 @@ static bool isRVVSelectedBodySegment2MemoryRouteControlConsumer(
   }
 }
 
+static bool isRVVSelectedBodyWideningConversionRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
+             description.operation) &&
+         description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+}
+
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
@@ -22872,6 +22879,7 @@ static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
              description) ||
          isRVVSelectedBodyPlainCompareSelectRouteControlConsumer(description) ||
          isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(description) ||
+         isRVVSelectedBodyWideningConversionRouteControlConsumer(description) ||
          isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description) ||
          isRVVSelectedBodySegment2MemoryRouteControlConsumer(description) ||
          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
@@ -23257,6 +23265,73 @@ getRVVSelectedBodyRouteControlProviderPlan(
       runtimeControlPlan = &computedPlan.runtimeControlPlan;
     }
     plan.controlsSegment2Memory = true;
+  } else if (isRVVSelectedBodyWideningConversionRouteControlConsumer(
+                 description)) {
+    if (!materializationFacts.wideningConversionPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified widening "
+          "conversion route-family plan before provider route construction "
+          "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.wideningConversionRouteFamilyPlan ||
+        materializationFacts.wideningConversionPlan !=
+            &*analysis.wideningConversionRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires widening conversion "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    const RVVSelectedBodyWideningConversionRouteFamilyPlan &conversionPlan =
+        *materializationFacts.wideningConversionPlan;
+    if (conversionPlan.operation != description.operation ||
+        conversionPlan.memoryForm != description.memoryForm ||
+        conversionPlan.sourceSEW != description.sourceSEW ||
+        conversionPlan.sourceLMUL != description.sourceLMUL ||
+        conversionPlan.sourceVectorTypeName != description.sourceVectorTypeName ||
+        conversionPlan.sourceVectorCType != description.sourceVectorCType ||
+        conversionPlan.sourceVectorLoadIntrinsic !=
+            description.sourceVectorLoadIntrinsic ||
+        conversionPlan.resultSEW != description.sew ||
+        conversionPlan.resultLMUL != description.lmul ||
+        conversionPlan.resultVectorTypeName != description.vectorTypeName ||
+        conversionPlan.resultVectorCType != description.vectorCType ||
+        conversionPlan.setVLIntrinsic != description.setVLIntrinsic ||
+        conversionPlan.conversionIntrinsic != description.intrinsic ||
+        conversionPlan.storeIntrinsic != description.storeIntrinsic ||
+        conversionPlan.conversionRelation != description.conversionRelation)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires widening conversion "
+          "source/result type and conversion-form facts from the verified "
+          "route-family plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    if (materializationFacts.sourceVectorTypeName !=
+            conversionPlan.sourceVectorTypeName ||
+        materializationFacts.sourceVectorCType !=
+            conversionPlan.sourceVectorCType ||
+        materializationFacts.resultVectorTypeName !=
+            conversionPlan.resultVectorTypeName ||
+        materializationFacts.resultVectorCType !=
+            conversionPlan.resultVectorCType ||
+        materializationFacts.setVLLeaf != conversionPlan.setVLIntrinsic ||
+        materializationFacts.sourceLoadLeaf !=
+            conversionPlan.sourceVectorLoadIntrinsic ||
+        materializationFacts.elementwiseComputeLeaf !=
+            conversionPlan.conversionIntrinsic ||
+        materializationFacts.storeLeaf != conversionPlan.storeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires widening conversion "
+          "materialization facts to mirror the verified conversion family plan "
+          "before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+    runtimeControlPlan = &conversionPlan.runtimeControlPlan;
+    plan.controlsWideningConversion = true;
   } else if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
                  description.operation)) {
     if (!materializationFacts.baseMemoryMovementPlan)
@@ -26382,9 +26457,7 @@ llvm::Error addRVVCompareSelectStatementPlanLoopStep(
 
 bool isRVVSelectedBodyWideningConversionStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
-  return description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32 &&
-         description.memoryForm ==
-             RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  return isRVVSelectedBodyWideningConversionRouteControlConsumer(description);
 }
 
 llvm::Error requireRVVWideningConversionStatementPlanLeaf(
@@ -28296,7 +28369,10 @@ getRVVSelectedBodyWideningConversionRouteStatementPlan(
     return plan;
 
   plan.plansWideningConversionRoute = true;
-  plan.plansWidenI16ToI32 = true;
+  plan.plansWidenI32ToI64 =
+      description.operation == RVVSelectedBodyOperationKind::WidenI32ToI64;
+  plan.plansWidenI16ToI32 =
+      description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
   plan.wideningConversionPlan = materializationFacts.wideningConversionPlan;
 
   if (!materializationFacts.wideningConversionPlan)
@@ -28304,12 +28380,29 @@ getRVVSelectedBodyWideningConversionRouteStatementPlan(
         llvm::Twine(context) +
         " widening conversion statement plan requires the verified widening "
         "conversion route-family plan before route statement construction for "
-        "widen_i16_to_i32");
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   if (!mathOperandBindingFacts.bindsWideningConversion)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " widening conversion statement plan requires widening conversion "
         "math operand-binding facts before route statement construction");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsWideningConversion ||
+      routeControlPlan->runtimeControlPlan !=
+          &materializationFacts.wideningConversionPlan->runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion statement plan requires the RVV-owned "
+        "route-control provider plan before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   const support::RuntimeABIParameter *lhsABI = mathOperandBindingFacts.lhsABI;
   const support::RuntimeABIParameter *outABI = mathOperandBindingFacts.outABI;
