@@ -22094,12 +22094,47 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
   if (llvm::Error error =
           validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(plan))
     return error;
+  const bool isComputedMaskStandaloneReduction =
+      isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
+          operation) ||
+      isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+          operation);
   if (analysis.description.standaloneReductionRouteFamilyPlanID !=
       plan.familyPlanID)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " standalone reduction route-family plan mirror must match the "
         "validated family plan");
+  if (analysis.description.standaloneReductionScalarResultRuntimeBoundary !=
+      plan.scalarResultRuntimeBoundary)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction scalar-result runtime boundary mirror must "
+        "match the validated family plan before provider materialization");
+  if (analysis.description.inactiveLaneZeroingRequirement !=
+      plan.inactiveLaneZeroingRequirement)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction inactive-lane zeroing/neutral requirement "
+        "mirror must match the validated family plan before provider "
+        "materialization");
+  if (isComputedMaskStandaloneReduction) {
+    if (analysis.description.maskRole != plan.maskRole ||
+        analysis.description.maskSource != plan.maskSource ||
+        analysis.description.maskMemoryForm != plan.maskMemoryForm)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction mask role/source/form mirrors "
+          "must match the validated family plan before provider "
+          "materialization");
+    if (analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+        analysis.description.maskedMergeIntrinsic != plan.maskedMergeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction mask producer and inactive "
+          "neutral merge mirrors must match the validated family plan before "
+          "provider materialization");
+  }
   if (analysis.description.memoryForm != plan.memoryForm ||
       analysis.description.runtimeControlPlanID !=
           plan.runtimeControlPlan.controlPlanID ||
@@ -22128,13 +22163,6 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
           plan.accumulatorLayout ||
       analysis.description.reductionResultLayout != plan.resultLayout ||
       analysis.description.reductionStoreVL != plan.reductionStoreVL ||
-      analysis.description.standaloneReductionScalarResultRuntimeBoundary !=
-          plan.scalarResultRuntimeBoundary ||
-      analysis.description.inactiveLaneZeroingRequirement !=
-          plan.inactiveLaneZeroingRequirement ||
-      analysis.description.maskRole != plan.maskRole ||
-      analysis.description.maskSource != plan.maskSource ||
-      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
       analysis.description.resultName != plan.resultName)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +

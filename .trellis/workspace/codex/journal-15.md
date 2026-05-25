@@ -1591,3 +1591,41 @@ prove generated RVV scalar-result behavior on `ssh rvv`.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 232: Stage2 RVV computed-mask standalone reduction scalar-result boundary
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask standalone reduction scalar-result boundary
+**Branch**: `main`
+
+### Summary
+
+Closed computed_mask_standalone_reduce_add as the masked standalone reduction scalar-result representative with provider-owned mask/scalar/inactive-neutral validation, generated-bundle evidence, ssh rvv correctness, focused regressions, and authority scan.
+
+### Main Changes
+
+- Added targeted RVV provider-plan fail-closed diagnostics before route construction for computed-mask standalone reduction scalar-result runtime boundary mirrors, mask role/source/form mirrors, compare/merge mirrors, inactive-lane neutral/zeroing mirrors, and scalar output ABI.
+- Extended generated-bundle evidence for `computed_mask_standalone_reduce_add` with `mask_tail_policy_boundary` and `reduction_accumulation_boundary` summaries derived from typed RVV body/config/runtime facts, with artifact metadata kept mirror-only.
+- Updated the generated harness oracle to cover mixed active/inactive masks and all-inactive masks for runtime counts `0,7,16,23`, seeds `-11,17`, scalar `out[0]`, accumulator seed carry, and preserved non-scalar sentinel output slots.
+- Added focused dry-run lit coverage for explicit and pre-realized selected-body `computed_mask_standalone_reduce_add` generated-bundle evidence and harness checks.
+- Verified script self-test, focused lit tests, RVV extension plugin test after rebuild, real `ssh rvv` execution, standalone_reduce_add and cmp_select non-regression, bounded authority scan, `git diff --check`, and `ninja -C build check-tianchenrv`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

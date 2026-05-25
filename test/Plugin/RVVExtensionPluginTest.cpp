@@ -12860,7 +12860,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               stale, "standalone reduction provider unit test"),
-          {"standalone reduction route-family mirrors",
+          {"scalar-result runtime boundary mirror",
            "validated family plan"}))
     return result;
 
@@ -12974,13 +12974,65 @@ module {
               "computed-mask standalone reduction provider unit test"),
           "valid computed-mask standalone reduction family provider plan"))
     return result;
+  if (int result = expect(
+          computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                  ->usesComputedMask &&
+              !computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                   ->usesRuntimeScalarThreshold &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultRuntimeBoundary ==
+                  "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->inactiveLaneZeroingRequirement ==
+                  "masked-standalone-reduction-zero-inactive-lanes-before-reduction" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->maskRole ==
+                  "predicate-mask-produced-by-compare" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->maskSource ==
+                  "compare-produced-mask-same-vl-scope" &&
+              computedMaskAnalysis->description
+                      .standaloneReductionScalarResultRuntimeBoundary ==
+                  computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultRuntimeBoundary,
+          "computed-mask standalone add plan must derive scalar result, "
+          "mask source, and zero-inactive facts from the family plan"))
+    return result;
 
   stale = *computedMaskAnalysis;
   stale.description.maskRole = "";
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               stale, "computed-mask standalone reduction provider unit test"),
-          {"standalone reduction route-family mirrors",
+          {"computed-mask standalone reduction mask role/source/form mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskAnalysis;
+  stale.description.maskSource = "metadata-selected-mask-source";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "computed-mask standalone reduction provider unit test"),
+          {"computed-mask standalone reduction mask role/source/form mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskAnalysis;
+  stale.description.inactiveLaneZeroingRequirement = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "computed-mask standalone reduction provider unit test"),
+          {"inactive-lane zeroing/neutral requirement mirror",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskAnalysis;
+  stale.description.standaloneReductionScalarResultRuntimeBoundary =
+      "metadata-selected-scalar-result";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "computed-mask standalone reduction provider unit test"),
+          {"scalar-result runtime boundary mirror",
            "validated family plan"}))
     return result;
 
@@ -12989,8 +13041,18 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               stale, "computed-mask standalone reduction provider unit test"),
-          {"standalone reduction route-family mirrors",
+          {"mask producer and inactive neutral merge mirrors",
            "validated family plan"}))
+    return result;
+
+  stale = *computedMaskAnalysis;
+  stale.standaloneReductionRouteFamilyPlan->runtimeABIParameters[4].cType =
+      "const int32_t *";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "computed-mask standalone reduction provider unit test"),
+          {"standalone reduction scalar result ABI", "scalar output",
+           "int32_t *"}))
     return result;
 
   return 0;

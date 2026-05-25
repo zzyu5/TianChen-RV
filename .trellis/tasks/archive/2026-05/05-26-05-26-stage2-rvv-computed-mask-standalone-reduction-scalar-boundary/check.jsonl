@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance against global stack and RVV-first authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final compliance for computed-mask standalone reduction, scalar-result, mask, inactive-neutral, and provider ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final verification that common EmitC remains neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final runtime/generated-bundle evidence and authority-leak compliance."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Final selected-body and route-control authority compliance."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Check public planning facts and no stale authority leaks."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Check route-description mirrors are provider-owned and explicit."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check derivation, validation, diagnostics, and metadata mirror behavior."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Check provider construction and common EmitC handoff behavior."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Check selected-body computed-mask standalone reduction realization remains structural."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check generated-bundle evidence, oracle, sentinel, and ssh rvv execution behavior."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Check focused validation/fail-closed coverage."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-mask-standalone-reduce-add.mlir", "reason": "Check focused explicit selected-body artifact evidence."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add.mlir", "reason": "Check focused pre-realized selected-body artifact evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-computed-mask-standalone-reduce-minmax-dry-run.test", "reason": "Check generated-bundle evidence JSON and harness behavior."}
