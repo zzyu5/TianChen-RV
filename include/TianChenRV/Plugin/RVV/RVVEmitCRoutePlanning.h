@@ -762,6 +762,7 @@ struct RVVSelectedBodyRouteAnalysis {
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
   RVVSelectedBodyTypedConfigFacts typedConfigFacts;
+  RVVSelectedTargetCapabilityFacts selectedTargetCapabilityFacts;
   RVVRouteOperandBindingPlan routeOperandBindingPlan;
   std::optional<RVVSelectedBodyContractionRouteFamilyPlan>
       contractionRouteFamilyPlan;
@@ -854,6 +855,27 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef rhsScalarBroadcastLeaf;
   llvm::StringRef compareLeaf;
   llvm::StringRef maskedMergeLeaf;
+};
+
+struct RVVSelectedBodyRouteControlProviderPlan {
+  const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
+  const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
+      nullptr;
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+
+  bool plansRouteControl = false;
+  bool controlsBaseMemoryMovement = false;
+  bool controlsStandaloneReduction = false;
+
+  llvm::StringRef controlPlanIDMirror;
+  llvm::StringRef configContractIDMirror;
+  llvm::StringRef runtimeVLContractIDMirror;
+  llvm::StringRef runtimeAVLASourceMirror;
+  llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef tailPolicyMirror;
+  llvm::StringRef maskPolicyMirror;
+  llvm::StringRef selectedProviderMirror;
+  llvm::StringRef selectedLegalityMirror;
 };
 
 struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
@@ -1300,6 +1322,12 @@ llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
 llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
 getRVVSelectedBodyRouteMaterializationFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyRouteControlProviderPlan>
+getRVVSelectedBodyRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
 getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(

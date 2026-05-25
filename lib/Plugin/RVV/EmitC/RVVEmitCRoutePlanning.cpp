@@ -22788,6 +22788,281 @@ getRVVSelectedBodyRouteMaterializationFacts(
   return facts;
 }
 
+static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(operation) ||
+         isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation);
+}
+
+static llvm::Error verifyRVVSelectedBodyRouteControlPlanMatchesTypedFacts(
+    const RVVRuntimeAVLVLControlPlan &controlPlan,
+    const RVVSelectedBodyTypedConfigFacts &typedConfigFacts,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  std::string controlContext =
+      (llvm::Twine(context) + " route-control provider plan").str();
+  if (llvm::Error error =
+          verifyRVVRuntimeAVLVLControlPlan(controlPlan, controlContext))
+    return error;
+
+  auto requireTextMatch =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " route-control provider plan " + field +
+        " must come from typed config/runtime AVL facts value '" + expected +
+        "' but carried '" + actual + "'");
+  };
+  auto requireIntMatch =
+      [&](llvm::StringRef field, std::int64_t actual,
+          std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " route-control provider plan " + field +
+        " must come from typed config/runtime AVL facts value " +
+        llvm::Twine(expected) + " but carried " + llvm::Twine(actual));
+  };
+
+  if (!typedConfigFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires typed RVV config facts before "
+        "provider route construction");
+  if (llvm::Error error =
+          requireIntMatch("SEW", controlPlan.sew, typedConfigFacts.sew))
+    return error;
+  if (llvm::Error error =
+          requireTextMatch("LMUL", controlPlan.lmul, typedConfigFacts.lmul))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "tail policy", controlPlan.tailPolicy,
+          typedConfigFacts.tailPolicy))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "mask policy", controlPlan.maskPolicy,
+          typedConfigFacts.maskPolicy))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "config contract", controlPlan.configContractID,
+          typedConfigFacts.configContractID))
+    return error;
+
+  if (llvm::Error error =
+          requireIntMatch("description SEW", description.sew, controlPlan.sew))
+    return error;
+  if (llvm::Error error =
+          requireTextMatch("description LMUL", description.lmul,
+                           controlPlan.lmul))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description tail policy", description.tailPolicy,
+          controlPlan.tailPolicy))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description mask policy", description.maskPolicy,
+          controlPlan.maskPolicy))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description control plan id", description.runtimeControlPlanID,
+          controlPlan.controlPlanID))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description runtime VL contract", description.runtimeVLContractID,
+          controlPlan.runtimeVLContractID))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description runtime AVL source", description.runtimeAVLASource,
+          controlPlan.runtimeAVLASource))
+    return error;
+  if (llvm::Error error =
+          requireTextMatch("description runtime ABI order",
+                           description.runtimeABIOrder,
+                           controlPlan.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireTextMatch("description VL def op",
+                                           description.vlDefOpName,
+                                           controlPlan.vlDefOpName))
+    return error;
+  if (llvm::Error error = requireTextMatch("description VL scope op",
+                                           description.vlScopeOpName,
+                                           controlPlan.vlScopeOpName))
+    return error;
+  if (llvm::Error error = requireTextMatch("description VL uses",
+                                           description.vlUses,
+                                           controlPlan.vlUses))
+    return error;
+  if (llvm::Error error = requireTextMatch("description EmitC loop kind",
+                                           description.emitCLoopKind,
+                                           controlPlan.emitCLoopKind))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description EmitC loop induction", description.emitCLoopInductionName,
+          controlPlan.emitCLoopInductionName))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description EmitC full-chunk VL", description.emitCFullChunkVLName,
+          controlPlan.emitCFullChunkVLName))
+    return error;
+  if (llvm::Error error =
+          requireTextMatch("description EmitC loop VL",
+                           description.emitCLoopVLName,
+                           controlPlan.emitCLoopVLName))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description remaining AVL metadata",
+          description.remainingAVLMetadata, controlPlan.remainingAVLMetadata))
+    return error;
+  if (llvm::Error error = requireTextMatch(
+          "description pointer advance metadata",
+          description.pointerAdvanceMetadata,
+          controlPlan.pointerAdvanceMetadata))
+    return error;
+  if (llvm::Error error = requireTextMatch("description bounded slice",
+                                           description.boundedSlice,
+                                           controlPlan.boundedSlice))
+    return error;
+  if (llvm::Error error = requireTextMatch("description multi-VL",
+                                           description.multiVL,
+                                           controlPlan.multiVL))
+    return error;
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyRouteControlProviderPlan>
+getRVVSelectedBodyRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyRouteControlProviderPlan plan;
+  if (!isRVVSelectedBodyRouteControlProviderPlanConsumer(
+          description.operation))
+    return plan;
+
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+  if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+          description.operation)) {
+    if (!materializationFacts.baseMemoryMovementPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified base memory "
+          "movement route-family plan before provider route construction for "
+          "operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.baseMemoryMovementRouteFamilyPlan ||
+        materializationFacts.baseMemoryMovementPlan !=
+            &*analysis.baseMemoryMovementRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires base memory materialization "
+          "facts from the same selected route analysis before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.baseMemoryMovementPlan->runtimeControlPlan;
+    plan.controlsBaseMemoryMovement = true;
+  } else if (isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
+                 description.operation)) {
+    if (!materializationFacts.standaloneReductionPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified standalone "
+          "reduction route-family plan before provider route construction for "
+          "operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.standaloneReductionRouteFamilyPlan ||
+        materializationFacts.standaloneReductionPlan !=
+            &*analysis.standaloneReductionRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires standalone reduction "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.standaloneReductionPlan->runtimeControlPlan;
+    plan.controlsStandaloneReduction = true;
+  }
+
+  if (!runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires one runtime AVL/VL control "
+        "consumer before provider route construction");
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyTypedConfigFactsMirror(
+              materializationFacts.typedConfigFacts, description, context))
+    return std::move(error);
+  if (materializationFacts.typedConfigFacts.factsID !=
+      analysis.typedConfigFacts.factsID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires typed config facts from the "
+        "same selected route analysis before provider route construction");
+
+  if (llvm::Error error = verifyRVVSelectedBodyRouteControlPlanMatchesTypedFacts(
+          *runtimeControlPlan, materializationFacts.typedConfigFacts,
+          description, context))
+    return std::move(error);
+
+  if (!analysis.selectedTargetCapabilityFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires selected RVV target "
+        "capability facts before provider route construction");
+  RVVSelectedTargetCapabilityFacts capabilityFacts =
+      analysis.selectedTargetCapabilityFacts;
+  std::string capabilityContext =
+      (llvm::Twine(context) +
+       " route-control provider plan target-capability gate")
+          .str();
+  if (llvm::Error error = verifyRVVSelectedTargetCapabilityForTypedConfig(
+          capabilityFacts, materializationFacts.typedConfigFacts,
+          capabilityContext))
+    return std::move(error);
+  if (capabilityFacts.providerMirror !=
+          analysis.selectedTargetCapabilityFacts.providerMirror ||
+      capabilityFacts.legalityMirror !=
+          analysis.selectedTargetCapabilityFacts.legalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires selected target capability "
+        "facts to match typed body/config legality facts before provider route "
+        "construction");
+  if (description.targetCapabilityProviderMirror !=
+          analysis.selectedTargetCapabilityFacts.providerMirror ||
+      description.targetCapabilityLegalityMirror !=
+          analysis.selectedTargetCapabilityFacts.legalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan target capability mirrors must match "
+        "provider-built selected target capability facts before provider route "
+        "construction");
+
+  plan.typedConfigFacts = &analysis.typedConfigFacts;
+  plan.selectedTargetCapabilityFacts = &analysis.selectedTargetCapabilityFacts;
+  plan.runtimeControlPlan = runtimeControlPlan;
+  plan.plansRouteControl = true;
+  plan.controlPlanIDMirror = runtimeControlPlan->controlPlanID;
+  plan.configContractIDMirror = runtimeControlPlan->configContractID;
+  plan.runtimeVLContractIDMirror = runtimeControlPlan->runtimeVLContractID;
+  plan.runtimeAVLASourceMirror = runtimeControlPlan->runtimeAVLASource;
+  plan.runtimeABIOrderMirror = runtimeControlPlan->runtimeABIOrder;
+  plan.tailPolicyMirror = runtimeControlPlan->tailPolicy;
+  plan.maskPolicyMirror = runtimeControlPlan->maskPolicy;
+  plan.selectedProviderMirror =
+      analysis.selectedTargetCapabilityFacts.providerMirror;
+  plan.selectedLegalityMirror =
+      analysis.selectedTargetCapabilityFacts.legalityMirror;
+  return plan;
+}
+
 static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   switch (description.operation) {
@@ -27783,6 +28058,21 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
         " standalone reduction statement plan requires standalone reduction "
         "math operand-binding facts before route statement construction");
 
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsStandaloneReduction ||
+      routeControlPlan->runtimeControlPlan !=
+          &materializationFacts.standaloneReductionPlan->runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction statement plan requires the RVV-owned "
+        "route-control provider plan before route statement construction for "
+        "standalone_reduce_add");
+
   const support::RuntimeABIParameter *lhsABI = mathOperandBindingFacts.lhsABI;
   const support::RuntimeABIParameter *accumulatorABI =
       mathOperandBindingFacts.accumulatorABI;
@@ -28742,6 +29032,21 @@ getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
         " base memory movement provider plan requires memory "
         "operand-binding facts from the same selected route analysis before "
         "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsBaseMemoryMovement ||
+      routeControlPlan->runtimeControlPlan != &basePlan->runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider plan requires the RVV-owned "
+        "route-control provider plan before provider route construction for "
+        "operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
@@ -30883,10 +31188,11 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           *targetCapabilityFacts, analysis.typedConfigFacts,
           "selected RVV route analysis target-capability gate"))
     return std::move(error);
+  analysis.selectedTargetCapabilityFacts = *targetCapabilityFacts;
   analysis.description.targetCapabilityProviderMirror =
-      std::move(targetCapabilityFacts->providerMirror);
+      analysis.selectedTargetCapabilityFacts.providerMirror;
   analysis.description.targetCapabilityLegalityMirror =
-      std::move(targetCapabilityFacts->legalityMirror);
+      analysis.selectedTargetCapabilityFacts.legalityMirror;
 
   llvm::Expected<RVVSelectedDispatchEnvelopeFacts> dispatchEnvelopeFacts =
       collectRVVSelectedDispatchEnvelopeFacts(

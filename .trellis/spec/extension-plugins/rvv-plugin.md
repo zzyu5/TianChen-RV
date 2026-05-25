@@ -678,6 +678,131 @@ verified route-family plans
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Route-Control Provider-Plan Boundary
+
+### 1. Scope / Trigger
+
+When a route-family provider consumes runtime AVL/VL, SEW/LMUL, tail policy,
+mask policy, runtime ABI order, or selected capability/profile facts, those
+facts must pass through one RVV-owned route-control provider plan before route
+statement construction. This boundary sits after route-family provider-plan
+verification and materialization facts, and before family statement plans are
+attached to `TCRVEmitCLowerableRoute`.
+
+The initial required consumers are mature base memory movement and standalone
+reduction families. Other migrated families may continue to use their existing
+family-local checks until they are explicitly moved onto this boundary.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+struct RVVSelectedBodyRouteAnalysis {
+  RVVSelectedBodyTypedConfigFacts typedConfigFacts;
+  RVVSelectedTargetCapabilityFacts selectedTargetCapabilityFacts;
+  ...
+};
+
+llvm::Expected<RVVSelectedBodyRouteControlProviderPlan>
+getRVVSelectedBodyRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    llvm::StringRef context);
+```
+
+Family provider code must call this boundary with materialization facts from
+the same selected route analysis. The plan may be empty for unrelated route
+families.
+
+### 3. Contracts
+
+`RVVSelectedBodyRouteControlProviderPlan` is RVV-local provider input. It may
+carry:
+
+- a pointer to the same-analysis typed config facts;
+- a pointer to the same-analysis selected target capability facts;
+- a pointer to the owning family `RVVRuntimeAVLVLControlPlan`;
+- consumer flags for base memory movement, standalone reduction, or future
+  adopted families;
+- mirror labels for control plan id, config contract, runtime VL contract,
+  runtime AVL source, runtime ABI order, tail policy, mask policy, selected
+  capability provider, and selected legality.
+
+The plan validates provider-owned facts. It is not a common EmitC fact, not
+artifact metadata, not a route-support state, and not a substitute for
+route-family legality. Target artifacts and generated headers may mirror these
+fields only after provider route construction.
+
+### 4. Validation & Error Matrix
+
+- Missing typed config facts for a control-plan consumer -> fail closed before
+  provider route construction.
+- Materialization facts from a different selected route analysis -> fail
+  closed before route statement construction.
+- Missing selected target capability facts -> fail closed before provider
+  route construction.
+- Selected target capability facts reject typed SEW, LMUL, tail policy, or
+  mask policy -> fail closed before provider route construction.
+- Runtime AVL/VL control plan is missing, has the wrong plan id, lacks runtime
+  `n`, uses an unsupported SEW/LMUL/policy, or does not route through
+  `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` -> fail closed.
+- Route description mirrors disagree with the route-control plan for
+  SEW/LMUL, tail/mask policy, runtime ABI order, config contract, runtime VL
+  contract, VL op names, loop names, remaining AVL metadata, pointer advance
+  metadata, bounded slice, or multi-VL support -> fail closed.
+- Capability/provider mirror fields disagree with collected selected target
+  capability facts -> fail closed; target metadata must not repair them.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed body/config/runtime facts + selected capability facts -> family
+  runtime-control plan -> `RVVSelectedBodyRouteControlProviderPlan` ->
+  family statement plan -> provider-built route.
+- Base: migrated families not yet adopted by the route-control plan retain
+  their family-local verifier checks and receive an empty route-control plan.
+- Bad: a family statement plan reads tail policy, mask policy, runtime `n`,
+  SEW/LMUL, or capability legality from route ids, artifact names, metadata,
+  ABI strings, scripts, common EmitC, or target export.
+
+### 6. Tests Required
+
+- C++ positive coverage for every family that adopts the route-control plan,
+  asserting that typed config facts, selected target capability facts, and the
+  family runtime-control plan are joined before statement planning.
+- C++ fail-closed diagnostics for stale materialization facts, missing or
+  invalid runtime AVL/VL control facts, policy mismatches, and stale selected
+  target capability facts.
+- Provider-route tests proving the adopted family still attaches only
+  provider-built statement plans to `TCRVEmitCLowerableRoute`.
+- Representative lit/FileCheck or generated-header checks proving emitted
+  metadata remains explicit mirror labels after provider route construction.
+- Active-authority scan over touched planning/provider/test/target/script
+  files for name-, route-id-, metadata-, descriptor-, ABI-string-, script-,
+  artifact-, common-EmitC-, source-front-door-, or legacy-i32-derived
+  AVL/VL/policy authority.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+base-memory provider:
+  read tcrv_rvv.tail_policy metadata or route id
+  -> choose setvl/policy/ABI loop facts
+```
+
+Correct:
+
+```text
+typed tcrv_rvv body/config/runtime facts
+  + selected target capability facts
+  + verified family runtime-control plan
+  -> RVVSelectedBodyRouteControlProviderPlan
+  -> family statement plan
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Elementwise/Select Operand-Binding Facts Boundary
 
 ### 1. Scope / Trigger

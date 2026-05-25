@@ -3681,6 +3681,8 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
       getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
@@ -3923,6 +3925,43 @@ module {
       return fail("base memory statement-plan memory facts: " +
                   llvm::toString(memoryFacts.takeError()));
 
+    auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+        analysis, *materializationFacts,
+        "base memory route-control provider unit test");
+    if (!routeControlPlan)
+      return fail("base memory route-control provider plan: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    const auto *baseRuntimeControlPlan =
+        &analysis.baseMemoryMovementRouteFamilyPlan->runtimeControlPlan;
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsBaseMemoryMovement &&
+                routeControlPlan->runtimeControlPlan ==
+                    baseRuntimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis.typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis.selectedTargetCapabilityFacts,
+            "base memory route-control provider plan joins typed config, "
+            "target capability, and runtime AVL/VL facts"))
+      return result;
+    if (int result = expect(
+            routeControlPlan->controlPlanIDMirror ==
+                    analysis.description.runtimeControlPlanID &&
+                routeControlPlan->runtimeABIOrderMirror ==
+                    analysis.description.runtimeABIOrder &&
+                routeControlPlan->tailPolicyMirror ==
+                    analysis.description.tailPolicy &&
+                routeControlPlan->maskPolicyMirror ==
+                    analysis.description.maskPolicy &&
+                routeControlPlan->selectedProviderMirror ==
+                    analysis.description.targetCapabilityProviderMirror &&
+                routeControlPlan->selectedLegalityMirror ==
+                    analysis.description.targetCapabilityLegalityMirror,
+            "base memory route-control provider plan carries validated "
+            "control and target mirrors after provider facts are built"))
+      return result;
+
     llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
         statementPlan = getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
             analysis, *materializationFacts, *memoryFacts,
@@ -4129,6 +4168,60 @@ module {
           {"base memory movement provider plan requires the verified base "
            "memory movement route-family plan",
            "before provider route construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeControl = *stridedLoadAnalysis;
+  staleRuntimeControl.baseMemoryMovementRouteFamilyPlan->runtimeControlPlan
+      .runtimeAVLParameter.role = RuntimeABIParameterRole::OutputBuffer;
+  auto staleRuntimeControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeControl,
+      "base memory route-control stale runtime AVL unit test");
+  if (!staleRuntimeControlFacts)
+    return fail("stale runtime-control materialization facts: " +
+                llvm::toString(staleRuntimeControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRuntimeControl, *staleRuntimeControlFacts,
+              "base memory route-control stale runtime AVL unit test")
+              .takeError(),
+          {"route-control provider plan", "runtime-element-count",
+           "AVL parameter role"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRouteControlPolicy =
+      *stridedLoadAnalysis;
+  staleRouteControlPolicy.baseMemoryMovementRouteFamilyPlan->runtimeControlPlan
+      .tailPolicy = "undisturbed";
+  auto staleRouteControlPolicyFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRouteControlPolicy,
+          "base memory route-control stale policy unit test");
+  if (!staleRouteControlPolicyFacts)
+    return fail("stale route-control policy materialization facts: " +
+                llvm::toString(staleRouteControlPolicyFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRouteControlPolicy, *staleRouteControlPolicyFacts,
+              "base memory route-control stale policy unit test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleTargetControl = *stridedLoadAnalysis;
+  staleTargetControl.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleTargetControlFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleTargetControl, "base memory route-control stale target unit test");
+  if (!staleTargetControlFacts)
+    return fail("stale target-control materialization facts: " +
+                llvm::toString(staleTargetControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleTargetControl, *staleTargetControlFacts,
+              "base memory route-control stale target unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
     return result;
 
   RVVSelectedBodyMemoryRouteOperandBindingFacts staleBindingFacts =
@@ -7442,6 +7535,8 @@ int runStandaloneReductionStatementPlanBoundaryTest(
       getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyStandaloneReductionRouteStatementPlan;
@@ -7508,6 +7603,41 @@ module {
   if (!mathFacts)
     return fail("standalone reduction statement-plan math facts: " +
                 llvm::toString(mathFacts.takeError()));
+
+  auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+      *analysis, *materializationFacts,
+      "standalone reduction route-control provider unit test");
+  if (!routeControlPlan)
+    return fail("standalone reduction route-control provider plan: " +
+                llvm::toString(routeControlPlan.takeError()));
+  const auto *standaloneRuntimeControlPlan =
+      &analysis->standaloneReductionRouteFamilyPlan->runtimeControlPlan;
+  if (int result = expect(
+          routeControlPlan->plansRouteControl &&
+              routeControlPlan->controlsStandaloneReduction &&
+              routeControlPlan->runtimeControlPlan ==
+                  standaloneRuntimeControlPlan &&
+              routeControlPlan->typedConfigFacts ==
+                  &analysis->typedConfigFacts &&
+              routeControlPlan->selectedTargetCapabilityFacts ==
+                  &analysis->selectedTargetCapabilityFacts,
+          "standalone reduction route-control provider plan joins typed "
+          "config, target capability, and runtime AVL/VL facts"))
+    return result;
+  if (int result = expect(
+          routeControlPlan->runtimeABIOrderMirror ==
+                  analysis->description.runtimeABIOrder &&
+              routeControlPlan->tailPolicyMirror ==
+                  analysis->description.tailPolicy &&
+              routeControlPlan->maskPolicyMirror ==
+                  analysis->description.maskPolicy &&
+              routeControlPlan->selectedProviderMirror ==
+                  analysis->description.targetCapabilityProviderMirror &&
+              routeControlPlan->selectedLegalityMirror ==
+                  analysis->description.targetCapabilityLegalityMirror,
+          "standalone reduction route-control provider plan carries "
+          "validated control mirrors before statement planning"))
+    return result;
 
   auto statementPlan = getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
       *analysis, *materializationFacts, *mathFacts,
@@ -7656,6 +7786,32 @@ module {
           {"standalone reduction statement plan requires standalone reduction "
            "math operand-binding facts",
            "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleStandaloneRouteControl = *analysis;
+  staleStandaloneRouteControl.standaloneReductionRouteFamilyPlan
+      ->runtimeControlPlan.maskPolicy = "undisturbed";
+  auto staleStandaloneMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleStandaloneRouteControl,
+          "standalone reduction route-control stale policy unit test");
+  if (!staleStandaloneMaterializationFacts)
+    return fail("stale standalone route-control materialization facts: " +
+                llvm::toString(staleStandaloneMaterializationFacts.takeError()));
+  auto staleStandaloneMathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      staleStandaloneRouteControl,
+      "standalone reduction route-control stale policy unit test");
+  if (!staleStandaloneMathFacts)
+    return fail("stale standalone route-control math facts: " +
+                llvm::toString(staleStandaloneMathFacts.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+              staleStandaloneRouteControl, *staleStandaloneMaterializationFacts,
+              *staleStandaloneMathFacts,
+              "standalone reduction route-control stale policy unit test")
+              .takeError(),
+          {"route-control provider plan mask policy", "agnostic",
+           "undisturbed"}))
     return result;
 
   staleMaterializationFacts = *materializationFacts;

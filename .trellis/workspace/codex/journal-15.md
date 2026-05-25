@@ -38,6 +38,70 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 ### Next Steps
 
 - None - task complete
+
+
+## Session 214: Stage2 RVV runtime AVL/VL and policy provider-plan boundary
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV runtime AVL/VL and policy provider-plan boundary
+**Branch**: `main`
+
+### Summary
+
+Introduced a bounded RVV plugin-local route-control provider-plan boundary for
+the already migrated base memory movement and standalone reduction families.
+The boundary joins typed config facts, selected target capability facts, and the
+owning family runtime AVL/VL control plan before route statement/provider
+construction, keeping target artifacts and scripts as mirror-only consumers.
+
+### Main Changes
+
+- Added structural selected target capability facts to selected-body route
+  analysis, so capability/config/policy validation is not derived from route
+  description mirror strings.
+- Added `RVVSelectedBodyRouteControlProviderPlan` and
+  `getRVVSelectedBodyRouteControlProviderPlan(...)` to validate runtime AVL/VL,
+  SEW/LMUL, tail policy, mask policy, config contract, runtime ABI order,
+  setvl/with_vl names, loop-control fields, and selected target capability
+  legality for supported consumers.
+- Rewired base memory movement provider-plan construction to consume the
+  route-control provider plan before returning the ordered statement plan.
+- Rewired standalone reduction statement-plan construction to consume the
+  route-control provider plan before returning the ordered statement plan.
+- Added focused C++ positive and fail-closed tests for base memory movement and
+  standalone reduction route-control consumption.
+- Updated the RVV plugin spec with the durable Route-Control Provider-Plan
+  Boundary contract, validation matrix, test requirements, and wrong-vs-correct
+  examples.
+
+### Git Commits
+
+Pending final session commit in this turn.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-runtime-vl-policy-provider-plan`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit/FileCheck from `build/test`:
+  `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='pre-realized-selected-body-artifact-(strided-load-unit-store|standalone-reduce-add)'`
+- [OK] Bounded authority scan over touched planning/provider/test/spec files:
+  no new name-, metadata-, descriptor-, ABI-string-, script-, artifact-,
+  common-EmitC-, source-front-door-, or legacy-i32-derived AVL/VL or policy
+  authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue route-control provider-plan adoption for any remaining migrated RVV
+  families that still rely on their pre-existing local checks instead of this
+  shared owner boundary.
+
 *** End of File
 
 

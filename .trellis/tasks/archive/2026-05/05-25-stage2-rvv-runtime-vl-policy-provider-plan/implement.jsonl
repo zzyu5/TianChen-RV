@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 boundary, typed-body authority, and mirror-only metadata rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed config, AVL/VL control, mask/tail policy, route-family/provider, selected-body realization, artifact, and mirror-only metadata rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-base-memory-movement-production-family-ownership/prd.md", "reason": "Prior base memory provider-plan owner boundary and fail-closed tests to extend with route-control facts."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-standalone-reduction-route-family-boundary-reuse/prd.md", "reason": "Prior standalone reduction route-family and statement-plan reuse context for the math-family consumer."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-typed-config-artifact-executable-closure/prd.md", "reason": "Typed config and generated artifact mirror context for SEW/LMUL/type authority."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-mask-tail-policy-route-closure/prd.md", "reason": "Recent mask/tail policy authority and mirror-only evidence context."}
