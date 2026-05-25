@@ -1810,6 +1810,7 @@ class OpExpectation:
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
             self.is_cmp_select
+            or self.is_computed_mask_select
             or self.is_strided_load_unit_store
             or self.is_standalone_reduce_add
             or self.is_macc_add
@@ -4875,6 +4876,8 @@ COMPARE_SELECT_PREDICATE_METADATA_KEYS = (
     "tcrv_rvv.route_operand_binding_plan",
     "tcrv_rvv.route_operand_binding_operands",
     "tcrv_rvv.plain_compare_select_route_family_plan",
+    "tcrv_rvv.computed_mask_select_route_family_plan",
+    "tcrv_rvv.computed_mask_select_mask_producer_source",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
     "tcrv_rvv.required_header_declarations",
@@ -7222,6 +7225,37 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = compare_select_predicate_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_computed_mask_select:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.compare_intrinsic,
+            expectation.select_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ computed-mask select vector C type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ computed-mask select mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ computed-mask select intrinsic spelling",
+            )
+        compare_select_predicate_boundary = (
+            extract_computed_mask_select_emitc_boundary(text, expectation)
+        )
+        runtime_avl_vl_boundary = compare_select_predicate_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.has_conversion_sew_policy_boundary:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -8342,6 +8376,139 @@ def extract_plain_cmp_select_emitc_boundary(
     }
 
 
+def extract_computed_mask_select_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    mask_c_type = re.escape(expectation.rvv_mask_c_type)
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {element_c_type}\s*\*\s*(?P<cmp_lhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<cmp_rhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<true_value>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<false_value>v[0-9]+), "
+        rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ computed_mask_select ABI parameters",
+    )
+    cmp_lhs = signature.group("cmp_lhs")
+    cmp_rhs = signature.group("cmp_rhs")
+    true_value = signature.group("true_value")
+    false_value = signature.group("false_value")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ computed_mask_select full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ computed_mask_select runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ computed_mask_select remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+
+    def load_vector(parameter: str, label: str) -> re.Match[str]:
+        return require_regex(
+            text,
+            rf"const {element_c_type}\* (?P<{label}_ptr>v[0-9]+) = "
+            rf"{parameter} \+ {offset};\s*"
+            rf"{vector_c_type} (?P<{label}_vec>v[0-9]+) = "
+            rf"{re.escape(expectation.unit_load_intrinsic)}"
+            rf"\((?P={label}_ptr), {loop_vl}\);",
+            f"emitted RVV C/C++ computed_mask_select {label} load",
+        )
+
+    cmp_lhs_load = load_vector(cmp_lhs, "cmp_lhs")
+    cmp_rhs_load = load_vector(cmp_rhs, "cmp_rhs")
+    true_load = load_vector(true_value, "true_value")
+    false_load = load_vector(false_value, "false_value")
+    cmp_lhs_vec = cmp_lhs_load.group("cmp_lhs_vec")
+    cmp_rhs_vec = cmp_rhs_load.group("cmp_rhs_vec")
+    true_vec = true_load.group("true_value_vec")
+    false_vec = false_load.group("false_value_vec")
+    compare = require_regex(
+        text,
+        rf"{mask_c_type} (?P<predicate>v[0-9]+) = "
+        rf"{re.escape(expectation.compare_intrinsic)}"
+        rf"\({cmp_lhs_vec}, {cmp_rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ computed_mask_select compare predicate",
+    )
+    predicate = compare.group("predicate")
+    select = require_regex(
+        text,
+        rf"{vector_c_type} (?P<selected>v[0-9]+) = "
+        rf"{re.escape(expectation.select_intrinsic)}"
+        rf"\({false_vec}, {true_vec}, {predicate}, {loop_vl}\);",
+        "emitted RVV C/C++ computed_mask_select select merge",
+    )
+    selected = select.group("selected")
+    store = require_regex(
+        text,
+        rf"{element_c_type}\* (?P<out_ptr>v[0-9]+) = {out} \+ {offset};\s*"
+        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"\((?P=out_ptr), {selected}, {loop_vl}\);",
+        "emitted RVV C/C++ computed_mask_select store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "compare_lhs_abi_parameter": cmp_lhs,
+        "compare_rhs_abi_parameter": cmp_rhs,
+        "true_value_abi_parameter": true_value,
+        "false_value_abi_parameter": false_value,
+        "out_abi_parameter": out,
+        "compare_lhs_vector": cmp_lhs_vec,
+        "compare_rhs_vector": cmp_rhs_vec,
+        "true_value_vector": true_vec,
+        "false_value_vector": false_vec,
+        "predicate_mask": predicate,
+        "predicate_mask_type": expectation.rvv_mask_c_type,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "select_intrinsic": expectation.select_intrinsic,
+        "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+        "select_true_vector": true_vec,
+        "select_false_vector": false_vec,
+        "emitted_vmerge_true_operand": true_vec,
+        "emitted_vmerge_false_operand": false_vec,
+        "selected_result_vector": selected,
+        "out_pointer": store.group("out_ptr"),
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "store_uses_selected_result": True,
+        "compare_uses_loop_vl": True,
+        "select_uses_loop_vl": True,
+    }
+
+
 def extract_masked_unit_store_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -8657,6 +8824,10 @@ def verify_materialized_selected_body(
     if expectation.is_cmp_select:
         compare_select_predicate_boundary = (
             extract_plain_cmp_select_materialized_boundary(text, expectation)
+        )
+    if expectation.is_computed_mask_select:
+        compare_select_predicate_boundary = (
+            extract_computed_mask_select_materialized_boundary(text, expectation)
         )
     conversion_sew_policy_boundary: dict[str, Any] = {}
     if expectation.has_conversion_sew_policy_boundary:
@@ -10916,6 +11087,76 @@ def extract_plain_cmp_select_materialized_boundary(
         "select_layout": PLAIN_COMPARE_SELECT_LAYOUT,
         "select_true_operand_role": "lhs-input-buffer",
         "select_false_operand_role": "rhs-input-buffer",
+        "output_role": "output-buffer",
+        "memory_form": expectation.memory_form,
+        "pre_realized_body_consumed": expectation.is_pre_realized,
+    }
+
+
+def extract_computed_mask_select_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    require_contains(
+        text,
+        "tcrv_rvv.compare",
+        "materialized selected-body MLIR computed_mask_select compare op",
+    )
+    require_contains(
+        text,
+        f'kind = "{expectation.compare_predicate_kind}"',
+        "materialized selected-body MLIR computed_mask_select predicate kind",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.select",
+        "materialized selected-body MLIR computed_mask_select select op",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR computed_mask_select predicate mask type",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR computed_mask_select vector type",
+    )
+    for role in (
+        "lhs-input-buffer",
+        "rhs-input-buffer",
+        "true-value-input-buffer",
+        "false-value-input-buffer",
+        "output-buffer",
+    ):
+        require_contains(
+            text,
+            f'role = "{role}"',
+            "materialized selected-body MLIR computed_mask_select ABI role",
+        )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.mask_load",
+        "materialized selected-body MLIR computed_mask_select produced predicate route",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.binary",
+        "materialized selected-body MLIR computed_mask_select route",
+    )
+    return {
+        "typed_body_source": (
+            "tcrv_rvv.typed_computed_mask_select_pre_realized_body"
+        ),
+        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_select_op": expectation.typed_compute_op,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+        "select_true_operand_role": "true-value-input-buffer",
+        "select_false_operand_role": "false-value-input-buffer",
+        "compare_lhs_role": "lhs-input-buffer",
+        "compare_rhs_role": "rhs-input-buffer",
         "output_role": "output-buffer",
         "memory_form": expectation.memory_form,
         "pre_realized_body_consumed": expectation.is_pre_realized,
@@ -16307,7 +16548,8 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         if unsupported_direct:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
-                "pre-realized cmp_select/cmp_select_sle and "
+                "pre-realized cmp_select/cmp_select_sle, "
+                "computed_mask_select/computed_mask_select_sle, and "
                 "strided_load_unit_store/standalone_reduce_add/"
                 "macc_add/scalar_broadcast_macc_add/"
                 "computed_masked_macc_add/contraction "
@@ -17004,8 +17246,24 @@ def compare_select_predicate_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if not expectation.is_cmp_select:
+    if not (expectation.is_cmp_select or expectation.is_computed_mask_select):
         return {}
+    select_layout = (
+        PLAIN_COMPARE_SELECT_LAYOUT
+        if expectation.is_cmp_select
+        else COMPUTED_MASK_SELECT_LAYOUT
+    )
+    selected_value_operands = (
+        {"true_value": "lhs", "false_value": "rhs", "output": "out"}
+        if expectation.is_cmp_select
+        else {
+            "compare_lhs": "cmp_lhs",
+            "compare_rhs": "cmp_rhs",
+            "true_value": "true_value",
+            "false_value": "false_value",
+            "output": "out",
+        }
+    )
     return {
         "source": (
             "typed tcrv_rvv compare/select body/config -> RVV realization -> "
@@ -17021,12 +17279,8 @@ def compare_select_predicate_boundary_summary(
         "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
         "predicate_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
         "predicate_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-        "select_layout": PLAIN_COMPARE_SELECT_LAYOUT,
-        "selected_value_operands": {
-            "true_value": "lhs",
-            "false_value": "rhs",
-            "output": "out",
-        },
+        "select_layout": select_layout,
+        "selected_value_operands": selected_value_operands,
         "materialized_body": materialized_checks.get(
             "compare_select_predicate_boundary", {}
         ),
@@ -17776,7 +18030,7 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_cmp_select:
+        if expectation.is_cmp_select or expectation.is_computed_mask_select:
             evidence["compare_select_predicate_boundary"] = (
                 compare_select_predicate_boundary_summary(
                     expectation=expectation,
@@ -19199,7 +19453,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "with --pre-realized-selected-body, skip the public selected "
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded cmp_select/"
-            "cmp_select_sle, strided_load_unit_store, or "
+            "cmp_select_sle, computed_mask_select/computed_mask_select_sle, "
+            "strided_load_unit_store, or "
             "standalone_reduce_add/macc_add/scalar_broadcast_macc_add/"
             "computed_masked_macc_add/contraction fixtures before target "
             "bundle export"

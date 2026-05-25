@@ -1234,6 +1234,24 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "eq", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_computed_mask_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_select_pre_realized_body %cmp_lhs, %cmp_rhs, %true_value, %false_value, %out, %n {lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-vector-select", op_kind = "computed_mask_select", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_computed_mask_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_select_pre_realized_body %cmp_lhs, %cmp_rhs, %true_value, %false_value, %out, %n {lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-vector-select", op_kind = "computed_mask_select", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1451,6 +1469,17 @@ module {
                   " realizes compare/load/masked_macc/store structure"))
         return result;
     }
+    if (expectedProviderPlanID ==
+        "rvv-computed-mask-select-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 4 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("direct route-entry @") + variantName +
+                  " realizes compare/value loads, select, and store"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       if (int result = expectSuccess(
@@ -1482,6 +1511,8 @@ module {
             routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->plainCompareSelectRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->computedMaskSelectRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->baseMemoryMovementRouteFamilyPlanID ==
                     expectedProviderPlanID ||
@@ -1526,6 +1557,13 @@ module {
           /*buildRouteBeforePlan=*/false))
     return result;
   if (int result = exerciseVariant(
+          "rvv_pre_route_computed_mask_select",
+          "tcrv_rvv.typed_computed_mask_select_pre_realized_body",
+          "elementwise/compare-select",
+          "rvv-computed-mask-select-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
           "rvv_pre_route_strided_load_unit_store",
           "tcrv_rvv.typed_strided_memory_pre_realized_body",
           "base memory movement",
@@ -1558,6 +1596,105 @@ module {
           "rvv-computed-mask-accumulation-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
+
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *elementwiseCompareSelectOwner = nullptr;
+  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
+       tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
+    if (owner.familyName == "elementwise/compare-select")
+      elementwiseCompareSelectOwner = &owner;
+  }
+  if (int result = expect(
+          elementwiseCompareSelectOwner != nullptr &&
+              elementwiseCompareSelectOwner->realize != nullptr &&
+              elementwiseCompareSelectOwner->isRouteEntryConsumer != nullptr,
+          "found elementwise/compare-select direct route-entry realization "
+          "hook"))
+    return result;
+  VariantOp negativeComputedMaskSelectVariant =
+      findVariant(kernel, "rvv_pre_route_owner_negative_computed_mask_select");
+  auto negativeComputedMaskSelectBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp>(
+      findFirstNestedOp(
+          negativeComputedMaskSelectVariant,
+          "tcrv_rvv.typed_computed_mask_select_pre_realized_body"));
+  if (int result = expect(negativeComputedMaskSelectBody != nullptr,
+                          "found computed-mask select pre-realized body for "
+                          "owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          elementwiseCompareSelectOwner->isRouteEntryConsumer(
+              negativeComputedMaskSelectBody.getOperation()),
+          "computed-mask select fixture is route-entry eligible through the "
+          "explicit compare/select owner predicate before targeted mutation"))
+    return result;
+  mlir::Builder attrBuilder(module->getContext());
+  auto expectComputedMaskSelectOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        elementwiseCompareSelectOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativeComputedMaskSelectVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            negativeComputedMaskSelectBody.getOperation());
+    if (invalid)
+      return fail("elementwise/compare-select owner-local hook accepted "
+                  "invalid computed-mask select typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativeComputedMaskSelectBody->setAttr(
+      "predicate_kind", attrBuilder.getStringAttr("metadata_predicate"));
+  if (int result = expectComputedMaskSelectOwnerError(
+          {"computed-mask select body currently supports only predicate_kind",
+           "slt", "sle"}))
+    return result;
+  negativeComputedMaskSelectBody->setAttr("predicate_kind",
+                                          attrBuilder.getStringAttr("slt"));
+
+  negativeComputedMaskSelectBody->setAttr(
+      "mask_source", attrBuilder.getStringAttr("metadata-mask-source"));
+  if (int result = expectComputedMaskSelectOwnerError(
+          {"computed-mask select body currently supports only mask_source",
+           "compare-produced-mask-same-vl-scope"}))
+    return result;
+  negativeComputedMaskSelectBody->setAttr(
+      "mask_source",
+      attrBuilder.getStringAttr("compare-produced-mask-same-vl-scope"));
+
+  negativeComputedMaskSelectBody->setAttr(
+      "select_layout", attrBuilder.getStringAttr("metadata-select-layout"));
+  if (int result = expectComputedMaskSelectOwnerError(
+          {"computed-mask select body currently supports only select_layout",
+           "select-true-value-when-mask-else-false-value"}))
+    return result;
+  negativeComputedMaskSelectBody->setAttr(
+      "select_layout",
+      attrBuilder.getStringAttr("select-true-value-when-mask-else-false-value"));
+
+  mlir::Operation *trueValue =
+      negativeComputedMaskSelectBody.getTrueValue().getDefiningOp();
+  mlir::Attribute originalTrueValueRole = trueValue->getAttr("role");
+  trueValue->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectComputedMaskSelectOwnerError(
+          {"computed-mask select true-value operand must bind runtime ABI "
+           "role 'true-value-input-buffer'"}))
+    return result;
+  trueValue->setAttr("role", originalTrueValueRole);
+
+  mlir::Operation *computedMaskSelectRuntimeN =
+      negativeComputedMaskSelectBody.getN().getDefiningOp();
+  mlir::Attribute originalComputedMaskSelectRuntimeNRole =
+      computedMaskSelectRuntimeN->getAttr("role");
+  computedMaskSelectRuntimeN->setAttr(
+      "role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectComputedMaskSelectOwnerError(
+          {"computed-mask select runtime n/AVL operand must bind runtime ABI "
+           "role 'runtime-element-count'"}))
+    return result;
+  computedMaskSelectRuntimeN->setAttr(
+      "role", originalComputedMaskSelectRuntimeNRole);
 
   const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner *maccOwner =
       nullptr;
@@ -1603,7 +1740,6 @@ module {
           expect(negativeMAccBody != nullptr,
                  "found MAcc pre-realized body for owner-local negative tests"))
     return result;
-  mlir::Builder attrBuilder(module->getContext());
   auto expectMAccOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());

@@ -786,6 +786,29 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(
       op);
 }
 
+bool isPreRealizedRVVCompareSelectRouteEntryOp(mlir::Operation *op) {
+  if (auto body =
+          llvm::dyn_cast<tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(op))
+    return isPreRealizedCompareSelectOpKind(body.getOpKind());
+  if (auto body = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp>(op))
+    return isPreRealizedComputedMaskSelectOpKind(body.getOpKind());
+  return false;
+}
+
+bool isPreRealizedRVVElementwiseCompareSelectRouteEntryOp(
+    mlir::Operation *op) {
+  if (isPreRealizedRVVCompareSelectRouteEntryOp(op))
+    return true;
+  return llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
+                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
+      op);
+}
+
 bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
   return llvm::isa<tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
@@ -1058,7 +1081,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
   static const RVVSelectedBodyRealizationOwner owners[] = {
       {"elementwise/compare-select",
        isPreRealizedRVVElementwiseCompareSelectClusterOp,
-       isPreRealizedRVVElementwiseCompareSelectClusterOp,
+       isPreRealizedRVVElementwiseCompareSelectRouteEntryOp,
        realizePreRealizedRVVElementwiseCompareSelectOwner},
       {"runtime scalar splat-store",
        isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp, nullptr,

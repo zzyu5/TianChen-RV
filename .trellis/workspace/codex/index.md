@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-16.md`
-- **Total Sessions**: 237
+- **Total Sessions**: 238
 - **Last Active**: 2026-05-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~40 | Active |
+| `journal-16.md` | ~131 | Active |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +44,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 238 | 2026-05-26 | Stage2 RVV compare/select route-family owner | pending-final-session-commit | `main` |
 | 237 | 2026-05-26 | Stage2 RVV direct route-entry contraction executable boundary | pending-final-session-commit | `main` |
 | 236 | 2026-05-26 | Stage2 RVV computed-mask widening dot-reduce boundary | - | `main` |
 | 235 | 2026-05-26 | Stage2 RVV widening dot-reduce contraction boundary | pending-final-session-commit | `main` |

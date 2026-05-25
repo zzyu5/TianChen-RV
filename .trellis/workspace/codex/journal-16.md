@@ -19,7 +19,21 @@ Closed direct route-entry computed_masked_strided_input_widening_dot_reduce_add 
 
 ### Main Changes
 
-(Add details)
+- `RVVSelectedBodyRealization.cpp`: split the broad compare/select cluster
+  route-entry predicate into an explicit bounded predicate for plain
+  compare-select and computed-mask vector select pre-realized bodies.
+- `rvv_generated_bundle_abi_e2e.py`: admitted direct pre-realized
+  `computed_mask_select` route entries, extracted materialized and EmitC
+  compare/select predicate boundaries, and validated compare/load/select/store
+  structure plus provider-owned route metadata.
+- `RVVExtensionPluginTest.cpp`: added direct route-entry
+  `computed_mask_select` coverage, provider plan/statement-plan assertions,
+  and targeted fail-closed diagnostics for predicate, mask source, select
+  layout, payload role, and runtime `n` role mismatches.
+- Added focused script dry-run coverage for direct pre-realized
+  `computed_mask_select` with no selected-lowering-boundary materializer step.
+- Created and archived Trellis task
+  `05-26-05-26-stage2-rvv-compare-select-route-family-owner`.
 
 ### Git Commits
 
@@ -29,7 +43,20 @@ Closed direct route-entry computed_masked_strided_input_widening_dot_reduce_add 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] direct route-entry `computed_mask_select` dry-run, counts
+  `0,7,16,23,257`
+- [OK] real `ssh rvv` direct route-entry `computed_mask_select`, counts
+  `0,7,16,23,257`, PASS with true/false lane coverage and tail preservation.
+- [OK] focused direct route-entry non-regressions for `cmp_select`,
+  `computed_masked_macc_add`, and contraction.
+- [OK] bounded touched-file authority scan: no new positive legacy-i32,
+  source-front-door, descriptor, ABI-string, route-id, artifact-name,
+  script-derived, metadata-derived, or common EmitC route authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (383/383)
 
 ### Status
 
@@ -88,6 +115,39 @@ handoff, provider-built route construction, and fail-closed diagnostics.
   EmitC route authority.
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` (382/382)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 238: Stage2 RVV compare/select route-family owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV compare/select route-family owner
+**Branch**: `main`
+
+### Summary
+
+Made direct route-entry computed-mask select a first-class RVV compare/select owner path, with owner-scoped realization, generated-bundle dry-run and ssh rvv evidence, focused non-regressions, task archive, and full check-tianchenrv pass.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
