@@ -7860,6 +7860,8 @@ int runPlainMAccStatementPlanBoundaryTest(mlir::MLIRContext &context) {
       getRVVSelectedBodyMigratedRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyPlainMAccRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
@@ -7875,6 +7877,7 @@ int runPlainMAccStatementPlanBoundaryTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -8096,6 +8099,48 @@ module {
       return fail("scalar-broadcast MAcc statement-plan math facts: " +
                   llvm::toString(scalarBroadcastMathFacts.takeError()));
 
+    auto scalarBroadcastRouteControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            *scalarBroadcastAnalysis, *scalarBroadcastMaterializationFacts,
+            "scalar-broadcast MAcc route-control provider unit test");
+    if (!scalarBroadcastRouteControlPlan)
+      return fail("scalar-broadcast MAcc route-control provider plan: " +
+                  llvm::toString(
+                      scalarBroadcastRouteControlPlan.takeError()));
+    const auto *scalarBroadcastRuntimeControlPlan =
+        &scalarBroadcastAnalysis->scalarBroadcastMAccRouteFamilyPlan
+             ->runtimeControlPlan;
+    if (int result = expect(
+            scalarBroadcastRouteControlPlan->plansRouteControl &&
+                scalarBroadcastRouteControlPlan->controlsScalarBroadcastMAcc &&
+                scalarBroadcastRouteControlPlan->runtimeControlPlan ==
+                    scalarBroadcastRuntimeControlPlan &&
+                scalarBroadcastRouteControlPlan->typedConfigFacts ==
+                    &scalarBroadcastAnalysis->typedConfigFacts &&
+                scalarBroadcastRouteControlPlan->selectedTargetCapabilityFacts ==
+                    &scalarBroadcastAnalysis->selectedTargetCapabilityFacts,
+            "scalar-broadcast MAcc route-control provider plan joins typed "
+            "config, target capability, and runtime AVL/VL facts"))
+      return result;
+    if (int result = expect(
+            scalarBroadcastRouteControlPlan->controlPlanIDMirror ==
+                    scalarBroadcastAnalysis->description.runtimeControlPlanID &&
+                scalarBroadcastRouteControlPlan->runtimeABIOrderMirror ==
+                    scalarBroadcastAnalysis->description.runtimeABIOrder &&
+                scalarBroadcastRouteControlPlan->tailPolicyMirror ==
+                    scalarBroadcastAnalysis->description.tailPolicy &&
+                scalarBroadcastRouteControlPlan->maskPolicyMirror ==
+                    scalarBroadcastAnalysis->description.maskPolicy &&
+                scalarBroadcastRouteControlPlan->selectedProviderMirror ==
+                    scalarBroadcastAnalysis->description
+                        .targetCapabilityProviderMirror &&
+                scalarBroadcastRouteControlPlan->selectedLegalityMirror ==
+                    scalarBroadcastAnalysis->description
+                        .targetCapabilityLegalityMirror,
+            "scalar-broadcast MAcc route-control provider plan carries "
+            "validated control mirrors before statement planning"))
+      return result;
+
     auto scalarBroadcastStatementPlan =
         getRVVSelectedBodyPlainMAccRouteStatementPlan(
             *scalarBroadcastAnalysis, *scalarBroadcastMaterializationFacts,
@@ -8196,6 +8241,142 @@ module {
             {"plain MAcc statement plan requires the verified "
              "scalar-broadcast MAcc route-family plan",
              "before route statement construction"}))
+      return result;
+
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyRouteControlProviderPlan(
+                *scalarBroadcastAnalysis, missingStatementFamilyFacts,
+                "scalar-broadcast MAcc missing control-plan dependency unit "
+                "test")
+                .takeError(),
+            {"route-control provider plan requires the verified "
+             "scalar-broadcast MAcc route-family plan",
+             "before provider route construction"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleScalarRuntimeControl =
+        *scalarBroadcastAnalysis;
+    staleScalarRuntimeControl.scalarBroadcastMAccRouteFamilyPlan
+        ->runtimeControlPlan.runtimeAVLParameter.role =
+        RuntimeABIParameterRole::OutputBuffer;
+    auto staleScalarRuntimeControlFacts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            staleScalarRuntimeControl,
+            "scalar-broadcast MAcc route-control stale runtime AVL unit test");
+    if (!staleScalarRuntimeControlFacts)
+      return fail("stale scalar-broadcast MAcc runtime-control "
+                  "materialization facts: " +
+                  llvm::toString(
+                      staleScalarRuntimeControlFacts.takeError()));
+    auto staleScalarRuntimeControlMathFacts =
+        getRVVSelectedBodyMathRouteOperandBindingFacts(
+            staleScalarRuntimeControl,
+            "scalar-broadcast MAcc route-control stale runtime AVL unit test");
+    if (!staleScalarRuntimeControlMathFacts)
+      return fail("stale scalar-broadcast MAcc runtime-control math facts: " +
+                  llvm::toString(
+                      staleScalarRuntimeControlMathFacts.takeError()));
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyPlainMAccRouteStatementPlan(
+                staleScalarRuntimeControl, *staleScalarRuntimeControlFacts,
+                *staleScalarRuntimeControlMathFacts,
+                "scalar-broadcast MAcc route-control stale runtime AVL unit "
+                "test")
+                .takeError(),
+            {"route-control provider plan", "runtime-element-count",
+             "AVL parameter role"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleScalarPolicy =
+        *scalarBroadcastAnalysis;
+    staleScalarPolicy.scalarBroadcastMAccRouteFamilyPlan->runtimeControlPlan
+        .tailPolicy = "undisturbed";
+    auto staleScalarPolicyFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        staleScalarPolicy,
+        "scalar-broadcast MAcc route-control stale policy unit test");
+    if (!staleScalarPolicyFacts)
+      return fail("stale scalar-broadcast MAcc route-control materialization "
+                  "facts: " +
+                  llvm::toString(staleScalarPolicyFacts.takeError()));
+    auto staleScalarPolicyMathFacts =
+        getRVVSelectedBodyMathRouteOperandBindingFacts(
+            staleScalarPolicy,
+            "scalar-broadcast MAcc route-control stale policy unit test");
+    if (!staleScalarPolicyMathFacts)
+      return fail("stale scalar-broadcast MAcc route-control math facts: " +
+                  llvm::toString(staleScalarPolicyMathFacts.takeError()));
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyPlainMAccRouteStatementPlan(
+                staleScalarPolicy, *staleScalarPolicyFacts,
+                *staleScalarPolicyMathFacts,
+                "scalar-broadcast MAcc route-control stale policy unit test")
+                .takeError(),
+            {"route-control provider plan tail policy", "agnostic",
+             "undisturbed"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleScalarTarget =
+        *scalarBroadcastAnalysis;
+    staleScalarTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+    auto staleScalarTargetFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        staleScalarTarget,
+        "scalar-broadcast MAcc route-control stale target unit test");
+    if (!staleScalarTargetFacts)
+      return fail("stale scalar-broadcast MAcc target materialization facts: " +
+                  llvm::toString(staleScalarTargetFacts.takeError()));
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyRouteControlProviderPlan(
+                staleScalarTarget, *staleScalarTargetFacts,
+                "scalar-broadcast MAcc route-control stale target unit test")
+                .takeError(),
+            {"route-control provider plan target-capability gate",
+             "supported_sew", "32"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis copiedScalarBroadcastAnalysis =
+        *scalarBroadcastAnalysis;
+    auto copiedScalarBroadcastMathFacts =
+        getRVVSelectedBodyMathRouteOperandBindingFacts(
+            copiedScalarBroadcastAnalysis,
+            "scalar-broadcast MAcc stale-analysis route-control unit test");
+    if (!copiedScalarBroadcastMathFacts)
+      return fail("copied scalar-broadcast MAcc math facts: " +
+                  llvm::toString(copiedScalarBroadcastMathFacts.takeError()));
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyPlainMAccRouteStatementPlan(
+                copiedScalarBroadcastAnalysis,
+                *scalarBroadcastMaterializationFacts,
+                *copiedScalarBroadcastMathFacts,
+                "scalar-broadcast MAcc stale-analysis route-control unit "
+                "test")
+                .takeError(),
+            {"route-control provider plan requires scalar-broadcast MAcc "
+             "materialization facts from the same selected route analysis",
+             "before provider route construction"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleScalarRuntimeMirror =
+        *scalarBroadcastAnalysis;
+    staleScalarRuntimeMirror.description.runtimeABIOrder =
+        "lhs,rhs_scalar,acc,out,metadata_n";
+    auto staleScalarRuntimeMirrorFacts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            staleScalarRuntimeMirror,
+            "scalar-broadcast MAcc route-control stale runtime ABI mirror "
+            "unit test");
+    if (!staleScalarRuntimeMirrorFacts)
+      return fail("stale scalar-broadcast MAcc runtime ABI mirror facts: " +
+                  llvm::toString(
+                      staleScalarRuntimeMirrorFacts.takeError()));
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyRouteControlProviderPlan(
+                staleScalarRuntimeMirror, *staleScalarRuntimeMirrorFacts,
+                "scalar-broadcast MAcc route-control stale runtime ABI mirror "
+                "unit test")
+                .takeError(),
+            {"route-control provider plan description runtime ABI order",
+             "lhs,rhs_scalar,acc,out,n",
+             "lhs,rhs_scalar,acc,out,metadata_n"}))
       return result;
   }
 

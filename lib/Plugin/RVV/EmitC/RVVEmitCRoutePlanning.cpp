@@ -22791,7 +22791,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
 static bool isRVVSelectedBodyRouteControlProviderPlanConsumer(
     RVVSelectedBodyOperationKind operation) {
   return isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(operation) ||
-         isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation);
+         isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation) ||
+         isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(operation);
 }
 
 static llvm::Error verifyRVVSelectedBodyRouteControlPlanMatchesTypedFacts(
@@ -22987,6 +22988,27 @@ getRVVSelectedBodyRouteControlProviderPlan(
     runtimeControlPlan =
         &materializationFacts.standaloneReductionPlan->runtimeControlPlan;
     plan.controlsStandaloneReduction = true;
+  } else if (isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+                 description.operation)) {
+    if (!materializationFacts.scalarBroadcastMAccPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires the verified "
+          "scalar-broadcast MAcc route-family plan before provider route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (!analysis.scalarBroadcastMAccRouteFamilyPlan ||
+        materializationFacts.scalarBroadcastMAccPlan !=
+            &*analysis.scalarBroadcastMAccRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires scalar-broadcast MAcc "
+          "materialization facts from the same selected route analysis before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    runtimeControlPlan =
+        &materializationFacts.scalarBroadcastMAccPlan->runtimeControlPlan;
+    plan.controlsScalarBroadcastMAcc = true;
   }
 
   if (!runtimeControlPlan)
@@ -28282,6 +28304,24 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
         llvm::Twine(context) +
         " plain MAcc statement plan requires plain MAcc math "
         "operand-binding facts before route statement construction");
+
+  if (isScalarBroadcastMAcc) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(analysis,
+                                                   materializationFacts,
+                                                   context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsScalarBroadcastMAcc ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.scalarBroadcastMAccPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " scalar-broadcast MAcc statement plan requires the RVV-owned "
+          "route-control provider plan before route statement construction "
+          "for scalar_broadcast_macc_add");
+  }
 
   const support::RuntimeABIParameter *lhsABI = mathOperandBindingFacts.lhsABI;
   const support::RuntimeABIParameter *rhsABI = mathOperandBindingFacts.rhsABI;

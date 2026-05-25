@@ -513,3 +513,36 @@ Closed a production C++ base-memory provider-plan boundary that joins verified f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 213: Stage2 RVV scalar MAcc route-control provider-plan integration
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV scalar MAcc route-control provider-plan integration
+**Branch**: `main`
+
+### Summary
+
+Integrated scalar_broadcast_macc_add with the shared RVV route-control provider-plan boundary before scalar MAcc statement planning, added focused C++ positive/fail-closed coverage, updated the RVV plugin spec, and verified focused plus full check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
