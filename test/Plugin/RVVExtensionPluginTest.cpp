@@ -2720,14 +2720,15 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
       owners =
           getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners();
   if (int result =
-          expect(owners.size() == 3,
+          expect(owners.size() == 4,
                  "reduction/accumulation/contraction route-family owner "
-                 "registry has exactly three active owner entries"))
+                 "registry has exactly four active owner entries"))
     return result;
   if (int result = expect(
           owners[0].familyName == "contraction" &&
-              owners[1].familyName == "standalone reduction" &&
-              owners[2].familyName == "computed-mask accumulation",
+              owners[1].familyName == "scalar-broadcast MAcc" &&
+              owners[2].familyName == "standalone reduction" &&
+              owners[3].familyName == "computed-mask accumulation",
           "reduction/accumulation/contraction route-family owner registry "
           "preserves explicit math-cluster ownership"))
     return result;
@@ -2744,6 +2745,8 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
               owners[0].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStridedInputWideningDotReduceAdd) &&
               !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !owners[0].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
               !owners[0].isConsumer(
                   RVVSelectedBodyOperationKind::StandaloneReduceAdd),
@@ -2751,32 +2754,43 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
     return result;
   if (int result = expect(
           owners[1].isConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "scalar-broadcast MAcc owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(
               RVVSelectedBodyOperationKind::StandaloneReduceAdd) &&
-              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStandaloneReduceAdd) &&
-              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
                                        RuntimeScalarComputedMaskStandaloneReduceAdd) &&
-              !owners[1].isConsumer(
+              !owners[2].isConsumer(
                   RVVSelectedBodyOperationKind::WideningDotReduceAdd) &&
-              !owners[1].isConsumer(
+              !owners[2].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
           "standalone reduction owner classification is isolated"))
     return result;
   if (int result = expect(
-          owners[2].isConsumer(
+          owners[3].isConsumer(
               RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
-              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+              owners[3].isConsumer(RVVSelectedBodyOperationKind::
                                        RuntimeScalarComputedMaskedMAccAdd) &&
-              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+              owners[3].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStandaloneReduceAdd) &&
-              !owners[2].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
-              !owners[2].isConsumer(
+              !owners[3].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !owners[3].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !owners[3].isConsumer(
                   RVVSelectedBodyOperationKind::WideningMAccAdd),
           "computed-mask accumulation owner classification is isolated"))
     return result;
 
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::StandaloneReduceAdd,
         RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd}) {
@@ -2814,6 +2828,17 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
               "reduction/accumulation/contraction owner registry unit test"),
           {"requires the standalone reduction route-family plan",
            "standalone_reduce_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingScalarBroadcastMAccPlan;
+  missingScalarBroadcastMAccPlan.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              missingScalarBroadcastMAccPlan,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"requires the scalar-broadcast MAcc route-family plan",
+           "scalar_broadcast_macc_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingAccumulationPlan;
@@ -2860,6 +2885,20 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
               staleStandaloneNonConsumer,
               "reduction/accumulation/contraction owner registry unit test"),
           {"must not carry a standalone reduction route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarBroadcastMAccNonConsumer =
+      nonMathClusterAnalysis;
+  staleScalarBroadcastMAccNonConsumer.scalarBroadcastMAccRouteFamilyPlan
+      .emplace();
+  staleScalarBroadcastMAccNonConsumer.scalarBroadcastMAccRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              staleScalarBroadcastMAccNonConsumer,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"must not carry a scalar-broadcast MAcc route-family plan",
+           "add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleAccumulationNonConsumer =
@@ -2920,6 +2959,9 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
     return result;
   if (int result = expect(
           owners[1].isConsumer(RVVSelectedBodyOperationKind::WideningMAccAdd) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
               !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add),
           "top-level math-cluster owner classification remains isolated"))
     return result;
@@ -2949,6 +2991,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
         RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::Add,
         RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
         RVVSelectedBodyOperationKind::WidenI32ToI64}) {
@@ -2985,6 +3028,17 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
               "top-level route-family provider owner registry unit test"),
           {"requires the contraction route-family plan",
            "widening_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingScalarBroadcastMAccPlan;
+  missingScalarBroadcastMAccPlan.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              missingScalarBroadcastMAccPlan,
+              "top-level route-family provider owner registry unit test"),
+          {"requires the scalar-broadcast MAcc route-family plan",
+           "scalar_broadcast_macc_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingElementwisePlan;
@@ -7722,6 +7776,171 @@ module {
                    llvm::Twine("provider route plain MAcc loop step ") +
                        llvm::Twine(index) + " uses RVV-owned callee '" +
                        expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  {
+    constexpr llvm::StringLiteral scalarBroadcastSource = R"mlir(
+module {
+  tcrv.exec.kernel @stmt_scalar_broadcast_macc_add_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_macc_add, sew = 32 : i64, source_kernel = "stmt_scalar_broadcast_macc_add_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+    mlir::OwningOpRef<mlir::ModuleOp> scalarBroadcastModule =
+        parseModule(context, scalarBroadcastSource);
+    if (!scalarBroadcastModule)
+      return fail("failed to parse scalar-broadcast MAcc statement-plan "
+                  "module");
+
+    llvm::Expected<RVVSelectedBodyRouteAnalysis> scalarBroadcastAnalysis =
+        analyzeRouteInModule(*scalarBroadcastModule,
+                             "stmt_scalar_broadcast_macc_add_kernel",
+                             "rvv_scalar_broadcast_macc_add");
+    if (!scalarBroadcastAnalysis)
+      return fail("analyze scalar-broadcast MAcc statement-plan route: " +
+                  llvm::toString(scalarBroadcastAnalysis.takeError()));
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                *scalarBroadcastAnalysis,
+                "scalar-broadcast MAcc statement plan provider unit test"),
+            "verify scalar-broadcast MAcc route-family plan before statement "
+            "construction"))
+      return result;
+
+    auto scalarBroadcastMaterializationFacts =
+        getRVVSelectedBodyRouteMaterializationFacts(
+            *scalarBroadcastAnalysis,
+            "scalar-broadcast MAcc statement plan provider unit test");
+    if (!scalarBroadcastMaterializationFacts)
+      return fail("scalar-broadcast MAcc statement-plan materialization "
+                  "facts: " +
+                  llvm::toString(
+                      scalarBroadcastMaterializationFacts.takeError()));
+    auto scalarBroadcastMathFacts =
+        getRVVSelectedBodyMathRouteOperandBindingFacts(
+            *scalarBroadcastAnalysis,
+            "scalar-broadcast MAcc statement plan provider unit test");
+    if (!scalarBroadcastMathFacts)
+      return fail("scalar-broadcast MAcc statement-plan math facts: " +
+                  llvm::toString(scalarBroadcastMathFacts.takeError()));
+
+    auto scalarBroadcastStatementPlan =
+        getRVVSelectedBodyPlainMAccRouteStatementPlan(
+            *scalarBroadcastAnalysis, *scalarBroadcastMaterializationFacts,
+            *scalarBroadcastMathFacts,
+            "scalar-broadcast MAcc statement plan provider unit test");
+    if (!scalarBroadcastStatementPlan)
+      return fail("scalar-broadcast MAcc statement-plan construction: " +
+                  llvm::toString(scalarBroadcastStatementPlan.takeError()));
+    if (int result = expect(
+            scalarBroadcastStatementPlan->plansPlainMAccRoute &&
+                scalarBroadcastStatementPlan->plansScalarBroadcastMAccAdd &&
+                scalarBroadcastStatementPlan->scalarBroadcastMAccPlan ==
+                    scalarBroadcastMaterializationFacts
+                        ->scalarBroadcastMAccPlan &&
+                scalarBroadcastStatementPlan->bindingPlan ==
+                    scalarBroadcastMathFacts->bindingPlan,
+            "statement plan exposes scalar-broadcast MAcc family plan and "
+            "math operand-binding facts"))
+      return result;
+
+    const char *expectedScalarBroadcastBodyCallees[] = {
+        "__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+        "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
+        "__riscv_vmacc_vv_i32m1", "__riscv_vse32_v_i32m1"};
+    if (int result = expect(
+            scalarBroadcastStatementPlan->loop.bodySteps.size() ==
+                std::size(expectedScalarBroadcastBodyCallees),
+            "scalar-broadcast MAcc statement plan owns the expected loop "
+            "step count"))
+      return result;
+    for (std::size_t index = 0;
+         index < std::size(expectedScalarBroadcastBodyCallees); ++index) {
+      if (int result = expect(
+              scalarBroadcastStatementPlan->loop.bodySteps[index].callee ==
+                  expectedScalarBroadcastBodyCallees[index],
+              llvm::Twine("scalar-broadcast MAcc statement plan loop step ") +
+                  llvm::Twine(index) + " uses RVV-owned callee '" +
+                  expectedScalarBroadcastBodyCallees[index] + "'"))
+        return result;
+    }
+
+    TCRVEmitCLowerableRoute scalarBroadcastRoute;
+    KernelOp scalarBroadcastKernel =
+        findKernel(*scalarBroadcastModule,
+                   "stmt_scalar_broadcast_macc_add_kernel");
+    VariantOp scalarBroadcastVariant =
+        findVariant(scalarBroadcastKernel, "rvv_scalar_broadcast_macc_add");
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    scalarBroadcastVariant, scalarBroadcastKernel,
+                    TargetCapabilitySet::buildFromKernel(
+                        scalarBroadcastKernel),
+                    VariantEmissionRole::DirectVariant),
+                scalarBroadcastRoute),
+            "provider consumes scalar-broadcast MAcc family statement plan"))
+      return result;
+    if (int result = expect(
+            scalarBroadcastRoute.getCallOpaqueSteps().size() ==
+                std::size(expectedPreLoopCallees) &&
+                scalarBroadcastRoute.getForLoops().size() == 1 &&
+                scalarBroadcastRoute.getForLoops().front().bodySteps.size() ==
+                    std::size(expectedScalarBroadcastBodyCallees),
+            "provider route attaches scalar-broadcast MAcc family-owned "
+            "statement-plan steps"))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis missingFamilyPlan =
+        *scalarBroadcastAnalysis;
+    missingFamilyPlan.scalarBroadcastMAccRouteFamilyPlan.reset();
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                missingFamilyPlan,
+                "scalar-broadcast MAcc missing family plan unit test"),
+            {"requires the scalar-broadcast MAcc route-family plan",
+             "scalar_broadcast_macc_add"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleMirror = *scalarBroadcastAnalysis;
+    staleMirror.description.scalarBroadcastMAccRouteFamilyPlanID =
+        "rvv-stale-scalar-broadcast-macc-route-family-plan";
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                staleMirror,
+                "scalar-broadcast MAcc stale mirror unit test"),
+            {"scalar-broadcast MAcc route-family plan mirror",
+             "validated family plan"}))
+      return result;
+
+    auto missingStatementFamilyFacts = *scalarBroadcastMaterializationFacts;
+    missingStatementFamilyFacts.scalarBroadcastMAccPlan = nullptr;
+    if (int result = expectErrorContains(
+            getRVVSelectedBodyPlainMAccRouteStatementPlan(
+                *scalarBroadcastAnalysis, missingStatementFamilyFacts,
+                *scalarBroadcastMathFacts,
+                "scalar-broadcast MAcc missing statement dependency unit test")
+                .takeError(),
+            {"plain MAcc statement plan requires the verified "
+             "scalar-broadcast MAcc route-family plan",
+             "before route statement construction"}))
       return result;
   }
 

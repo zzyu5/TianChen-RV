@@ -134,6 +134,9 @@ MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 SCALAR_BROADCAST_MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,acc,out,n"
+SCALAR_BROADCAST_MACC_ROUTE_FAMILY_PLAN = (
+    "rvv-scalar-broadcast-macc-route-family-plan.v1"
+)
 SCALAR_BROADCAST_MACC_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-scalar-broadcast-macc-add-leaf-profile.v1"
 )
@@ -4866,6 +4869,7 @@ MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.runtime_avl_source",
     "tcrv_rvv.route_operand_binding_plan",
     "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
     "tcrv_rvv.required_header_declarations",
@@ -5467,6 +5471,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_scalar_broadcast_macc_add:
         per_op_metadata.update(
             {
+                "tcrv_rvv.scalar_broadcast_macc_route_family_plan": (
+                    SCALAR_BROADCAST_MACC_ROUTE_FAMILY_PLAN
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     SCALAR_BROADCAST_MACC_TARGET_LEAF_PROFILE
                 ),
@@ -15973,6 +15980,11 @@ def multiply_accumulate_boundary_summary(
         if expectation.is_scalar_broadcast_macc_add
         else "rhs-input-buffer"
     )
+    statement_family = (
+        "scalar-broadcast MAcc"
+        if expectation.is_scalar_broadcast_macc_add
+        else "plain MAcc"
+    )
     loop_callees = [
         expectation.setvl_intrinsic,
         expectation.unit_load_intrinsic,
@@ -15991,8 +16003,8 @@ def multiply_accumulate_boundary_summary(
     return {
         "source": (
             f"typed tcrv_rvv.macc body/config with {rhs_source} -> math "
-            "operand-binding facts -> RVV-owned plain MAcc statement plan -> "
-            "emitted vmacc operands"
+            f"operand-binding facts -> RVV-owned {statement_family} "
+            "statement plan -> emitted vmacc operands"
         ),
         "authority": (
             "provider-derived typed tcrv_rvv multiply-accumulate "
@@ -16028,7 +16040,7 @@ def multiply_accumulate_boundary_summary(
             "n": "runtime-element-count",
         },
         "statement_plan": {
-            "family": "plain MAcc",
+            "family": statement_family,
             "pre_loop_callees": [expectation.setvl_intrinsic],
             "loop_callees": loop_callees,
             "rhs_source": rhs_source,

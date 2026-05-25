@@ -40,6 +40,68 @@ Closed scalar_broadcast_sub through the RVV-owned elementwise arithmetic stateme
 - None - task complete
 
 
+## Session 212: Stage2 RVV route-family module boundary closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV route-family module boundary closure
+**Branch**: `main`
+
+### Summary
+
+Closed scalar_broadcast_macc_add through an explicit RVV plugin-local
+route-family module boundary. The scalar-broadcast MAcc family plan now owns
+legality, typed body/config/runtime facts, route mirrors, materialization
+facts, ordered statement planning, and provider verification before common
+EmitC and target artifact mirror consumption.
+
+### Main Changes
+
+- Added `RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan` and registered the
+  `scalar-broadcast MAcc` owner in the reduction/accumulation/contraction
+  route-family registry.
+- Rewired central scalar_broadcast_macc_add route analysis to derive/apply the
+  family plan instead of populating target leaves, runtime ABI, header/type,
+  intrinsic, and layout mirrors ad hoc.
+- Extended materialization facts, math operand-binding verification, and
+  plain/scalar-broadcast MAcc statement planning so provider route
+  construction consumes the family-owned plan.
+- Mirrored `tcrv_rvv.scalar_broadcast_macc_route_family_plan` through
+  emission-plan metadata, target bundle validation, generated-bundle evidence,
+  and header artifact comments as mirror-only evidence.
+- Updated the RVV plugin spec with the durable plain/scalar-broadcast MAcc
+  statement-plan and family-plan contract.
+
+### Git Commits
+
+Pending final session commit in this turn.
+
+### Testing
+
+- [OK] Focused build:
+  `ninja -C build tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate`.
+- [OK] Focused C++ test:
+  `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Explicit and pre-realized FileCheck pipelines for emission-plan and
+  generated-header route-family mirrors.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `scalar_broadcast_macc_add`.
+- [OK] Real `ssh rvv` generated-bundle ABI/e2e for counts `7,16,23` and RHS
+  scalars `-37,91`.
+- [OK] Bounded authority scan found no new descriptor/source-front-door,
+  common-EmitC, harness, name-derived, metadata-derived, or legacy i32 route
+  authority.
+- [OK] `git diff --check`.
+- [OK] `ninja -C build check-tianchenrv`: 379/379 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 211: Stage2 RVV selected dispatch fallback envelope closure
 
 **Date**: 2026-05-25

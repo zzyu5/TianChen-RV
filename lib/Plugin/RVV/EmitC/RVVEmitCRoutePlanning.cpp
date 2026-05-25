@@ -1983,6 +1983,8 @@ constexpr llvm::StringLiteral
         "vl:size_t,lhs:element-strided-typed-vector,rhs:element-strided-typed-vector,result:element-strided-typed-vector");
 constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseRouteFamilyPlanID(
     "rvv-scalar-broadcast-elementwise-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccRouteFamilyPlanID(
+    "rvv-scalar-broadcast-macc-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRouteFamilyPlanID(
     "rvv-runtime-scalar-splat-store-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVWideningConversionRouteFamilyPlanID(
@@ -4997,6 +4999,236 @@ void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
   description.intrinsic = plan.arithmeticIntrinsic;
   description.storeIntrinsic = plan.storeIntrinsic;
   description.resultName = plan.resultName;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
+llvm::Error requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+    const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("scalar-broadcast MAcc route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+    const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "scalar-broadcast MAcc route-family runtime AVL/VL control"))
+    return error;
+  if (plan.operation != RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan currently supports only "
+        "scalar_broadcast_macc_add");
+  if (plan.memoryForm != RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan requires "
+        "rhs-scalar-broadcast-macc memory form");
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "runtime control plan", plan.runtimeControlPlan.controlPlanID,
+          getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "family plan", plan.familyPlanID,
+          kRVVScalarBroadcastMAccRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "runtime ABI order", plan.runtimeABIOrder,
+          kRVVScalarBroadcastMAccRuntimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "target leaf profile", plan.targetLeafProfile,
+          kRVVScalarBroadcastMAccTargetLeafProfile))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "provider_supported_mirror", plan.providerSupportedMirror,
+          kRVVScalarBroadcastMAccProviderSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "header declarations", plan.requiredHeaderDeclarations,
+          kRVVScalarBroadcastMAccRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "C type mapping summary", plan.cTypeMappingSummary,
+          kRVVScalarBroadcastMAccCTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan requires provider-owned "
+        "header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "vector type", plan.vectorTypeName,
+          "!tcrv_rvv.vector<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "setvl leaf", plan.setVLIntrinsic,
+          "__riscv_vsetvl_e32m1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "vector-load leaf", plan.vectorLoadIntrinsic,
+          "__riscv_vle32_v_i32m1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic,
+          "__riscv_vmv_v_x_i32m1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "MAcc compute leaf", plan.maccIntrinsic,
+          "__riscv_vmacc_vv_i32m1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "store leaf", plan.storeIntrinsic,
+          "__riscv_vse32_v_i32m1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "result name", plan.resultName, "macc_sum_vec"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "accumulator layout", plan.accumulatorLayout,
+          kRVVMAccAccumulatorLayout))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyScalarBroadcastMAccPlanField(
+          plan, "result layout", plan.resultLayout, kRVVMAccResultLayout))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan>
+deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  if (analysis.slice.arithmeticKind !=
+      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd)
+    return makeRVVEmitCRouteProviderError(
+        "requested scalar-broadcast MAcc route-family plan for "
+        "non-scalar-broadcast-MAcc RVV operation");
+  if (analysis.slice.memoryForm !=
+      RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan requires "
+        "rhs-scalar-broadcast-macc typed body structure");
+  if (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsScalarSplat ||
+      !analysis.slice.accumulatorLoadOperation || !analysis.slice.genericStore ||
+      !analysis.slice.maccOp || !analysis.slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan requires explicit load, "
+        "scalar splat, accumulator load, macc compute, and store body "
+        "structure");
+  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan currently requires SEW32 "
+        "LMUL m1 typed config");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.rhsABI.role !=
+          support::RuntimeABIParameterRole::RHSScalarValue ||
+      analysis.slice.accumulatorABI.role !=
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan requires lhs buffer, RHS "
+        "scalar, accumulator buffer, output buffer, and runtime "
+        "element-count ABI roles");
+  if (*analysis.slice.maccOp.getAccumulatorLayout() !=
+          kRVVMAccAccumulatorLayout ||
+      *analysis.slice.maccOp.getResultLayout() != kRVVMAccResultLayout)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan requires explicit MAcc "
+        "accumulator and result layout contracts");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVScalarBroadcastMAccRuntimeABIOrder,
+          "scalar-broadcast MAcc route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan plan;
+  plan.operation = analysis.slice.arithmeticKind;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVScalarBroadcastMAccRouteFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile = kRVVScalarBroadcastMAccTargetLeafProfile;
+  plan.providerSupportedMirror = kRVVScalarBroadcastMAccProviderSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVScalarBroadcastMAccRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary = kRVVScalarBroadcastMAccCTypeMappingSummary;
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.rhsScalarSplatIntrinsic = targetLeaves.rhsBroadcastIntrinsic;
+  plan.maccIntrinsic = targetLeaves.intrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName =
+      getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  plan.accumulatorLayout = *analysis.slice.maccOp.getAccumulatorLayout();
+  plan.resultLayout = *analysis.slice.maccOp.getResultLayout();
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.accumulatorABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+    const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.scalarBroadcastMAccRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
+  description.intrinsic = plan.maccIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.maccAccumulatorLayout = plan.accumulatorLayout;
+  description.maccResultLayout = plan.resultLayout;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -21592,6 +21824,122 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return operation == RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+}
+
+llvm::Error
+verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.scalarBroadcastMAccRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the scalar-broadcast MAcc route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.scalarBroadcastMAccRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a scalar-broadcast MAcc route-family plan for "
+        "non-scalar-broadcast-MAcc operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.scalarBroadcastMAccRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan &plan =
+      *analysis.scalarBroadcastMAccRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast MAcc route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.scalarBroadcastMAccRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast MAcc route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName !=
+          plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.rhsBroadcastIntrinsic !=
+          plan.rhsScalarSplatIntrinsic ||
+      analysis.description.intrinsic != plan.maccIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.maccAccumulatorLayout != plan.accumulatorLayout ||
+      analysis.description.maccResultLayout != plan.resultLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast MAcc route-family route, runtime, type, "
+        "intrinsic, layout, and result mirrors must be populated from the "
+        "validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast MAcc route-family runtime ABI parameters must "
+        "match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast MAcc provider requires the route operand binding "
+        "plan for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -21939,6 +22287,9 @@ getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners() {
           {"contraction",
            isRVVSelectedBodyContractionRouteFamilyConsumer,
            verifyRVVSelectedBodyContractionRouteFamilyProviderPlans},
+          {"scalar-broadcast MAcc",
+           isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer,
+           verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans},
           {"standalone reduction",
            isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer,
            verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans},
@@ -22043,6 +22394,9 @@ getRVVSelectedBodyRouteMaterializationFacts(
       analysis.scalarBroadcastElementwiseRouteFamilyPlan
           ? &*analysis.scalarBroadcastElementwiseRouteFamilyPlan
           : nullptr;
+  facts.scalarBroadcastMAccPlan = analysis.scalarBroadcastMAccRouteFamilyPlan
+                                      ? &*analysis.scalarBroadcastMAccRouteFamilyPlan
+                                      : nullptr;
   facts.runtimeScalarSplatStorePlan =
       analysis.runtimeScalarSplatStoreRouteFamilyPlan
           ? &*analysis.runtimeScalarSplatStoreRouteFamilyPlan
@@ -22113,6 +22467,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.vlCType =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vlCType
+      : facts.scalarBroadcastMAccPlan ? facts.scalarBroadcastMAccPlan->vlCType
       : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->vlCType
       : facts.computedMaskSelectPlan ? facts.computedMaskSelectPlan->vlCType
       : facts.wideningConversionPlan ? facts.wideningConversionPlan->vlCType
@@ -22123,6 +22478,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.resultVectorTypeName =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorTypeName
+      : facts.scalarBroadcastMAccPlan
+          ? facts.scalarBroadcastMAccPlan->vectorTypeName
       : facts.plainCompareSelectPlan
           ? facts.plainCompareSelectPlan->vectorTypeName
       : facts.computedMaskSelectPlan
@@ -22138,6 +22495,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.resultVectorCType =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorCType
+      : facts.scalarBroadcastMAccPlan
+          ? facts.scalarBroadcastMAccPlan->vectorCType
       : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->vectorCType
       : facts.computedMaskSelectPlan
           ? facts.computedMaskSelectPlan->vectorCType
@@ -22182,6 +22541,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.setVLLeaf = typedConfigFacts.setVLIntrinsic;
   if (facts.computedMaskAccumulationPlan)
     facts.setVLLeaf = facts.computedMaskAccumulationPlan->setVLIntrinsic;
+  else if (facts.scalarBroadcastMAccPlan)
+    facts.setVLLeaf = facts.scalarBroadcastMAccPlan->setVLIntrinsic;
   else if (facts.plainCompareSelectPlan)
     facts.setVLLeaf = facts.plainCompareSelectPlan->setVLIntrinsic;
   else if (facts.computedMaskSelectPlan)
@@ -22205,6 +22566,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   if (facts.computedMaskAccumulationPlan)
     facts.sourceLoadLeaf =
         facts.computedMaskAccumulationPlan->vectorLoadIntrinsic;
+  else if (facts.scalarBroadcastMAccPlan)
+    facts.sourceLoadLeaf = facts.scalarBroadcastMAccPlan->vectorLoadIntrinsic;
   else if (facts.plainCompareSelectPlan)
     facts.sourceLoadLeaf = facts.plainCompareSelectPlan->vectorLoadIntrinsic;
   else if (facts.computedMaskSelectPlan)
@@ -22226,6 +22589,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.vectorLoadLeaf =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorLoadIntrinsic
+      : facts.scalarBroadcastMAccPlan
+          ? facts.scalarBroadcastMAccPlan->vectorLoadIntrinsic
       : facts.plainCompareSelectPlan
           ? facts.plainCompareSelectPlan->vectorLoadIntrinsic
       : facts.computedMaskSelectPlan
@@ -22251,6 +22616,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.storeLeaf = typedConfigFacts.storeIntrinsic;
   if (facts.computedMaskAccumulationPlan)
     facts.storeLeaf = facts.computedMaskAccumulationPlan->storeIntrinsic;
+  else if (facts.scalarBroadcastMAccPlan)
+    facts.storeLeaf = facts.scalarBroadcastMAccPlan->storeIntrinsic;
   else if (facts.plainCompareSelectPlan)
     facts.storeLeaf = facts.plainCompareSelectPlan->storeIntrinsic;
   else if (facts.computedMaskSelectPlan)
@@ -22279,6 +22646,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.elementwiseComputeLeaf =
       facts.wideningConversionPlan
           ? facts.wideningConversionPlan->conversionIntrinsic
+      : facts.scalarBroadcastMAccPlan
+          ? facts.scalarBroadcastMAccPlan->maccIntrinsic
       : facts.scalarBroadcastPlan ? facts.scalarBroadcastPlan->arithmeticIntrinsic
                                   : description.intrinsic;
   facts.wideningProductLeaf =
@@ -22296,6 +22665,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
   facts.rhsScalarBroadcastLeaf =
       facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->rhsScalarSplatIntrinsic
+      : facts.scalarBroadcastMAccPlan
+          ? facts.scalarBroadcastMAccPlan->rhsScalarSplatIntrinsic
       : facts.computedMaskSelectPlan
           ? facts.computedMaskSelectPlan->rhsScalarSplatIntrinsic
       : facts.scalarBroadcastPlan ? facts.scalarBroadcastPlan->rhsScalarSplatIntrinsic
@@ -22324,6 +22695,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
 
   if (facts.computedMaskAccumulationPlan)
     facts.requiredHeaders = facts.computedMaskAccumulationPlan->requiredHeaders;
+  else if (facts.scalarBroadcastMAccPlan)
+    facts.requiredHeaders = facts.scalarBroadcastMAccPlan->requiredHeaders;
   else if (facts.plainCompareSelectPlan)
     facts.requiredHeaders = facts.plainCompareSelectPlan->requiredHeaders;
   else if (facts.computedMaskSelectPlan)
@@ -22385,6 +22758,9 @@ getRVVSelectedBodyRouteMaterializationFacts(
   const bool elementwiseSelectConsumer =
       isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
           description.operation);
+  const bool scalarBroadcastMAccConsumer =
+      isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+          description.operation);
   const bool baseMemoryUsesTypedVectorLoad =
       facts.baseMemoryMovementPlan &&
       !facts.baseMemoryMovementPlan->usesStridedLoad &&
@@ -22396,12 +22772,14 @@ getRVVSelectedBodyRouteMaterializationFacts(
       !facts.baseMemoryMovementPlan->usesIndexedScatter &&
       !facts.baseMemoryMovementPlan->usesStaticMaskStore;
 
-  if (elementwiseSelectConsumer || baseMemoryUsesTypedVectorLoad)
+  if (elementwiseSelectConsumer || scalarBroadcastMAccConsumer ||
+      baseMemoryUsesTypedVectorLoad)
     if (llvm::Error error = requireTypedEmissionMatch(
             "vector load intrinsic", facts.vectorLoadLeaf,
             typedConfigFacts.vectorLoadIntrinsic))
       return std::move(error);
-  if (elementwiseSelectConsumer || baseMemoryUsesTypedStore)
+  if (elementwiseSelectConsumer || scalarBroadcastMAccConsumer ||
+      baseMemoryUsesTypedStore)
     if (llvm::Error error = requireTypedEmissionMatch(
             "store intrinsic", facts.storeLeaf,
             typedConfigFacts.storeIntrinsic))
@@ -27599,6 +27977,15 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
   plan.plansMAccAdd = !isScalarBroadcastMAcc;
   plan.plansScalarBroadcastMAccAdd = isScalarBroadcastMAcc;
   plan.bindingPlan = mathOperandBindingFacts.bindingPlan;
+  if (isScalarBroadcastMAcc) {
+    if (!materializationFacts.scalarBroadcastMAccPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain MAcc statement plan requires the verified "
+          "scalar-broadcast MAcc route-family plan before route statement "
+          "construction");
+    plan.scalarBroadcastMAccPlan = materializationFacts.scalarBroadcastMAccPlan;
+  }
 
   if (!mathOperandBindingFacts.bindsPlainMAcc)
     return makeRVVEmitCRouteProviderError(
@@ -30124,9 +30511,6 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (analysis.slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd)
     analysis.description.runtimeABIOrder = kRVVMAccRuntimeABIOrder;
   if (analysis.slice.arithmeticKind ==
-      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd)
-    analysis.description.runtimeABIOrder = kRVVScalarBroadcastMAccRuntimeABIOrder;
-  if (analysis.slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd)
     analysis.description.runtimeABIOrder = kRVVComputedMaskedMAccRuntimeABIOrder;
   if (analysis.slice.arithmeticKind ==
@@ -30149,19 +30533,6 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       configContract.pointerAdvanceMetadata;
   analysis.description.boundedSlice = configContract.boundedSlice;
   analysis.description.multiVL = configContract.multiVL;
-  if (analysis.slice.arithmeticKind ==
-      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) {
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
-            analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
-            analysis.slice.setvl, analysis.slice.withVL,
-            kRVVScalarBroadcastMAccRuntimeABIOrder,
-            "scalar-broadcast MAcc composition route analysis");
-    if (!runtimeControlPlan)
-      return runtimeControlPlan.takeError();
-    applyRVVRuntimeAVLVLControlPlanToDescription(*runtimeControlPlan,
-                                                 analysis.description);
-  }
   if (analysis.slice.memoryForm ==
       RVVSelectedBodyMemoryForm::UnitStrideConversion) {
     if (analysis.slice.arithmeticKind ==
@@ -30845,18 +31216,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) {
-    analysis.description.targetLeafProfile =
-        kRVVScalarBroadcastMAccTargetLeafProfile;
-    analysis.description.providerSupportedMirror =
-        kRVVScalarBroadcastMAccProviderSupportedMirror;
-    analysis.description.requiredHeaderDeclarations =
-        kRVVScalarBroadcastMAccRequiredHeaderDeclarations;
-    analysis.description.cTypeMappingSummary =
-        kRVVScalarBroadcastMAccCTypeMappingSummary;
-    analysis.description.maccAccumulatorLayout =
-        *analysis.slice.maccOp.getAccumulatorLayout();
-    analysis.description.maccResultLayout =
-        *analysis.slice.maccOp.getResultLayout();
+    llvm::Expected<RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan>
+        scalarBroadcastMAccPlan =
+            deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!scalarBroadcastMAccPlan)
+      return scalarBroadcastMAccPlan.takeError();
+    analysis.scalarBroadcastMAccRouteFamilyPlan =
+        std::move(*scalarBroadcastMAccPlan);
+    applyRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+        *analysis.scalarBroadcastMAccRouteFamilyPlan, analysis.description);
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
@@ -32385,6 +32754,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "scalar-broadcast elementwise route family plan",
             description.scalarBroadcastElementwiseRouteFamilyPlanID, ""))
+      return error;
+  }
+  if (isScalarBroadcastMAcc) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "scalar-broadcast MAcc route family plan",
+            description.scalarBroadcastMAccRouteFamilyPlanID,
+            kRVVScalarBroadcastMAccRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "scalar-broadcast MAcc route family plan",
+            description.scalarBroadcastMAccRouteFamilyPlanID, ""))
       return error;
   }
   if (isRuntimeScalarSplatStoreRoute) {
@@ -34487,6 +34868,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
          description.scalarBroadcastElementwiseRouteFamilyPlanID});
+  if (!description.scalarBroadcastMAccRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+         description.scalarBroadcastMAccRouteFamilyPlanID});
   if (!description.elementwiseArithmeticRouteFamilyPlanID.empty())
     metadata.push_back(
         {"tcrv_rvv.elementwise_arithmetic_route_family_plan",
@@ -34551,8 +34936,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
           description.operation) ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
       !description.plainCompareSelectRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyWideningConversionRouteOperation(description.operation) ||
       isRVVSelectedBodyBaseMemoryMovementRouteOperation(

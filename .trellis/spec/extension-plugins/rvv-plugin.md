@@ -1879,17 +1879,18 @@ verified computed-mask accumulation family plan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
-## Plain MAcc Statement-Plan Boundary
+## Plain And Scalar-Broadcast MAcc Statement-Plan Boundary
 
 ### 1. Scope / Trigger
 
-For production-active plain `macc_add` selected-body routes,
-`RVVEmitCRouteProvider` must not locally recreate the setvl/load/load/
-accumulator-load/MAcc/store statement sequence from operation names, ABI
-strings, intrinsic mirrors, accumulator-layout mirrors, route ids, or artifact
-metadata after route materialization facts and math operand-binding facts have
-been validated. The RVV planning layer must expose one RVV-owned
-statement-plan boundary for the bounded typed `MAccAdd` route.
+For production-active plain `macc_add` and scalar-broadcast
+`scalar_broadcast_macc_add` selected-body routes, `RVVEmitCRouteProvider` must
+not locally recreate the setvl/load/splat/load-accumulator/MAcc/store
+statement sequence from operation names, ABI strings, intrinsic mirrors,
+accumulator-layout mirrors, route ids, or artifact metadata after route
+materialization facts and math operand-binding facts have been validated. The
+RVV planning layer must expose one RVV-owned statement-plan boundary for the
+bounded typed MAcc route family and its scalar-broadcast sub-family.
 
 The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
 adds neutral headers, type mappings, ABI mappings, selected-boundary source
@@ -1922,30 +1923,49 @@ empty/default plain MAcc statement plan.
 may carry:
 
 - the verified math operand-binding plan pointer;
-- sub-family booleans for plain MAcc and `macc_add`;
+- pointers to the verified plain or scalar-broadcast MAcc family plan when the
+  selected operation requires one;
+- sub-family booleans for plain MAcc, `macc_add`, and
+  `scalar_broadcast_macc_add`;
 - provider-ready full-chunk `setvl` pre-loop steps;
-- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, lhs load, rhs load,
-  accumulator load, active MAcc compute, and store steps.
+- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, lhs load, rhs load
+  or RHS scalar splat, accumulator load, active MAcc compute, and store steps.
 
 For the bounded i32/SEW32/LMUL m1 unit-stride route, the emitted MAcc step must
 use the RVV-owned compute leaf as `accumulator_vector, lhs_vector, rhs_vector,
-loop_vl`, and the store destination must advance by the loop induction
-(`out + induction`). The plan must be derived only from verified typed
-body/config/runtime facts, route materialization facts, and RVV-owned math
-operand-binding facts. It is not a common EmitC fact, not artifact metadata,
-not an acceptance/status mirror, and not a route-support declaration by itself.
+loop_vl`; for scalar-broadcast MAcc the RHS vector must come from the
+family-owned scalar splat leaf and the `rhs_scalar` ABI role. The store
+destination must advance by the loop induction (`out + induction`). The plan
+must be derived only from verified typed body/config/runtime facts, route
+materialization facts, and RVV-owned math operand-binding facts. It is not a
+common EmitC fact, not artifact metadata, not an acceptance/status mirror, and
+not a route-support declaration by itself.
+
+For scalar-broadcast MAcc, `RVVSelectedBodyRouteAnalysis` must carry a
+validated `RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan`, and
+`RVVSelectedBodyEmitCRouteDescription::scalarBroadcastMAccRouteFamilyPlanID`
+must mirror that plan only after validation. Target artifacts may mirror the
+plan through `tcrv_rvv.scalar_broadcast_macc_route_family_plan`; they must not
+infer support, dtype, ABI order, or intrinsic spelling from the mirror.
 
 ### 4. Validation & Error Matrix
 
 - A non plain-MAcc route requests the boundary -> return an empty plan without
-  changing unrelated route-family behavior.
+  changing unrelated route-family behavior, unless it is an included
+  scalar-broadcast MAcc route.
 - An included plain MAcc route lacks `bindsPlainMAcc` math operand-binding
   facts -> fail closed before route statement construction.
+- An included scalar-broadcast MAcc route lacks its validated
+  scalar-broadcast MAcc route-family plan, or the route description mirror does
+  not match that plan -> fail closed before route statement construction.
 - Required ABI roles `lhs`, `rhs`, `acc`, `out`, or runtime count `n` are
   absent -> fail closed with the logical operand name and operation/memory-form
   context.
-- Required materialization leaves `setvl`, vector load, MAcc compute, or store
-  are absent -> fail closed before common EmitC.
+- Required ABI roles `lhs`, `rhs_scalar`, `acc`, `out`, or runtime count `n`
+  are absent for scalar-broadcast MAcc -> fail closed with the logical operand
+  name and operation/memory-form context.
+- Required materialization leaves `setvl`, vector load, scalar splat where
+  needed, MAcc compute, or store are absent -> fail closed before common EmitC.
 - Required source operation provenance for configure/load/compute/store steps
   is absent or reports the wrong EmitC source role -> fail closed before common
   EmitC.
@@ -1959,6 +1979,10 @@ not an acceptance/status mirror, and not a route-support declaration by itself.
 - Good: typed `tcrv_rvv.macc` body -> route-family provider verifier ->
   materialization facts -> math operand-binding facts -> RVV-owned plain MAcc
   statement plan -> provider-built route.
+- Good: typed scalar-broadcast `tcrv_rvv.macc` body with `rhs_scalar` ABI ->
+  scalar-broadcast MAcc family plan verifier -> materialization facts -> math
+  operand-binding facts -> RVV-owned statement plan with scalar splat leaf ->
+  provider-built route.
 - Base: computed-mask MAcc, widening MAcc, dot-reduction, memory, compare/
   select, residual runtime scalar splat-store, and future families keep their
   own statement construction surfaces and receive an empty plain MAcc plan.
@@ -1971,16 +1995,19 @@ not an acceptance/status mirror, and not a route-support declaration by itself.
 ### 6. Tests Required
 
 - Focused C++ tests for positive plain MAcc statement-plan construction and
-  provider consumption.
+  provider consumption, plus scalar-broadcast MAcc positive statement-plan
+  construction and provider consumption.
 - Focused C++ fail-closed diagnostics for missing math facts, MAcc compute
-  leaf, vector load leaf, or source-role provenance before route statement
+  leaf, vector load leaf, scalar splat leaf, missing/stale scalar-broadcast
+  family plan mirror, or source-role provenance before route statement
   construction.
 - C++ default/empty-plan coverage for unrelated route families.
 - Representative lit/FileCheck coverage proving existing explicit and
   pre-realized MAcc selected-body artifacts still pass.
 - Generated-bundle ABI evidence showing typed `tcrv_rvv.macc` body/config,
   math operand-binding facts, RVV-owned plain MAcc statement plan, emitted
-  `vmacc` operands, and mirror-only artifact metadata.
+  `vmacc` operands, scalar-broadcast family-plan mirror where applicable, and
+  mirror-only artifact metadata.
 - Bounded authority scan over touched RVV dialect/realization/planning/
   provider/target/script/fixture files for legacy i32/source-front-door/
   descriptor/direct-C/source-export or mirror-only authority drift.
@@ -1991,9 +2018,10 @@ Wrong:
 
 ```text
 provider body:
-  if operation is macc_add,
-  locally assemble setvl/load/load/acc-load/MAcc/store from operation names,
-  ABI strings, route ids, intrinsic mirrors, and accumulator mirrors
+  if operation is macc_add or scalar_broadcast_macc_add,
+  locally assemble setvl/load/splat/load-acc/MAcc/store from operation names,
+  ABI strings, route ids, intrinsic mirrors, accumulator mirrors, or artifact
+  metadata
 ```
 
 Correct:
