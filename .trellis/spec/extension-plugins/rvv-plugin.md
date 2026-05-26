@@ -287,17 +287,18 @@ legacy i32 helper names.
 For `segment2 memory`, route-entry eligibility may be narrower than the
 realization owner family. Bounded plain `segment2_deinterleave_unit_store` and
 `segment2_interleave_unit_load` pre-realized bodies, and the bounded
-computed-mask `computed_masked_segment2_load_unit_store` pre-realized body,
-may be direct route-entry capable when their realized
-`segment2_load/move/move/store/store`, `load/load/segment2_store`, or
-`load/load/load/load/compare/masked_segment2_load/store/store` bodies feed the
-verified segment2 family plan, route-control provider plan, memory
-operand-binding facts, and segment2 statement-plan boundary. Computed-mask
-segment2 route-entry eligibility must additionally validate compare-produced
-mask source, same-VL scope, passthrough/inactive-lane policy, field roles,
-segment count, memory forms, runtime ABI roles, SEW/LMUL, policy, and selected
-capability facts before provider construction. Other segment2 bodies, including
-computed-mask `computed_masked_segment2_store_unit_load`, must remain
+computed-mask `computed_masked_segment2_load_unit_store` and
+`computed_masked_segment2_store_unit_load` pre-realized bodies, may be direct
+route-entry capable when their realized `segment2_load/move/move/store/store`,
+`load/load/segment2_store`,
+`load/load/load/load/compare/masked_segment2_load/store/store`, or
+`load/load/load/load/compare/masked_segment2_store` bodies feed the verified
+segment2 family plan, route-control provider plan, memory operand-binding
+facts, and segment2 statement-plan boundary. Computed-mask segment2 route-entry
+eligibility must additionally validate compare-produced mask source, same-VL
+scope, passthrough/inactive-lane policy, field roles, segment count, memory
+forms, runtime ABI roles, SEW/LMUL, policy, and selected capability facts
+before provider construction. Other segment2 bodies remain
 selected-boundary-only until an explicit owner task adds route-entry support
 with matching provider facts, diagnostics, generated-bundle evidence, and
 `ssh rvv` evidence for executable claims.
@@ -539,6 +540,11 @@ The route-entry bridge may support bounded family groups such as:
   structure already feeds RVV-owned computed-mask memory family facts, segment2
   family plans, route-control provider plans, memory operand-binding facts, and
   segment2 statement plans.
+- bounded computed-mask segment2 store/unit-load pre-realized bodies whose
+  realized `load/load/load/load/compare/masked_segment2_store` structure
+  already feeds RVV-owned computed-mask memory family facts, segment2 family
+  plans, route-control provider plans, memory operand-binding facts, and
+  segment2 statement plans.
 
 Unlisted pre-realized families must fail closed at the route-entry bridge
 unless their owning route-entry support is explicitly added with matching
@@ -603,9 +609,10 @@ structure.
 
 - Good: selected RVV variant -> pre-realized compare/select, base-memory,
   standalone-reduction, contraction, bounded segment2 deinterleave, or bounded
-  segment2 interleave, or bounded computed-mask segment2 load/unit-store body
-  -> route-entry realization bridge -> realized `tcrv_rvv` body -> RVV-owned
-  facts/statement plan -> provider-built route -> common EmitC.
+  segment2 interleave, bounded computed-mask segment2 load/unit-store body, or
+  bounded computed-mask segment2 store/unit-load body -> route-entry
+  realization bridge -> realized `tcrv_rvv` body -> RVV-owned facts/statement
+  plan -> provider-built route -> common EmitC.
 - Base: explicit already-realized selected body -> route-entry helper returns
   the unique `with_vl` boundary and preserves existing route behavior.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes

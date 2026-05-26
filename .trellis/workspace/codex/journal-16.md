@@ -495,3 +495,36 @@ Promoted bounded computed_masked_segment2_load_unit_store to RVV segment2 memory
 ### Next Steps
 
 - None - task complete
+
+
+## Session 246: Stage2 RVV computed-mask segment2 store route-entry owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask segment2 store route-entry owner
+**Branch**: `main`
+
+### Summary
+
+Promoted computed_masked_segment2_store_unit_load to direct RVV segment2 memory route-entry support with provider evidence, ssh rvv correctness, non-regression, and check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
