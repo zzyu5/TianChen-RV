@@ -853,6 +853,22 @@ bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
          isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm());
 }
 
+bool isPreRealizedRVVWideningConversionRouteEntryOp(mlir::Operation *op) {
+  auto body =
+      llvm::dyn_cast<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
+  if (!body)
+    return false;
+  return isPreRealizedWideningConversionOpKind(body.getOpKind()) &&
+         isPreRealizedWideningConversionMemoryForm(body.getMemoryForm()) &&
+         isPreRealizedWideningConversionRelation(
+             body.getConversionRelation()) &&
+         isPreRealizedWideningConversionSignature(
+             body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
+             body.getSourceLmul(), static_cast<std::int64_t>(body.getDestSew()),
+             body.getDestLmul(), body.getConversionRelation()) &&
+         tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
+}
+
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVElementwiseCompareSelectOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
@@ -1112,7 +1128,8 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        isPreRealizedRVVContractionOwnerOp,
        realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
-       nullptr, realizePreRealizedRVVWideningConversionOwner},
+       isPreRealizedRVVWideningConversionRouteEntryOp,
+       realizePreRealizedRVVWideningConversionOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
        isPreRealizedRVVBaseMemoryMovementRouteEntryOp,
        realizePreRealizedRVVBaseMemoryMovementOwner},
@@ -7685,7 +7702,7 @@ realizePreRealizedRVVRouteEntrySelectedBody(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise/compare-select, base memory movement, "
         "standalone reduction, plain/scalar-broadcast macc, computed-mask "
-        "macc, or contraction "
+        "macc, contraction, or widening conversion "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");
 

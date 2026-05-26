@@ -137,7 +137,16 @@ Made direct route-entry computed-mask select a first-class RVV compare/select ow
 
 ### Main Changes
 
-(Add details)
+- `RVVSelectedBodyRealization.cpp`: added an owner-scoped widening conversion
+  route-entry predicate for supported
+  `TypedWideningConversionPreRealizedBodyOp` bodies and registered it in the
+  selected-body owner registry.
+- `rvv_generated_bundle_abi_e2e.py`: enabled bounded direct pre-realized
+  route-entry mode for `widen_i16_to_i32` and updated direct-route diagnostics.
+- `RVVExtensionPluginTest.cpp`: added owner registry, provider plan, direct
+  route-entry realization, and load/convert/store structure coverage.
+- Added focused generated-bundle dry-run FileCheck coverage for direct
+  route-entry signed `i16mf2 -> i32m1` widening conversion evidence.
 
 ### Git Commits
 
@@ -147,7 +156,19 @@ Made direct route-entry computed-mask select a first-class RVV compare/select ow
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] direct pre-realized `widen_i16_to_i32` generated-bundle dry-run,
+  counts `0,7,16,23,257`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `ssh rvv` direct pre-realized `widen_i16_to_i32` run, counts
+  `0,7,16,23,257`, with sign-extension and tail-preservation checks.
+- [OK] direct route-entry non-regression dry-run for compare/select, computed
+  mask select, MAcc, runtime-scalar computed-mask MAcc, and widening MAcc.
+- [OK] bounded authority scan over touched files.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (385/385)
 
 ### Status
 
@@ -200,6 +221,39 @@ Made runtime_scalar_cmp_masked_macc_add direct route-entry eligible through the 
   contraction.
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` (384/384)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 240: Stage2 RVV conversion dtype policy route-family owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV conversion dtype policy route-family owner
+**Branch**: `main`
+
+### Summary
+
+Made the typed widening conversion route family direct route-entry capable for signed i16mf2-to-i32m1 under runtime AVL, with focused C++ coverage, generated-bundle dry-run evidence, real ssh rvv correctness evidence, non-regression checks, and full check-tianchenrv pass.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

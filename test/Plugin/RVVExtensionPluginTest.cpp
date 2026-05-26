@@ -1145,7 +1145,8 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
 
   const llvm::StringRef routeEntryOwners[] = {
       "elementwise/compare-select", "standalone reduction", "MAcc",
-      "computed-mask MAcc", "contraction", "base memory movement"};
+      "computed-mask MAcc", "contraction", "widening conversion",
+      "base memory movement"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1258,6 +1259,12 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
       tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_widen_i16_to_i32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i16mf2-to-i32m1", dest_lmul = "m1", dest_sew = 32 : i64, memory_form = "unit-stride-conversion", op_kind = "sign_extend_widen_vf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_standalone_reduce_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1507,6 +1514,16 @@ module {
                   " realizes compare/value loads, select, and store"))
         return result;
     }
+    if (expectedProviderPlanID ==
+        "rvv-widening-conversion-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.widening_convert") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("direct route-entry @") + variantName +
+                  " realizes source load, widening conversion, and store"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       if (int result = expectSuccess(
@@ -1550,6 +1567,8 @@ module {
                 routeDescription->accumulationRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->standaloneReductionRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->wideningConversionRouteFamilyPlanID ==
                     expectedProviderPlanID,
             llvm::Twine("realized @") + variantName +
                 " reaches the expected provider plan"))
@@ -1595,6 +1614,13 @@ module {
           "tcrv_rvv.typed_strided_memory_pre_realized_body",
           "base memory movement",
           "rvv-base-memory-movement-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_widen_i16_to_i32",
+          "tcrv_rvv.typed_widening_conversion_pre_realized_body",
+          "widening conversion",
+          "rvv-widening-conversion-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(

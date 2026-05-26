@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and RVV-first route authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, conversion/dtype policy, selected-body realization, route-entry, provider ownership, mirrors, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/generated-bundle/ssh-rvv evidence expectations."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first checks for selected RVV capability and typed config legality."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-local realization/provider locality and common-core boundary."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure conversion compute remains in RVV extension body, not tcrv.exec or common EmitC."}
