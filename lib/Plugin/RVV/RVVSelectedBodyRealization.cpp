@@ -796,12 +796,27 @@ bool isPreRealizedRVVCompareSelectRouteEntryOp(mlir::Operation *op) {
   return false;
 }
 
+bool isPreRealizedRVVTypedBinaryRouteEntryOp(mlir::Operation *op) {
+  auto body = llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(op);
+  if (!body)
+    return false;
+
+  if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm()))
+    return isSupportedPreRealizedArithmeticOpKind(body.getOpKind());
+  if (isPreRealizedStridedMemoryForm(body.getMemoryForm()))
+    return body.getOpKind() == "add";
+  if (isPreRealizedUnitStrideMemoryForm(body.getMemoryForm()))
+    return isSupportedPreRealizedArithmeticOpKind(body.getOpKind());
+  return false;
+}
+
 bool isPreRealizedRVVElementwiseCompareSelectRouteEntryOp(
     mlir::Operation *op) {
   if (isPreRealizedRVVCompareSelectRouteEntryOp(op))
     return true;
-  return llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
-                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
+  if (isPreRealizedRVVTypedBinaryRouteEntryOp(op))
+    return true;
+  return llvm::isa<tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                    tcrv::rvv::
                        TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
                    tcrv::rvv::

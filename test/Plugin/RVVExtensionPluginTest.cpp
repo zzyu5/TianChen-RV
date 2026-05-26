@@ -1228,6 +1228,20 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "vector-rhs-load", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_scalar_broadcast_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs_scalar, %out, %n {lmul = "m1", memory_form = "rhs-scalar-broadcast", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_scalar_broadcast_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs_scalar, %out, %n {lmul = "m1", memory_form = "rhs-scalar-broadcast", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1524,6 +1538,17 @@ module {
                   " realizes source load, widening conversion, and store"))
         return result;
     }
+    if (expectedProviderPlanID ==
+        "rvv-scalar-broadcast-elementwise-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("direct route-entry @") + variantName +
+                  " realizes lhs load, RHS scalar splat, binary, and store"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       if (int result = expectSuccess(
@@ -1552,7 +1577,9 @@ module {
       return fail(llvm::Twine("describe realized route for @") + variantName +
                   ": " + llvm::toString(routeDescription.takeError()));
     if (int result = expect(
-            routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
+                routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->scalarBroadcastElementwiseRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->plainCompareSelectRouteFamilyPlanID ==
                     expectedProviderPlanID ||
@@ -1593,6 +1620,13 @@ module {
           "rvv_pre_route_add", "tcrv_rvv.typed_binary_pre_realized_body",
           "elementwise/compare-select",
           "rvv-elementwise-arithmetic-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_scalar_broadcast_add",
+          "tcrv_rvv.typed_binary_pre_realized_body",
+          "elementwise/compare-select",
+          "rvv-scalar-broadcast-elementwise-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
@@ -1671,6 +1705,66 @@ module {
           "found elementwise/compare-select direct route-entry realization "
           "hook"))
     return result;
+  mlir::Builder attrBuilder(module->getContext());
+  VariantOp negativeScalarBroadcastVariant =
+      findVariant(kernel, "rvv_pre_route_owner_negative_scalar_broadcast_add");
+  auto negativeScalarBroadcastBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedBinaryPreRealizedBodyOp>(
+      findFirstNestedOp(negativeScalarBroadcastVariant,
+                        "tcrv_rvv.typed_binary_pre_realized_body"));
+  if (int result = expect(negativeScalarBroadcastBody != nullptr,
+                          "found scalar_broadcast_add pre-realized body for "
+                          "owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          elementwiseCompareSelectOwner->isRouteEntryConsumer(
+              negativeScalarBroadcastBody.getOperation()),
+          "scalar_broadcast_add fixture is route-entry eligible through the "
+          "elementwise/compare-select owner predicate before targeted "
+          "mutation"))
+    return result;
+  auto expectScalarBroadcastOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        elementwiseCompareSelectOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativeScalarBroadcastVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            negativeScalarBroadcastBody.getOperation());
+    if (invalid)
+      return fail("elementwise/compare-select owner-local hook accepted "
+                  "invalid scalar_broadcast_add typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativeScalarBroadcastBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("scalar_broadcast_metadata"));
+  if (int result = expectScalarBroadcastOwnerError(
+          {"pre-realized RVV selected body currently supports only op_kind",
+           "add", "sub", "mul"}))
+    return result;
+  negativeScalarBroadcastBody->setAttr("op_kind",
+                                       attrBuilder.getStringAttr("add"));
+
+  mlir::Operation *rhsScalarABI = nullptr;
+  negativeScalarBroadcastVariant.getBody().walk([&](mlir::Operation *op) {
+    if (rhsScalarABI)
+      return;
+    auto cName = op->getAttrOfType<mlir::StringAttr>("c_name");
+    if (cName && cName.getValue() == "rhs_scalar")
+      rhsScalarABI = op;
+  });
+  if (int result = expect(rhsScalarABI != nullptr,
+                          "found rhs_scalar runtime ABI value for "
+                          "scalar_broadcast_add negative role test"))
+    return result;
+  rhsScalarABI->setAttr("role", attrBuilder.getStringAttr("rhs-input-buffer"));
+  if (int result = expectScalarBroadcastOwnerError(
+          {"pre-realized RVV rhs operand", "rhs-scalar-value",
+           "selected-body realization"}))
+    return result;
+
   VariantOp negativeComputedMaskSelectVariant =
       findVariant(kernel, "rvv_pre_route_owner_negative_computed_mask_select");
   auto negativeComputedMaskSelectBody = llvm::dyn_cast_or_null<
@@ -1688,7 +1782,6 @@ module {
           "computed-mask select fixture is route-entry eligible through the "
           "explicit compare/select owner predicate before targeted mutation"))
     return result;
-  mlir::Builder attrBuilder(module->getContext());
   auto expectComputedMaskSelectOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());

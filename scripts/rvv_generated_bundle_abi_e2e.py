@@ -1811,6 +1811,7 @@ class OpExpectation:
         return self.is_pre_realized and (
             self.is_cmp_select
             or self.is_computed_mask_select
+            or self.is_scalar_broadcast_add
             or self.is_strided_load_unit_store
             or self.is_standalone_reduce_add
             or self.is_macc_add
@@ -11300,6 +11301,17 @@ def harness_source(
     )
     scalar_values_literal = ", ".join(f"(int32_t){value}" for value in scalar_values)
     scalar_values_summary = ",".join(str(value) for value in scalar_values)
+    scalar_wrong_sign_expression = {
+        "scalar_broadcast_add": (
+            "lhs[index] + (rhs_scalar < 0 ? -rhs_scalar : rhs_scalar)"
+        ),
+        "scalar_broadcast_sub": (
+            "lhs[index] - (rhs_scalar < 0 ? -rhs_scalar : rhs_scalar)"
+        ),
+        "scalar_broadcast_mul": (
+            "lhs[index] * (rhs_scalar < 0 ? -rhs_scalar : rhs_scalar)"
+        ),
+    }.get(expectation.kind, expectation.expected_expression)
     stride_values = list(
         DEFAULT_STRIDED_LOAD_BYTE_STRIDES
         if stride_bytes_values is None
@@ -13771,8 +13783,18 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
 
   {expectation.function_name}(lhs, rhs_scalar, out, n);
 
+  size_t rhs_influence_lanes = 0;
+  size_t lhs_influence_lanes = 0;
+  size_t scalar_sign_distinguishing_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
     int32_t expected = {expectation.expected_expression};
+    if (expected != lhs[index])
+      ++rhs_influence_lanes;
+    if (expected != rhs_scalar)
+      ++lhs_influence_lanes;
+    if (rhs_scalar < 0 &&
+        expected != (int32_t)({scalar_wrong_sign_expression}))
+      ++scalar_sign_distinguishing_lanes;
     if (out[index] != expected) {{
       fprintf(stderr,
               "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs_scalar=%d\\n",
@@ -13781,6 +13803,18 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
       free(out);
       return 12;
     }}
+  }}
+
+  if (n > 0 &&
+      (rhs_influence_lanes == 0 || lhs_influence_lanes == 0 ||
+       (rhs_scalar < 0 && scalar_sign_distinguishing_lanes == 0))) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu rhs_scalar=%d rhs_influence=%zu lhs_influence=%zu scalar_sign_distinguishing=%zu\\n",
+            n, rhs_scalar, rhs_influence_lanes, lhs_influence_lanes,
+            scalar_sign_distinguishing_lanes);
+    free(lhs);
+    free(out);
+    return 14;
   }}
 
   for (size_t index = n; index < alloc_n; ++index) {{
@@ -13796,8 +13830,9 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
 
   free(lhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d tail_preserved\\n",
-         n, rhs_scalar);
+  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d rhs_influence_lanes=%zu lhs_influence_lanes=%zu scalar_sign_distinguishing_lanes=%zu tail_preserved\\n",
+         n, rhs_scalar, rhs_influence_lanes, lhs_influence_lanes,
+         scalar_sign_distinguishing_lanes);
   return 0;
 }}
 

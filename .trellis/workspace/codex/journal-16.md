@@ -67,6 +67,74 @@ Closed direct route-entry computed_masked_strided_input_widening_dot_reduce_add 
 - None - task complete
 
 
+## Session 241: Stage2 RVV scalar-broadcast elementwise route-entry owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV scalar-broadcast elementwise route-entry owner
+**Branch**: `main`
+
+### Summary
+
+Made standalone `scalar_broadcast_add` explicit in the direct pre-realized
+route-entry path, preserving the RVV typed-body -> owner realization ->
+provider-built route chain and proving real runtime scalar broadcast behavior
+on `ssh rvv`.
+
+### Main Changes
+
+- `RVVSelectedBodyRealization.cpp`: tightened typed-binary route-entry
+  eligibility to use RVV-owned op-kind and memory-form facts.
+- `RVVExtensionPluginTest.cpp`: added direct route-entry coverage for
+  `rvv_pre_route_scalar_broadcast_add`, plus owner-local diagnostics for
+  unsupported scalar-broadcast op kind and wrong `rhs_scalar` role.
+- `rvv_generated_bundle_abi_e2e.py`: enabled direct pre-realized route-entry
+  support for representative `scalar_broadcast_add` and strengthened the
+  generated harness oracle for RHS scalar influence, LHS influence, negative
+  scalar sign/value distinction, and tail preservation.
+- Added focused FileCheck dry-run coverage for direct pre-realized
+  `scalar_broadcast_add`.
+- Spec update judgment: no `.trellis/spec/**` edit was needed because
+  `rvv-plugin.md`, `emitc-route.md`, and `mlir-testing-contract.md` already
+  encode the scalar-broadcast elementwise route-entry, route-control,
+  provider-owned route, mirror-only metadata, and runtime evidence contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-26-stage2-rvv-scalar-broadcast-elementwise-route-entry-owner`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] direct pre-realized `scalar_broadcast_add` dry-run artifact under
+  `artifacts/tmp/stage2_scalar_broadcast_elementwise_route_entry/direct-pre-realized-scalar-broadcast-add`
+- [OK] focused lit/FileCheck selected test
+  `direct-pre-realized-scalar-broadcast-add`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] real `ssh rvv` direct pre-realized `scalar_broadcast_add`, counts
+  `0,7,16,23,257`, rhs scalars `-37,19`, with runtime scalar influence,
+  LHS influence, negative scalar sign-distinguishing lanes, and tail
+  preservation.
+- [OK] direct route-entry non-regression dry-runs for conversion,
+  runtime-scalar computed-mask MAcc, compare/select, MAcc,
+  scalar-broadcast MAcc, and contraction.
+- [OK] production diff authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (386/386)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 238: Stage2 RVV route-entry MAcc realization owner
 
 **Date**: 2026-05-26
