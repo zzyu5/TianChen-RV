@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-16.md`
-- **Total Sessions**: 240
+- **Total Sessions**: 241
 - **Last Active**: 2026-05-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~243 | Active |
+| `journal-16.md` | ~365 | Active |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +44,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 241 | 2026-05-26 | Stage2 RVV standalone reduction route owner | `same commit` | `main` |
 | 240 | 2026-05-26 | Stage2 RVV conversion dtype policy route-family owner | pending-final-session-commit | `main` |
 | 239 | 2026-05-26 | Stage2 RVV runtime scalar ABI route-entry owner | pending-final-session-commit | `main` |
 | 238 | 2026-05-26 | Stage2 RVV compare/select route-family owner | pending-final-session-commit | `main` |

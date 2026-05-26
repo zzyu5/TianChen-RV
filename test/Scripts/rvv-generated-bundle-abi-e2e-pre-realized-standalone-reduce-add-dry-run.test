@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-standalone-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="--tcrv-materialize-selected-lowering-boundaries" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
@@ -90,5 +90,5 @@
 # HARNESS: acc[0] = seed;
 # HARNESS: tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add(lhs, acc, out, n);
 # HARNESS: tail_preserved
-# HARNESS: const size_t counts[] = {0, 7, 16, 23};
+# HARNESS: const size_t counts[] = {0, 7, 16, 23, 257};
 # HARNESS: seeds=-11,17

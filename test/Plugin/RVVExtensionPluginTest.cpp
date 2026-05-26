@@ -1549,6 +1549,17 @@ module {
                   " realizes lhs load, RHS scalar splat, binary, and store"))
         return result;
     }
+    if (expectedProviderPlanID ==
+        "rvv-standalone-reduction-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.standalone_reduce") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("direct route-entry @") + variantName +
+                  " realizes source load, standalone reduction, and scalar "
+                  "result store"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       if (int result = expectSuccess(
@@ -14004,8 +14015,28 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               stale, "standalone reduction provider unit test"),
-          {"standalone reduction scalar result ABI", "scalar output",
+          {"standalone reduction runtime ABI", "scalar output",
            "int32_t *"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.standaloneReductionRouteFamilyPlan->runtimeABIParameters[0].cName =
+      "source";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction runtime ABI", "source input", "lhs",
+           "source"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.standaloneReductionRouteFamilyPlan->runtimeABIParameters[3].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction runtime ABI", "runtime AVL element count",
+           "runtime-element-count", "output-buffer"}))
     return result;
 
   stale = *plainAnalysis;
@@ -14185,7 +14216,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               stale, "computed-mask standalone reduction provider unit test"),
-          {"standalone reduction scalar result ABI", "scalar output",
+          {"standalone reduction runtime ABI", "scalar output",
            "int32_t *"}))
     return result;
 

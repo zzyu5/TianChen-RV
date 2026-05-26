@@ -9935,7 +9935,7 @@ llvm::Error requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
     support::RuntimeABIParameterOwnership expectedOwnership) {
   if (plan.runtimeABIParameters.size() <= index)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("standalone reduction scalar result ABI for operation '") +
+        llvm::Twine("standalone reduction runtime ABI for operation '") +
         stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
         logicalName + " runtime ABI parameter at index " + llvm::Twine(index));
 
@@ -9946,7 +9946,7 @@ llvm::Error requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
     return llvm::Error::success();
 
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("standalone reduction scalar result ABI for operation '") +
+      llvm::Twine("standalone reduction runtime ABI for operation '") +
       stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
       logicalName + " runtime ABI parameter " + llvm::Twine(index) +
       " to be c_name '" + expectedCName + "', c_type '" + expectedCType +
@@ -9971,10 +9971,51 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
   const unsigned expectedSize = isComputedMask ? 6 : 4;
   if (plan.runtimeABIParameters.size() != expectedSize)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("standalone reduction scalar result ABI for operation '") +
+        llvm::Twine("standalone reduction runtime ABI for operation '") +
         stringifyRVVSelectedBodyOperationKind(plan.operation) +
         "' requires runtime ABI order '" + plan.runtimeABIOrder +
         "' with exactly " + llvm::Twine(expectedSize) + " parameters");
+
+  if (isComputedMask) {
+    if (llvm::Error error =
+            requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+                plan, 0, "compare lhs input", "cmp_lhs",
+                "const int32_t *",
+                support::RuntimeABIParameterRole::LHSInputBuffer,
+                support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+      return error;
+    if (isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+            plan.operation)) {
+      if (llvm::Error error =
+              requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+                  plan, 1, "runtime scalar threshold", "rhs_scalar", "int32_t",
+                  support::RuntimeABIParameterRole::RHSScalarValue,
+                  support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+        return error;
+    } else if (llvm::Error error =
+                   requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+                       plan, 1, "compare rhs input", "cmp_rhs",
+                       "const int32_t *",
+                       support::RuntimeABIParameterRole::RHSInputBuffer,
+                       support::RuntimeABIParameterOwnership::
+                           TargetExportABIOwned)) {
+      return error;
+    }
+    if (llvm::Error error =
+            requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+                plan, 2, "standalone reduction source input", "src",
+                "const int32_t *",
+                support::RuntimeABIParameterRole::SourceInputBuffer,
+                support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+      return error;
+  } else {
+    if (llvm::Error error =
+            requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+                plan, 0, "source input", "lhs", "const int32_t *",
+                support::RuntimeABIParameterRole::LHSInputBuffer,
+                support::RuntimeABIParameterOwnership::TargetExportABIOwned))
+      return error;
+  }
 
   const unsigned accumulatorIndex = isComputedMask ? 3 : 1;
   const unsigned outputIndex = isComputedMask ? 4 : 2;
