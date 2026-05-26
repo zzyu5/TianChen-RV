@@ -1,0 +1,10 @@
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Final spec compliance check for segment2 provider/planning owner registry, typed facts, route-entry ownership, and fail-closed diagnostics."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Verify common EmitC/export remains neutral and consumes only provider-built routes."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Verify provider registry remains plugin-local and does not move RVV semantics into core/common."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused C++/generated-bundle/ssh evidence and authority scan obligations."}
+{"file":".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-selected-body-route-entry-family-registry-owner/prd.md","reason":"Regression comparison against upstream selected-body segment2 owner registry task."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-provider-family-owner-registry/prd.md","reason":"Regression comparison against existing provider owner registry pattern."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h","reason":"API review for provider/planning owner locality and absence of metadata authority."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Production route planning/provider facts and segment2 statement-plan owner implementation review."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp","reason":"Production provider construction path still consumes owner-built plans and common EmitC remains neutral."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Focused C++ coverage for owner registry, migrated consumers, fail-closed cases, and production path behavior."}

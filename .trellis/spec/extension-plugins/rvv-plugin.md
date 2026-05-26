@@ -2118,6 +2118,173 @@ verified route-family plans
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## Segment2 Route-Family Planning Owner Boundary
+
+### 1. Scope / Trigger
+
+For production-active segment2 selected-body route-entry families, the RVV
+planning layer must not keep sub-family selection as a local boolean cluster
+inside `getRVVSelectedBodySegment2MemoryRouteStatementPlan(...)`. Segment2
+route-family planning is a plugin-local provider boundary that classifies the
+route description, validates selected-body route-family facts, memory
+operand-binding facts, materialization facts, and route-control facts, and then
+returns one owner-built provider plan for the segment2 statement-plan boundary.
+
+The active entries are `computed-mask segment2 load`, `computed-mask segment2
+store`, `computed-mask segment2 update`, `plain segment2 deinterleave`, and
+`plain segment2 interleave`. A route may match at most one planning owner.
+
+### 2. Signatures
+
+The durable planning-owner API is:
+
+```c++
+struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan;
+  const RVVRouteOperandBindingPlan *bindingPlan;
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan;
+  llvm::StringRef selectedBodyFamilyName;
+  bool plansSegment2MemoryRoute;
+  bool plansPlainSegment2DeinterleaveUnitStore;
+  bool plansPlainSegment2InterleaveUnitLoad;
+  bool plansComputedMaskSegment2LoadUnitStore;
+  bool plansComputedMaskSegment2StoreUnitLoad;
+  bool plansComputedMaskSegment2UpdateUnitLoad;
+};
+
+struct RVVSelectedBodySegment2RouteFamilyPlanningOwner {
+  llvm::StringRef familyName;
+  bool (*isConsumer)(const RVVSelectedBodyEmitCRouteDescription &);
+  llvm::Error (*buildProviderPlan)(
+      RVVSelectedBodyRouteAnalysis &,
+      const RVVSelectedBodyRouteMaterializationFacts &,
+      const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
+      RVVSelectedBodySegment2RouteFamilyProviderPlan &, llvm::StringRef);
+};
+
+llvm::ArrayRef<RVVSelectedBodySegment2RouteFamilyPlanningOwner>
+getRVVSelectedBodySegment2RouteFamilyPlanningOwners();
+
+bool isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
+getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+Additional provider-plan fields such as ABI pointers, intrinsic spelling
+mirrors, C type mirrors, and required header mirrors are provider-ready facts
+derived by the selected owner. They mirror validated typed body/config/runtime
+facts and must not become support authority.
+
+### 3. Contracts
+
+`getRVVSelectedBodySegment2RouteFamilyProviderPlan(...)` returns an empty plan
+for non-consumer route descriptions. For a consumer route, it must select
+exactly one planning owner, build the provider plan through that owner, and
+verify that the selected-body family mirror and operation-specific booleans
+match the same owner-selected family.
+
+The planning owner may consume verified plain segment2 family plans,
+computed-mask memory family plans, memory operand-binding facts, route-control
+facts, materialization leaves, selected target capability facts, typed
+SEW/LMUL/policy/config facts, runtime `n`/AVL facts, mask/passthrough facts,
+and field-role facts. It must not infer support from route ids, artifact names,
+test names, ABI strings alone, descriptors, scripts, common EmitC, source-front-
+door markers, metadata mirrors, exact intrinsic spelling, or legacy i32 helper
+names.
+
+`getRVVSelectedBodySegment2MemoryRouteStatementPlan(...)` must consume the
+owner-built provider plan. It must not rediscover segment2 sub-family dispatch
+by running its own central predicate cluster after the planning-owner boundary.
+
+### 4. Validation & Error Matrix
+
+- Non-segment2 route description -> return an empty/default provider plan.
+- No matching segment2 planning owner -> fail closed before statement-plan
+  construction.
+- More than one planning owner matches -> fail closed before statement-plan
+  construction.
+- Matching owner has no builder -> fail closed before statement-plan
+  construction.
+- Owner-selected family mirror disagrees with the verified selected-body
+  route-entry family -> fail closed before provider route construction.
+- Required plain segment2 or computed-mask memory family plan is missing,
+  stale, or mismatched to the operation kind, segment count, direction, memory
+  form, field roles, mask producer/source, passthrough policy, arithmetic kind,
+  SEW/LMUL, tail/mask policy, runtime ABI order, or selected capability facts
+  -> fail closed.
+- Materialization facts, operand-binding facts, route-control facts, runtime
+  AVL/VL facts, ABI roles, or required leaves come from another analysis or are
+  absent -> fail closed with the owner family and logical operand context.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed computed-mask segment2 update body -> computed-mask memory
+  family verifier -> materialization facts -> memory operand-binding facts ->
+  route-control provider plan -> `computed-mask segment2 update` planning
+  owner -> segment2 statement plan -> provider-built route.
+- Good: typed plain segment2 deinterleave/interleave body -> plain segment2
+  family verifier -> materialization facts -> memory operand-binding facts ->
+  route-control provider plan -> exact planning owner -> segment2 statement
+  plan -> provider-built route.
+- Base: non-segment2 memory, elementwise/select, reduction, conversion, MAcc,
+  contraction, and scalar-broadcast routes receive an empty segment2
+  route-family provider plan and continue through their own planning surfaces.
+- Bad: segment2 statement-plan construction branches locally on
+  `operationKind`, route ids, ABI strings, artifact names, or intrinsic spelling
+  to decide whether the route is update, store, load, deinterleave, or
+  interleave after the planning-owner boundary exists.
+
+### 6. Tests Required
+
+- C++ tests for registry membership, owner order/names, and non-null predicate
+  and builder hooks.
+- C++ exact-one classification tests for computed-mask segment2 load, store,
+  update, plain deinterleave, and plain interleave.
+- C++ empty-plan coverage for unrelated route descriptions.
+- C++ fail-closed coverage for missing or stale route-family plans,
+  materialization facts, route-control facts, operand-binding facts, operation
+  kind, segment count, memory form, mask source, arithmetic kind, ABI order, and
+  typed config/policy/capability facts.
+- Generated-bundle dry-run and representative `ssh rvv` evidence when the
+  owner change affects executable segment2 route-entry behavior.
+- Bounded authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+segment2 statement-plan body:
+  if route description says computed_masked_segment2_update_unit_load,
+  set local update/store/load/deinterleave/interleave booleans and then
+  rebuild provider facts from operation names, ABI strings, and intrinsic
+  mirrors
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> route materialization facts
+  -> memory operand-binding facts
+  -> route-control provider plan
+  -> exact segment2 route-family planning owner
+  -> RVVSelectedBodySegment2RouteFamilyProviderPlan
+  -> RVVSelectedBodySegment2MemoryRouteStatementPlan
+  -> provider-built route
+```
+
 ## Segment2 Memory Statement-Plan Boundary
 
 ### 1. Scope / Trigger
@@ -2164,10 +2331,13 @@ receive an empty/default statement plan.
 `RVVSelectedBodySegment2MemoryRouteStatementPlan` is RVV-local provider input.
 It may carry:
 
-- a pointer to the verified plain segment2 family plan or computed-mask memory
-  family plan that justifies the selected segment2 statement sequence;
-- sub-family booleans for plain deinterleave, plain interleave,
-  computed-mask segment2 load, and computed-mask segment2 store;
+- pointers copied from the owner-built
+  `RVVSelectedBodySegment2RouteFamilyProviderPlan`, including the verified
+  plain segment2 family plan or computed-mask memory family plan that justifies
+  the selected segment2 statement sequence;
+- owner-built sub-family booleans for plain deinterleave, plain interleave,
+  computed-mask segment2 load, computed-mask segment2 store, and computed-mask
+  segment2 update;
 - provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
 - one provider-ready `TCRVEmitCForLoop` with loop `setvl`, compare-mask
   producer steps for computed-mask segment2 routes, field payload or
@@ -2195,6 +2365,11 @@ mirror, and not a route-support declaration by itself.
   computed-mask segment facts, or has SEW/LMUL/policy/capability mirrors that
   disagree with the typed body/config and selected target facts -> fail closed
   before route statement construction.
+- An included route reaches the statement-plan boundary without a matching
+  segment2 route-family planning owner, with more than one matching owner, or
+  with an owner-built provider plan whose selected-body family mirror disagrees
+  with the verified route-entry family -> fail closed before route statement
+  construction.
 - Required ABI roles such as `src`, `dst`, `cmp_lhs`, `cmp_rhs`, `field0`,
   `field1`, and runtime count are absent -> fail closed with the logical
   operand name and operation/memory-form context.
@@ -2209,7 +2384,8 @@ mirror, and not a route-support declaration by itself.
 
 - Good: typed segment2 `tcrv_rvv` body -> family plan verifier ->
   materialization facts -> memory operand-binding facts -> route-control
-  provider plan -> RVV-owned statement plan -> provider-built route.
+  provider plan -> segment2 route-family planning owner -> RVV-owned statement
+  plan -> provider-built route.
 - Base: base memory, non-segment computed-mask memory, compare/select, math,
   residual runtime scalar splat-store, and future families keep their own
   statement construction surfaces and receive an empty segment2 memory
@@ -2257,6 +2433,7 @@ Correct:
 verified route-family plans
   -> RVVSelectedBodyRouteMaterializationFacts
   -> RVV-owned memory operand-binding facts
+  -> RVVSelectedBodySegment2RouteFamilyProviderPlan
   -> RVVSelectedBodySegment2MemoryRouteStatementPlan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```

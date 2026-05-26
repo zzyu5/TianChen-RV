@@ -1181,6 +1181,51 @@ struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
+      nullptr;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+
+  llvm::StringRef selectedBodyFamilyName;
+
+  bool plansSegment2MemoryRoute = false;
+  bool plansPlainSegment2DeinterleaveUnitStore = false;
+  bool plansPlainSegment2InterleaveUnitLoad = false;
+  bool plansComputedMaskSegment2LoadUnitStore = false;
+  bool plansComputedMaskSegment2StoreUnitLoad = false;
+  bool plansComputedMaskSegment2UpdateUnitLoad = false;
+
+  const support::RuntimeABIParameter *compareLhsABI = nullptr;
+  const support::RuntimeABIParameter *compareRhsABI = nullptr;
+  const support::RuntimeABIParameter *sourceABI = nullptr;
+  const support::RuntimeABIParameter *destinationABI = nullptr;
+  const support::RuntimeABIParameter *field0ABI = nullptr;
+  const support::RuntimeABIParameter *field1ABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+
+  llvm::StringRef familyPlanIDMirror;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef requiredHeaderDeclarationsMirror;
+  llvm::StringRef cTypeMappingSummaryMirror;
+
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef arithmeticIntrinsic;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef vectorCType;
+  llvm::StringRef vlCType;
+  llvm::StringRef maskCType;
+};
+
 struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
   const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
       *computedMaskAccumulationPlan = nullptr;
@@ -1580,6 +1625,34 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
 
 llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
 getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context);
+
+struct RVVSelectedBodySegment2RouteFamilyPlanningOwner {
+  using ConsumerPredicate =
+      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
+  using ProviderPlanBuilder = llvm::Error (*)(
+      RVVSelectedBodyRouteAnalysis &,
+      const RVVSelectedBodyRouteMaterializationFacts &,
+      const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
+      RVVSelectedBodySegment2RouteFamilyProviderPlan &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanBuilder buildProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodySegment2RouteFamilyPlanningOwner>
+getRVVSelectedBodySegment2RouteFamilyPlanningOwners();
+
+bool isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
+getRVVSelectedBodySegment2RouteFamilyProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMemoryRouteOperandBindingFacts

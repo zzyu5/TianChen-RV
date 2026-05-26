@@ -5672,6 +5672,139 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
        "add"});
 }
 
+int runSegment2RouteFamilyPlanningOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2RouteFamilyProviderPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2RouteFamilyPlanningOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodySegment2RouteFamilyPlanningConsumer;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodySegment2RouteFamilyPlanningOwner>
+      owners = getRVVSelectedBodySegment2RouteFamilyPlanningOwners();
+  if (int result = expect(
+          owners.size() == 5,
+          "segment2 route-family planning owner registry has exactly five "
+          "active segment2 family entries"))
+    return result;
+
+  const llvm::StringRef expectedOwnerNames[] = {
+      "computed-mask segment2 load", "computed-mask segment2 store",
+      "computed-mask segment2 update", "plain segment2 deinterleave",
+      "plain segment2 interleave"};
+  for (std::size_t i = 0; i < owners.size(); ++i) {
+    if (int result = expect(
+            owners[i].familyName == expectedOwnerNames[i],
+            "segment2 route-family planning owner registry preserves "
+            "explicit family order"))
+      return result;
+    if (int result = expect(
+            owners[i].isConsumer != nullptr &&
+                owners[i].buildProviderPlan != nullptr,
+            "segment2 route-family planning owner entries carry consumer and "
+            "provider-plan hooks"))
+      return result;
+  }
+
+  struct PlanningCase {
+    RVVSelectedBodyOperationKind operation;
+    RVVSelectedBodyMemoryForm memoryForm;
+    llvm::StringRef ownerName;
+  };
+  const PlanningCase planningCases[] = {
+      {RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
+       RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore,
+       "computed-mask segment2 load"},
+      {RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store,
+       "computed-mask segment2 store"},
+      {RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store,
+       "computed-mask segment2 update"},
+      {RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore,
+       RVVSelectedBodyMemoryForm::Segment2LoadUnitStore,
+       "plain segment2 deinterleave"},
+      {RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
+       RVVSelectedBodyMemoryForm::UnitLoadSegment2Store,
+       "plain segment2 interleave"}};
+
+  auto makeDescription = [](RVVSelectedBodyOperationKind operation,
+                            RVVSelectedBodyMemoryForm memoryForm) {
+    RVVSelectedBodyEmitCRouteDescription description;
+    description.operation = operation;
+    description.memoryForm = memoryForm;
+    return description;
+  };
+
+  for (const PlanningCase &routeCase : planningCases) {
+    RVVSelectedBodyEmitCRouteDescription description =
+        makeDescription(routeCase.operation, routeCase.memoryForm);
+    std::size_t matchCount = 0;
+    bool namedOwnerMatched = false;
+    for (const auto &owner : owners) {
+      if (!owner.isConsumer(description))
+        continue;
+      ++matchCount;
+      namedOwnerMatched |= owner.familyName == routeCase.ownerName;
+    }
+    if (int result =
+            expect(matchCount == 1 && namedOwnerMatched,
+                   "segment2 route-family planning owner registry classifies "
+                   "each active segment2 family exactly once"))
+      return result;
+    if (int result = expect(
+            isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(description),
+            "segment2 route-family planning consumer predicate is registry "
+            "backed"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
+  nonConsumerAnalysis.description = makeDescription(
+      RVVSelectedBodyOperationKind::Add,
+      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  auto emptyPlan = getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+      nonConsumerAnalysis, emptyMaterializationFacts, emptyMemoryFacts,
+      "segment2 route-family planning owner registry unit test");
+  if (!emptyPlan)
+    return fail("non-consumer segment2 provider plan unexpectedly failed: " +
+                llvm::toString(emptyPlan.takeError()));
+  if (int result = expect(
+          !emptyPlan->plansSegment2MemoryRoute &&
+              emptyPlan->selectedBodyFamilyName.empty(),
+          "non-segment2 routes receive an empty segment2 route-family "
+          "provider plan"))
+    return result;
+  if (int result = expect(
+          !isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(
+              nonConsumerAnalysis.description),
+          "ordinary elementwise routes remain outside the segment2 "
+          "route-family planning owner registry"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingUpdatePlan;
+  missingUpdatePlan.description = makeDescription(
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad,
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store);
+  return expectErrorContains(
+      getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+          missingUpdatePlan, emptyMaterializationFacts, emptyMemoryFacts,
+          "segment2 route-family planning owner registry unit test")
+          .takeError(),
+      {"segment2 route-family planning owner 'computed-mask segment2 update'",
+       "requires the verified computed-mask memory route-family plan",
+       "before provider route construction"});
+}
+
 int runRouteMaterializationFactsBoundaryTest() {
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteMaterializationFacts;
@@ -8560,9 +8693,10 @@ module {
               staleSegment2OperandBindingFacts,
               "computed-mask segment2 stale operand-binding unit test")
               .takeError(),
-          {"segment2 memory statement plan requires segment2 memory "
-           "operand-binding facts",
-           "before route statement construction"}))
+          {"segment2 route-family planning owner 'computed-mask segment2 "
+           "store'",
+           "requires segment2 memory operand-binding facts",
+           "before provider route construction"}))
     return result;
 
   return expectErrorContains(
@@ -8571,9 +8705,9 @@ module {
           *staleSegment2MemoryFacts,
           "computed-mask segment2 stale statement-plan unit test")
           .takeError(),
-      {"segment2 memory statement plan requires the verified computed-mask "
-       "memory route-family plan",
-       "before route statement construction"});
+      {"segment2 route-family planning owner 'computed-mask segment2 store'",
+       "requires the verified computed-mask memory route-family plan",
+       "before provider route construction"});
 }
 
 int runPlainSegment2MemoryRouteFamilyProviderPlanTest(
@@ -9031,9 +9165,11 @@ module {
               *copiedDeinterleaveMemoryFacts,
               "plain segment2 stale operand-binding ownership unit test")
               .takeError(),
-          {"segment2 memory statement plan requires memory operand-binding "
-           "facts from the same selected route analysis",
-           "before route statement construction"}))
+          {"segment2 route-family planning owner 'plain segment2 "
+           "deinterleave'",
+           "requires memory operand-binding facts from the same selected "
+           "route analysis",
+           "before provider route construction"}))
     return result;
   staleDeinterleaveOperandBindingFacts.bindsSegment2Memory = false;
   if (int result = expectErrorContains(
@@ -9042,9 +9178,10 @@ module {
               staleDeinterleaveOperandBindingFacts,
               "plain segment2 stale operand-binding unit test")
               .takeError(),
-          {"segment2 memory statement plan requires segment2 memory "
-           "operand-binding facts",
-           "before route statement construction"}))
+          {"segment2 route-family planning owner 'plain segment2 "
+           "deinterleave'",
+           "requires segment2 memory operand-binding facts",
+           "before provider route construction"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *deinterleaveAnalysis;
@@ -17523,6 +17660,8 @@ int main() {
   if (int result = runRouteControlProviderOwnerRegistryTest())
     return result;
   if (int result = runMigratedRouteStatementPlanOwnerRegistryTest())
+    return result;
+  if (int result = runSegment2RouteFamilyPlanningOwnerRegistryTest())
     return result;
   if (int result = runRouteMaterializationFactsBoundaryTest())
     return result;

@@ -1,0 +1,15 @@
+{"file":".trellis/spec/index.md","reason":"Global RVV authority chain, Stage2 scope, and forbidden authority sources."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV selected-body route-entry family ownership, provider route construction, route-family owner, typed-body authority, and fail-closed contracts."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Plugin-local registry/interface ownership and route-provider boundaries."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Required C++/lit/generated-bundle/ssh evidence and authority scan policy."}
+{"file":".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-selected-body-route-entry-family-registry-owner/prd.md","reason":"Immediate predecessor selected-body segment2 route-entry family registry owner and evidence pattern."}
+{"file":".trellis/tasks/archive/2026-05/05-25-stage2-rvv-route-provider-family-owner-registry/prd.md","reason":"Existing provider-side route owner registry pattern and continuation notes."}
+{"file":".trellis/tasks/archive/2026-05/05-23-stage2-rvv-memory-route-family-owner-registry/prd.md","reason":"Memory route-family owner registry extraction pattern for provider verification."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h","reason":"Selected-body segment2 route-entry family owner API already available upstream."}
+{"file":"lib/Plugin/RVV/RVVSelectedBodyRealization.cpp","reason":"Selected-body segment2 route-entry family owner implementation and exact-one family classification."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h","reason":"Route-family plan, materialization, operand binding, route-control, and statement-plan APIs to extend."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Provider/planning implementation surface for segment2 family planning owner registry."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp","reason":"Production selected-body EmitC route construction consumer of planning facts and statement plans."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Focused C++ provider/planning registry, segment2 statement-plan, and fail-closed coverage."}
+{"file":"scripts/rvv_generated_bundle_abi_e2e.py","reason":"Generated-bundle dry-run and ssh rvv evidence driver for migrated segment2 routes."}

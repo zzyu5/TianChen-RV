@@ -579,3 +579,58 @@ family-owner dispatch.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 248: Stage2 RVV provider route-family planning registry owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV provider route-family planning registry owner
+**Branch**: `main`
+
+### Summary
+
+Introduced a plugin-local segment2 route-family planning owner registry, migrated all five active segment2 route-entry families behind owner-built provider plans, updated the segment2 statement-plan boundary, and validated with focused C++ tests, generated-bundle dry-runs, ssh rvv evidence, authority scan, and check-tianchenrv.
+
+### Main Changes
+
+- `RVVEmitCRoutePlanning.h`: added `RVVSelectedBodySegment2RouteFamilyProviderPlan`, `RVVSelectedBodySegment2RouteFamilyPlanningOwner`, registry accessors, consumer predicate API, and provider-plan construction API.
+- `RVVEmitCRoutePlanning.cpp`: registered computed-mask segment2 load/store/update and plain segment2 deinterleave/interleave planning owners; moved segment2 statement-plan construction to consume the owner-built provider plan.
+- `RVVExtensionPluginTest.cpp`: added registry membership/order/hook checks, exact-one classification for all five segment2 families, empty non-consumer behavior, and missing-plan fail-closed coverage.
+- `.trellis/spec/extension-plugins/rvv-plugin.md`: recorded the durable segment2 route-family planning owner API, contracts, validation matrix, and wrong-vs-correct boundary.
+- Trellis task archived under `.trellis/tasks/archive/2026-05/05-26-stage2-rvv-provider-route-family-planning-registry-owner`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] generated-bundle dry-run for direct pre-realized
+  `computed_masked_segment2_update_unit_load`
+- [OK] generated-bundle dry-run for direct pre-realized
+  `computed_masked_segment2_store_unit_load`
+- [OK] direct pre-realized non-regression dry-run for segment2 load/store,
+  segment2 deinterleave/interleave, compare/select, standalone reduction,
+  conversion, MAcc, scalar-broadcast MAcc, computed-mask MAcc,
+  runtime-scalar computed-mask MAcc, base memory, widening MAcc, and widening
+  dot-reduction routes
+- [OK] selected-boundary non-regression dry-run for `masked_add` and
+  `scalar_broadcast_add`
+- [OK] real `ssh rvv` direct pre-realized
+  `computed_masked_segment2_update_unit_load`, counts `0,7,16,23,257`
+- [OK] production/test touched-file authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (390/390)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
