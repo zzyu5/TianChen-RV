@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-16.md`
-- **Total Sessions**: 250
+- **Total Sessions**: 251
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~796 | Active |
+| `journal-16.md` | ~835 | Active |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +44,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 251 | 2026-05-27 | Stage2 RVV standalone reduction accumulation route-family owner | same commit | `main` |
 | 250 | 2026-05-27 | Stage2 RVV MAcc route-family owner | - | `main` |
 | 249 | 2026-05-26 | Stage2 RVV segment2 provider route construction | same commit | `main` |
 | 248 | 2026-05-26 | Stage2 RVV provider route-family planning registry owner | pending-final-session-commit | `main` |

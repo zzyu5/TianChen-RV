@@ -149,6 +149,56 @@ bool isRVVComputedMaskMAccRouteFamilyOperation(
                           RuntimeScalarComputedMaskedMAccAdd;
 }
 
+bool isRVVStandaloneReductionAccumulationRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskStandaloneReduceAdd ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskStandaloneReduceMin ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskStandaloneReduceMax ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceAdd;
+}
+
+bool isRVVComputedMaskStandaloneReductionAccumulationRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskStandaloneReduceAdd ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceAdd;
+}
+
+bool isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+         plugin::rvv::RVVSelectedBodyOperationKind::
+             RuntimeScalarComputedMaskStandaloneReduceAdd;
+}
+
 llvm::Error requireCandidateMetadataMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef expected, llvm::StringRef label) {
@@ -758,6 +808,304 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
   return validateRVVMAccRouteStatementPlan(route, description);
 }
 
+llvm::Error validateRVVStandaloneReductionAccumulationRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-derived required_header_declarations before accepting the "
+        "route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "at least one provider route header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "standalone reduction/accumulation target artifact consumer saw an "
+          "empty provider route header declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("standalone reduction/accumulation target artifact "
+                      "consumer requires rebuilt provider route header '") +
+          trimmed + "' before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVStandaloneReductionAccumulationRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-derived VL, vector, and C type mapping facts before "
+        "artifact export");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("standalone reduction/accumulation target artifact "
+                    "consumer requires rebuilt provider route type mapping "
+                    "'!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("standalone reduction/accumulation target artifact "
+                    "consumer requires rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+
+  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
+          description.operation)) {
+    if (description.maskTypeName.empty() || description.maskCType.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask standalone reduction/accumulation target artifact "
+          "consumer requires provider-derived mask type mapping facts before "
+          "artifact export");
+    if (!routeHasTypeMapping(route, description.maskTypeName,
+                             description.maskCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("computed-mask standalone reduction/accumulation target "
+                      "artifact consumer requires rebuilt provider route type "
+                      "mapping '") +
+          description.maskTypeName + "' -> '" + description.maskCType + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVStandaloneReductionAccumulationRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("standalone reduction/accumulation target artifact "
+                    "consumer requires rebuilt provider route ABI mapping "
+                    "count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("standalone reduction/accumulation target artifact "
+                      "consumer requires rebuilt provider route ABI "
+                      "mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("standalone reduction/accumulation target artifact "
+                      "consumer requires rebuilt provider route ABI "
+                      "mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getCallOpaqueSteps().empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-built pre-loop setvl statement facts before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "rebuilt provider route pre-loop setvl statement to define the "
+        "full-chunk VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "standalone reduction/accumulation target artifact consumer "
+          "requires pre-loop statements to carry selected typed RVV source "
+          "provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "exactly one provider-built runtime AVL/VL loop before artifact "
+        "export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-built loop bounds and step to mirror runtime AVL/VL route "
+        "facts");
+  if (description.runtimeABIParameters.empty() ||
+      loop.upperBound.expression !=
+          description.runtimeABIParameters.back().cName ||
+      loop.upperBound.cType != description.runtimeABIParameters.back().cType)
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-built loop upper bound to use the runtime n/AVL ABI "
+        "parameter");
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-built loop setvl statement to define per-iteration VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "standalone reduction/accumulation target artifact consumer "
+          "requires loop statements to carry selected typed RVV source "
+          "provenance");
+
+  if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+      !routeLoopContainsCallee(loop, description.intrinsic) ||
+      !routeLoopContainsCallee(loop, description.storeIntrinsic) ||
+      !routeLoopContainsCallee(loop, description.scalarSeedSplatIntrinsic))
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-built vector load, reduction, seed splat, and store "
+        "statements before artifact export");
+
+  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
+          description.operation)) {
+    if (!routeLoopContainsCallee(loop, description.compareIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask standalone reduction/accumulation target artifact "
+          "consumer requires provider-built compare statement facts before "
+          "artifact export");
+    if (!routeLoopContainsCallee(loop, description.maskedMergeIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask standalone reduction/accumulation target artifact "
+          "consumer requires provider-built inactive-lane merge statement "
+          "facts before artifact export");
+    if (isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
+            description.operation) &&
+        !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic))
+      return makeRVVTargetRouteError(
+          "runtime-scalar computed-mask standalone reduction/accumulation "
+          "target artifact consumer requires provider-built RHS scalar splat "
+          "statement facts before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVStandaloneReductionAccumulationRouteFamilyOperation(
+          description.operation))
+    return llvm::Error::success();
+
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("standalone reduction/accumulation target artifact "
+                    "consumer requires rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+
+  if (description.providerSupportedMirror.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "a provider-supported mirror label after route construction");
+  if (description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider route operand binding facts before artifact export");
+  if (description.standaloneReductionRouteFamilyPlanID.empty() ||
+      description.standaloneReductionScalarResultRuntimeBoundary.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-derived standalone reduction family and scalar-result "
+        "boundary mirrors before artifact export");
+  if (description.reductionAccumulatorLayout.empty() ||
+      description.reductionResultLayout.empty() ||
+      description.reductionStoreVL.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-derived reduction accumulator, result, and store-VL facts "
+        "before artifact export");
+  if (description.scalarSeedSplatIntrinsic.empty() ||
+      description.intrinsic.empty() || description.storeIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-derived scalar seed, reduction intrinsic, and store facts "
+        "before artifact export");
+
+  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
+          description.operation)) {
+    if (description.maskRole.empty() || description.maskSource.empty() ||
+        description.maskMemoryForm.empty() ||
+        description.inactiveLaneZeroingRequirement.empty() ||
+        description.comparePredicateKind.empty() ||
+        description.compareIntrinsic.empty() ||
+        description.maskedMergeIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask standalone reduction/accumulation target artifact "
+          "consumer requires provider-derived mask, compare, and "
+          "inactive-lane facts before artifact export");
+  }
+  if (isRVVComputedMaskStandaloneReductionAccumulationRouteFamilyOperation(
+          description.operation)) {
+    if (description.accumulationRouteFamilyPlanID.empty() ||
+        description.accumulationComputeSuffix.empty() ||
+        description.accumulationMaskProducerSource.empty() ||
+        description.accumulationAccumulatorContract.empty() ||
+        description.accumulationResultContract.empty() ||
+        description.accumulationScalarCarryContract.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask standalone accumulation target artifact consumer "
+          "requires provider-derived accumulation and scalar-carry facts "
+          "before artifact export");
+    if (isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
+            description.operation) &&
+        description.rhsBroadcastIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "runtime-scalar computed-mask standalone reduction/accumulation "
+          "target artifact consumer requires a provider-derived RHS scalar "
+          "splat intrinsic before artifact export");
+  }
+
+  if (llvm::Error error =
+          validateRVVStandaloneReductionAccumulationRouteHeaders(route,
+                                                                description))
+    return error;
+  if (llvm::Error error =
+          validateRVVStandaloneReductionAccumulationRouteTypeMappings(
+              route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVStandaloneReductionAccumulationRouteABIMappings(
+              route, description))
+    return error;
+  return validateRVVStandaloneReductionAccumulationRouteStatementPlan(
+      route, description);
+}
+
 struct RVVSelectedVariantRouteValidation {
   conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::rvv::RVVSelectedBodyEmitCRouteDescription description;
@@ -1100,6 +1448,166 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
       return error;
   }
 
+  if (isRVVStandaloneReductionAccumulationRouteFamilyOperation(
+          description.operation)) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.standalone_reduction_route_family_plan",
+            description.standaloneReductionRouteFamilyPlanID,
+            "selected typed RVV standalone reduction route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate,
+            "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+            description.standaloneReductionScalarResultRuntimeBoundary,
+            "selected typed RVV standalone reduction scalar result boundary"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.memory_form",
+            plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+                description.memoryForm),
+            "selected typed RVV standalone reduction memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_control_plan",
+            description.runtimeControlPlanID,
+            "selected typed RVV standalone reduction runtime AVL/VL control "
+            "plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_abi_order",
+            description.runtimeABIOrder,
+            "selected typed RVV standalone reduction runtime ABI order"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.required_header_declarations",
+            description.requiredHeaderDeclarations,
+            "selected typed RVV standalone reduction route header "
+            "requirements"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.c_type_mapping",
+            description.cTypeMappingSummary,
+            "selected typed RVV standalone reduction route type mapping "
+            "summary"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.reduction_accumulator_layout",
+            description.reductionAccumulatorLayout,
+            "selected typed RVV standalone reduction accumulator layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.reduction_result_layout",
+            description.reductionResultLayout,
+            "selected typed RVV standalone reduction result layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.reduction_store_vl",
+            description.reductionStoreVL,
+            "selected typed RVV standalone reduction store VL"))
+      return error;
+    if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
+            description.operation)) {
+      if (isRVVComputedMaskStandaloneReductionAccumulationRouteFamilyOperation(
+              description.operation)) {
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_route_family_plan",
+                description.accumulationRouteFamilyPlanID,
+                "selected typed RVV computed-mask standalone accumulation "
+                "route-family plan"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_compute_suffix",
+                description.accumulationComputeSuffix,
+                "selected typed RVV computed-mask standalone accumulation "
+                "compute suffix"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_mask_producer_source",
+                description.accumulationMaskProducerSource,
+                "selected typed RVV computed-mask standalone accumulation "
+                "mask producer"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_accumulator_contract",
+                description.accumulationAccumulatorContract,
+                "selected typed RVV computed-mask standalone accumulation "
+                "accumulator contract"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_result_contract",
+                description.accumulationResultContract,
+                "selected typed RVV computed-mask standalone accumulation "
+                "result contract"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_scalar_carry_contract",
+                description.accumulationScalarCarryContract,
+                "selected typed RVV computed-mask standalone accumulation "
+                "scalar carry contract"))
+          return error;
+      } else {
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_route_family_plan", "",
+                "selected typed RVV computed-mask standalone accumulation "
+                "route-family plan"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_compute_suffix", "",
+                "selected typed RVV computed-mask standalone accumulation "
+                "compute suffix"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.accumulation_mask_producer_source", "",
+                "selected typed RVV computed-mask standalone accumulation "
+                "mask producer"))
+          return error;
+      }
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_role", description.maskRole,
+              "selected typed RVV computed-mask standalone reduction mask "
+              "role"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_source", description.maskSource,
+              "selected typed RVV computed-mask standalone reduction mask "
+              "source"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_memory_form",
+              description.maskMemoryForm,
+              "selected typed RVV computed-mask standalone reduction mask "
+              "memory form"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.inactive_lane_zeroing_requirement",
+              description.inactiveLaneZeroingRequirement,
+              "selected typed RVV computed-mask standalone reduction "
+              "inactive lane neutral requirement"))
+        return error;
+    } else {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_route_family_plan", "",
+              "selected typed RVV computed-mask standalone accumulation "
+              "route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_compute_suffix", "",
+              "selected typed RVV computed-mask standalone accumulation "
+              "compute suffix"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_mask_producer_source", "",
+              "selected typed RVV computed-mask standalone accumulation mask "
+              "producer"))
+        return error;
+    }
+  } else if (llvm::Error error = requireCandidateMetadataMirror(
+                 candidate, "tcrv_rvv.standalone_reduction_route_family_plan",
+                 "",
+                 "selected typed RVV standalone reduction route-family plan")) {
+    return error;
+  }
+
   llvm::StringRef targetCapabilityProviderMirror =
       lookupCandidateMetadataValue(
           candidate, "tcrv_rvv.target_capability_provider_mirror");
@@ -1327,6 +1835,10 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
     return std::move(error);
   if (llvm::Error error =
           validateRVVMAccRoutePayloadFacts(route, *description))
+    return std::move(error);
+  if (llvm::Error error =
+          validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
+              route, *description))
     return std::move(error);
 
   if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(

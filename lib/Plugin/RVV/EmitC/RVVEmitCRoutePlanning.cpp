@@ -23053,6 +23053,59 @@ static bool isRVVSelectedBodyComputedMaskStandaloneAccumulationRouteFamilyConsum
              operation);
 }
 
+llvm::ArrayRef<RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner>
+getRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwners() {
+  static const RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner
+      owners[] = {
+          {"standalone reduction",
+           isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer,
+           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans},
+          {"computed-mask standalone accumulation",
+           isRVVSelectedBodyComputedMaskStandaloneAccumulationRouteFamilyConsumer,
+           verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans},
+      };
+  return owners;
+}
+
+bool isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  for (const RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner
+           &owner :
+       getRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
+}
+
+llvm::Error
+verifyRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  unsigned selectedOwners = 0;
+  for (const RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner
+           &owner :
+       getRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwners()) {
+    if (!owner.isConsumer || !owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete standalone reduction/accumulation "
+          "route-family owner registry entry");
+    if (owner.isConsumer(analysis.description.operation))
+      ++selectedOwners;
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
+  if (!selectedOwners &&
+      isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer(
+          analysis.description.operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " failed to select a standalone reduction/accumulation route-family "
+        "owner for operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  return llvm::Error::success();
+}
+
 llvm::ArrayRef<
     RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner>
 getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners() {
@@ -23063,12 +23116,9 @@ getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners() {
            verifyRVVSelectedBodyContractionRouteFamilyProviderPlans},
           {"MAcc/accumulation", isRVVSelectedBodyMAccRouteFamilyConsumer,
            verifyRVVSelectedBodyMAccRouteFamilyProviderPlans},
-          {"standalone reduction",
-           isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer,
-           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans},
-          {"computed-mask standalone accumulation",
-           isRVVSelectedBodyComputedMaskStandaloneAccumulationRouteFamilyConsumer,
-           verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans},
+          {"standalone reduction/accumulation",
+           isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer,
+           verifyRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyProviderPlans},
       };
   return owners;
 }
@@ -28088,9 +28138,33 @@ llvm::Error addRVVWideningConversionStatementPlanLoopStep(
 
 bool isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
-  return description.operation == RVVSelectedBodyOperationKind::StandaloneReduceAdd &&
-         description.memoryForm ==
-             RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+    return description.memoryForm == RVVSelectedBodyMemoryForm::
+                                         ComputedMaskUnitStrideStandaloneReduction;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::
+               RuntimeScalarComputedMaskUnitStrideStandaloneReduction;
+  default:
+    return false;
+  }
+}
+
+llvm::StringRef getRVVStandaloneReductionStatementPlanInactiveNeutral(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return "0";
+  default:
+    return "";
+  }
 }
 
 llvm::Error requireRVVStandaloneReductionStatementPlanLeaf(
@@ -31643,8 +31717,20 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
   if (!isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(description))
     return plan;
 
+  const bool isComputedMaskStandalone =
+      description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
+  const bool isRuntimeScalarComputedMaskStandalone =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd;
+  const bool isPlainStandalone =
+      !isComputedMaskStandalone && !isRuntimeScalarComputedMaskStandalone;
+
   plan.plansStandaloneReductionRoute = true;
-  plan.plansStandaloneReduceAdd = true;
+  plan.plansStandaloneReduceAdd = isPlainStandalone;
+  plan.plansComputedMaskStandaloneReduceAdd = isComputedMaskStandalone;
+  plan.plansRuntimeScalarComputedMaskStandaloneReduceAdd =
+      isRuntimeScalarComputedMaskStandalone;
   plan.standaloneReductionPlan = materializationFacts.standaloneReductionPlan;
 
   if (!materializationFacts.standaloneReductionPlan)
@@ -31652,12 +31738,37 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
         llvm::Twine(context) +
         " standalone reduction statement plan requires the verified "
         "standalone reduction route-family plan before route statement "
-        "construction for standalone_reduce_add");
-  if (!mathOperandBindingFacts.bindsStandaloneReduction)
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if ((isPlainStandalone &&
+       !mathOperandBindingFacts.bindsStandaloneReduction) ||
+      (isComputedMaskStandalone &&
+       !mathOperandBindingFacts.bindsComputedMaskStandaloneReduction) ||
+      (isRuntimeScalarComputedMaskStandalone &&
+       !mathOperandBindingFacts
+            .bindsRuntimeScalarComputedMaskStandaloneReduction))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " standalone reduction statement plan requires standalone reduction "
-        "math operand-binding facts before route statement construction");
+        " standalone reduction statement plan requires matching "
+        "standalone/computed-mask math operand-binding facts before route "
+        "statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!mathOperandBindingFacts.bindingPlan ||
+      mathOperandBindingFacts.bindingPlan != &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction statement plan requires math operand-binding "
+        "facts from the same selected route analysis before route statement "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if ((isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone) &&
+      !materializationFacts.computedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask standalone reduction statement plan requires the "
+        "verified computed-mask accumulation route-family plan before route "
+        "statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
       getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
@@ -31675,6 +31786,9 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
         "standalone_reduce_add");
 
   const support::RuntimeABIParameter *lhsABI = mathOperandBindingFacts.lhsABI;
+  const support::RuntimeABIParameter *rhsABI = mathOperandBindingFacts.rhsABI;
+  const support::RuntimeABIParameter *sourceABI =
+      mathOperandBindingFacts.sourceABI;
   const support::RuntimeABIParameter *accumulatorABI =
       mathOperandBindingFacts.accumulatorABI;
   const support::RuntimeABIParameter *outABI = mathOperandBindingFacts.outABI;
@@ -31683,6 +31797,16 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
   if (llvm::Error error = requireRVVStandaloneReductionStatementPlanABI(
           lhsABI, "lhs", description, context))
     return std::move(error);
+  if (isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone) {
+    if (llvm::Error error = requireRVVStandaloneReductionStatementPlanABI(
+            rhsABI, isRuntimeScalarComputedMaskStandalone ? "rhs_scalar"
+                                                          : "rhs",
+            description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVStandaloneReductionStatementPlanABI(
+            sourceABI, "src", description, context))
+      return std::move(error);
+  }
   if (llvm::Error error = requireRVVStandaloneReductionStatementPlanABI(
           accumulatorABI, "acc", description, context))
     return std::move(error);
@@ -31695,6 +31819,23 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
 
   const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &reductionPlan =
       *materializationFacts.standaloneReductionPlan;
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+      *accumulationPlan = materializationFacts.computedMaskAccumulationPlan;
+  if (accumulationPlan) {
+    if (accumulationPlan->operation != description.operation ||
+        accumulationPlan->memoryForm != description.memoryForm ||
+        accumulationPlan->usesVectorMAccSuffix ||
+        !accumulationPlan->usesScalarHorizontalReductionSuffix ||
+        accumulationPlan->usesRuntimeScalarProducer !=
+            isRuntimeScalarComputedMaskStandalone ||
+        accumulationPlan->usesVectorCompareProducer !=
+            isComputedMaskStandalone)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction statement plan requires the "
+          "shared accumulation route-family plan classification to match the "
+          "selected reduction operation before route statement construction");
+  }
   if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
           materializationFacts.setVLLeaf, "setvl callee", description,
           context))
@@ -31711,6 +31852,25 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           materializationFacts.contractionComputeLeaf, "reduction callee",
           description, context))
     return std::move(error);
+  if (isRuntimeScalarComputedMaskStandalone)
+    if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
+            materializationFacts.rhsScalarBroadcastLeaf,
+            "RHS scalar splat callee", description, context))
+      return std::move(error);
+  if (isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone) {
+    if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
+            materializationFacts.sourceLoadLeaf, "source load callee",
+            description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
+            materializationFacts.compareLeaf, "compare callee", description,
+            context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
+            materializationFacts.maskedMergeLeaf,
+            "inactive neutral merge callee", description, context))
+      return std::move(error);
+  }
   if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
           materializationFacts.storeLeaf, "store callee", description,
           context))
@@ -31804,6 +31964,113 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                                         .str()}))
     return std::move(error);
 
+  llvm::StringRef reductionInputVector = "lhs_vec";
+  if (isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone) {
+    if (isRuntimeScalarComputedMaskStandalone) {
+      mlir::Operation *rhsSplatOp =
+          slice.rhsScalarSplat ? slice.rhsScalarSplat.getOperation()
+                               : slice.rhsLoadOperation;
+      if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
+              plan, rhsSplatOp, "load",
+              materializationFacts.rhsScalarBroadcastLeaf,
+              {TCRVEmitCCallOpaqueOperand{rhsABI->cName, rhsABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          materializationFacts.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                        materializationFacts.resultVectorCType
+                                            .str()}))
+        return std::move(error);
+    } else if (llvm::Error error =
+                   addRVVStandaloneReductionStatementPlanLoopStep(
+                       plan, slice.rhsLoadOperation, "load",
+                       materializationFacts.vectorLoadLeaf,
+                       {TCRVEmitCCallOpaqueOperand{
+                            (llvm::StringRef(rhsABI->cName) + " + " +
+                             inductionName)
+                                .str(),
+                            rhsABI->cType},
+                        TCRVEmitCCallOpaqueOperand{
+                            loopVLName.str(),
+                            materializationFacts.vlCType.str()}},
+                       description, context,
+                       TCRVEmitCCallOpaqueResult{
+                           "rhs_vec",
+                           materializationFacts.resultVectorCType.str()})) {
+      return std::move(error);
+    }
+
+    if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
+            plan, slice.sourceLoadOperation, "load",
+            materializationFacts.sourceLoadLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(sourceABI->cName) + " + " + inductionName)
+                     .str(),
+                 sourceABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "source_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+
+    if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
+            plan, slice.compareOp.getOperation(), "compute",
+            materializationFacts.compareLeaf,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        materializationFacts.resultVectorCType
+                                            .str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        materializationFacts.resultVectorCType
+                                            .str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      materializationFacts.maskCType.str()}))
+      return std::move(error);
+
+    llvm::StringRef inactiveNeutral =
+        getRVVStandaloneReductionStatementPlanInactiveNeutral(
+            description.operation);
+    if (inactiveNeutral.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction statement plan requires an "
+          "inactive-lane neutral value derived from the reduction kind before "
+          "route statement construction");
+    if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
+            plan, slice.arithmeticOp, "compute",
+            materializationFacts.scalarSeedSplatLeaf,
+            {TCRVEmitCCallOpaqueOperand{inactiveNeutral.str(), "int32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "standalone_inactive_neutral_vec",
+                materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+
+    if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
+            plan, slice.arithmeticOp, "compute",
+            materializationFacts.maskedMergeLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "standalone_inactive_neutral_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "source_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "standalone_masked_source_vec",
+                materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+    reductionInputVector = "standalone_masked_source_vec";
+  }
+
   if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
           plan, slice.arithmeticOp, "compute",
           materializationFacts.scalarSeedSplatLeaf,
@@ -31820,7 +32087,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
   if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
           plan, slice.arithmeticOp, "compute",
           materializationFacts.contractionComputeLeaf,
-          {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+          {TCRVEmitCCallOpaqueOperand{reductionInputVector.str(),
                                       materializationFacts.resultVectorCType
                                           .str()},
            TCRVEmitCCallOpaqueOperand{"standalone_acc_vec",

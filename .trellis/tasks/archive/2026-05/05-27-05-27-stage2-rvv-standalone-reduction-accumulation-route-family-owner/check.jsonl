@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stage and authority invariants against changed behavior."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV standalone reduction/accumulation owner, provider consumption, fail-closed diagnostics, mirror-only metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route versus common EmitC materialization responsibilities."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec ABI/runtime envelope remains non-compute authority."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-standalone-reduction-accumulation-route-family-owner/prd.md", "reason": "Check implementation and validation satisfy this task's module-level acceptance criteria."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run and ssh rvv evidence script for standalone reduction and computed-mask standalone accumulation representatives."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Focused C++ RVV plugin route-family owner regression test passed."}

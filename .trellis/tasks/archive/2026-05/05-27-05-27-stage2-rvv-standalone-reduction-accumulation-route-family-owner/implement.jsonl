@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV-first stage order, compiler stack boundary, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, route-family ownership, provider construction, typed authority, fail-closed diagnostics, mirror metadata, standalone reduction/accumulation and MAcc adjacency rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute boundary and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope, ABI/runtime role binding, selected variant mirrors, and non-compute authority contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-macc-route-family-owner/prd.md", "reason": "Predecessor MAcc route-family owner scope, migrated consumers, validation pattern, and explicit computed-mask standalone reduction/accumulation exclusion."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added standalone reduction/accumulation owner declarations and provider-plan verification entry points."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implemented plugin-local standalone reduction/accumulation owner registry, migrated standalone reduction and computed-mask standalone accumulation consumers, and added fail-closed plan verification."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Added target artifact ABI validation for standalone reduction/accumulation route-family headers, type mappings, ABI order, statement plans, and mirror payload facts."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added focused C++ coverage for the new owner registry, migrated consumers, and fail-closed provider-plan diagnostics."}

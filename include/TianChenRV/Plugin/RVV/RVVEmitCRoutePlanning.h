@@ -1088,6 +1088,8 @@ struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
 
   bool plansStandaloneReductionRoute = false;
   bool plansStandaloneReduceAdd = false;
+  bool plansComputedMaskStandaloneReduceAdd = false;
+  bool plansRuntimeScalarComputedMaskStandaloneReduceAdd = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 3>
       preLoopSteps;
@@ -1518,6 +1520,26 @@ bool isRVVSelectedBodyMAccRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+struct RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner {
+  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
+  using ProviderPlanVerifier = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanVerifier verifyProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner>
+getRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwners();
+
+bool isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error
+verifyRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 struct RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner {

@@ -794,3 +794,48 @@ Extracted RVV plugin-local MAcc route-family ownership, migrated computed-mask a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 251: Stage2 RVV standalone reduction accumulation route-family owner
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV standalone reduction accumulation route-family owner
+**Branch**: `main`
+
+### Summary
+
+Extracted the RVV plugin-local standalone reduction/accumulation owner, migrated standalone reduction plus computed-mask standalone accumulation consumers, added target ABI validation, and verified generated bundle plus ssh rvv evidence.
+
+### Main Changes
+
+- Added standalone reduction/accumulation route-family owner declarations and aggregate provider-plan verification.
+- Migrated active consumers: `standalone_reduce_add` and `computed_mask_standalone_reduce_add`; runtime-scalar computed-mask standalone add remains covered by the same statement-plan path.
+- Routed the broader reduction/accumulation/contraction registry through the new standalone reduction/accumulation owner instead of separate one-off standalone reduction and computed-mask accumulation entries.
+- Added target artifact ABI validation for standalone reduction/accumulation headers, type mappings, ABI order, route family mirrors, statement plans, scalar result boundary, mask/runtime/source/RHS/accumulator/result bindings, and provider-supported mirror fields.
+- Added focused C++ coverage for the new owner registry, migrated consumers, and fail-closed stale provider-plan diagnostics.
+- Validation: RVV plugin build/test passed; generated-bundle dry-runs passed for standalone reduction and computed-mask standalone accumulation representatives; `ssh rvv` standalone reduction passed counts 0, 7, 16, 23, and 257; touched-file authority scan passed; `git diff --check` passed; `check-tianchenrv` passed 390/390 after repairing provenance and min/max validation scope.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | (see git log) |
+
+### Testing
+
+- [OK] `ninja -C build TianChenRVRVVEmitCRouteProvider TianChenRVRVVTarget tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run ... --op-kind standalone_reduce_add`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run ... --op-kind computed_mask_standalone_reduce_add`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py ... --ssh-target rvv --op-kind standalone_reduce_add`
+- [OK] `ninja -C build check-tianchenrv` (390/390)
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
