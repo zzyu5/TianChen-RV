@@ -1831,6 +1831,7 @@ class OpExpectation:
             or self.is_scalar_broadcast_macc_add
             or self.is_computed_masked_macc_add
             or self.is_runtime_scalar_computed_masked_macc_add
+            or self.is_segment2_interleave_unit_load
             or self.is_widen_i16_to_i32
             or self.is_widening_macc_add
             or self.is_widening_dot_reduce_add
@@ -16633,6 +16634,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "macc_add/scalar_broadcast_macc_add/"
                 "computed_masked_macc_add/"
                 "runtime_scalar_cmp_masked_macc_add/"
+                "segment2_interleave_unit_load/"
                 "widen_i16_to_i32/contraction "
                 f"fixtures; got {unsupported_direct}"
             )
@@ -19642,8 +19644,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "strided_load_unit_store, or "
             "standalone_reduce_add/macc_add/scalar_broadcast_macc_add/"
             "computed_masked_macc_add/"
-            "runtime_scalar_cmp_masked_macc_add/widen_i16_to_i32/"
-            "contraction fixtures before target bundle export"
+            "runtime_scalar_cmp_masked_macc_add/"
+            "segment2_interleave_unit_load/widen_i16_to_i32/contraction "
+            "fixtures before target bundle export"
         ),
     )
     parser.add_argument(

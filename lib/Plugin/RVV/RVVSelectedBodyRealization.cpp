@@ -832,6 +832,18 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
 }
 
+bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
+  auto body =
+      llvm::dyn_cast<tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+          op);
+  if (!body)
+    return false;
+  return isPreRealizedSegment2InterleaveMemoryMovementOpKind(
+             body.getOpKind()) &&
+         isPreRealizedSegment2InterleaveMemoryMovementMemoryForm(
+             body.getMemoryForm());
+}
+
 bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
   auto body = llvm::dyn_cast<tcrv::rvv::TypedMAccPreRealizedBodyOp>(op);
   if (!body)
@@ -1150,7 +1162,8 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVBaseMemoryMovementOwner},
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
        nullptr, realizePreRealizedRVVComputedMaskMemoryOwner},
-      {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp, nullptr,
+      {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp,
+       isPreRealizedRVVSegment2MemoryRouteEntryOp,
        realizePreRealizedRVVSegment2MemoryOwner}};
   return owners;
 }
@@ -7717,7 +7730,8 @@ realizePreRealizedRVVRouteEntrySelectedBody(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise/compare-select, base memory movement, "
         "standalone reduction, plain/scalar-broadcast macc, computed-mask "
-        "macc, contraction, or widening conversion "
+        "macc, contraction, widening conversion, or segment2 interleave "
+        "memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");
 
