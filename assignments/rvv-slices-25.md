@@ -1,11 +1,8 @@
-# RVV Slice Module Backlog
+# 25 个 RVV Slice 任务
 
-This backlog gives 25 bounded RVV slice modules. Each module is intended to be
-large enough for roughly two weeks of focused work and small enough to review as
-one PR. The point is to enrich the compiler's typed RVV surface and route
-coverage, not to build frontends or workflow tooling.
+这个清单给出 25 个边界清晰的 RVV slice。每个 slice 的目标是形成一个可以 review 的 PR：不是只改测试，也不是直接堆 intrinsic wrapper，而是补齐一块 typed `tcrv_rvv` surface / RVV provider route / EmitC output / 测试证据。
 
-Every slice must preserve the project route contract:
+每个 slice 都必须保持下面的结构：
 
 ```text
 typed tcrv_rvv body/config
@@ -17,15 +14,11 @@ typed tcrv_rvv body/config
   -> RVV intrinsic C/C++
 ```
 
-Do not implement a slice through legacy `tcrv_rvv.i32_*` helpers, `RVVI32M1*`
-tables, route-id-driven semantics, source-front-door markers, or common EmitC
-branches that decide RVV semantics.
+不要通过 legacy `tcrv_rvv.i32_*` helper、`RVVI32M1*` table、route-id 语义、source-front-door marker 或 common EmitC RVV 分支来实现。
 
-## Common Work Plan
+## 通用开展方式
 
-For each module:
-
-1. Find the closest existing pattern in:
+每个任务先找最接近的现有模式：
 
 ```text
 include/TianChenRV/Dialect/RVV/IR/RVVOps.td
@@ -36,430 +29,375 @@ include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h
 lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp
 lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp
 test/Dialect/RVV/
+test/Conversion/EmitC/
 test/Target/RVV/
 ```
 
-2. Extend the generic typed body surface only where needed.
+通用要求：
 
-3. Add or extend an `RVVSelectedBodyOperationKind`,
-   `RVVSelectedBodyMemoryForm`, or route family description only when the
-   provider needs a new operation/memory class.
-
-4. Add verifier failures for unsupported dtype, LMUL, policy, operand shape,
-   mask source, ABI role, or memory form.
-
-5. Add FileCheck tests that prove the generated C/C++ uses the expected RVV
-   type, header, setvl, load/store, and intrinsic family.
-
-6. Add optional local QEMU proof when claiming runtime correctness.
+1. 只在必要时扩展 generic typed RVV body surface。
+2. 只有 provider 确实需要新 operation/memory class 时，才新增或扩展 `RVVSelectedBodyOperationKind` / `RVVSelectedBodyMemoryForm`。
+3. 添加 verifier negative case，覆盖 unsupported dtype、LMUL、policy、operand shape、mask source、ABI role 或 memory form。
+4. 添加 FileCheck，证明生成的 C/C++ 使用了预期 RVV type、header、setvl、load/store 和 intrinsic family。
+5. 如果声明 runtime correctness，附本地 QEMU 命令和输出。
 
 ## 1. Compress Store
 
-Feature: support mask-controlled dense packing with `vcompress`.
+特性：支持 mask-controlled dense packing，即 `vcompress` 风格的压缩写出。
 
-Likely files:
+基础要求：
 
-```text
-RVVOps.td
-RVVDialect.cpp
-RVVSelectedBodyRealization.cpp
-RVVEmitCRouteProvider.h
-RVVEmitCRoutePlanning.cpp
-RVVEmitCRouteProvider.cpp
-test/Dialect/RVV/
-test/Target/RVV/
-```
+- 添加 typed body form：`compress(mask, value, vl)` 或等价 selected-body slice。
+- 从 element type、LMUL、policy、mask type 推导 compress intrinsic。
+- 定义输出内存规则：true lane 紧密写出，false lane 不写。
+- 添加 mask 来源非法的 negative test。
 
-Required:
+进阶要求：
 
-- Add a typed body form for `compress(mask, value, vl)`.
-- Derive the RVV compress intrinsic from element type, LMUL, policy, and mask
-  type.
-- Define the output memory rule: compressed lanes are stored contiguously and
-  inactive lanes do not write.
-- Add negative coverage for masks not produced/imported inside the selected
-  body.
-
-Advanced:
-
-- Add a runtime output-count/result boundary when the slice needs to expose the
-  number of compressed lanes.
-- Add QEMU cases with sparse masks and sentinel-filled output buffers.
+- 暴露 compressed lane count 的 runtime result boundary。
+- 用稀疏 mask 和 sentinel output buffer 做 QEMU proof。
 
 ## 2. Slide Down
 
-Feature: support `vslidedown` movement inside a vector body.
+特性：支持 `vslidedown` 类 lane movement。
 
-Required:
+基础要求：
 
-- Add generic typed slide op or pre-realized selected-body slice with direction
-  `down` and runtime/immediate offset.
-- Route to the correct RVV slide-down intrinsic family.
-- Preserve explicit policy behavior for filled lanes.
+- 添加 direction 为 `down` 的 generic slide op 或 pre-realized selected-body slice。
+- 支持 runtime 或 immediate offset，但必须在 typed body 中显式表达。
+- 推导正确的 slide-down intrinsic。
 
-Advanced:
+进阶要求：
 
-- Support both vector-immediate and vector-scalar offset forms.
-- Add QEMU cases where offset is 0, 1, and greater than one hardware VL chunk.
+- 同时支持 vector-immediate 和 vector-scalar offset。
+- QEMU 覆盖 offset 为 0、1、超过单个 VL chunk 的情况。
 
 ## 3. Slide Up
 
-Feature: support `vslideup` movement inside a vector body.
+特性：支持 `vslideup` 类 lane movement。
 
-Required:
+基础要求：
 
-- Mirror the slide-down structure with direction `up`.
-- Validate lane fill and destination overlap rules.
-- Emit the correct `vslideup` intrinsic family.
+- 与 slide-down 对称，添加 direction 为 `up` 的 body/config。
+- 验证 lane fill、destination overlap、policy 行为。
+- 生成正确的 `vslideup` intrinsic。
 
-Advanced:
+进阶要求：
 
-- Add `slide1up` as a scalar-insert special case.
-- Prove inactive/tail lane behavior with sentinels in QEMU.
+- 添加 `slide1up` 标量插入特例。
+- 用 sentinel 检查 inactive/tail lane 行为。
 
 ## 4. Register Gather
 
-Feature: support register-indexed gather with `vrgather`.
+特性：支持 register-indexed gather，即 `vrgather`。
 
-Required:
+基础要求：
 
-- Add a typed index-vector operand form separate from memory indexed load.
-- Derive index vector C type and gather intrinsic from index element type and
-  data element type.
-- Add verifier coverage for mismatched data/index LMUL or unsupported index
-  element type.
+- 添加 typed index-vector operand form，区别于 memory indexed load。
+- 从 index element type 和 data element type 推导 C type 与 gather intrinsic。
+- 验证 data/index LMUL 或 index element type 不匹配的错误。
 
-Advanced:
+进阶要求：
 
-- Support immediate gather and scalar-index gather forms.
-- Add duplicate-index and out-of-range-index tests.
+- 支持 immediate gather 和 scalar-index gather。
+- 添加 duplicate index、out-of-range index 测试。
 
 ## 5. Mask Logical Operations
 
-Feature: support mask dataflow operations such as mask and/or/xor/not.
+特性：支持 mask `and/or/xor/not` 等逻辑操作。
 
-Required:
+基础要求：
 
-- Add generic mask ops or extend existing mask-composition support with
-  `and`, `or`, `xor`, `not`.
-- Route to RVV mask logical intrinsics.
-- Allow the result mask to drive select, masked store, masked reduction, or
-  compress.
+- 添加 generic mask op 或扩展现有 mask-composition。
+- route 到 RVV mask logical intrinsics。
+- 结果 mask 可以驱动 select、masked store、masked reduction 或 compress。
 
-Advanced:
+进阶要求：
 
-- Add short-circuit-friendly selected-body examples that combine two compares.
-- Add negative tests for mixing masks with different element/LMUL config.
+- 添加两个 compare 结果组合的 selected-body 示例。
+- 添加不同 element/LMUL mask 混用的 negative test。
 
 ## 6. Mask Population And First-Set Queries
 
-Feature: support mask scalar queries such as population count and first-set.
+特性：支持 mask scalar query，例如 population count 和 first-set。
 
-Required:
+基础要求：
 
-- Add a selected-body operation that consumes a typed mask and returns/imports a
-  scalar runtime result.
-- Route to `vcpop` or `vfirst` style intrinsic families.
-- Define the runtime ABI boundary for the scalar result.
+- 添加消费 typed mask、产生 scalar result 的 selected-body operation。
+- route 到 `vcpop` 或 `vfirst` intrinsic family。
+- 定义 scalar result 的 runtime ABI boundary。
 
-Advanced:
+进阶要求：
 
-- Add before-first/including-first mask generation if it fits the same route
-  family.
-- Add QEMU cases for empty mask, first lane set, and last lane set.
+- 添加 before-first / including-first mask 生成。
+- QEMU 覆盖 empty mask、首 lane set、末 lane set。
 
 ## 7. Unsigned Compare And Select
 
-Feature: complete unsigned integer predicate coverage.
+特性：补齐 unsigned integer predicate。
 
-Required:
+基础要求：
 
-- Add unsigned predicate kinds such as `ltu`, `leu`, `gtu`, `geu`.
-- Derive unsigned compare intrinsic spelling from typed element kind, not from
-  route id or test name.
-- Reuse the existing select/mask body shape where possible.
+- 添加 `ltu`、`leu`、`gtu`、`geu` 等 unsigned predicate kind。
+- 从 typed element kind 推导 unsigned compare intrinsic。
+- 复用现有 compare/select/mask body 结构。
 
-Advanced:
+进阶要求：
 
-- Add cross-check tests where signed and unsigned results intentionally differ.
+- 添加 signed 和 unsigned 结果故意不同的 case。
 
 ## 8. Signed Predicate Completion
 
-Feature: fill signed predicate gaps beyond the currently exercised cases.
+特性：补齐 signed predicate 的缺口。
 
-Required:
+基础要求：
 
-- Support signed `ne`, `sgt`, `sge`, and equivalent canonical forms.
-- Ensure route planning canonicalizes predicates without changing the typed
-  body contract.
-- Add negative tests for unknown predicate strings.
+- 支持 `ne`、`sgt`、`sge` 以及等价 canonical form。
+- route planning 可以 canonicalize predicate，但不能改变 typed body contract。
+- 添加 unknown predicate string 的 negative test。
 
-Advanced:
+进阶要求：
 
-- Share predicate canonicalization between compare-select and computed-mask
-  store/reduction families.
+- 在 compare-select 和 computed-mask store/reduction family 之间共享 predicate canonicalization。
 
 ## 9. Integer Min/Max
 
-Feature: support vector min/max operations.
+特性：支持 vector min/max。
 
-Required:
+基础要求：
 
-- Add generic `binary {kind = min/max/minu/maxu}` or equivalent selected body.
-- Route to signed and unsigned min/max intrinsic families.
-- Add FileCheck for i32 and one smaller integer width.
+- 添加 `binary {kind = min/max/minu/maxu}` 或等价 selected body。
+- route 到 signed/unsigned min/max intrinsic。
+- 至少覆盖 i32 和一个更小整数宽度。
 
-Advanced:
+进阶要求：
 
-- Add masked min/max variants using existing computed-mask route conventions.
+- 添加 masked min/max 变体和 inactive lane 检查。
 
 ## 10. Bitwise Logical Arithmetic
 
-Feature: support integer bitwise `and`, `or`, `xor`.
+特性：支持整数 bitwise `and/or/xor`。
 
-Required:
+基础要求：
 
-- Extend generic `binary {kind}` with bitwise operation kinds.
-- Route to RVV bitwise intrinsic families for supported integer dtypes.
-- Reject floating element types.
+- 扩展 generic `binary {kind}`。
+- 对支持的整数 dtype 生成对应 RVV bitwise intrinsic。
+- 拒绝 floating element type。
 
-Advanced:
+进阶要求：
 
-- Add vector-scalar and immediate variants when they share the same operation
-  contract cleanly.
+- 添加 vector-scalar 和 immediate 形式。
 
 ## 11. Shift Operations
 
-Feature: support logical/arithmetic shifts.
+特性：支持 `sll`、`srl`、`sra`。
 
-Required:
+基础要求：
 
-- Add shift operation kinds: `sll`, `srl`, `sra`.
-- Model shift amount as vector, scalar, or immediate only when the chosen form
-  is explicit in the typed body.
-- Reject unsupported shift-width and dtype combinations.
+- 添加 shift operation kind。
+- shift amount 是 vector、scalar 还是 immediate 必须由 typed body 显式表达。
+- 验证 shift-width 和 dtype 组合。
 
-Advanced:
+进阶要求：
 
-- Add masked shift variants and QEMU tests with boundary shift amounts.
+- 添加 masked shift 和边界 shift amount QEMU proof。
 
 ## 12. Vector-Scalar VX Arithmetic
 
-Feature: add a generic vector-scalar operand form for arithmetic.
+特性：添加通用 vector-scalar operand form。
 
-Required:
+基础要求：
 
-- Avoid creating operation-specific scalar wrappers. Represent the scalar as an
-  explicit runtime ABI value or MLIR scalar operand bound into the body.
-- Route add/sub/mul/min/max/bitwise forms through provider-owned VX intrinsic
-  derivation.
-- Add verifier coverage for scalar dtype mismatch.
+- scalar 必须作为 runtime ABI value 或 MLIR scalar operand 显式进入 body。
+- provider 从 VX operand form 推导 intrinsic。
+- 覆盖 add/sub/mul/min/max/bitwise 中至少一个 family。
 
-Advanced:
+进阶要求：
 
-- Reuse the same infrastructure for compare and shift scalar operands.
+- 复用到 compare 和 shift scalar operand。
 
 ## 13. Immediate VI Arithmetic
 
-Feature: add immediate operand forms where RVV supports VI intrinsics.
+特性：添加 RVV 支持的 immediate operand form。
 
-Required:
+基础要求：
 
-- Add immediate attributes only for operations with valid RVV immediate ranges.
-- Verify the immediate range and signedness.
-- Route to VI intrinsic forms without using route ids as authority.
+- 只对 RVV 有合法 VI form 的操作添加 immediate attribute。
+- 验证 immediate range 和 signedness。
+- route 到 VI intrinsic，不通过 route id 表达。
 
-Advanced:
+进阶要求：
 
-- Add canonical fallback diagnostics when an immediate is out of VI range and a
-  scalar form should be used instead.
+- immediate 超范围时给出明确诊断，提示应使用 scalar form。
 
 ## 14. Reverse Subtract And Negation
 
-Feature: support operand-order-sensitive arithmetic such as reverse subtract
-and vector negation.
+特性：支持 operand-order-sensitive arithmetic。
 
-Required:
+基础要求：
 
-- Add explicit operation kind or operand-order attribute.
-- Make route planning preserve left/right operand meaning.
-- Add tests that would fail if operands are accidentally swapped.
+- 添加 explicit operation kind 或 operand-order attribute。
+- route planning 必须保留 lhs/rhs 意义。
+- 添加会暴露 operand swap 错误的测试。
 
-Advanced:
+进阶要求：
 
-- Add vector-scalar reverse-subtract immediate coverage.
+- 覆盖 vector-scalar reverse-subtract immediate form。
 
 ## 15. Widening Add/Subtract
 
-Feature: add widening add/sub operation families.
+特性：添加 widening add/sub。
 
-Required:
+基础要求：
 
-- Support at least one source/destination relation such as i16 to i32 or i32 to
-  i64.
-- Verify source vector type, destination vector type, SEW relation, and LMUL
-  relation.
-- Route to RVV widening add/sub intrinsic families.
+- 至少支持一种关系，例如 i16 -> i32 或 i32 -> i64。
+- 验证 source/destination element width、SEW relation、LMUL relation。
+- route 到 RVV widening add/sub intrinsic。
 
-Advanced:
+进阶要求：
 
-- Add mixed signed/unsigned widening forms if the type contract can represent
-  them cleanly.
+- 添加 mixed signed/unsigned widening form。
 
 ## 16. Widening Multiply
 
-Feature: add widening multiply without reducing into an accumulator.
+特性：添加不归约到 accumulator 的 widening multiply。
 
-Required:
+基础要求：
 
-- Add a pure widening multiply body distinct from the existing widening
-  dot/reduce and widening MAcc families.
-- Verify destination element width is twice source width.
-- Route signed, unsigned, or mixed signedness explicitly.
+- 与现有 widening dot/reduce、widening MAcc 区分开。
+- 验证 destination width 是 source width 的两倍。
+- 显式表达 signed、unsigned 或 mixed signedness。
 
-Advanced:
+进阶要求：
 
-- Add masked widening multiply with inactive lane behavior.
+- 添加 masked widening multiply。
 
 ## 17. Narrowing Conversion
 
-Feature: support narrowing conversions such as truncate or narrowing shift.
+特性：支持 narrowing conversion，例如 truncate 或 narrowing shift。
 
-Required:
+基础要求：
 
-- Add a source/destination typed conversion relation.
-- Route to RVV narrowing conversion or narrowing shift intrinsic family.
-- Verify rounding/saturation/policy attributes if the operation needs them.
+- 添加 source/destination typed conversion relation。
+- route 到 narrowing conversion / narrowing shift intrinsic。
+- 如有 rounding/saturation/policy，必须显式建模并验证。
 
-Advanced:
+进阶要求：
 
-- Add saturating/rounding variants as explicit attributes with negative tests.
+- 添加 saturating/rounding 变体。
 
 ## 18. F32 Elementwise Arithmetic
 
-Feature: support f32 add/sub/mul/div on the typed RVV surface.
+特性：支持 f32 add/sub/mul/div。
 
-Required:
+基础要求：
 
-- Extend dtype legality and C type mapping for f32 vector types.
-- Route floating elementwise intrinsics from typed body/config facts.
-- Reject integer-only operation kinds for f32.
+- 扩展 f32 vector type legality 和 C type mapping。
+- 从 typed body/config 推导 floating elementwise intrinsic。
+- 拒绝 integer-only operation kind。
 
-Advanced:
+进阶要求：
 
-- Add QEMU tests with NaN/Inf and signed-zero cases when feasible.
+- QEMU 覆盖 NaN、Inf、signed zero。
 
 ## 19. F32 FMA
 
-Feature: support floating fused multiply-add.
+特性：支持 floating fused multiply-add。
 
-Required:
+基础要求：
 
-- Add a typed ternary arithmetic body form or selected-body pre-realized FMA
-  slice.
-- Derive accumulator/result C vector types and FMA intrinsic spelling.
-- Verify operand/result element type consistency.
+- 添加 typed ternary arithmetic body 或 pre-realized FMA slice。
+- 推导 accumulator/result C vector type 和 FMA intrinsic。
+- 验证 operand/result element type 一致。
 
-Advanced:
+进阶要求：
 
-- Add fused negative multiply-add or multiply-subtract variants.
+- 添加 fused negative multiply-add 或 multiply-subtract。
 
 ## 20. Floating Compare And Select
 
-Feature: support f32 comparison masks and select.
+特性：支持 f32 compare mask 和 select。
 
-Required:
+基础要求：
 
-- Add floating predicate kinds with explicit ordered/unordered behavior where
-  needed.
-- Route compare and select through mask type derived from f32 typed body facts.
-- Add negative tests that reject integer-only predicates on f32.
+- 添加 floating predicate kind，必要时区分 ordered/unordered。
+- 从 f32 typed body 推导 mask type、compare intrinsic 和 select。
+- 拒绝 integer-only predicate。
 
-Advanced:
+进阶要求：
 
-- Add QEMU cases for NaN behavior.
+- QEMU 覆盖 NaN predicate 行为。
 
 ## 21. Segment3 Load/Store
 
-Feature: extend segment memory movement from segment2 to segment3.
+特性：把 segment memory movement 从 segment2 扩到 segment3。
 
-Required:
+基础要求：
 
-- Add segment count 3 route metadata and tuple C type mapping.
-- Add field roles for three runtime ABI values.
-- Route load/store/extract/insert forms to segment3 RVV intrinsic families.
+- 添加 segment count 3 route metadata 和 tuple C type mapping。
+- 三个 field 的 runtime ABI role 必须显式表达。
+- route 到 segment3 load/store/extract/insert intrinsic。
 
-Advanced:
+进阶要求：
 
-- Add computed-mask segment3 update if the unmasked segment3 path is stable.
+- 在 unmasked segment3 稳定后添加 computed-mask segment3 update。
 
 ## 22. Segment4 Load/Store
 
-Feature: extend segment memory movement from segment2 to segment4.
+特性：把 segment memory movement 扩到 segment4。
 
-Required:
+基础要求：
 
-- Mirror the segment3 work with segment count 4.
-- Keep field roles explicit; do not encode them in artifact names.
-- Add verifier checks for missing or duplicate field ABI roles.
+- 类似 segment3，但 segment count 为 4。
+- field role 不能藏在 artifact name 里。
+- 验证缺失 field role 和重复 field role。
 
-Advanced:
+进阶要求：
 
-- Add QEMU deinterleave/interleave cases for four fields.
+- QEMU 做四字段 interleave/deinterleave case。
 
 ## 23. Whole-Register Load/Store
 
-Feature: support whole-register memory operations.
+特性：支持 whole-register memory operation。
 
-Required:
+基础要求：
 
-- Add a memory form that models whole-register load/store separately from
-  ordinary unit-stride vector load/store.
-- Route to whole-register RVV intrinsic families where supported by the target
-  toolchain.
-- Add legality diagnostics if the current compiler route cannot lower the
-  chosen element/LMUL form.
+- 把 whole-register load/store 与普通 unit-stride vector load/store 区分。
+- route 到 toolchain 支持的 whole-register intrinsic。
+- 不支持的 dtype/LMUL 给出 fail-closed diagnostic。
 
-Advanced:
+进阶要求：
 
-- Add multi-register variants with explicit register group count.
+- 添加 multi-register group count。
 
 ## 24. Fault-Only-First Load
 
-Feature: support fault-only-first load for bounded scan-like memory cases.
+特性：支持 fault-only-first load，用于 scan-like memory case。
 
-Required:
+基础要求：
 
-- Add a typed memory op or selected-body slice whose result includes both data
-  vector and effective VL/update semantics.
-- Define how the updated VL or loaded count is represented in the selected
-  body/runtime boundary.
-- Route to fault-only-first intrinsic families and reject unsupported forms.
+- typed memory op 或 selected-body slice 需要表达 data vector 和 effective VL/update semantics。
+- 定义 updated VL 或 loaded count 如何进入 selected body/runtime boundary。
+- route 到 fault-only-first intrinsic，拒绝 unsupported form。
 
-Advanced:
+进阶要求：
 
-- Add QEMU tests with an early stop case when a local QEMU environment can
-  model the memory condition reliably.
+- 在本地 QEMU 可稳定表达时，添加 early stop proof。
 
 ## 25. Indexed EEW Variants
 
-Feature: extend indexed gather/scatter beyond the current default index width.
+特性：把 indexed gather/scatter 扩展到更多 index EEW。
 
-Required:
+基础要求：
 
-- Make index EEW explicit in the typed index vector/config.
-- Route indexed load/store intrinsic spelling from data type, data LMUL, index
-  EEW, and memory form.
-- Add negative tests for unsupported index/data LMUL combinations.
+- index EEW 必须在 typed index vector/config 中显式表达。
+- 从 data type、data LMUL、index EEW、memory form 推导 indexed intrinsic。
+- 添加 unsupported index/data LMUL 组合的 negative test。
 
-Advanced:
+进阶要求：
 
-- Add ordered vs unordered indexed memory variants as explicit policy/config
-  when the route provider can distinguish them.
+- 添加 ordered / unordered indexed memory policy。
 
-## Review Priority
+## 优先级建议
 
-Prefer modules that fill a missing operation or memory class over modules that
-only clone an existing i32/m1 fixture to another spelling. A retained i32
-add/sub/mul example is useful only when it is an ordinary instance of the
-generic typed RVV surface and the provider derives the route from typed facts.
+优先做能补齐一个 operation class 或 memory class 的 slice。单纯把已有 i32/m1 fixture 换个名字不算高价值贡献。保留 i32 add/sub/mul 例子只有一种合理方式：它必须只是 generic typed RVV surface 的普通实例，route 由 typed facts 推导。

@@ -1,17 +1,20 @@
 # TianChen-RV MLIR
 
-TianChen-RV is an MLIR-based compiler layer for extensible RISC-V execution
-paths. The current contribution focus for this branch is bounded RVV slice work:
-typed low-level `tcrv_rvv` IR, RVV plugin-owned legality and route derivation,
-common EmitC materialization, and RVV intrinsic C/C++ output.
+TianChen-RV 是一个基于 MLIR 的 RISC-V 执行层项目。本分支面向学生和外部贡献者，而是围绕 RVV 做一个个边界清晰的 slice 贡献。
 
-This branch is intentionally contributor-facing. It removes internal automation
-and steering artifacts and keeps the compiler tree itself as the working
-surface.
+当前贡献主线是：
 
-## Current RVV Path
+- 低层、typed 的 `tcrv_rvv` IR；
+- RVV plugin 负责 legality、selected-body realization、route derivation；
+- common EmitC 只负责 materialization；
+- 最终生成 RVV intrinsic C/C++；
+- 如声明运行正确性，再用本地 RVV QEMU 或等价环境做证明。
 
-The accepted RVV contribution path is:
+本分支已经移除内部自动化和 steering 文件，只保留学生写代码、写 MLIR、跑测试、生成 RVV C++ 所需的工程面。
+
+## 当前 RVV 路径
+
+一个合格的 RVV slice 应该沿着下面这条链路推进：
 
 ```text
 tcrv.exec envelope
@@ -20,67 +23,70 @@ tcrv.exec envelope
   -> RVV plugin legality / selected-body realization / route provider
   -> TCRVEmitCLowerableRoute
   -> common EmitC materializer
-  -> RVV intrinsic C/C++ or equivalent backend representation
-  -> optional local RVV QEMU proof for the contributed slice
+  -> RVV intrinsic C/C++ 或等价后端表示
+  -> 可选本地 RVV QEMU proof
 ```
 
-`tcrv.exec` owns kernel organization, variants, dispatch/fallback, capability
-scope, diagnostics, and ABI role declarations. RVV computation belongs in the
-typed `tcrv_rvv` body and the RVV plugin route provider.
+`tcrv.exec` 只负责 kernel 组织、variant、dispatch/fallback、capability scope、diagnostic 和 ABI role declaration。真正的 RVV 计算、dtype、SEW/LMUL/policy、load/store、mask、reduction、intrinsic 选择，都必须来自 typed `tcrv_rvv` body 和 RVV plugin。
 
-Do not add new legacy helper families such as `tcrv_rvv.i32_*`, route-id-driven
-semantics, source-front-door paths, or common EmitC branches that choose RVV
-types/intrinsics.
+不要新增这些旧路线：
 
-## Repository Layout
+- `tcrv_rvv.i32_*` 这种 dtype-prefixed helper；
+- `RVVI32M1*` / `rvv-i32m1` route-id 驱动的语义；
+- source-front-door / source-artifact 正向路径；
+- common EmitC 中硬编码 RVV dtype、SEW/LMUL、intrinsic 或 schedule。
+
+## 仓库结构
 
 ```text
-include/TianChenRV/        Public headers, TableGen dialect/op definitions
-lib/                       Compiler implementation
-tools/tcrv-opt/            Optimization/pass driver
-tools/tcrv-translate/      Translation/export driver
-test/                      lit/FileCheck and C++ tests
-scripts/                   Support/evidence helpers
-docs/                      Contributor documentation
-assignments/               RVV slice module backlog for external contributors
-examples/qemu/             Optional local QEMU proof fragment
+include/TianChenRV/        Public headers 和 TableGen dialect/op 定义
+lib/                       编译器实现
+tools/tcrv-opt/            pass driver
+tools/tcrv-translate/      translation/export driver
+test/                      精简后的 RVV lit/FileCheck 测试
+docs/                      贡献说明
+assignments/               25 个 RVV slice 任务清单
+examples/qemu/             可选本地 QEMU proof Makefile 片段
 ```
 
-## Main Contributor Docs
+## 主要文档
 
-- [RVV Slice Contribution Guide](docs/rvv-slice-contribution-guide.md)
-- [RVV Slice Module Backlog](assignments/rvv-slices-25.md)
-- [Build And RVV Proof](docs/build-and-rvv-proof.md)
+- [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
+- [25 个 RVV Slice 任务](assignments/rvv-slices-25.md)
+- [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)
 
-## Build
+## 构建
 
-Configure with an installed LLVM/MLIR package:
+配置 LLVM/MLIR：
 
 ```bash
 cmake -S . -B build -G Ninja \
   -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm \
   -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir
+```
+
+编译：
+
+```bash
 cmake --build build
 ```
 
-Run the project tests:
+运行本分支精简后的 RVV classroom 测试：
 
 ```bash
 cmake --build build --target check-tianchenrv
 ```
 
-See [Build And RVV Proof](docs/build-and-rvv-proof.md) for a minimal command
-sequence that materializes one existing RVV fixture into RVV intrinsic C++.
+更多命令见 [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)。
 
-## Contribution Rule
+## 贡献边界
 
-Each RVV PR should own one bounded slice. A useful slice normally includes:
+每个 PR 应该只负责一个 RVV slice。一个合格的 slice 通常包含：
 
-- typed `tcrv_rvv` IR or a constrained extension of an existing generic op;
-- verifier/negative coverage;
-- RVV plugin route derivation from typed body/config/runtime/capability facts;
-- common EmitC output checks;
-- optional but preferred local RVV QEMU correctness proof.
+- typed `tcrv_rvv` IR 或对已有 generic op 的小范围扩展；
+- verifier / negative coverage；
+- RVV plugin 从 typed body/config/runtime/capability facts 推导 route；
+- EmitC / RVV C++ FileCheck；
+- 如声明 runtime correctness，则给出本地 RVV QEMU 命令和输出。
 
-Keep changes narrow. Do not introduce internal automation files, source-front
-doors, frontend projects, or broad runtime infrastructure as part of a slice.
+保持改动窄而清楚。不要把 frontend、source-front-door、Toy/Template/TensorExtLite、远程测试基础设施或大 runtime 工程塞进一个 RVV slice。

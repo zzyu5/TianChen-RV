@@ -1,3 +1,0 @@
-# REQUIRES: tianchenrv-local-native-clangxx
-# RUN: tcrv-translate --tcrv-template-emitc-to-cpp %S/template-target-artifact-object.mlir > %t.cpp
-# RUN: clang++ -std=c++17 -fsyntax-only %t.cpp

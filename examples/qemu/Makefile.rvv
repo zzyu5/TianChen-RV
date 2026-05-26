@@ -1,6 +1,6 @@
-# Optional local RVV QEMU proof fragment.
+# 可选本地 RVV QEMU proof 片段。
 #
-# Use from a directory containing generated.cpp and harness.cpp:
+# 在包含 generated.cpp 和 harness.cpp 的目录中使用：
 #   make -f /path/to/examples/qemu/Makefile.rvv run-rvv
 
 RVV_CXX ?= clang++

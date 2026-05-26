@@ -1,3 +1,0 @@
-# RUN: tianchenrv-variant-dispatch-synthesis-test | FileCheck %s
-
-# CHECK: variant dispatch synthesis smoke test passed

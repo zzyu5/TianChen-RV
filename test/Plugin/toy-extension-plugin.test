@@ -1,3 +1,0 @@
-# RUN: tianchenrv-toy-extension-plugin-test | FileCheck %s
-
-# CHECK: Toy extension plugin template smoke test passed

@@ -1,3 +1,0 @@
-# RUN: tianchenrv-plugin-emission-plan-test | FileCheck %s
-
-# CHECK: plugin emission plan smoke test passed

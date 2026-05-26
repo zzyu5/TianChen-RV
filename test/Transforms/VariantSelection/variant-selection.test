@@ -1,3 +1,0 @@
-# RUN: tianchenrv-variant-selection-test | FileCheck %s
-
-# CHECK: variant selection planning smoke test passed

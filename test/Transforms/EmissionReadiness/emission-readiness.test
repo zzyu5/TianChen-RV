@@ -1,3 +1,0 @@
-RUN: tianchenrv-emission-readiness-test | FileCheck %s
-
-CHECK: emission readiness tests passed

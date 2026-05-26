@@ -1,3 +1,0 @@
-# RUN: tianchenrv-plugin-variant-legality-test | FileCheck %s
-
-# CHECK: plugin variant legality smoke test passed

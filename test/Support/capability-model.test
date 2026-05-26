@@ -1,3 +1,0 @@
-# RUN: tianchenrv-capability-model-test | FileCheck %s
-
-# CHECK: capability model smoke test passed

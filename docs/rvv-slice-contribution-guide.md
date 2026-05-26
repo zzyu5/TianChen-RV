@@ -1,26 +1,23 @@
-# RVV Slice Contribution Guide
+# RVV Slice 贡献指南
 
-This document describes how to add one bounded RVV compiler slice to
-TianChen-RV. It is not a tutorial and it is not a high-level frontend plan.
-Each contributor should own a narrow RVV feature from typed IR through route
-materialization and tests.
+本文说明如何向 TianChen-RV 添加一个边界清晰的 RVV compiler slice。这里的 slice 不是课堂小练习，也不是高层 frontend 方案；它应该从 typed RVV IR 一直走到 route materialization 和测试证据。
 
-## Contribution Shape
+## 一个 Slice 的基本形状
 
-A slice should follow this path:
+推荐路径：
 
 ```text
 typed tcrv_rvv body
   -> RVV verifier / legality
-  -> optional selected-body realization
+  -> 可选 selected-body realization
   -> RVV provider route planning
   -> TCRVEmitCLowerableRoute
   -> common EmitC materialization
   -> RVV intrinsic C/C++
-  -> optional QEMU proof
+  -> 可选 QEMU proof
 ```
 
-The route must derive from typed facts:
+route 必须从 typed facts 推导：
 
 ```text
 operation kind
@@ -34,15 +31,13 @@ runtime ABI binding
 target capability facts
 ```
 
-Do not infer computation from route ids, artifact names, parameter names,
-`c_type` strings, test names, source-front-door markers, or exact intrinsic
-spellings.
+不要从 route id、artifact name、parameter name、`c_type` 字符串、test name、source-front-door marker 或精确 intrinsic spelling 反推出计算语义。
 
-## Where A Slice Usually Lands
+## 通常需要改哪里
 
 ### 1. RVV IR Surface
 
-Primary files:
+主要文件：
 
 ```text
 include/TianChenRV/Dialect/RVV/IR/RVVOps.td
@@ -50,7 +45,7 @@ lib/Dialect/RVV/IR/RVVDialect.cpp
 lib/Dialect/RVV/IR/RVVConfigContract.cpp
 ```
 
-Use the generic typed surface:
+优先使用 generic typed surface：
 
 ```text
 !tcrv_rvv.vector<element_type, "lmul">
@@ -61,12 +56,11 @@ tcrv_rvv.with_vl
 tcrv_rvv.load / store / binary / compare / select / ...
 ```
 
-Add a new typed op only when an existing generic op cannot express the slice.
-Do not add dtype-prefixed helper namespaces such as `tcrv_rvv.i8_add`.
+只有当现有 generic op 无法表达该 slice 时，才新增 typed op。不要新增 `tcrv_rvv.i8_add`、`tcrv_rvv.f32_mul` 这类 dtype-prefixed helper。
 
-### 2. Pre-Realized Body, If Needed
+### 2. Pre-Realized Body
 
-Primary files:
+主要文件：
 
 ```text
 include/TianChenRV/Dialect/RVV/IR/RVVOps.td
@@ -75,16 +69,18 @@ include/TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h
 lib/Plugin/RVV/RVVSelectedBodyRealization.cpp
 ```
 
-Some slices may start from compact selected-body ops such as
-`tcrv_rvv.typed_*_pre_realized_body`. The RVV plugin must realize those ops
-into explicit `setvl` / `with_vl` / typed vector-level body structure before
-route construction. A pre-realized op is not a route id, direct C exporter, or
-metadata shortcut.
-
-Existing owner families are a good local pattern:
+有些 slice 可以先从 compact selected-body op 开始，例如：
 
 ```text
-elementwise/compare-select
+tcrv_rvv.typed_*_pre_realized_body
+```
+
+但这类 op 必须由 RVV plugin realize 成显式的 `setvl` / `with_vl` / typed vector-level body 后，才能进入 route construction。pre-realized op 不是 route id、不是直接 C exporter，也不是 metadata shortcut。
+
+现有代码里可以参考这些 family：
+
+```text
+elementwise / compare-select
 runtime scalar splat-store
 runtime scalar computed-mask store
 reduction
@@ -98,9 +94,9 @@ computed-mask memory
 segment2 memory
 ```
 
-### 3. Route Kind And Memory Form
+### 3. Route Kind 与 Memory Form
 
-Primary files:
+主要文件：
 
 ```text
 include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h
@@ -108,7 +104,7 @@ lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp
 lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp
 ```
 
-Most slices need a new or extended:
+大多数 slice 会新增或扩展：
 
 ```text
 RVVSelectedBodyOperationKind
@@ -117,12 +113,11 @@ route family plan
 route operand binding plan
 ```
 
-The RVV provider owns RVV C vector type mapping, mask type mapping, intrinsic
-selection, required headers, and route payload construction.
+RVV provider 负责 RVV C vector type、mask type、intrinsic、header 和 route payload。common EmitC 只消费 provider-built route，不应该自己判断 RVV 语义。
 
 ### 4. Runtime ABI Roles
 
-Primary files:
+主要文件：
 
 ```text
 include/TianChenRV/Support/RuntimeABI.h
@@ -131,71 +126,64 @@ include/TianChenRV/Support/RuntimeABIMemWindow.h
 include/TianChenRV/Support/RuntimeABIParam.h
 ```
 
-Add a runtime ABI role only when the slice has a real new ABI concept, for
-example a third segment field, an index buffer, a shift scalar, or an external
-mask buffer. `tcrv.exec` and `tcrv_rvv.runtime_abi_value` declare/bind values;
-they do not define computation.
+只有当 slice 真正引入新的 ABI 概念时才新增 role，例如第三个 segment field、index buffer、shift scalar、external mask buffer。`tcrv.exec` 和 `tcrv_rvv.runtime_abi_value` 负责声明/绑定值，不负责定义计算。
 
 ### 5. EmitC / Target Output
 
-Primary files:
+主要文件：
 
 ```text
 lib/Conversion/EmitC/TCRVEmitCLowerableMaterializer.cpp
 lib/Target/TargetArtifactExport.cpp
 ```
 
-Most RVV slices should not need common EmitC semantic changes. If common code
-must change, keep it neutral: it may materialize provider-built route payloads,
-but it must not decide RVV dtype, SEW/LMUL, schedule, intrinsic spelling, or
-body shape.
+多数 RVV slice 不需要修改 common EmitC。如果必须改 common 代码，只能保持中立：它可以 materialize provider-built route payload，但不能选择 RVV dtype、SEW/LMUL、schedule、intrinsic spelling 或 body shape。
 
-### 6. Tests
+### 6. 测试
 
-Expected test locations:
+本分支已经裁剪为 RVV classroom 测试面。优先在这些目录补充：
 
 ```text
 test/Dialect/RVV/
 test/Conversion/EmitC/
 test/Target/RVV/
-test/Scripts/               optional evidence helper coverage
 ```
 
-Minimum useful coverage:
+一个有用的 slice 至少应该有：
 
 ```text
 dialect positive parse/print
-dialect or route negative verifier case
+dialect 或 route negative verifier case
 EmitC materialization FileCheck
-target/header/C++ output FileCheck
-optional QEMU command/output for correctness
+target / RVV C++ output FileCheck
+可选 QEMU proof
 ```
 
-If the slice has a pre-realized form, also add:
+如果 slice 有 pre-realized 形式，建议添加：
 
 ```text
 test/Target/RVV/pre-realized-selected-body-artifact-<feature>.mlir
 ```
 
-## Forbidden Paths
+## 禁止路线
 
-Do not add:
+不要添加：
 
-- positive `tcrv_rvv.i32_*` or `!tcrv_rvv.i32m*` route authority;
-- `RVVI32M1*` or `rvv-i32m1` compatibility route ids;
-- source-front-door or source-artifact positive RVV routes;
-- common EmitC RVV semantic branches;
-- Toy / Template / TensorExtLite work as part of an RVV slice;
-- internal automation or supervisor workflow files;
-- frontend/Linalg/offload/runtime projects hidden inside a slice.
+- 正向的 `tcrv_rvv.i32_*` 或 `!tcrv_rvv.i32m*` route authority；
+- `RVVI32M1*` 或 `rvv-i32m1` compatibility route id；
+- source-front-door 或 source-artifact 正向 RVV route；
+- common EmitC RVV semantic branch；
+- Toy / Template / TensorExtLite 作为 RVV slice 的一部分；
+- 内部 agent、supervisor 或项目管理 workflow 文件；
+- 伪装成 slice 的 frontend/Linalg/offload/runtime 大工程。
 
 ## PR Checklist
 
-Before opening a PR, include:
+提交 PR 前请说明：
 
-- the slice name and bounded scope;
-- touched operation kind(s), memory form(s), and dtype/SEW/LMUL/policy;
-- tests run;
-- generated RVV C/C++ evidence or FileCheck;
-- QEMU command/output if runtime correctness is claimed;
-- a note that no legacy helper/source-front-door path was added.
+- slice 名称和边界；
+- 改了哪些 operation kind、memory form、dtype/SEW/LMUL/policy；
+- 跑了哪些测试；
+- 生成的 RVV C/C++ evidence 或 FileCheck；
+- 如声明 runtime correctness，附 QEMU 命令和输出；
+- 明确没有新增 legacy helper 或 source-front-door 正向路径。

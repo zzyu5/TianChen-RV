@@ -1,3 +1,0 @@
-# RUN: tianchenrv-plugin-registry-test | FileCheck %s
-
-# CHECK: plugin registry smoke test passed
