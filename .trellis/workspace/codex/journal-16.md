@@ -67,6 +67,79 @@ Closed direct route-entry computed_masked_strided_input_widening_dot_reduce_add 
 - None - task complete
 
 
+## Session 250: Stage2 RVV route-family artifact ABI consumer owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV route-family artifact ABI consumer owner
+**Branch**: `main`
+
+### Summary
+
+Moved the RVV target artifact/runtime ABI consumer boundary to validate
+provider-built segment2 route payloads before generated artifact/header claims.
+The primary migrated consumer is
+`computed_masked_segment2_update_unit_load`; `segment2_interleave_unit_load`
+proves the same boundary for an adjacent plain segment2 family.
+
+### Main Changes
+
+- `lib/Target/RVV/RVVTargetSupportBundle.cpp`: added segment2 target-side
+  validation for provider-built route id, headers, type mappings, ordered ABI
+  mappings, source provenance, loop/setvl statement plans, provider-supported
+  mirrors, plain vs computed-mask family-plan mirrors, mask facts, and segment
+  facts.
+- `test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir`:
+  added fail-closed artifact/export consumer coverage for stale route id,
+  provider mirror, operand binding, ABI order, header/type mapping,
+  computed-mask family plan, and segment count.
+- `test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir`:
+  added adjacent-family fail-closed coverage for stale provider mirror and
+  plain segment2 family-plan mirror.
+- `.trellis/spec/extension-plugins/rvv-plugin.md`: recorded the segment2
+  target export consumer contract, including the computed-mask vs plain
+  segment2 plan split and the deinterleave no-ordinary-vector-load gotcha.
+- Trellis task evidence updated under
+  `.trellis/tasks/05-27-stage2-rvv-route-family-artifact-abi-consumer-owner`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVTarget tcrv-translate tcrv-opt -j2`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv
+  Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir
+  Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir`
+  from `build/test` (2/2)
+- [OK] focused non-regression lit filter covering segment2, computed-mask,
+  masked, reduction, scalar-broadcast, conversion, MAcc, compare/select,
+  contraction, and memory routes (70 selected tests)
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run
+  --pre-realized-selected-body --direct-pre-realized-route-entry --op-kind
+  computed_masked_segment2_update_unit_load --op-kind
+  segment2_interleave_unit_load --run-id dry-run-final`
+- [OK] real `ssh rvv` generated bundle ABI run for
+  `computed_masked_segment2_update_unit_load`, counts `0,7,16,23,257`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded production authority scan over added target-support lines
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-27-stage2-rvv-route-family-artifact-abi-consumer-owner`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (390/390)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 241: Stage2 RVV scalar-broadcast elementwise route-entry owner
 
 **Date**: 2026-05-26

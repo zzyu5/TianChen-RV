@@ -1,6 +1,14 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-generic-computed-masked-segment2-update-unit-load-emitc-route/s//rvv-script-derived-segment2-update-route/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ROUTE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-computed-mask-segment2-update-add-plan-validated/s//provider_supported_mirror:rvv-script-derived-segment2-update/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1/s//rvv-route-operand-binding:script-derived-segment2-update.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/cmp_lhs,cmp_rhs,src0,src1,dst,n/s//cmp_lhs,src0,cmp_rhs,src1,dst,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-computed-mask-memory-route-family-plan.v1/s//rvv-script-derived-computed-mask-segment2-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CM-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.segment_count", value = "2"/s//tcrv_rvv.segment_count", value = "3"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SEGCOUNT
 
 // Pre-realized selected-body input for one bounded Stage2 computed-mask
 // segment2 update slice. The RVV plugin must realize compare lhs/rhs,
@@ -99,3 +107,35 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store
 // HEADER: tianchenrv.rvv.segment2_update_arithmetic_kind: add
 // HEADER: void tcrv_emitc_pre_realized_body_cmseg_update_kernel_pre_realized_body_rvv_cmseg_update(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src0, const int32_t *src1, int32_t *dst, size_t n);
+
+// STALE-ROUTE: RVV materialized EmitC target artifact bridge failed
+// STALE-ROUTE: candidate rvv_emitc_lowerable_route provenance must mirror selected typed RVV body route
+// STALE-ROUTE-SAME: rvv-script-derived-segment2-update-route
+
+// STALE-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
+// STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-segment2-update
+
+// STALE-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
+// STALE-BINDING-SAME: rvv-route-operand-binding:script-derived-segment2-update.v1
+
+// STALE-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV runtime ABI order
+// STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
+
+// STALE-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV route header requirements
+// STALE-HEADER-SAME: stddef.h,stdint.h
+
+// STALE-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV route type mapping summary
+// STALE-TYPE-SAME: vl:uint64_t
+
+// STALE-CM-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-CM-PLAN: candidate tcrv_rvv.computed_mask_memory_route_family_plan provenance must mirror selected typed RVV computed-mask memory route-family plan
+// STALE-CM-PLAN-SAME: rvv-script-derived-computed-mask-segment2-plan.v1
+
+// STALE-SEGCOUNT: RVV materialized EmitC target artifact bridge failed
+// STALE-SEGCOUNT: candidate tcrv_rvv.segment_count provenance must mirror selected typed RVV segment2 count
+// STALE-SEGCOUNT-SAME: 3

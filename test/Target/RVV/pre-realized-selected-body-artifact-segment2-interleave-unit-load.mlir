@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-segment2-interleave-plan-validated/s//provider_supported_mirror:rvv-script-derived-segment2-interleave/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-segment2-memory-route-family-plan.v1/s//rvv-script-derived-plain-segment2-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SEGMENT2-PLAN
 
 // Pre-realized selected-body input for one bounded Stage2 segment2 interleave
 // memory movement slice. The RVV plugin must realize the field0 source, field1
@@ -99,3 +101,11 @@ module {
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,field-inputs:signed-e32m1,segment2:vint32m1x2
 // HEADER: void tcrv_emitc_pre_realized_body_segment2_interleave_unit_load_kernel_pre_realized_body_rvv_segment2_interleave_unit_load(const int32_t *src0, const int32_t *src1, int32_t *dst, size_t n);
+
+// STALE-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
+// STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-segment2-interleave
+
+// STALE-SEGMENT2-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-SEGMENT2-PLAN: candidate tcrv_rvv.segment2_memory_route_family_plan provenance must mirror selected typed RVV segment2 route-family plan
+// STALE-SEGMENT2-PLAN-SAME: rvv-script-derived-plain-segment2-plan.v1

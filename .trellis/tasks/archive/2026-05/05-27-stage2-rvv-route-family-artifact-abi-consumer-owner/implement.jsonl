@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, and Stage1/Stage2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route-entry ownership, provider route construction, target artifact mirrors, segment2 provider plans, and fail-closed rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership, common EmitC neutrality, target artifact mirror-only boundary"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime roles and selected typed body import/consumption boundary"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-route-family-artifact-abi-consumer-owner/prd.md", "reason": "Task-local implementation scope, acceptance criteria, and validation plan"}

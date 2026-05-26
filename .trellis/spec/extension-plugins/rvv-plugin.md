@@ -3124,6 +3124,60 @@ Target artifact export is valid only after:
 Runtime, correctness, or performance claims additionally require real
 `ssh rvv` evidence.
 
+### Segment2 Target Export Consumer Contract
+
+For segment2 route families, target artifact export must rebuild the
+provider route from the selected typed RVV body and consume the rebuilt
+`TCRVEmitCLowerableRoute` plus provider description as authority before
+accepting generated artifact/header claims. Emission-plan metadata remains a
+mirror after route construction.
+
+Required target-side validations:
+
+- `rvv_emitc_lowerable_route` must equal the rebuilt route id, but the
+  metadata route id must not choose the route.
+- `tcrv_rvv.provider_supported_mirror`, runtime ABI order, route operand
+  binding plan/operands, required header declarations, C type mapping,
+  segment memory layout, source/destination memory form, and segment count
+  must exactly mirror the provider description.
+- Plain segment2 families (`segment2_deinterleave_unit_store`,
+  `segment2_interleave_unit_load`) require the plain
+  `segment2MemoryRouteFamilyPlanID` /
+  `tcrv_rvv.segment2_memory_route_family_plan` mirror and must not accept a
+  computed-mask route-family mirror as support authority.
+- Computed-mask segment2 families
+  (`computed_masked_segment2_load_unit_store`,
+  `computed_masked_segment2_store_unit_load`,
+  `computed_masked_segment2_update_unit_load`) require
+  `computedMaskMemoryRouteFamilyPlanID` /
+  `tcrv_rvv.computed_mask_memory_route_family_plan` plus mask producer/role/
+  source/memory-form mirrors and must not require the plain segment2 family
+  plan mirror.
+- The rebuilt route must carry provider-owned ABI mappings in order, selected
+  typed RVV source provenance for pre-loop and loop statements, and a runtime
+  AVL/VL loop whose upper bound is the runtime `n`/AVL ABI parameter.
+
+Statement-plan checks are family-specific:
+
+- Plain segment2 deinterleave is a segment-load path. It validates the
+  provider-built `segment2_load`, field extraction/move, and field-store
+  statements; it must not be rejected for lacking ordinary vector loads.
+- Plain segment2 interleave validates ordinary field loads plus tuple creation
+  and segment-store statements.
+- Computed-mask segment2 update validates compare/mask construction, field
+  payload loads, update arithmetic, tuple creation, and masked segment-store
+  statements.
+
+Wrong vs correct:
+
+- Wrong: target export accepts a stale route id, ABI order, C type map,
+  header list, provider mirror, operand binding, or artifact name because the
+  emission plan says `supported`.
+- Correct: target export rebuilds the provider route, compares every mirror to
+  the rebuilt route/provider description, and fails closed before emitting an
+  executable artifact when any mirror, ABI binding, header/type mapping, mask
+  fact, or segment2 statement fact is stale or missing.
+
 ## Fail-Closed Legacy Inventory
 
 The following names may appear in tests/specs only as deprecated/fail-closed

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV segment2 target artifact consumer follows provider-built route authority and fail-closed contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and consumes provider-built routes only"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime role handling stays envelope-only and selected body/provider-owned"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-route-family-artifact-abi-consumer-owner/prd.md", "reason": "Verify implementation and evidence satisfy task acceptance criteria"}
