@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "global project and RVV-first authority invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, route-entry ownership, typed authority, fail-closed diagnostics"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-local registry and interface boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built route and common EmitC neutrality contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++/lit/runtime evidence expectations"}

@@ -1441,6 +1441,90 @@ module {
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
 
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodySegment2RouteEntryFamilyOwner;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2RouteEntryFamilyOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodySegment2RouteEntryFamilyConsumer;
+  llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
+      segment2RouteEntryOwners =
+          getRVVSelectedBodySegment2RouteEntryFamilyOwners();
+  if (int result = expect(
+          segment2RouteEntryOwners.size() == 5,
+          "segment2 route-entry family owner registry has exactly five active "
+          "family entries"))
+    return result;
+  const llvm::StringRef expectedSegment2RouteEntryOwnerNames[] = {
+      "computed-mask segment2 load", "computed-mask segment2 store",
+      "computed-mask segment2 update", "plain segment2 deinterleave",
+      "plain segment2 interleave"};
+  for (std::size_t i = 0; i < segment2RouteEntryOwners.size(); ++i) {
+    if (int result = expect(
+            segment2RouteEntryOwners[i].familyName ==
+                    expectedSegment2RouteEntryOwnerNames[i] &&
+                segment2RouteEntryOwners[i].isConsumer != nullptr,
+            "segment2 route-entry family owner registry preserves explicit "
+            "family ownership order and hooks"))
+      return result;
+  }
+
+  auto expectSegment2RouteEntryFamily =
+      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          llvm::StringRef expectedFamilyName) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found segment2 route-entry body @") +
+                                variantName))
+      return result;
+    llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *> owner =
+        getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+            preRealized, "segment2 route-entry family registry test");
+    if (!owner)
+      return fail(llvm::Twine("segment2 route-entry family owner lookup for @") +
+                  variantName + ": " + llvm::toString(owner.takeError()));
+    if (int result = expect(
+            (*owner)->familyName == expectedFamilyName,
+            llvm::Twine("segment2 route-entry body @") + variantName +
+                " is dispatched through the expected family owner"))
+      return result;
+    return expect(
+        isRVVSelectedBodySegment2RouteEntryFamilyConsumer(preRealized),
+        llvm::Twine("segment2 route-entry family consumer predicate is "
+                    "registry-backed for @") +
+            variantName);
+  };
+
+  if (int result = expectSegment2RouteEntryFamily(
+          "rvv_pre_route_computed_masked_segment2_load_unit_store",
+          "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body",
+          "computed-mask segment2 load"))
+    return result;
+  if (int result = expectSegment2RouteEntryFamily(
+          "rvv_pre_route_computed_masked_segment2_store_unit_load",
+          "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body",
+          "computed-mask segment2 store"))
+    return result;
+  if (int result = expectSegment2RouteEntryFamily(
+          "rvv_pre_route_computed_masked_segment2_update_unit_load",
+          "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body",
+          "computed-mask segment2 update"))
+    return result;
+  if (int result = expectSegment2RouteEntryFamily(
+          "rvv_pre_route_segment2_deinterleave_unit_store",
+          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
+          "plain segment2 deinterleave"))
+    return result;
+  if (int result = expectSegment2RouteEntryFamily(
+          "rvv_pre_route_segment2_interleave_unit_load",
+          "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
+          "plain segment2 interleave"))
+    return result;
+
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(
           tianchenrv::plugin::registerRVVExtensionPlugin(registry),
@@ -2273,6 +2357,22 @@ module {
           "computed-mask segment2 update fixture is route-entry eligible only "
           "after arithmetic_kind add is structural in the typed body"))
     return result;
+  llvm::Expected<const tianchenrv::plugin::rvv::
+                     RVVSelectedBodySegment2RouteEntryFamilyOwner *>
+      updateFamilyOwner =
+          tianchenrv::plugin::rvv::
+              getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+                  negativeComputedMaskSegment2StoreBody.getOperation(),
+                  "computed-mask segment2 update route-entry owner test");
+  if (!updateFamilyOwner)
+    return fail("computed-mask segment2 update route-entry owner lookup "
+                "failed: " +
+                llvm::toString(updateFamilyOwner.takeError()));
+  if (int result = expect(
+          (*updateFamilyOwner)->familyName == "computed-mask segment2 update",
+          "computed-mask segment2 update dispatches through its route-entry "
+          "family owner, not the adjacent store owner"))
+    return result;
   negativeComputedMaskSegment2StoreBody->removeAttr("arithmetic_kind");
   negativeComputedMaskSegment2StoreBody->setAttr(
       "op_kind",
@@ -2291,6 +2391,19 @@ module {
                       negativeComputedMaskSegment2StoreVariant),
           "computed-mask segment2 store route-entry eligibility ignores stale "
           "route metadata when typed op_kind facts no longer match"))
+    return result;
+  auto staleSegment2FamilyOwner =
+      tianchenrv::plugin::rvv::
+          getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+              negativeComputedMaskSegment2StoreBody.getOperation(),
+              "computed-mask segment2 stale metadata route-entry owner test");
+  if (staleSegment2FamilyOwner)
+    return fail("stale route mirror unexpectedly selected a segment2 "
+                "route-entry family owner");
+  if (int result = expectErrorContains(
+          staleSegment2FamilyOwner.takeError(),
+          {"computed-mask segment2 stale metadata route-entry owner test",
+           "has no segment2 route-entry family owner"}))
     return result;
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute staleSegment2StoreRoute;
   if (int result = expectErrorContains(

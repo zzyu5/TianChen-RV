@@ -837,7 +837,8 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
 }
 
-bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
+bool isPreRealizedRVVComputedMaskSegment2LoadRouteEntryOp(
+    mlir::Operation *op) {
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(op))
     return isPreRealizedComputedMaskSegment2LoadOpKind(body.getOpKind()) &&
@@ -867,52 +868,79 @@ bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
                tcrv::rvv::getRVVFirstSliceSEWBits() &&
            body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
            tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
+  return false;
+}
 
-  if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(op)) {
-    const bool isUpdate =
-        isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind());
-    auto arithmeticKind =
-        body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
-    if (isUpdate && (!arithmeticKind || arithmeticKind.getValue() != "add"))
-      return false;
-    if (!isUpdate && arithmeticKind)
-      return false;
-    return isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()) &&
-           isPreRealizedComputedMaskSegment2StoreMemoryForm(
-               body.getMemoryForm()) &&
-           isPreRealizedComputedMaskMemoryMovementPredicateKind(
-               body.getPredicateKind()) &&
-           static_cast<std::int64_t>(body.getSegmentCount()) == 2 &&
-           isPreRealizedSegment2InterleaveField0Role(body.getField0Role()) &&
-           isPreRealizedSegment2InterleaveField1Role(body.getField1Role()) &&
-           body.getField0Role() != body.getField1Role() &&
-           isPreRealizedSegment2InterleaveSourceMemoryForm(
-               body.getSource0MemoryForm()) &&
-           isPreRealizedSegment2InterleaveSourceMemoryForm(
-               body.getSource1MemoryForm()) &&
-           isPreRealizedSegment2InterleaveDestinationMemoryForm(
-               body.getDestinationMemoryForm()) &&
-           isPreRealizedComputedMaskMemoryMovementMaskRole(
-               body.getMaskRole()) &&
-           isPreRealizedComputedMaskMemoryMovementMaskSource(
-               body.getMaskSource()) &&
-           isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
-               body.getMaskMemoryForm()) &&
-           body.getInactiveLanePolicy() == "preserve-output-on-false-lanes" &&
-           static_cast<std::int64_t>(body.getSew()) ==
-               tcrv::rvv::getRVVFirstSliceSEWBits() &&
-           body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
-           tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
-  }
+bool hasPreRealizedRVVComputedMaskSegment2StoreLikeRouteEntryFacts(
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+  return isPreRealizedComputedMaskSegment2StoreMemoryForm(
+             body.getMemoryForm()) &&
+         isPreRealizedComputedMaskMemoryMovementPredicateKind(
+             body.getPredicateKind()) &&
+         static_cast<std::int64_t>(body.getSegmentCount()) == 2 &&
+         isPreRealizedSegment2InterleaveField0Role(body.getField0Role()) &&
+         isPreRealizedSegment2InterleaveField1Role(body.getField1Role()) &&
+         body.getField0Role() != body.getField1Role() &&
+         isPreRealizedSegment2InterleaveSourceMemoryForm(
+             body.getSource0MemoryForm()) &&
+         isPreRealizedSegment2InterleaveSourceMemoryForm(
+             body.getSource1MemoryForm()) &&
+         isPreRealizedSegment2InterleaveDestinationMemoryForm(
+             body.getDestinationMemoryForm()) &&
+         isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()) &&
+         isPreRealizedComputedMaskMemoryMovementMaskSource(
+             body.getMaskSource()) &&
+         isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+             body.getMaskMemoryForm()) &&
+         body.getInactiveLanePolicy() == "preserve-output-on-false-lanes" &&
+         static_cast<std::int64_t>(body.getSew()) ==
+             tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
+         tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
+}
 
+bool isPreRealizedRVVComputedMaskSegment2StoreRouteEntryOp(
+    mlir::Operation *op) {
+  auto body =
+      llvm::dyn_cast<tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+          op);
+  if (!body)
+    return false;
+  if (!isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()) ||
+      isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind()))
+    return false;
+  if (body->getAttrOfType<mlir::StringAttr>("arithmetic_kind"))
+    return false;
+  return hasPreRealizedRVVComputedMaskSegment2StoreLikeRouteEntryFacts(body);
+}
+
+bool isPreRealizedRVVComputedMaskSegment2UpdateRouteEntryOp(
+    mlir::Operation *op) {
+  auto body =
+      llvm::dyn_cast<tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+          op);
+  if (!body ||
+      !isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind()))
+    return false;
+  auto arithmeticKind =
+      body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
+  if (!arithmeticKind || arithmeticKind.getValue() != "add")
+    return false;
+  return hasPreRealizedRVVComputedMaskSegment2StoreLikeRouteEntryFacts(body);
+}
+
+bool isPreRealizedRVVPlainSegment2DeinterleaveRouteEntryOp(
+    mlir::Operation *op) {
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(op))
     return isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
                body.getOpKind()) &&
            isPreRealizedSegment2DeinterleaveMemoryMovementMemoryForm(
                body.getMemoryForm());
+  return false;
+}
 
+bool isPreRealizedRVVPlainSegment2InterleaveRouteEntryOp(mlir::Operation *op) {
   auto body =
       llvm::dyn_cast<tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
           op);
@@ -922,6 +950,69 @@ bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
              body.getOpKind()) &&
          isPreRealizedSegment2InterleaveMemoryMovementMemoryForm(
              body.getMemoryForm());
+}
+
+llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
+getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry() {
+  static const RVVSelectedBodySegment2RouteEntryFamilyOwner owners[] = {
+      {"computed-mask segment2 load",
+       isPreRealizedRVVComputedMaskSegment2LoadRouteEntryOp},
+      {"computed-mask segment2 store",
+       isPreRealizedRVVComputedMaskSegment2StoreRouteEntryOp},
+      {"computed-mask segment2 update",
+       isPreRealizedRVVComputedMaskSegment2UpdateRouteEntryOp},
+      {"plain segment2 deinterleave",
+       isPreRealizedRVVPlainSegment2DeinterleaveRouteEntryOp},
+      {"plain segment2 interleave",
+       isPreRealizedRVVPlainSegment2InterleaveRouteEntryOp}};
+  return owners;
+}
+
+llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
+getUniqueRVVSelectedBodySegment2RouteEntryFamilyOwner(
+    mlir::Operation *bodyOp, llvm::StringRef context) {
+  if (!bodyOp)
+    return makeRVVPluginError(llvm::Twine(context) +
+                              " requires a pre-realized segment2 RVV body op");
+
+  llvm::SmallVector<const RVVSelectedBodySegment2RouteEntryFamilyOwner *, 2>
+      matches;
+  for (const RVVSelectedBodySegment2RouteEntryFamilyOwner &owner :
+       getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry()) {
+    if (!owner.isConsumer)
+      return makeRVVPluginError(
+          llvm::Twine(context) +
+          " encountered an incomplete segment2 route-entry family owner "
+          "registry entry");
+    if (owner.isConsumer(bodyOp))
+      matches.push_back(&owner);
+  }
+
+  if (matches.empty())
+    return makeRVVPluginError(
+        llvm::Twine(context) +
+        " has no segment2 route-entry family owner for pre-realized op '" +
+        bodyOp->getName().getStringRef() + "'");
+  if (matches.size() > 1) {
+    std::string owners;
+    llvm::raw_string_ostream os(owners);
+    for (const RVVSelectedBodySegment2RouteEntryFamilyOwner *owner : matches) {
+      if (!owners.empty())
+        os << ", ";
+      os << owner->familyName;
+    }
+    os.flush();
+    return makeRVVPluginError(
+        llvm::Twine(context) +
+        " found ambiguous segment2 route-entry family owners for "
+        "pre-realized op '" +
+        bodyOp->getName().getStringRef() + "': " + owners);
+  }
+  return matches.front();
+}
+
+bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
+  return isRVVSelectedBodySegment2RouteEntryFamilyConsumer(op);
 }
 
 bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
@@ -7295,10 +7386,33 @@ getRVVSelectedBodyRealizationOwners() {
   return getRVVSelectedBodyRealizationOwnerRegistry();
 }
 
+llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
+getRVVSelectedBodySegment2RouteEntryFamilyOwners() {
+  return getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry();
+}
+
 llvm::Expected<const RVVSelectedBodyRealizationOwner *>
 getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
                                           llvm::StringRef context) {
   return getUniqueRVVSelectedBodyRealizationOwner(bodyOp, context);
+}
+
+llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
+getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+    mlir::Operation *bodyOp, llvm::StringRef context) {
+  return getUniqueRVVSelectedBodySegment2RouteEntryFamilyOwner(bodyOp, context);
+}
+
+bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
+    mlir::Operation *bodyOp) {
+  llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *> owner =
+      getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+          bodyOp, "segment2 route-entry family owner registry");
+  if (!owner) {
+    llvm::consumeError(owner.takeError());
+    return false;
+  }
+  return true;
 }
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {

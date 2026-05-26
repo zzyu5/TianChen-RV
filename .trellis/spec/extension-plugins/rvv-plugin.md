@@ -303,6 +303,48 @@ selected-boundary-only until an explicit owner task adds route-entry support
 with matching provider facts, diagnostics, generated-bundle evidence, and
 `ssh rvv` evidence for executable claims.
 
+The segment2 memory realization owner must not keep all direct route-entry
+classification as a single broad predicate. It dispatches through a plugin-local
+segment2 route-entry family owner registry:
+
+```c++
+struct RVVSelectedBodySegment2RouteEntryFamilyOwner {
+  llvm::StringLiteral familyName;
+  bool (*isConsumer)(mlir::Operation *);
+};
+
+llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
+getRVVSelectedBodySegment2RouteEntryFamilyOwners();
+
+llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
+getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+    mlir::Operation *bodyOp, llvm::StringRef context);
+
+bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
+    mlir::Operation *bodyOp);
+```
+
+The active segment2 route-entry family entries are `computed-mask segment2
+load`, `computed-mask segment2 store`, `computed-mask segment2 update`, `plain
+segment2 deinterleave`, and `plain segment2 interleave`. The registry must
+select exactly one owner for a direct route-entry segment2 body. In particular,
+`computed_masked_segment2_update_unit_load` is its own family owner and must not
+be accepted through the adjacent store owner; it requires structural
+`arithmetic_kind = "add"` in the typed pre-realized body. A stale `route_id`,
+artifact name, script option, or mirror metadata cannot repair a mismatched
+typed `op_kind`, memory form, segment count, mask facts, field roles, SEW/LMUL,
+policy, or runtime binding facts. No-match and ambiguous-match cases fail before
+selected-body route-entry realization and before provider/common EmitC route
+construction.
+
+Tests for segment2 route-entry owner changes must assert registry membership,
+owner order/names, hook presence, exact-one classification for load, store,
+update, deinterleave, and interleave, update-vs-store separation, and stale
+metadata no-match behavior. Positive route-entry tests must still prove the
+selected pre-realized body is consumed before provider facts are collected and
+that the realized typed `tcrv_rvv` body feeds the verified segment2 or
+computed-mask memory route-family plan and segment2 statement-plan boundary.
+
 ### 4. Validation & Error Matrix
 
 - Null body operation -> fail closed before owner selection.

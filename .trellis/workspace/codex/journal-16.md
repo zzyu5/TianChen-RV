@@ -525,6 +525,57 @@ Promoted computed_masked_segment2_store_unit_load to direct RVV segment2 memory 
 
 [OK] **Completed**
 
+
+## Session 247: Stage2 RVV selected-body route-entry family registry owner
+
+**Date**: 2026-05-26
+**Task**: `05-26-05-26-stage2-rvv-selected-body-route-entry-family-registry-owner`
+**Branch**: `main`
+
+### Summary
+
+Introduced a plugin-local segment2 route-entry family owner registry and moved
+computed-mask segment2 update, computed-mask segment2 store/load, and plain
+segment2 deinterleave/interleave direct route-entry eligibility behind exact
+family-owner dispatch.
+
+### Main Changes
+
+- `RVVSelectedBodyRealization.h`: exposed
+  `RVVSelectedBodySegment2RouteEntryFamilyOwner` and lookup/consumer APIs.
+- `RVVSelectedBodyRealization.cpp`: replaced the broad segment2 route-entry
+  predicate body with a registry-backed dispatcher for five segment2
+  route-entry families.
+- `RVVExtensionPluginTest.cpp`: added registry membership, exact-one
+  classification, update-vs-store separation, and stale metadata no-match
+  coverage.
+- `.trellis/spec/extension-plugins/rvv-plugin.md`: recorded the durable
+  segment2 route-entry family owner API and fail-closed contracts.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] generated-bundle dry-run for direct pre-realized
+  `computed_masked_segment2_update_unit_load`
+- [OK] generated-bundle dry-run for direct pre-realized
+  `computed_masked_segment2_store_unit_load`
+- [OK] real `ssh rvv` direct pre-realized
+  `computed_masked_segment2_update_unit_load`, counts `0,7,16,23,257`
+- [OK] direct route-entry non-regression dry-run for segment2 load/store,
+  segment2 deinterleave/interleave, standalone reduction, conversion,
+  runtime-scalar MAcc, compare/select, MAcc, scalar-broadcast MAcc,
+  contraction, and base memory
+- [OK] selected-boundary non-regression dry-run for `masked_add` and
+  `scalar_broadcast_add`
+- [OK] production/test touched-file authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (390/390)
+
+### Status
+
+[OK] **Completed**
+
 ### Next Steps
 
 - None - task complete
