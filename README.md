@@ -1,6 +1,6 @@
 # TianChen-RV MLIR
 
-TianChen-RV 是一个基于 MLIR 的 RISC-V 执行层项目。本分支面向学生和外部贡献者，而是围绕 RVV 做一个个边界清晰的 slice 贡献。
+TianChen-RV 是一个基于 MLIR 的 RISC-V 执行层项目。本分支面向学生和外部贡献者，目标是围绕 RVV 做一个个边界清晰的 slice 贡献。
 
 当前贡献主线是：
 
@@ -52,6 +52,7 @@ examples/qemu/             可选本地 QEMU proof Makefile 片段
 ## 主要文档
 
 - [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
+- [RVV Slice 模块化落点](docs/rvv-slice-module-map.md)
 - [25 个 RVV Slice 任务](assignments/rvv-slices-25.md)
 - [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)
 
@@ -90,3 +91,15 @@ cmake --build build --target check-tianchenrv
 - 如声明 runtime correctness，则给出本地 RVV QEMU 命令和输出。
 
 保持改动窄而清楚。不要把 frontend、source-front-door、Toy/Template/TensorExtLite、远程测试基础设施或大 runtime 工程塞进一个 RVV slice。
+
+## 当前不建议学生触碰的区域
+
+主开发分支仍在持续推进 Stage2 RVV coverage。课堂任务暂时不要选择：
+
+- `segment2` route-family planning owner 或 route-entry registry；
+- `segment3` / `segment4` / `segmentN` 泛化；
+- source-front-door / source-artifact positive route；
+- common EmitC RVV semantic branch；
+- Toy / Template / TensorExtLite / Offload 相关工作。
+
+如果一个 PR 需要先重构这些区域，说明它不适合作为本轮课堂 slice。

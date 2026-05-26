@@ -1,6 +1,6 @@
 # 构建与 RVV Proof 流程
 
-本文记录本分支的构建方式，以及一个最小 RVV proof 流程。QEMU 是 slice 的运行证据，不是 slice 本身，也不需要接入项目默认测试目标。
+本文记录本分支的构建方式，以及一个最小 RVV proof 流程。QEMU 是学生 slice 的默认运行证据，不是 slice 本身，也不需要接入项目默认测试目标。维护者也可以用真实 `ssh rvv` 环境跑同一份 generated C++ 和 harness；在运行 RVV 程序之前，编译器生成路径是一致的。
 
 ## 构建 TianChenRV
 
@@ -75,6 +75,17 @@ generated RVV C/C++
 cp examples/qemu/Makefile.rvv /tmp/Makefile.rvv
 ```
 
+本仓库也提供一个最小 add harness 示例：
+
+```bash
+build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
+  --tcrv-materialize-emission-plans \
+| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
+> /tmp/generated.cpp
+
+cp examples/qemu/harness_add.cpp /tmp/harness.cpp
+```
+
 在包含 `generated.cpp` 和 `harness.cpp` 的目录中可以这样运行：
 
 ```bash
@@ -85,6 +96,35 @@ make -f /tmp/Makefile.rvv run-rvv \
 ```
 
 如果本机工具链路径不同，可以替换 `RVV_CXX`、`QEMU_RISCV64`、`SYSROOT`。PR 只要声明 runtime correctness，就应该记录实际编译和 QEMU 运行命令。
+
+## 维护者 ssh rvv Proof
+
+如果你有项目维护者提供的 `ssh rvv` 环境，可以把 QEMU 的最后一步替换成真实 RISC-V 主机运行。流程仍然是：
+
+```text
+本机 tcrv-opt / tcrv-translate 生成 RVV C++
+  -> 复制 generated.cpp 和 harness.cpp 到 rvv 主机
+  -> 在 rvv 主机用 clang++ 或 g++ 编译
+  -> 运行 executable
+```
+
+示例：
+
+```bash
+build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
+  --tcrv-materialize-emission-plans \
+| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
+> /tmp/tcrv-rvv-generated.cpp
+
+scp /tmp/tcrv-rvv-generated.cpp rvv:/tmp/
+scp examples/qemu/harness_add.cpp rvv:/tmp/tcrv-rvv-harness.cpp
+
+ssh rvv 'clang++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
+  /tmp/tcrv-rvv-generated.cpp /tmp/tcrv-rvv-harness.cpp \
+  -o /tmp/tcrv-rvv-proof && /tmp/tcrv-rvv-proof'
+```
+
+这个 proof 是维护者参考路径。学生提交 PR 时仍然优先使用本地 QEMU，除非课程明确提供真实 RVV 主机。
 
 ## Harness 要求
 
@@ -97,3 +137,17 @@ make -f /tmp/Makefile.rvv run-rvv \
 - mismatch 时返回非零状态。
 
 masked、tail、indexed、segment、widening slice 应该包含能区分正确 RVV 行为和弱实现的测试数据。
+
+## 最小 Harness 约定
+
+生成的 RVV C++ 通常只包含 exported kernel 函数，不包含 `main`。harness 负责提供输入和 oracle。建议每个 slice 的 harness 只验证一个行为：
+
+```text
+准备输入
+初始化 output sentinel
+调用 generated kernel
+用 scalar oracle 检查输出
+返回 0 或非 0
+```
+
+不要把 QEMU harness 做成新的项目框架；它应该只是 PR 里的运行证据。

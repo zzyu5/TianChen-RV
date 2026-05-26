@@ -33,6 +33,21 @@ target capability facts
 
 不要从 route id、artifact name、parameter name、`c_type` 字符串、test name、source-front-door marker 或精确 intrinsic spelling 反推出计算语义。
 
+开始写代码前，先读 [RVV Slice 模块化落点](rvv-slice-module-map.md)，判断你的 slice 属于 operation kind、operand form、memory form、mask query、dtype/config 还是 runtime ABI boundary。这个判断会决定改哪些文件，不要一上来复制一个最像的 intrinsic fixture。
+
+## 选题避让规则
+
+本课堂分支不是主开发 loop。当前不要选择这些方向：
+
+- `segment2` route-family planning owner；
+- `segment2` route-entry registry；
+- `segment3` / `segment4` / `segmentN` 泛化；
+- source-front-door / source-artifact positive route；
+- Toy / Template / TensorExtLite / Offload；
+- common EmitC 中的 RVV semantic branch。
+
+如果你的实现需要先改这些区域，说明任务边界太大，应该换成更局部的 RVV slice。
+
 ## 通常需要改哪里
 
 ### 1. RVV IR Surface
@@ -57,6 +72,14 @@ tcrv_rvv.load / store / binary / compare / select / ...
 ```
 
 只有当现有 generic op 无法表达该 slice 时，才新增 typed op。不要新增 `tcrv_rvv.i8_add`、`tcrv_rvv.f32_mul` 这类 dtype-prefixed helper。
+
+一个好的新增方式通常是：
+
+```text
+已有 op + 新 kind / operand form / memory form
+```
+
+只有在新语义有独立 SSA 形状时才新增 op，例如 `compress`、`slide`、`register_gather`、`mask_query`、`fault_only_first_load`。
 
 ### 2. Pre-Realized Body
 
@@ -182,6 +205,7 @@ test/Target/RVV/pre-realized-selected-body-artifact-<feature>.mlir
 提交 PR 前请说明：
 
 - slice 名称和边界；
+- 为什么它不和当前 `segment2` 主线 loop 重叠；
 - 改了哪些 operation kind、memory form、dtype/SEW/LMUL/policy；
 - 跑了哪些测试；
 - 生成的 RVV C/C++ evidence 或 FileCheck；
