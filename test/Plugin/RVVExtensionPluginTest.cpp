@@ -1281,7 +1281,7 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body %src0, %src1, %dst, %n {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", lmul = "m1", memory_form = "unit-load-segment2-store", op_kind = "segment2_interleave_unit_load", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source0_memory_form = "unit-stride-load", source1_memory_form = "unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
-    tcrv.exec.variant @rvv_pre_route_segment2_deinterleave_not_route_entry attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+    tcrv.exec.variant @rvv_pre_route_segment2_deinterleave_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
       %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1576,13 +1576,29 @@ module {
     }
     if (expectedProviderPlanID ==
         "rvv-segment2-memory-route-family-plan.v1") {
-      if (int result = expect(
-              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
-                  countNestedOps(variant, "tcrv_rvv.segment2_store") == 1 &&
-                  countNestedOps(variant, "tcrv_rvv.segment2_load") == 0,
-              llvm::Twine("direct route-entry @") + variantName +
-                  " realizes field0/field1 loads and segment2 store"))
-        return result;
+      const bool isSegment2Deinterleave =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body";
+      if (isSegment2Deinterleave) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.segment2_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.move") == 2 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 2 &&
+                    countNestedOps(variant, "tcrv_rvv.load") == 0 &&
+                    countNestedOps(variant, "tcrv_rvv.segment2_store") == 0,
+                llvm::Twine("direct route-entry @") + variantName +
+                    " realizes segment2 load, field moves, and field "
+                    "stores"))
+          return result;
+      } else {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                    countNestedOps(variant, "tcrv_rvv.segment2_store") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.segment2_load") == 0,
+                llvm::Twine("direct route-entry @") + variantName +
+                    " realizes field0/field1 loads and segment2 store"))
+          return result;
+      }
     }
 
     if (buildRouteBeforePlan) {
@@ -1688,6 +1704,12 @@ module {
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
+          "rvv_pre_route_segment2_deinterleave_unit_store",
+          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
+          "segment2 memory", "rvv-segment2-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
           "rvv_pre_route_segment2_interleave_unit_load",
           "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
           "segment2 memory", "rvv-segment2-memory-route-family-plan.v1",
@@ -1732,62 +1754,6 @@ module {
           "computed-mask MAcc",
           "rvv-computed-mask-accumulation-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
-    return result;
-
-  VariantOp segment2DeinterleaveVariant =
-      findVariant(kernel, "rvv_pre_route_segment2_deinterleave_not_route_entry");
-  mlir::Operation *segment2DeinterleavePreRealized = findFirstNestedOp(
-      segment2DeinterleaveVariant,
-      "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body");
-  llvm::Expected<const tianchenrv::plugin::rvv::
-                     RVVSelectedBodyRealizationOwner *>
-      segment2DeinterleaveOwner =
-          tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody(
-              segment2DeinterleavePreRealized,
-              "selected-body realization owner registry segment2 "
-              "deinterleave route-entry subset test");
-  if (!segment2DeinterleaveOwner)
-    return fail("selected-body realization segment2 deinterleave owner "
-                "lookup: " +
-                llvm::toString(segment2DeinterleaveOwner.takeError()));
-  if (int result =
-          expect((*segment2DeinterleaveOwner)->familyName ==
-                         "segment2 memory" &&
-                     (*segment2DeinterleaveOwner)->isRouteEntryConsumer !=
-                         nullptr &&
-                     !(*segment2DeinterleaveOwner)
-                          ->isRouteEntryConsumer(
-                              segment2DeinterleavePreRealized),
-                 "segment2 memory owner keeps plain deinterleave outside the "
-                 "direct route-entry subset"))
-    return result;
-  if (int result = expect(
-          !tianchenrv::plugin::rvv::
-              variantContainsPreRealizedRVVRouteEntrySelectedBody(
-                  segment2DeinterleaveVariant),
-          "segment2 deinterleave pre-realized body is not a direct "
-          "route-entry selected body"))
-    return result;
-  VariantEmissionPlan segment2DeinterleavePlan;
-  if (int result = expectErrorContains(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(segment2DeinterleaveVariant, kernel,
-                                     capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              segment2DeinterleavePlan),
-          {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
-    return result;
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
-      segment2DeinterleaveRoute;
-  if (int result = expectErrorContains(
-          registry.buildVariantEmitCLowerableRoute(
-              VariantEmitCLowerableRequest(segment2DeinterleaveVariant, kernel,
-                                           capabilities,
-                                           VariantEmissionRole::DirectVariant),
-              segment2DeinterleaveRoute),
-          {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
     return result;
 
   const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner

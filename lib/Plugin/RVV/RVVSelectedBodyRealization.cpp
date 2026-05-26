@@ -833,6 +833,13 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
 }
 
 bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
+  if (auto body = llvm::dyn_cast<
+          tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(op))
+    return isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
+               body.getOpKind()) &&
+           isPreRealizedSegment2DeinterleaveMemoryMovementMemoryForm(
+               body.getMemoryForm());
+
   auto body =
       llvm::dyn_cast<tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
           op);
@@ -7730,8 +7737,8 @@ realizePreRealizedRVVRouteEntrySelectedBody(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise/compare-select, base memory movement, "
         "standalone reduction, plain/scalar-broadcast macc, computed-mask "
-        "macc, contraction, widening conversion, or segment2 interleave "
-        "memory "
+        "macc, contraction, widening conversion, or segment2 deinterleave/"
+        "interleave memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");
 

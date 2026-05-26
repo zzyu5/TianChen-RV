@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check owner-scoped route-entry support, provider-owned facts, mirror-only metadata, and segment2 memory boundary compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC/export did not gain RVV deinterleave semantics or route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle, ssh rvv, focused C++ tests, and authority-scan evidence."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that changes stay local to RVV plugin/script/test consumers and do not alter core orchestration semantics."}

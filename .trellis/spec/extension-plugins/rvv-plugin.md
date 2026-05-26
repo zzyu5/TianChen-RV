@@ -285,15 +285,15 @@ ABI strings, descriptors, scripts, common EmitC, source-front-door markers, or
 legacy i32 helper names.
 
 For `segment2 memory`, route-entry eligibility may be narrower than the
-realization owner family. A bounded plain `segment2_interleave_unit_load`
-pre-realized body may be direct route-entry capable when its realized
-`load/load/segment2_store` body feeds the verified segment2 family plan,
+realization owner family. Bounded plain `segment2_deinterleave_unit_store` and
+`segment2_interleave_unit_load` pre-realized bodies may be direct route-entry
+capable when their realized `segment2_load/move/move/store/store` or
+`load/load/segment2_store` bodies feed the verified segment2 family plan,
 route-control provider plan, memory operand-binding facts, and segment2
-statement-plan boundary. Other segment2 bodies, such as plain deinterleave or
-computed-mask segment2 load/store, must remain selected-boundary-only until an
-explicit owner task adds route-entry support with matching provider facts,
-diagnostics, generated-bundle evidence, and `ssh rvv` evidence for executable
-claims.
+statement-plan boundary. Other segment2 bodies, such as computed-mask segment2
+load/store, must remain selected-boundary-only until an explicit owner task
+adds route-entry support with matching provider facts, diagnostics,
+generated-bundle evidence, and `ssh rvv` evidence for executable claims.
 
 ### 4. Validation & Error Matrix
 
@@ -519,6 +519,10 @@ The route-entry bridge may support bounded family groups such as:
   RVV-owned contraction family plans, materialization facts, math
   operand-binding facts, direct contraction provider plans, and direct
   contraction owner statement plans.
+- bounded plain segment2 deinterleave pre-realized bodies whose realized
+  `segment2_load/move/move/store/store` structure already feeds RVV-owned
+  segment2 family plans, route-control provider plans, memory operand-binding
+  facts, and segment2 statement plans;
 - bounded plain segment2 interleave pre-realized bodies whose realized
   `load/load/segment2_store` structure already feeds RVV-owned segment2 family
   plans, route-control provider plans, memory operand-binding facts, and
@@ -586,9 +590,10 @@ structure.
 ### 5. Good/Base/Bad Cases
 
 - Good: selected RVV variant -> pre-realized compare/select, base-memory,
-  standalone-reduction, contraction, or bounded segment2 interleave body ->
-  route-entry realization bridge -> realized `tcrv_rvv` body -> RVV-owned
-  facts/statement plan -> provider-built route -> common EmitC.
+  standalone-reduction, contraction, bounded segment2 deinterleave, or bounded
+  segment2 interleave body -> route-entry realization bridge -> realized
+  `tcrv_rvv` body -> RVV-owned facts/statement plan -> provider-built route ->
+  common EmitC.
 - Base: explicit already-realized selected body -> route-entry helper returns
   the unique `with_vl` boundary and preserves existing route behavior.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
@@ -602,8 +607,9 @@ structure.
 - C++ tests showing production emission/provider route entries realize at
   least one compare/select pre-realized body, one base-memory pre-realized
   body, one standalone-reduction pre-realized body, one contraction
-  pre-realized body, and one bounded segment2 interleave pre-realized body
-  before route facts are collected.
+  pre-realized body, one bounded segment2 deinterleave pre-realized body, and
+  one bounded segment2 interleave pre-realized body before route facts are
+  collected.
 - C++ fail-closed coverage for an unsupported route-entry family or incomplete
   realization dependency.
 - Representative lit/FileCheck coverage proving direct pre-realized route
