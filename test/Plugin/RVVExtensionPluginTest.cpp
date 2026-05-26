@@ -1288,6 +1288,33 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", lmul = "m1", memory_form = "segment2-load-unit-store", op_kind = "segment2_deinterleave_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_computed_masked_segment2_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", inactive_lane_policy = "preserve-passthrough-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-segment2-load-unit-store", op_kind = "computed_masked_segment2_load_unit_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_computed_masked_segment2_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", inactive_lane_policy = "preserve-passthrough-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-segment2-load-unit-store", op_kind = "computed_masked_segment2_load_unit_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_computed_masked_segment2_store_unit_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body %cmp_lhs, %cmp_rhs, %src0, %src1, %dst, %n {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-load-segment2-store", op_kind = "computed_masked_segment2_store_unit_load", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source0_memory_form = "unit-stride-load", source1_memory_form = "unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_widen_i16_to_i32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1575,10 +1602,15 @@ module {
         return result;
     }
     if (expectedProviderPlanID ==
-        "rvv-segment2-memory-route-family-plan.v1") {
+            "rvv-segment2-memory-route-family-plan.v1" ||
+        expectedProviderPlanID ==
+            "rvv-computed-mask-memory-route-family-plan.v1") {
       const bool isSegment2Deinterleave =
           preRealizedOpName ==
           "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body";
+      const bool isComputedMaskSegment2Load =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body";
       if (isSegment2Deinterleave) {
         if (int result = expect(
                 countNestedOps(variant, "tcrv_rvv.segment2_load") == 1 &&
@@ -1589,6 +1621,19 @@ module {
                 llvm::Twine("direct route-entry @") + variantName +
                     " realizes segment2 load, field moves, and field "
                     "stores"))
+          return result;
+      } else if (isComputedMaskSegment2Load) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 4 &&
+                    countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_segment2_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 2 &&
+                    countNestedOps(variant, "tcrv_rvv.segment2_load") == 0 &&
+                    countNestedOps(variant, "tcrv_rvv.segment2_store") == 0,
+                llvm::Twine("direct route-entry @") + variantName +
+                    " realizes compare loads, passthrough field loads, "
+                    "masked segment2 load, and field stores"))
           return result;
       } else {
         if (int result = expect(
@@ -1635,6 +1680,8 @@ module {
                 routeDescription->plainCompareSelectRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->computedMaskSelectRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->computedMaskMemoryRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->baseMemoryMovementRouteFamilyPlanID ==
                     expectedProviderPlanID ||
@@ -1707,6 +1754,13 @@ module {
           "rvv_pre_route_segment2_deinterleave_unit_store",
           "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
           "segment2 memory", "rvv-segment2-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_computed_masked_segment2_load_unit_store",
+          "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body",
+          "segment2 memory",
+          "rvv-computed-mask-memory-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
@@ -1913,6 +1967,160 @@ module {
     return result;
   computedMaskSelectRuntimeN->setAttr(
       "role", originalComputedMaskSelectRuntimeNRole);
+
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *segment2MemoryOwner = nullptr;
+  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
+       tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
+    if (owner.familyName == "segment2 memory")
+      segment2MemoryOwner = &owner;
+  }
+  if (int result = expect(segment2MemoryOwner != nullptr &&
+                              segment2MemoryOwner->realize != nullptr &&
+                              segment2MemoryOwner->isRouteEntryConsumer !=
+                                  nullptr,
+                          "found segment2 memory owner-local direct "
+                          "route-entry realization hook"))
+    return result;
+  VariantOp negativeComputedMaskSegment2LoadVariant = findVariant(
+      kernel,
+      "rvv_pre_route_owner_negative_computed_masked_segment2_load_unit_store");
+  auto negativeComputedMaskSegment2LoadBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::
+          TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
+      findFirstNestedOp(
+          negativeComputedMaskSegment2LoadVariant,
+          "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body"));
+  if (int result = expect(negativeComputedMaskSegment2LoadBody != nullptr,
+                          "found computed-mask segment2 load pre-realized "
+                          "body for owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          segment2MemoryOwner->isRouteEntryConsumer(
+              negativeComputedMaskSegment2LoadBody.getOperation()),
+          "computed-mask segment2 load fixture is route-entry eligible "
+          "through the segment2 memory owner predicate before targeted "
+          "mutation"))
+    return result;
+  auto expectComputedMaskSegment2LoadOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        segment2MemoryOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativeComputedMaskSegment2LoadVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            negativeComputedMaskSegment2LoadBody.getOperation());
+    if (invalid)
+      return fail("segment2 memory owner-local hook accepted invalid "
+                  "computed-mask segment2 load typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "mask_source", attrBuilder.getStringAttr("metadata-mask-source"));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load body currently supports only "
+           "mask_source",
+           "compare-produced-mask-same-vl-scope"}))
+    return result;
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "mask_source",
+      attrBuilder.getStringAttr("compare-produced-mask-same-vl-scope"));
+
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "inactive_lane_policy",
+      attrBuilder.getStringAttr("metadata-passthrough"));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load body requires inactive_lane_policy",
+           "preserve-passthrough-on-false-lanes"}))
+    return result;
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "inactive_lane_policy",
+      attrBuilder.getStringAttr("preserve-passthrough-on-false-lanes"));
+
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "segment_count", attrBuilder.getI64IntegerAttr(3));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load body requires segment_count 2"}))
+    return result;
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "segment_count", attrBuilder.getI64IntegerAttr(2));
+
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "field0_role", attrBuilder.getStringAttr("segment-field0-input-buffer"));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load body requires field0_role",
+           "segment-field0-output-buffer"}))
+    return result;
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "field0_role",
+      attrBuilder.getStringAttr("segment-field0-output-buffer"));
+
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "memory_form", attrBuilder.getStringAttr("segment2-load-unit-store"));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load body currently supports only "
+           "memory_form",
+           "computed-mask-segment2-load-unit-store"}))
+    return result;
+  negativeComputedMaskSegment2LoadBody->setAttr(
+      "memory_form",
+      attrBuilder.getStringAttr("computed-mask-segment2-load-unit-store"));
+
+  negativeComputedMaskSegment2LoadBody->setAttr("lmul",
+                                                attrBuilder.getStringAttr("m2"));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load body requires SEW32 LMUL m1"}))
+    return result;
+  negativeComputedMaskSegment2LoadBody->setAttr("lmul",
+                                                attrBuilder.getStringAttr("m1"));
+
+  mlir::Operation *computedMaskSegment2RuntimeN =
+      negativeComputedMaskSegment2LoadBody.getN().getDefiningOp();
+  mlir::Attribute originalComputedMaskSegment2RuntimeNRole =
+      computedMaskSegment2RuntimeN->getAttr("role");
+  computedMaskSegment2RuntimeN->setAttr(
+      "role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectComputedMaskSegment2LoadOwnerError(
+          {"computed-mask segment2 load runtime n/AVL operand",
+           "runtime-element-count"}))
+    return result;
+  computedMaskSegment2RuntimeN->setAttr(
+      "role", originalComputedMaskSegment2RuntimeNRole);
+
+  VariantOp negativeComputedMaskSegment2StoreVariant = findVariant(
+      kernel,
+      "rvv_pre_route_owner_negative_computed_masked_segment2_store_unit_load");
+  mlir::Operation *negativeComputedMaskSegment2StoreBody = findFirstNestedOp(
+      negativeComputedMaskSegment2StoreVariant,
+      "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body");
+  if (int result = expect(negativeComputedMaskSegment2StoreBody != nullptr,
+                          "found computed-mask segment2 store pre-realized "
+                          "body for route-entry exclusion test"))
+    return result;
+  negativeComputedMaskSegment2StoreBody->setAttr(
+      "route_id",
+      attrBuilder.getStringAttr("computed_masked_segment2_load_unit_store"));
+  if (int result = expect(
+          !segment2MemoryOwner->isRouteEntryConsumer(
+              negativeComputedMaskSegment2StoreBody) &&
+              !tianchenrv::plugin::rvv::
+                  variantContainsPreRealizedRVVRouteEntrySelectedBody(
+                      negativeComputedMaskSegment2StoreVariant),
+          "computed-mask segment2 store stays outside direct route-entry "
+          "eligibility even when stale route metadata is attached"))
+    return result;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute staleSegment2StoreRoute;
+  if (int result = expectErrorContains(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  negativeComputedMaskSegment2StoreVariant, kernel,
+                  capabilities, VariantEmissionRole::DirectVariant),
+              staleSegment2StoreRoute),
+          {"selected-body route-entry realization currently supports only",
+           "selected body belongs to another RVV realization family"}))
+    return result;
 
   const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner *maccOwner =
       nullptr;

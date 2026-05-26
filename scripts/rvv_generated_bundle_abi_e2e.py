@@ -1831,6 +1831,7 @@ class OpExpectation:
             or self.is_scalar_broadcast_macc_add
             or self.is_computed_masked_macc_add
             or self.is_runtime_scalar_computed_masked_macc_add
+            or self.is_computed_masked_segment2_load_unit_store
             or self.is_segment2_deinterleave_unit_store
             or self.is_segment2_interleave_unit_load
             or self.is_widen_i16_to_i32
@@ -16635,6 +16636,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "macc_add/scalar_broadcast_macc_add/"
                 "computed_masked_macc_add/"
                 "runtime_scalar_cmp_masked_macc_add/"
+                "computed_masked_segment2_load_unit_store/"
                 "segment2_deinterleave_unit_store/"
                 "segment2_interleave_unit_load/"
                 "widen_i16_to_i32/contraction "
@@ -19623,6 +19625,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_store/"
             "runtime_scalar_cmp_masked_load_store/"
             "computed_masked_macc_add/"
+            "computed_masked_segment2_load_unit_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
@@ -19647,6 +19650,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "standalone_reduce_add/macc_add/scalar_broadcast_macc_add/"
             "computed_masked_macc_add/"
             "runtime_scalar_cmp_masked_macc_add/"
+            "computed_masked_segment2_load_unit_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/widen_i16_to_i32/contraction "
             "fixtures before target bundle export"

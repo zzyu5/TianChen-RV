@@ -462,3 +462,36 @@ Promoted bounded segment2_deinterleave_unit_store to RVV plugin-owned direct rou
 ### Next Steps
 
 - None - task complete
+
+
+## Session 245: Stage2 RVV computed-mask segment2 memory route-entry owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV computed-mask segment2 memory route-entry owner
+**Branch**: `main`
+
+### Summary
+
+Promoted bounded computed_masked_segment2_load_unit_store to RVV segment2 memory direct route-entry support, proved generated-bundle dry-run, ssh rvv correctness, focused non-regression, and check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | rvv: route computed-mask segment2 entry owner |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

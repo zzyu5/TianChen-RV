@@ -834,6 +834,40 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
 
 bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
   if (auto body = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(op))
+    return isPreRealizedComputedMaskSegment2LoadOpKind(body.getOpKind()) &&
+           isPreRealizedComputedMaskSegment2LoadMemoryForm(
+               body.getMemoryForm()) &&
+           isPreRealizedComputedMaskMemoryMovementPredicateKind(
+               body.getPredicateKind()) &&
+           static_cast<std::int64_t>(body.getSegmentCount()) == 2 &&
+           isPreRealizedSegment2DeinterleaveField0Role(
+               body.getField0Role()) &&
+           isPreRealizedSegment2DeinterleaveField1Role(
+               body.getField1Role()) &&
+           body.getField0Role() != body.getField1Role() &&
+           isPreRealizedSegment2DeinterleaveSourceMemoryForm(
+               body.getSourceMemoryForm()) &&
+           isPreRealizedSegment2DeinterleaveDestinationMemoryForm(
+               body.getDestinationMemoryForm()) &&
+           isPreRealizedComputedMaskMemoryMovementMaskRole(
+               body.getMaskRole()) &&
+           isPreRealizedComputedMaskMemoryMovementMaskSource(
+               body.getMaskSource()) &&
+           isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+               body.getMaskMemoryForm()) &&
+           body.getInactiveLanePolicy() ==
+               "preserve-passthrough-on-false-lanes" &&
+           static_cast<std::int64_t>(body.getSew()) ==
+               tcrv::rvv::getRVVFirstSliceSEWBits() &&
+           body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
+           tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
+
+  if (llvm::isa<tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+          op))
+    return false;
+
+  if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(op))
     return isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
                body.getOpKind()) &&
@@ -7738,7 +7772,7 @@ realizePreRealizedRVVRouteEntrySelectedBody(
         "pre-realized elementwise/compare-select, base memory movement, "
         "standalone reduction, plain/scalar-broadcast macc, computed-mask "
         "macc, contraction, widening conversion, or segment2 deinterleave/"
-        "interleave memory "
+        "interleave/computed-mask load memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");
 

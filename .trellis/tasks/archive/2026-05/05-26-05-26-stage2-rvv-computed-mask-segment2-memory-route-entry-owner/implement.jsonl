@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, Stage2 route support boundary, and invalid authority sources."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, selected-body realization owner registry, route-entry bridge, computed-mask memory exclusion, segment2 statement-plan owner, route-control, operand-binding, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-segment2-deinterleave-route-entry-owner/prd.md", "reason": "Most recent plain segment2 direct route-entry owner pattern and validation evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-segment2-interleave-memory-route-family-owner/prd.md", "reason": "Segment2 route-entry predicate, script, artifact, ssh evidence, and non-regression pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-masked-elementwise-route-family-owner/prd.md", "reason": "Computed-mask mask/source/passthrough evidence and route-control fail-closed pattern."}
