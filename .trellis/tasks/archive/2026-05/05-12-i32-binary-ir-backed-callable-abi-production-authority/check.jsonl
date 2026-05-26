@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI mirror validation and target-artifact fail-closed behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify source body still uses EmitC route authority and does not regress to descriptor computation."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains an execution envelope and compute-free ABI boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-local i32 binary ABI and descriptor boundaries."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback production path rejects descriptor/default ABI authority."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused test selection and evidence wording."}

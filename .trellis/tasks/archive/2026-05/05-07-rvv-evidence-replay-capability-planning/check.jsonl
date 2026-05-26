@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check MLIR capability object boundary and property preservation"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV evidence replay stays plugin-local and bounded"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no executable lowering/runtime/correctness/performance claims"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check target-neutral core routing and plugin-owned decisions"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required deterministic helper and lit coverage"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check planning pipeline behavior and rerun boundaries"}

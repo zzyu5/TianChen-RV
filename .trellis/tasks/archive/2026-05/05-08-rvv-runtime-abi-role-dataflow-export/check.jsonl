@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and implementation boundary"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Parameter layering and capability-driven compiler decision contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local dataflow, control-plane, and microkernel export boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI metadata and target artifact export boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and C++ evidence for this compiler slice"}

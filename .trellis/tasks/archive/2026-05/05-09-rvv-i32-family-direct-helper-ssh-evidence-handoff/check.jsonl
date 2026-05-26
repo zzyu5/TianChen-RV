@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Quality check must preserve project boundary and compiler stack rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Quality check must verify direct helper dry-run, lit, ssh evidence, and no false runtime/perf claims."}
-{"file": ".trellis/spec/validation/index.md", "reason": "Quality check must distinguish ssh-backed runtime/correctness evidence from local tooling evidence."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Quality check must preserve bounded RVV add/sub/mul plugin locality."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Quality check must verify route/artifact/runtime ABI handoff stays target-owned and fail-closed."}

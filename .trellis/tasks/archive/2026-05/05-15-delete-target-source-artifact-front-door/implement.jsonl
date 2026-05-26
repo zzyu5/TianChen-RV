@@ -1,3 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global project invariants for deletion-only compiler work"}
-{"file":".trellis/spec/lowering-runtime/index.md","reason":"Lowering/runtime checklist and descriptor-to-C deletion boundary"}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Target artifact export and direct C semantic exporter deletion contracts"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for this deletion/refactor task."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Design red lines: no descriptor-driven microkernel/exporter framework and no independent backend framing."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin contract requiring explicit typed body authority before finite RVV binary proposal/materialization."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-no-body-default-finite-family-proposal-deletion/prd.md", "reason": "Prior completed deletion round and its ten exposed public-pipeline failures."}

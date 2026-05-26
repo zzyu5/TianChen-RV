@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global invariant check"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "descriptor/core-boundary and evidence claim check"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary selected-path compliance check"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin locality and no core semantic branch check"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact/runtime ABI route check"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC intrinsic route ownership check"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected boundary and source identity check"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused test and evidence check"}

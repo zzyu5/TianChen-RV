@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify capability-provider behavior and parameter layering"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify kernel target reference stays in tcrv.exec organization boundary"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify plugin variant materialization uses the referenced target provider"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify appropriate lit/C++ checks are run"}

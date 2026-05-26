@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants for review"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "parameter layering review"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local dataflow and export review"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/export fail-closed review"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required compiler test coverage review"}

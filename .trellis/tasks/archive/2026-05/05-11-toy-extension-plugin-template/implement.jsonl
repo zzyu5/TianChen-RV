@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and core/extension boundary invariants for implementation."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "ExtensionPlugin registry, proposal, legality, lowering-boundary, and emission hook contracts."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Expected new plugin integration flow, directory layout, and test template."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin locality boundary and acceptable core changes for new extensions."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for avoiding extension-specific branches in core orchestration."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for keeping Toy metadata out of tcrv.exec compute semantics."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal/materialization/selection pipeline contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering-boundary and emission readiness/plan metadata contract."}

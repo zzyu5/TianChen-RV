@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack and boundary invariants."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check plugin/target locality and core-boundary compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite descriptor and artifact behavior remains stable."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback finite descriptor and artifact behavior remains stable."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI, artifact route, and parameter layering correctness."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/script validation coverage."}

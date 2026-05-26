@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check that any runtime claim is bounded to real ssh rvv evidence and avoids performance/general correctness overclaiming."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/helper coverage and no generated binary artifact commits."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target bundle/runtime ABI evidence fields, source/header/object boundaries, and sanitized metadata."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check i32m2 selected-shape and RVV remote evidence constraints."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback branch remains bounded and not reported as RVV performance evidence."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check the route starts from bounded linalg front-door planning rather than hand-authored selected dispatch."}

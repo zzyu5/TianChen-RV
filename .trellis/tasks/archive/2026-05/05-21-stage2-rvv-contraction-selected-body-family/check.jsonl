@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the completed changes preserve global TianChen-RV boundaries and the RVV-first authority chain."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization, typed body authority, fail-closed diagnostics, and evidence obligations."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider-built routes only."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check realization/provider boundaries and mirror-only metadata behavior."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization consumes code-affecting facts into body structure before routing."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused FileCheck/C++/ssh-rvv evidence and negative legacy/source coverage."}

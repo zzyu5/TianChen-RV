@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack and descriptor-erasure invariants."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check no descriptor-driven microkernel/exporter architecture remains protected by this round."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check core envelope does not synthesize compute semantics."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback wording and behavior match deletion result."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check no replacement route bypasses typed extension op -> EmitC route."}

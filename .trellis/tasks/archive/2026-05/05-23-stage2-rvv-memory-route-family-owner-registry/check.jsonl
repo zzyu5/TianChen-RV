@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check must confirm global RVV authority and stack boundaries remain intact."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must confirm RVV semantics remain plugin-owned."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must confirm common EmitC/export neutrality."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Final check must confirm route provider/interface locality."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must confirm focused tests and fail-closed evidence match policy."}
-{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-base-memory-movement-route-family-ownership/prd.md", "reason": "Regression reference for base memory movement provider binding."}
-{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-computed-mask-memory-route-family-interface/prd.md", "reason": "Regression reference for computed-mask memory provider binding."}
-{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-plain-segment2-explicit-selected-body-artifact/prd.md", "reason": "Regression reference for plain segment2 explicit selected-body artifact closure."}

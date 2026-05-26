@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack boundaries for this deletion round."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Confirms descriptor-driven microkernel/exporter and independent backend directions are non-goals."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary and typed extension-family body authority contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Active lowering/runtime spec text still references historical selected-source identity and must be aligned if touched."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-no-body-rvv-pipeline-expectation-deletion/prd.md", "reason": "Previous completed RVV deletion task and evidence baseline."}

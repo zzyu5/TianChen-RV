@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check against global TianChen-RV architecture and stack invariants."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check EmitC route and descriptor-boundary compliance."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check generic target artifact front-door, bundle, preflight, and built-in route registration compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin route authority and evidence boundary compliance."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test and RVV runtime evidence coverage."}

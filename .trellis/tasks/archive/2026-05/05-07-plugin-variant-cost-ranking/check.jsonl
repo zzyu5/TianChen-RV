@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify plugin cost API stays generic"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify extension details remain plugin-local"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify ranking is not selection/lowering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify C++ and lit coverage"}

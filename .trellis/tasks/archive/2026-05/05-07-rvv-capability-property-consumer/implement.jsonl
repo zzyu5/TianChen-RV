@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability descriptor/property preservation boundaries and target-neutral support constraints."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local responsibilities and allowed RVV capability interpretation."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin decision APIs and registry interface contracts."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Constrains extension semantics to plugin-local code behind interfaces."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines proposal, legality, selection, and cost decision boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines expected C++/lit/FileCheck evidence for MLIR compiler changes."}

@@ -1,5 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global TianChen-RV MLIR architecture and stack invariants for this task."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin selected config, runtime AVL/VL, and bounded microkernel contract."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC route and descriptor-boundary constraints."}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Emission plan, target artifact route, parameter layering, and selected-boundary preflight rules."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused lit/FileCheck/C++ validation requirements for RVV artifact behavior."}

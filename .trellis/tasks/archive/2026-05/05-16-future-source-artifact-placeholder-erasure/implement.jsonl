@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation-stack boundaries for deletion-only compiler work."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission and artifact-route contract governing deletion of source-output placeholders."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol boundary: extension-family ops and EmitC route mapping, not descriptor/source skeleton output."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry and emission-plan validation boundaries for supported artifact metadata."}

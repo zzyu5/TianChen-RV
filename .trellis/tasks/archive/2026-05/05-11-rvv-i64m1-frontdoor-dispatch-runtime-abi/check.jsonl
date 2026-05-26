@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global stack and project-boundary compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV ownership, selected i64m1 metadata, and evidence scope."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback callable route and ABI behavior."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify linalg frontend, selection, dispatch guard, and target-neutral planner behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI, target artifact, dispatch bundle, and preflight coherence behavior."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify runtime claim scope and RVV evidence interpretation."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, runner evidence, ssh evidence, and archive readiness."}

@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR project boundaries and compiler stack red lines."}
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Pre-development checklist for keeping compiler behavior in the MLIR/C++ stack."}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Implementation language, build, and testing contract for compiler functionality."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local first-slice descriptor, policy, and C-intrinsic export boundaries."}
-{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Emission/runtime pre-development checklist for target-owned routes."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Route registration, direct helper metadata, stale-family fail-closed, and artifact boundary requirements."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and C++ registry coverage expectations for MLIR compiler behavior."}

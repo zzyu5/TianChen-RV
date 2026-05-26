@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project boundary validation"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check source authority and descriptor-free EmitC route claims"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check source/header/object artifact route and runtime ABI metadata claims"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check RVV plugin/hardware evidence scope"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused build/lit/ssh rvv evidence expectations"}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify source ownership, stack, and compute-free exec boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV behavior remains plugin/target-owned and typed body authority is local"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify exporter/verifier authority, artifact metadata, and runtime/config layering"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected descriptor and structured body facts agree"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/lit/dry-run/ssh checks are sufficient and truthful"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify ssh rvv claim remains bounded to the rerun slice"}

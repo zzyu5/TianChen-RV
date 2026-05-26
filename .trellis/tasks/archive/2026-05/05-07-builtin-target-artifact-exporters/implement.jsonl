@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin and built-in registration boundary rules"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export route contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV target export ownership and evidence boundary"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar target export ownership and metadata boundary"}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "offload descriptor ownership and runtime-offload boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit and C++ target artifact coverage"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide TianChen-RV boundary and stack requirements"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify capability identity invariant and compiler-decision contract"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify core tcrv.exec boundary and verifier behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++ coverage and evidence discipline"}

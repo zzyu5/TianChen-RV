@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin behavior and locality constraints for dispatch artifacts"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin behavior and fallback constraints"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, emission, runtime ABI, and evidence contract"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Rules for evidence, remote validation, and non-faked RVV correctness claims"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and script test expectations for compiler behavior"}

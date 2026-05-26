@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for stack, capability model, core dialect, plugin locality, hardware evidence, and Python boundary."}
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Primary C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck stack and Python tooling-only boundary for worker prompt enforcement."}
-{"file": ".trellis/spec/architecture/index.md", "reason": "System positioning and forbidden high-level compute IR drift that Hermes and Codex prompts must enforce."}
-{"file": ".trellis/spec/capability-model/index.md", "reason": "Capability model requirements that future worker rounds must keep on compiler decision paths."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "tcrv.exec boundary required by both Hermes review and Codex worker prompt."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin-locality and registry/interface constraints for extension behavior."}
-{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV, IME, offload, and future extension boundary rules to encode in supervision prompts."}
-{"file": ".trellis/spec/testing/index.md", "reason": "lit/FileCheck/C++ testing and ssh rvv evidence requirements for future rounds."}
-{"file": ".trellis/spec/validation/index.md", "reason": "Evidence interpretation rules, especially RVV ssh evidence and offload/runtime claims."}

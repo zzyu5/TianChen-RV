@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify global compiler stack and red-line compliance"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV plugin-local source and artifact route compliance"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify target artifact export and descriptor/direct-C deletion boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify source artifact bundle front-door and construction-template adapter behavior"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify registry/interface locality and absence of core RVV semantic branches"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify source-artifact front-door pipeline ordering and coherence gate"}

@@ -1,7 +1,0 @@
-{"file":"test/Plugin/ScalarExtensionPluginTest.cpp","reason":"Focused C++ scalar plugin target rebuilt and artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test passed after descriptor-only boundary rejection update."}
-{"file":"test/Transforms/LoweringBoundary/scalar-i32-vadd-descriptor-only-legacy-quarantine.mlir","reason":"Focused lit filter covered the new valid descriptor-only scalar selected-boundary fail-closed fixture and passed after rebuilding tcrv-opt."}
-{"file":"test/Transforms/LoweringBoundary/scalar-fallback-builtin.mlir","reason":"Focused lit kept descriptorless default scalar selected-boundary plus typed i32-vadd microkernel success path passing."}
-{"file":"test/Transforms/EmissionReadiness/materialize-emission-plans-scalar-microkernel.mlir","reason":"Focused lit kept explicit typed scalar microkernel emission-plan behavior passing."}
-{"file":"test/Target/ArtifactExport/scalar-target-source-artifact-routes.test","reason":"Focused lit kept scalar source artifact route and stale descriptor mirror preflight behavior passing."}
-{"file":"test/Target/ArtifactExport/scalar-target-vmul-source-artifact-routes.test","reason":"Focused lit kept scalar vmul source artifact route behavior passing."}
-{"file":"test/lit.cfg.py","reason":"Full cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2 ran the repository lit suite and passed 210/210."}

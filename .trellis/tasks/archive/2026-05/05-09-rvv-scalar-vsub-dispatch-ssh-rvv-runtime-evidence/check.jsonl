@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global invariants for review"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review RVV plugin locality"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "review scalar fallback locality"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review emission/runtime ABI contract"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "review evidence claims"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review validation scope"}

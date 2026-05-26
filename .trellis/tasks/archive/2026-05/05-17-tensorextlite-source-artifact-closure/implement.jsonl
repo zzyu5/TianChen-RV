@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack, extension-family, and descriptor/direct-C boundaries"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "extension-family integration contract and plugin/core boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "TensorExtLite source-front-door and registry contracts"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "construction protocol, role graph, interface, EmitC mapping, and evidence profile"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route and target artifact handoff contracts"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime/emission boundary and direct-C/source-authority deletion constraints"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV path boundary for avoiding RVV-specific common branches while comparing non-RVV route reuse"}

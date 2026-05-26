@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack boundaries, Python/tooling limits, and descriptor/direct-C prohibition."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV source-front-door and bounded selected-route behavior remains plugin-owned and fail-closed."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check materialized EmitC route remains the only production artifact path for this slice."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check source-artifact front-door and target artifact bundle export still compose through selected candidates without common RVV semantic recognition."}

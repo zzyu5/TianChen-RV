@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry use remains deterministic and generic."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify target-specific semantics remain owned by plugins/exporters."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-path metadata participates before artifact export."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify lowering-boundary/runtime-ABI/emission-plan/artifact-route coherence is gated before export."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify legal RVV source route remains available without runtime evidence claims."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify legal scalar source route remains available."}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify Sophgo/offload remains runtime-offload capability and descriptor route remains legal only with ABI metadata."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/FileCheck coverage and diagnostics."}

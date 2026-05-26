@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, Stage1/Stage2 RVV boundary, route-authority, and evidence requirements."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, typed scalar-broadcast route authority, Stage2 coverage boundaries, source-front-door fail-closed rule, and ssh rvv evidence requirement."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute boundary, common EmitC neutrality, mirror-only diagnostics, and target artifact handoff rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck coverage and ssh rvv evidence policy for RVV runtime/correctness claims."}
-{"file": ".trellis/tasks/05-23-stage2-rvv-scalar-broadcast-runtime-binding-closure/prd.md", "reason": "Task-specific goal, boundaries, acceptance criteria, and validation plan for scalar-broadcast runtime/binding closure."}

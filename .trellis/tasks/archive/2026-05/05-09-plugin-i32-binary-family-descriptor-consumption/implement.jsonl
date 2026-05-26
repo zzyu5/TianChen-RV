@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary and implementation stack invariants for this plugin/registry refactor."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Defines plugin-owned proposal/materialization/lowering boundaries and forbids extension branches in core orchestration."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines ExtensionPlugin proposal, legality, readiness, plan, and selected-boundary interface contracts."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Preserves plugin-local behavior while reusing shared registry and orchestration surfaces."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines stable RVV first-slice add/sub descriptors, policy metadata, capability gates, and microkernel materialization semantics."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines stable scalar fallback add/sub descriptors, fallback role, runtime ABI metadata, and microkernel materialization semantics."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines route/runtime ABI/emission-plan ownership and parameter layering boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/C++ testing requirements for plugin, registry, dispatch, and export behavior."}
-{"file": ".trellis/tasks/archive/2026-05/05-09-rvv-i32-binary-family-descriptor-registry/prd.md", "reason": "Prior module boundary and continuation notes for the descriptor registry now consumed by plugins."}

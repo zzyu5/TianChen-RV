@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global invariant verification"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify core dialect remains execution-focused and compute-free"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify selected artifact front-door preflight contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify required tests and evidence boundaries"}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "verify offload remains runtime descriptor handoff"}

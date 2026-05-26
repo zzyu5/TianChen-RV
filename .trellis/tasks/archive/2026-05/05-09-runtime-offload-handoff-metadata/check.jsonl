@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants for review: C++/MLIR stack, compute-free exec dialect, and capability-driven decisions."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Review offload/RVV claim boundaries and hardware evidence discipline."}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Review durable offload runtime handoff descriptor contract."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Review plugin locality and no target-family branch invariant."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review descriptor and target artifact bundle metadata behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review lit/C++ test adequacy and evidence wording."}

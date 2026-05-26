@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check implementation against global stack and architecture boundaries"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no compute semantics or target-specific branches enter tcrv.exec"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-selected config and finite family metadata remain plugin-owned"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback remains separate from RVV selected config"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify proposal/selection/frontend descriptor layering"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI/control values are not conflated with selected config"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests cover positive and fail-closed behavior"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify no unsupported new RVV runtime or performance claim is made"}

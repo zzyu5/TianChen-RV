@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary for this task."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec compute-free while carrying target/capability/dispatch/runtime ABI structure."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV i64m1 capability, selected vector-shape metadata, and plugin-owned finite binary planning rules."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback descriptor, executable microkernel, and i64-vsub fallback ownership rules."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg RVV binary frontend contract and normal planning path constraints."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact export, dispatch ABI, and parameter layering contract."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "ssh rvv hardware evidence boundary and forbidden interpretation rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and runtime evidence expectations for bounded RVV/scalar dispatch routes."}

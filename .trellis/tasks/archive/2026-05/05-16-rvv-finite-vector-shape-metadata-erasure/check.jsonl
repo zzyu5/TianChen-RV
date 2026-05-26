@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify deletion stays inside project-wide stack and descriptor-erasure rules."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin surface no longer preserves finite target-helper catalogs as authority."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime/lowering text does not preserve runtime-length comment or expression helpers."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selection wording does not protect selected-vector-shape metadata helper authority."}

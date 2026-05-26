@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for descriptor/direct-export cleanup."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Project design boundaries for descriptor-driven frameworks, independent backend dialects, and correct paper language."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV extension-family contract and deleted direct/descriptor route wording boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime contract for deleted direct C semantic exporter routes and future EmitC route."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-selected-source-metadata-quarantine-deletion/prd.md", "reason": "Previous deletion round context for selected-source/source-kind metadata cleanup."}

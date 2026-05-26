@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, unified extension-family boundary, and descriptor-driven computation red line."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Offload is runtime-offload capability, not custom ISA or descriptor framework."}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Current Offload plugin spec contains stale active descriptor route language to delete or rewrite."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact/export route contract contains stale Offload descriptor route and bundle support text."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor boundary red lines for deletion-only work."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing contract must move from descriptor acceptance to unsupported/fail-closed Offload behavior."}

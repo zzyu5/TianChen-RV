@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, descriptor erasure, unified TCRV, and no Python compiler-core boundaries for this deletion round."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture non-goals: no descriptor-driven framework, no independent backend framing, and RVV hardware evidence boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin first-slice proposal/body-authority contract and stale no-body default proposal text to rewrite."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-smoke-probe-descriptor-residue-deletion/prd.md", "reason": "Immediate prior deletion-round context and evidence discipline."}
-{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "Production RVV binary proposal family resolution contains the no-body default finite-family fallback to delete."}
-{"file": "test/Plugin/RVVBinaryPlanningTest.cpp", "reason": "Focused C++ planning test protects the no-body default i32-vadd proposal path and must be rewritten."}
-{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "RVV extension proposal/materialization tests may be affected by fail-closed kernel proposal behavior."}

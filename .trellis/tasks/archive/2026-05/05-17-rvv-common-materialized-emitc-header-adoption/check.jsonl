@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global no-Python-core, no descriptor-driven computation, and unified extension-family boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected target artifact route and common materialized EmitC header acceptance/failure behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check deleted descriptor/direct-C/source-export residue and target artifact route boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected materialized EmitC i32m1 route, runtime ABI evidence, and bundle metadata behavior."}

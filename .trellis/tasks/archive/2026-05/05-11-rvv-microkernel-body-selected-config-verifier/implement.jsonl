@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide TianChen-RV stack and boundary invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local dialect, selected vector config, and finite microkernel export contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact preflight, runtime ABI role, and parameter-layering rules"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected path and plugin-owned planning pipeline boundaries"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Extension plugin ownership and registry routing contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit/FileCheck validation for RVV microkernel export and preflight behavior"}

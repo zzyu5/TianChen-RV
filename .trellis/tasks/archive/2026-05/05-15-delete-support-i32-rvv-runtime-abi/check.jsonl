@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check deletion stays inside C++/MLIR stack and unified TCRV architecture"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check Support no longer owns I32/RVV runtime ABI route authority"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check remaining ABI ownership is plugin/locality aligned"}

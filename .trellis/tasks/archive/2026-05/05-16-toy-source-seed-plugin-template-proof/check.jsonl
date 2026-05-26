@@ -1,4 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Verify no Python compiler-core, descriptor, direct-C, or independent-backend drift"}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Verify source-seed registration remains pass plumbing and tool collection remains generic"}
-{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Verify Toy remains an extension-family plugin construction proof rather than independent backend work"}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Verify bounded source input and stale-residue fail-closed behavior"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack, source-of-truth, and invalid architecture boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected boundary, construction-backed route, target artifact, and runtime evidence requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected emission-plan candidate and common EmitC artifact/export behavior."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check construction-protocol consumption, interface locality, and fail-closed behavior."}

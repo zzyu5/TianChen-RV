@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Top-level spec routing and project boundary for TianChen-RV."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability identity and relation-provider contract being enforced."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Preserve tcrv.exec scope and parsed-IR verifier behavior."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin proposal and registry consumers must not receive ambiguous capability sets."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant legality and selection consume target capabilities."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused support and MLIR/lit evidence expectations."}

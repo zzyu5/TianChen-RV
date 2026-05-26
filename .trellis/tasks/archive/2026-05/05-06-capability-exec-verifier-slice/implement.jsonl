@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/capability-model/index.md", "reason": "Capability model checklist and quality gate"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Structured requires/capability verifier contract"}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "tcrv.exec pre-development checklist"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core dialect verifier and compute-free boundary"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin-local core boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Generic plugin protocol and no extension branches"}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR/TableGen/CMake implementation boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck verifier evidence contract"}

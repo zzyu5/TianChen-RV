@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Confirm global stack and boundary invariants after implementation."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local capability/materialization behavior for m1 and m2."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check no RVV-specific core orchestration workaround was introduced."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact/export fail-closed behavior and runtime ABI metadata."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++ test coverage matches changed behavior."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check m2 support is capability-driven rather than comment/string-only."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check extension locality and core-pass cleanliness."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check tcrv.exec remains compute-free."}

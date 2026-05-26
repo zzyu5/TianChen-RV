@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global red lines for verification"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify typed op to EmitC source authority remains intact"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV descriptor mirror remains non-authoritative"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify no common/core RVV-specific semantic branch was added"}
-{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-typed-family-emitc-artifact-authority/prd.md", "reason": "verify prior descriptor-only rejection remains covered"}
-{"file": "test/Target/RVVMicrokernel/rvv-microkernel-descriptor-only-production-rejects.mlir", "reason": "descriptor-only rejection covers explicit and legacy-named production routes"}
-{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ artifact authority regression calls exact RVV family exporters"}

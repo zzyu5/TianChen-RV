@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and deletion-campaign boundaries for this task."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for RVV probe replay, target artifact bundle fail-closed coverage, and deleted direct route fixtures."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin contract for metadata-only no-body inputs, unsupported emission, and future EmitC rebuild boundary."}

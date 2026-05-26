@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify global architecture and stack boundaries"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify plugin ownership and fail-closed route registration behavior"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify materialized EmitC validation and no descriptor/direct-C/source-export authority"}
-{"file": ".trellis/tasks/05-17-tensorext-lite-emitc-cpp-emitter-bridge/prd.md", "reason": "verify implementation against task acceptance criteria"}

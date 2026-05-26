@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines the public execution-planning pipeline order and registry-injection rules."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission-plan, execution-plan coherence, and target artifact exporter registry boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines explicit plugin registry injection and tool-boundary registration ownership."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck coverage expectations for pipelines and target artifact routes."}

@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 RVV boundary, and forbidden legacy/source-front-door authority."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, typed body authority, memory-form roles, provider ownership, and ssh-evidence contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC/export boundary."}
-{"file": ".trellis/spec/core-dialect/index.md", "reason": "tcrv.exec envelope and ABI role boundary constraints."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality and no core family-specific semantic branching."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/runtime evidence requirements for RVV claims."}
-{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and Stage2 typed-body route authority checklist."}
-{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-selected-body-generic-add/prd.md", "reason": "Prior pre-realized selected-body realization behavior and validation expectations."}
-{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-typed-strided-memory-route/prd.md", "reason": "Existing typed strided add provider/materializer/artifact/script behavior to reuse."}

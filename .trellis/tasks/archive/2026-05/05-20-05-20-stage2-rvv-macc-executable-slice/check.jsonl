@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants to re-check before finish."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority and fail-closed guardrail review."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirm common EmitC remains neutral and consumes provider-built route output."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Confirm plugin/provider boundary remains local and interface-driven."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Confirm selected-body realization consumes macc layout facts into typed body structure."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Confirm focused tests and ssh rvv evidence meet testing policy."}
-{"file": ".trellis/tasks/05-20-05-20-stage2-rvv-macc-executable-slice/prd.md", "reason": "Check implementation and validation against current task acceptance criteria."}

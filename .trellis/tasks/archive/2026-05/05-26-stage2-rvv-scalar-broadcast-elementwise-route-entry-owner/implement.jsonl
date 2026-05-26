@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV stage order, typed-body route authority, and descriptor/source-front-door red lines."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, selected-body realization owner registry, route-entry bridge, scalar-broadcast elementwise route family, route-control, provider ownership, and fail-closed diagnostics."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/C++/generated-bundle/ssh-rvv evidence requirements and Stage1/Stage2 testing boundaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, typed extension body, metadata mirror, and selected-body realization boundaries."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and selected target facts constrain plugin legality without becoming route authority."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV-specific realization, provider, intrinsic, type, and ABI mapping inside the RVV plugin."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep scalar-broadcast computation in typed RVV extension-family bodies, not core tcrv.exec or common EmitC."}

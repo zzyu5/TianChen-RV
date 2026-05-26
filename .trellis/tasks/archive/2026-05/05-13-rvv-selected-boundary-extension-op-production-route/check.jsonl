@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global invariants and source-of-truth boundary"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify RVV evidence and descriptor-driven non-goal language"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify core tcrv.exec did not absorb RVV compute semantics"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected RVV microkernel and EmitC route behavior"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry/boundary/emission planning remains plugin-routed"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify typed family op to EmitC route authority"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact and ABI preflight boundaries"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused test and RVV evidence scope"}

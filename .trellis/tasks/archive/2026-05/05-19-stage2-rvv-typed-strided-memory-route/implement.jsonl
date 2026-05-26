@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 RVV boundary, and forbidden legacy/source-front-door authority."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, memory-form, provider, artifact, and ssh-evidence contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute rules."}
-{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and Stage2 typed-body route authority checklist."}

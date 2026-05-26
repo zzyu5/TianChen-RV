@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global architecture and stack invariants for deletion-only compiler work."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability profile boundary and fail-closed evidence rules."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, probe evidence, and descriptor-erasure boundaries."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused test and evidence policy for dialect/plugin changes."}

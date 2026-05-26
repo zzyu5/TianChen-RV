@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global architecture and stack invariants for TianChen-RV implementation work."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary, current i32m1 config/VL contract, and deleted descriptor/direct route constraints."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime emission ownership, target artifact export boundaries, and fail-closed route rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract and selected emission-plan to target artifact handoff rules."}

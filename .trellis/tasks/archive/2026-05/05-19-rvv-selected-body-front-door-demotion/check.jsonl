@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays in C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck and Python remains tooling only"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected typed-body authority and fail-closed source-front-door boundary"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify no high-level/source route authority is restored"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and provider-owned route facts are mirrored"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no descriptor/direct-C/source-export authority"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused coverage matches artifact/export evidence policy"}
-{"file": ".trellis/tasks/05-19-rvv-selected-body-front-door-demotion/prd.md", "reason": "Verify task acceptance criteria before finish"}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants for review"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify frontend lowering stays bounded and planning remains registry-driven"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify bundle export remains target-owned and evidence wording is bounded"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused lit/FileCheck coverage matches compiler behavior"}

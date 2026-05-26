@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify no route/artifact/ABI/intrinsic label is used as RVV route authority"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify common EmitC and target export remain neutral consumers of provider-built routes"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify descriptor/direct-C/source-export residue stays fail-closed"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify RVV source-front-door labels remain explicit-only and non-default authority"}

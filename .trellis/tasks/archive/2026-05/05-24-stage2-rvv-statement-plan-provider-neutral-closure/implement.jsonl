@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 boundaries, and source-of-truth constraints."}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Compiler implementation must stay in C++/MLIR/LLVM/CMake/lit; Python is tooling only."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route provider, materialization facts, operand-binding facts, and migrated statement-plan boundary contracts."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit evidence requirements and RVV legacy-authority testing prohibitions."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected typed RVV body authority, route-provider output, and metadata mirror boundaries."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV plugin-local ownership and common/core semantic branch red flags."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid moving compute semantics into core/common EmitC or high-level frontend shapes."}
-{"file": ".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-computed-mask-accumulation-statement-plan-ownership/prd.md", "reason": "Immediate previous completed statement-plan ownership task and continuation context."}

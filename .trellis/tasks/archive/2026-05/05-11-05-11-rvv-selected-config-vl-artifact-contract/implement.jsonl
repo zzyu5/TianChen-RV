@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and project invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector-shape/config metadata and plugin-local boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Artifact/export route and parameter layering contract"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Finite RVV binary frontend and selection path"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality rules"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and fail-closed coverage"}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin registry interfaces and LegalityVerifier responsibility."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Constrains generic core orchestration versus plugin-local extension legality."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines proposal, materialization, dispatch, and legality sequencing boundaries."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines the compute-free tcrv.exec operation contract."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines TargetCapabilitySet and generic capability query contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck and C++ test evidence."}

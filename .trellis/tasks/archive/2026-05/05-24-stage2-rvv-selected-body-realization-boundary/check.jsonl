@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify no drift from global TianChen-RV stack and RVV-first authority chain."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected-body realization stays plugin-owned and provider/common EmitC remain neutral."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route construction still flows through provider-built TCRVEmitCLowerableRoute."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, fail-closed diagnostics, and artifact/evidence scope."}
-{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-selected-body-realization-boundary/prd.md", "reason": "Check implementation and validation against current acceptance criteria."}

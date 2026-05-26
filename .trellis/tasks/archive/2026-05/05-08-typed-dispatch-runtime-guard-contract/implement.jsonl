@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler stack and tcrv.exec boundary invariants"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "defines tcrv.exec dispatch/case/runtime_param contract to extend"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability availability/conflict semantics that drive runtime guard requirements"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selection and dispatch synthesis pipeline contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI guard boundary and export/coherence expectations"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck evidence and RVV evidence boundary"}

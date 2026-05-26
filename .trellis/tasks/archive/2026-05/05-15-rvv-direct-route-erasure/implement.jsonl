@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV project invariants and spec layer routing"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "deletion boundary for descriptor-driven exporter framework and direct-C architecture debt"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "accepted future route is extension-family ops through materialized EmitC"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "deleted direct C semantic exporter contracts and target artifact route rules"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "test ownership for deleted RVV direct C exporter coverage"}
-{"file": ".trellis/tasks/archive/2026-05/05-15-scalar-runtime-callable-route-deletion/prd.md", "reason": "previous deletion-campaign pattern and evidence expectations"}

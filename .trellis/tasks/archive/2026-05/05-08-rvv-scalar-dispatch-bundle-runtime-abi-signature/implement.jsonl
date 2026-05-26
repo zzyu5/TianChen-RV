@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV project invariants and source-of-truth boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact bundle, runtime ABI, dispatch header/object, and evidence bridge contracts"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/C++/Python and ssh rvv evidence coverage"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and parameter layering boundaries"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback callable ABI and dispatch fallback boundaries"}

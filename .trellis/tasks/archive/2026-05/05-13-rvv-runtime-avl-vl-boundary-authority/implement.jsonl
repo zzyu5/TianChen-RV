@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and stack boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common extension-family ops -> EmitC route and descriptor boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target artifact export, parameter layering, and RVV dispatch artifact contracts"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected config, typed body, and real hardware evidence boundaries"}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first emission and target path review checklist"}
-{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-scalar-dispatch-runtime-abi-artifact/prd.md", "reason": "Previous completed RVV+scalar runtime ABI proof and validation scope"}

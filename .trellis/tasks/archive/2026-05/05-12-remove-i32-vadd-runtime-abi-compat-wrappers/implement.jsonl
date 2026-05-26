@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and descriptor-boundary rules for the task."}
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/LLVM/TableGen/CMake implementation boundary and Python red lines."}
-{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime route checklist and descriptor-to-C debt boundary."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common extension-family ops -> EmitC route and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Support-layer i32 binary runtime ABI contract to update after wrapper removal."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit validation expectations for compiler API changes."}

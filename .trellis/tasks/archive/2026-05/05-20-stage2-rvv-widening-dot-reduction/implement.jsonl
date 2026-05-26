@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first stage order, and authority boundaries for this Stage2 RVV executable slice."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, and Stage1/Stage2 guardrails."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected typed RVV body and plugin-local realization/route support rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused positive/fail-closed/runtime evidence requirements for RVV executable claims."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope boundary; compute and dtype stay in extension bodies/plugins."}

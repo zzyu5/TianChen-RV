@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Primary C++/MLIR/TableGen/CMake stack and Python tooling boundary for capability decisions."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Target capability object contract, parameter layering, and VLEN/vlenb capability requirements."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin proposal, capability profile, probe/replay, and parameter boundary rules."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Plugin proposal/materialization and capability-aware cost/selection metadata contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit/Python tooling coverage and RVV evidence interpretation rules."}

@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundaries for TianChen-RV MLIR."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture boundary: unified TCRV RISC-V MLIR, no high-level compute IR, no independent backend dialect per family."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec orchestration-only while selected RVV computation stays in extension family ops."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV extension family ownership, plugin locality, and EmitC/intrinsic emission constraints."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Common plugin interface and registry boundary for family-owned lowering/emission."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant state, legality, and dispatch expectations for selected route consumption."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Lowering/runtime handoff and artifact/source/header/object emission contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Extension family op to EmitC/intrinsic route and direct descriptor exporter quarantine."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, C++ tests, e2e, and evidence discipline for compiler behavior changes."}

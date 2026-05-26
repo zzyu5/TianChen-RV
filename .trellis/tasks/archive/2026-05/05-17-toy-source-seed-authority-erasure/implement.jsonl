@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global stack and architecture invariants for deletion-only compiler work"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Source-seed front-door and metadata-as-authority constraints"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "SourceSeedPassProvider and registry locality contract"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction template after source-skeleton deletion and no generated source authority"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV unseeded source-body authority must remain intact"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target/export route authority constraints during deletion campaign"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused deletion/fail-closed testing expectations"}

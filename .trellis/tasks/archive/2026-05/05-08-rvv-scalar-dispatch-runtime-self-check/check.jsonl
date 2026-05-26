@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target-owned artifact export and runtime evidence boundary compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV evidence and microkernel boundary compliance."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback callable boundary compliance."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/plugin locality compliance."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected dispatch and planning pipeline compliance."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check testing and ssh rvv evidence discipline."}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain and RVV Stage 2 selected-body realization boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV owner registry, selected-body realization, typed body/config, runtime AVL/VL, and route-control contracts"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute boundary"}
-{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-selected-body-realization-owner-local-hooks/prd.md", "reason": "predecessor route-entry-capable owner-local hook migration and explicit deferred continuation list"}

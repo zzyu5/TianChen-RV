@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide RVV-first authority chain, Stage2 typed-body coverage, and source-of-truth rules."}
-{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck stack boundary and Python tooling limits."}
-{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin boundary and current Stage2 priority over other extension families."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV computed-mask MAcc route-family, route-control, math binding, statement-plan, artifact mirror, and fail-closed requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC neutrality."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/C++/generated-bundle/ssh-rvv evidence requirements, mask/tail policy evidence, and sentinel checks."}
-{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant selection and mirror-only emission metadata checks for typed RVV Stage2 routes."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checklist for RVV provider-owned lowering and target artifact behavior."}

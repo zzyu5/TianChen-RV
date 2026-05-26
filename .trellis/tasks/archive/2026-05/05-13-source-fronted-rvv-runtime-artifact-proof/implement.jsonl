@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler architecture and red-line constraints for this runtime proof."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines the current extension-family-ops to EmitC/RVV intrinsic route and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines selected emission planning, target artifact export, bundle, ABI, and route preflight contracts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin ownership, bounded i32 microkernel materialization/export, and ssh rvv evidence scope."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/build/object/remote evidence requirements and claim boundaries."}

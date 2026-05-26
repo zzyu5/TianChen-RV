@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays in the primary C++/MLIR stack"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV route authority comes from selected typed body and RVV-owned builder"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target/export metadata is provenance only and common code stays neutral"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-body and emission-plan sequence remains coherent"}

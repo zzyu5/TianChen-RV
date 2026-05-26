@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry proposal collection semantics and fatal versus recoverable behavior."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check plugin-locality and target-neutral core invariants."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check variant materialization, fallback, deterministic ordering, and selection compatibility."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV property handling stays proposal-local and legality remains strict."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback remains capability-gated and plugin-owned."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/C++ test coverage and no RVV runtime claim."}

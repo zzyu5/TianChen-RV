@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global invariants: unified TCRV architecture, C++/MLIR stack, and forbidden descriptor/direct-C authority."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check construction-template adapter boundaries and Template object/header/bundle acceptance criteria."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected EmitC route, materialized handoff, header, object, and bundle contract compliance."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no source-authority/direct-C rebuild residue was introduced."}

@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV check boundary"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Review for no descriptor-driven architecture and no independent RVV backend story"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Review that tcrv.exec remains an execution envelope"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV selected family/config/runtime metadata and descriptor quarantine"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Review for plugin locality and no generic core family semantic branches"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review source frontend and selected pipeline behavior"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review generated artifact/runtime ABI handoff and fail-closed export behavior"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review common EmitC route and descriptor boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review test/evidence sufficiency"}

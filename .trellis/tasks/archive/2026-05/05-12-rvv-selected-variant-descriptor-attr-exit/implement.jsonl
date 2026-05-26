@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, capability, descriptor, and evidence boundaries for implementation."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified extension-family architecture and descriptor debt boundary."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected family, typed metadata, selected vector config, and legacy descriptor mirror contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated op interface boundary for typed family ops."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected emission plan, target artifact export, runtime ABI, and descriptor mirror constraints."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck coverage for descriptor exit and fail-closed behavior."}

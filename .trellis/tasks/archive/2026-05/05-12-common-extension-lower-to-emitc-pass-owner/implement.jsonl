@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global compiler stack, unified TCRV, and descriptor/direct-C red lines"}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified extension-family architecture and common EmitC route boundary"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route and generated lowerable op-interface contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export/source authority and plugin ownership constraints"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "common interfaces and plugin registry boundaries"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "extension family common-pass and EmitC mapping requirements"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ coverage requirements for EmitC/source routes"}

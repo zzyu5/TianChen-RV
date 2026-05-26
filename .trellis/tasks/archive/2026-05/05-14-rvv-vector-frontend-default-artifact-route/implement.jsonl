@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler boundaries and source-of-truth index"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Hardware truth, RVV evidence boundary, and descriptor-driven non-goals"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope boundary and no compute semantics in core dialect"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected family, selected config, runtime AVL/VL, and EmitC route contracts"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Generic plugin routing and no family-specific branches in shared orchestration"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Default source frontdoor, execution planning, selected-boundary, and fail-closed pipeline rules"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, bundle, runtime ABI, dynamic vector source, and fail-closed export contracts"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route and descriptor quarantine boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/lit/C++/ssh evidence requirements"}

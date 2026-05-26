@@ -1,4 +1,0 @@
-{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Check that construction protocol metadata is actively consumed and does not become passive documentation or source-output generation."}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Check plugin/source-front-door/emission-plan/target handoff through registry and common interfaces."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check that TensorExtLite still uses materialized EmitC route authority, not descriptor or direct C export."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused lit/C++ coverage and avoid broad unrelated test spam."}

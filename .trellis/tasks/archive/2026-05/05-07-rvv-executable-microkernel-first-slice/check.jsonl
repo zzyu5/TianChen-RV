@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global implementation and Python/core boundary checks"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV runtime/correctness claim discipline"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify RVV logic stays plugin/target-local"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify default RVV emission remains deferred except explicit microkernel export"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify exporter validation and no generic manifest broadening"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify local and ssh rvv evidence requirements"}

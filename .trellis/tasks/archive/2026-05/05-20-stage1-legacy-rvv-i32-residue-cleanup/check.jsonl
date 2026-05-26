@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check retained legacy mentions are deprecated, parse/verify-only, or fail-closed, not route authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check lowerable-route authority remains provider-built and common EmitC remains neutral."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact/export authority is not recovered from legacy i32/status/metadata residue."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check positive and negative tests match Stage1/Stage2 evidence rules."}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Confirm final changes preserve global RVV-first and Stage1/Stage2 invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check compare/select executable evidence remains RVV plugin/typed-body owned and does not revive legacy authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export boundary remains neutral."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI and ssh evidence claims are supported by generated artifact execution."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation and runtime evidence are attached to changed behavior."}
-{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-cmp-select-executable-abi/prd.md", "reason": "Verify acceptance criteria and non-goals against final diff and evidence."}

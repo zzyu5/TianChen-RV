@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check capability query and legality behavior against the capability contract."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check core/plugin boundaries and absence of concrete extension branching."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check extension-locality invariants."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check pass scope stays at legality and does not drift into selection/tuning/lowering."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check lit/FileCheck and CMake evidence coverage."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability-first diagnostic and decision criteria."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin-locality invariants."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check compute-free core dialect invariants."}

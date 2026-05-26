@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariant check for project scope and implementation stack."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify capability facts remain structured compiler decision inputs."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific logic remains plugin-local and parameter boundaries are preserved."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emission/export wording does not overclaim runtime, correctness, or performance."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests cover changed compiler behavior without broad smoke-only work."}

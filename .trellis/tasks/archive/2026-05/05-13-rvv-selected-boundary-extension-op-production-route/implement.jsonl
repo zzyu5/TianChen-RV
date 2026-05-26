@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware truth, descriptor-driven non-goal, and unified RISC-V MLIR boundary"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec execution-envelope contract and no-compute boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-boundary, typed microkernel, selected config, and EmitC route contract"}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol checklist and descriptor-driven compute prohibition"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry routing, selected lowering-boundary materializer, and emission-plan ownership"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route and generated op-interface boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact export, and parameter layering contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/lit/C++ and RVV evidence requirements"}

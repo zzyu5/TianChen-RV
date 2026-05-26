@@ -1,6 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, and descriptor/direct-C red lines"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage 1 typed-body route-authority contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected-body realization, emission-plan, and target artifact export authority contract"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local source and route ownership plus generic registry boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ evidence requirements and runtime-claim boundaries"}

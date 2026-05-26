@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the change preserves global architecture boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify catalog and target artifact export boundaries use plugin registry/front-door seams."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no descriptor/direct-C/source-export route authority is restored."}

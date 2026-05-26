@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and architecture invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin i32m1 config and typed-body contracts"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route and selected artifact handoff contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit and target artifact evidence expectations"}

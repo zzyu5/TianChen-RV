@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler stack and project-boundary constraints."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-profile authority, fail-closed behavior, and RVV plugin locality."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route construction and neutral common EmitC boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected-body/emission-plan/target-artifact handoff boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused MLIR/C++/generated-bundle/runtime evidence expectations."}

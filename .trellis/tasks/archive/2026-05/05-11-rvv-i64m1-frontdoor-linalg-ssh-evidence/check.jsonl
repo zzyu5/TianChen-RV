@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project spec index for final compliance check."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV logic remains plugin/target-owned."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check i64m1 capability contract evidence."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check plan-and-export selection behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact emission/runtime layering."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check real ssh evidence recording."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck coverage."}

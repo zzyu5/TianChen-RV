@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check C++ registry behavior remains interface-driven and target-neutral."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check new frontdoor reduces integration friction without moving extension semantics into core."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check bundle registration matches the durable extension integration contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact route metadata and no-runtime-claim boundaries remain intact."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck validation covers the changed behavior."}

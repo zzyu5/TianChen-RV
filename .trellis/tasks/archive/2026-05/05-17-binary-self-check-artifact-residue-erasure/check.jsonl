@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global compiler-stack and deletion-boundary invariants."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no active self-check, direct-C, source-export, or unsupported target artifact route authority remains."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check target artifact surfaces still route through materialized EmitC rather than descriptor/self-check helpers."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check tests do not protect self-check compute-body generation or stale direct-export behavior."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check target artifact ownership remains plugin/bundle-local and not hidden in generic target helpers."}

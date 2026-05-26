@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global invariants, RVV stage order, and source-of-truth boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed-body authority, plugin-local route support, fail-closed legacy inventory, and ssh evidence."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export does not infer RVV semantics or treat mirrors as route authority."}
-{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-signed-minmax-reduction/prd.md", "reason": "Task-specific acceptance criteria and validation plan for signed standalone min/max reductions."}

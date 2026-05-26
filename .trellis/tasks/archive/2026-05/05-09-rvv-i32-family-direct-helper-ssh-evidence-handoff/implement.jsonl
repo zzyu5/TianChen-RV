@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR boundaries, compiler stack red lines, and source of truth."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "RVV direct microkernel evidence bridge, dry-run, lit, and ssh evidence requirements."}
-{"file": ".trellis/spec/validation/index.md", "reason": "Runtime/correctness claim boundary requiring real ssh rvv evidence."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin first-slice family descriptors and bounded add/sub/mul semantics."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target-owned route, artifact export, runtime ABI, and direct helper handoff boundary."}
-{"file": ".trellis/tasks/archive/2026-05/05-09-rvv-i32-family-direct-microkernel-route-helpers/prd.md", "reason": "Immediate prior route-helper task boundary and completed compiler helper behavior."}

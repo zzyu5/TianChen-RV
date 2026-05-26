@@ -1,0 +1,25 @@
+# Optional local RVV QEMU proof fragment.
+#
+# Use from a directory containing generated.cpp and harness.cpp:
+#   make -f /path/to/examples/qemu/Makefile.rvv run-rvv
+
+RVV_CXX ?= clang++
+QEMU_RISCV64 ?= qemu-riscv64
+SYSROOT ?= /usr/riscv64-linux-gnu
+RVV_MARCH ?= rv64gcv
+RVV_MABI ?= lp64d
+RVV_CXXFLAGS ?= --target=riscv64-linux-gnu -O2 -march=$(RVV_MARCH) -mabi=$(RVV_MABI) --sysroot=$(SYSROOT)
+RVV_OUTPUT ?= rvv_case
+RVV_GENERATED ?= generated.cpp
+RVV_HARNESS ?= harness.cpp
+
+.PHONY: build-rvv run-rvv clean-rvv
+
+build-rvv:
+	$(RVV_CXX) $(RVV_CXXFLAGS) $(RVV_GENERATED) $(RVV_HARNESS) -o $(RVV_OUTPUT)
+
+run-rvv: build-rvv
+	$(QEMU_RISCV64) -L $(SYSROOT) ./$(RVV_OUTPUT)
+
+clean-rvv:
+	rm -f $(RVV_OUTPUT)

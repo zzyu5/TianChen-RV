@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth and stack red lines"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific ownership, profile/replay, and evidence boundaries"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check capability and parameter-layering preservation"}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Check RVV profile evidence claim wording and ssh requirement"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check planning/export/runtime ABI coherence and evidence bridge behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, Python tooling tests, and ssh evidence requirements"}
-{"file": ".trellis/tasks/archive/2026-05/05-10-05-10-rvv-i64-profile-replay-ssh-evidence/prd.md", "reason": "Check implementation against this task's acceptance criteria"}

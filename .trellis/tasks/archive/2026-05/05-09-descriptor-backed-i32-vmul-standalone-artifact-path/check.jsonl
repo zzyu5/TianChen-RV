@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify implementation stays within global TianChen-RV compiler stack and boundary invariants"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify no new tcrv.exec compute semantics were introduced"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV vmul behavior remains plugin-local and descriptor-backed"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar vmul behavior remains plugin-local and descriptor-backed"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "verify extension integration uses plugin and target/export surfaces rather than core branches"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify proposal, legality, readiness, emission-plan, and boundary semantics"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify plugin locality and no generic core semantic branch"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify runtime ABI and target artifact export layering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused tests cover changed MLIR/compiler/export behavior"}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global stack, capability, and compute-boundary invariants remain satisfied."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite family behavior, selected vector-shape metadata, and evidence wording."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check proposal/legality behavior still matches plugin registry contracts."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check extraction improves plugin-local ownership without core RVV branches."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check route, artifact, runtime ABI, and parameter-layering claims remain separated."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and validation commands cover the changed behavior."}

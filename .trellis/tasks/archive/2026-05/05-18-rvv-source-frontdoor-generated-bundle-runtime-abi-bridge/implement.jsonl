@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project boundary: C++/MLIR compiler stack, plugin-owned extension families, descriptor/direct-C residue forbidden."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV source-front-door and bounded i32m1 artifact route contract."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common source-artifact bundle front door and materialized EmitC object/header/bundle contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, parameter layering, target artifact export, and ssh rvv evidence boundaries."}

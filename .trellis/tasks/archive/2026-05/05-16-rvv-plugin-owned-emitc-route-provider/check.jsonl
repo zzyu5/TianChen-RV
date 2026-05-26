@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays within C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck stack."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC route and selected artifact handoff semantics."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV route semantics live in RVV plugin-owned code."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and evidence claims match testing policy."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Verify no common/core extension-specific semantic branch was added."}

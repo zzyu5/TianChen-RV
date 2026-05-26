@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants and compiler stack boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI, target export, dispatch bundle, and evidence boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and bounded i32-vadd executable slice"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin locality and bounded callable ABI slice"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "registry and plugin ownership boundaries"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/C++/RVV evidence testing discipline"}

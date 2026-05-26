@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler stack and boundary invariants"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "review tcrv.exec compute-free boundary preservation"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review target artifact bundle export contract and non-claims"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review lit/FileCheck and C++ test coverage"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review RVV artifact and evidence-boundary preservation"}

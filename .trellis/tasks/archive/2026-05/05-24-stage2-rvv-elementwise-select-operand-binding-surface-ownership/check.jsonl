@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain, Stage 2 RVV scope, and stack boundaries"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned route-family, materialization facts, operand binding, and fail-closed boundary rules"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract"}
-{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-selected-body-route-materialization-facts-ownership/prd.md", "reason": "immediate previous materialization-facts boundary task and validation baseline"}

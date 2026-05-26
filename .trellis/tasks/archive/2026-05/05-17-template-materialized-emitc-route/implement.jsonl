@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, execution-envelope, plugin, EmitC, and descriptor/direct-C boundaries for this implementation round."}
-{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol checklist for extension-local logic and construction protocol consumption."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Durable Extension-Family Plugin Construction Protocol required for Template."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Selected-boundary, plugin-owned route, core/plugin boundary, and expected integration tests."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current EmitC route, selected artifact handoff, common materialized EmitC helper, and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan, target artifact, metadata-only artifact erasure, and runtime claim boundaries."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++ and lit/FileCheck evidence expectations."}

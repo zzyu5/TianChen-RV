@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary and validation source of truth."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check that the implementation does not make descriptor-driven export or independent backend claims."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that core tcrv.exec remains orchestration-only and target-neutral."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check finite RVV selected binary route, config, runtime length, and descriptor quarantine behavior."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin-owned emission and selected-boundary routing responsibilities."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected frontend/planning route consistency for bounded vadd/vsub."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact export and runtime ABI handoff behavior."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC route and interface-backed source provenance."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused MLIR/FileCheck/C++ evidence coverage."}

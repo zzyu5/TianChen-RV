@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify final code against global authority, Stage 2, and mirror-only invariants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route-control provider-plan and scalar-broadcast MAcc statement-plan acceptance criteria."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route and common EmitC/artifact mirror boundaries."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused C++/lit/runtime evidence expectations."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/config/policy fact authority."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review RVV plugin locality and absence of common/core semantic drift."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute boundary and descriptor/source-front-door exclusion."}

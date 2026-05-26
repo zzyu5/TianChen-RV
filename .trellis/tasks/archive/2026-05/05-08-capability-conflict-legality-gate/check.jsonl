@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global invariants for final review"}
-{"file": ".trellis/spec/capability-model/index.md", "reason": "verify capability model remains compiler-decision-owned"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify conflict relation behavior matches bounded contract"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains compute-free"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify legality gate integrates before downstream selection/export"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused test coverage"}

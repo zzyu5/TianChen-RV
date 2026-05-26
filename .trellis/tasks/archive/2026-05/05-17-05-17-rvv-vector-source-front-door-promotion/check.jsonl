@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global invariants are preserved."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV front door remains plugin-owned and bounded."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target artifacts consume selected materialized EmitC handoff."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no descriptor/direct-C/source-export route authority returns."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests match MLIR/lit/FileCheck policy for the changed behavior."}

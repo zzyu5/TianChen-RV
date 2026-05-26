@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines compute-free exec dialect, variant, dispatch, and fallback contracts."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability-driven decision boundary and profile semantics."}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Defines RVV and scalar fallback profile capability expectations."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local proposal and unsupported emission behavior."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback plugin-local metadata-only route behavior."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines ExtensionPlugin proposal, cost, legality, emission, and registry contracts."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines generic proposal, selection, dispatch, fallback, and diagnostics pipeline."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission-plan wording and non-executable evidence boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck and C++ test expectations for compiler slices."}

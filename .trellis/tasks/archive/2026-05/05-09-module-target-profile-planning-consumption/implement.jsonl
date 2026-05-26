@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability-provider target profile scope and TargetCapabilitySet construction contract"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec target attachment, requires scope, and compute-free dialect boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin proposal, legality, cost, lowering-boundary, and emission-plan routing contracts"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Public execution-planning pipeline order and selection/materialization contracts"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan and coherence boundaries after planning"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and evidence policy for pipeline behavior"}

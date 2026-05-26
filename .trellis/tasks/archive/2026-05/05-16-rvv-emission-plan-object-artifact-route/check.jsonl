@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify no Python/compiler-core or descriptor/direct-C boundary regression."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify object export consumes generated EmitC/C++ rather than handwritten compute source."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV route stays bounded to explicit typed i32m1 add slice."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests prove route registration, object artifact, and fail-closed unsupported cases."}

@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 ordering, and stack boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body, scalar runtime ABI consumption, selected-body realization, provider ownership, and ssh evidence rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route ownership and provider-built lowerable-route contract."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization and route provider interface ownership."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/unit/script/runtime evidence policy for RVV executable path changes."}
-{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-vector-scalar-broadcast-executable-path/prd.md", "reason": "Original scalar runtime broadcast selected-body and generated artifact production path."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-runtime-scalar-broadcast-add-production/prd.md", "reason": "Latest multi-runtime-scalar generated-bundle evidence and validation commands."}
-{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-runtime-scalar-broadcast-add-executable-slice/prd.md", "reason": "Current-head validation record and stale-brief distinction for scalar broadcast."}

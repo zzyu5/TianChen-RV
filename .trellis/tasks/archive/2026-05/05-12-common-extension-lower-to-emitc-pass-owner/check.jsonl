@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify global compiler stack and descriptor/direct-C constraints"}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "verify implementation preserves unified extension-family architecture"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify common EmitC route and lowerable interface behavior"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify source-authority and artifact export ownership"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify no family-specific core orchestration branch"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "verify extension family ownership stays local"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused test coverage matches policy"}

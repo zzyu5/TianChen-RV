@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify changes stay within the unified TCRV C++/MLIR architecture."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no direct descriptor-to-C or direct RVV/scalar route authority remains."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify test edits remove stale route fixtures while preserving generic fail-closed coverage."}

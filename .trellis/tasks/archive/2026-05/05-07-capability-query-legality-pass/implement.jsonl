@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability objects, requires semantics, generic C++/MLIR implementation requirements, and verifier boundaries."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin/core interface boundaries and forbids concrete extension branches in core orchestration."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Constrains extension-specific legality/lowering to plugin-local code while allowing generic core diagnostics."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines variant requires, core legality, and out-of-scope selection/tuning/lowering boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck and CMake evidence required for MLIR pass behavior."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Shared checklist for capability-driven legality decisions and diagnostics."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Shared checklist for keeping extension details behind plugin interfaces."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Shared checklist ensuring tcrv.exec remains execution-focused and compute-free."}

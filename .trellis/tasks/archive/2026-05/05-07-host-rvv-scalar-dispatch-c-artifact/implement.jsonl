@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundaries"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected dispatch/fallback metadata and target-neutral selection constraints"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime glue, artifact export, metadata validation, and fail-closed export contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local microkernel and runtime-callable source boundary"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin-local callable artifact boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and evidence interpretation rules"}

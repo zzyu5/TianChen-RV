@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated source still follows common EmitC route and avoids descriptor authority"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI layering, artifact preflight, bundle/export claims, and dispatch contract"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV compile-time config/runtime AVL-VL separation and hardware claim scope"}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check target/capability boundary and absence of core RVV branches"}

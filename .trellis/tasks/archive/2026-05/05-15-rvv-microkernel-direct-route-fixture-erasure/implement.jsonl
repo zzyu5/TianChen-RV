@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and deletion-campaign stack boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Direct C semantic exporter deletion contract and future EmitC route boundary."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing ownership rules for deleted direct C exporter fixtures and generic fail-closed coverage."}

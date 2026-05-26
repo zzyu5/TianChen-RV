@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and evidence policy"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route validation expectations"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV claims and ssh rvv evidence policy"}

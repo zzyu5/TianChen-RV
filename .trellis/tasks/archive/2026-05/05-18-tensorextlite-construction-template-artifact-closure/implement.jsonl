@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "TensorExtLite plugin registry, source front door, construction-template, selected lowering-boundary, and no-boundary contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Materialized EmitC route, supported artifact kind, runtime ABI, and fail-closed target artifact contract"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff, TensorExtLite role sequence, boundary marker, object/header bundle route"}
-{"file": ".trellis/spec/index.md", "reason": "Global stack, unified RISC-V extension-family, descriptor/direct-C/source-export red lines"}

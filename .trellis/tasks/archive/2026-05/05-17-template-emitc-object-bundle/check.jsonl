@@ -1,7 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Verify final changes still obey TianChen-RV global invariants."}
-{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Check Template remains a construction-template plugin and not an independent backend."}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Check target-support registration remains plugin-local and registry-driven."}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Check artifact output is not descriptor-driven or direct-C/source-export authority."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check selected object/header/bundle packaging uses materialized EmitC route contracts."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused C++ and lit evidence covers changed Template artifact behavior."}
-{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"Check no new core extension-specific branch was introduced."}

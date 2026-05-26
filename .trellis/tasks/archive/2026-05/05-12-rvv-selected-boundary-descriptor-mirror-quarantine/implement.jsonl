@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and descriptor-boundary invariants for this refactor."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V architecture boundary and descriptor-driven computation prohibition."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current extension family ops to EmitC route and descriptor boundary rules."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering-boundary, emission-plan, target artifact, and Support/RVV runtime ABI contracts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin proposal, selected config, typed family/body, and descriptor mirror constraints."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension-local plugin boundary and no family-specific core orchestration branching."}

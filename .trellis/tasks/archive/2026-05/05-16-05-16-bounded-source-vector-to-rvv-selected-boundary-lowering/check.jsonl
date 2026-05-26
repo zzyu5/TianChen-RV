@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global architecture and stack red lines against changed files."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that source-shape recognition stays RVV-plugin-owned."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that the existing EmitC/artifact route remains the production route."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check source-seed front-door and selected-boundary behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check lit/FileCheck/runtime evidence coverage for accepted and rejected source shapes."}

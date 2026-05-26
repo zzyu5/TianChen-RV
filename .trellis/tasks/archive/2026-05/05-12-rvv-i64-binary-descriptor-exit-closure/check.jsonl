@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants to verify task boundaries and non-goals."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Review descriptor-exit changes against unified extension-family architecture."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV selected i64 binary behavior and descriptor mirror handling."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Review scalar selected i64 binary behavior and descriptor mirror handling."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC route provenance remains the source/export boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact, dispatch, and runtime ABI boundaries after changes."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify bounded linalg frontend and selection pipeline behavior for i64 binary families."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests match the MLIR/lit/C++ evidence contract."}

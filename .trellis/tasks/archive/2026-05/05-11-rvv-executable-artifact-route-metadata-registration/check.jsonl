@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants for final review"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry routing and metadata ownership"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check no RVV-specific generic core branch was added"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-config and evidence boundary compliance"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check route descriptor, runtime ABI, and bundle preflight behavior"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and ssh rvv claim discipline"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check correctness/performance claim wording"}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-owned implementation locality"}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute-free tcrv.exec boundary"}

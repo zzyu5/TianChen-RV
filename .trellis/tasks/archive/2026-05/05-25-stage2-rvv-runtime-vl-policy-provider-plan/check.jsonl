@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check final diff against global RVV-first authority and no legacy/source-front-door/descriptor authority rules."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-control owner, typed config, AVL/VL, policy, family-provider, and mirror-only contracts."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and only consumes provider-built route payloads."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-base-memory-movement-production-family-ownership/prd.md", "reason": "Regression reference for base memory provider-plan behavior and diagnostics."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-standalone-reduction-route-family-boundary-reuse/prd.md", "reason": "Regression reference for standalone reduction statement-plan and provider consumption."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-typed-config-artifact-executable-closure/prd.md", "reason": "Regression reference for typed config mirror and artifact evidence expectations."}
-{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-mask-tail-policy-route-closure/prd.md", "reason": "Regression reference for mask/tail policy authority and diagnostics."}

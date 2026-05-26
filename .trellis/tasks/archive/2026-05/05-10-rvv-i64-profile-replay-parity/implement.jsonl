@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local capability, selected-shape, and finite slice contract"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability object and parameter layering contract"}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "RVV profile and replay evidence-tooling boundary"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected boundary, emission plan, and target export contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and C++ test requirements"}

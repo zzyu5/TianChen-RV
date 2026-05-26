@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation boundaries for the dtype-axis RVV task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin capability, proposal, descriptor, and selected-shape contract to extend with i64 facts."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry and selected lowering-boundary interfaces that must remain target-neutral."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission readiness, plan, runtime ABI, and target artifact export ownership boundaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation and selected-path constraints for plugin-owned RVV realization."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ validation expectations for RVV descriptor, lowering, and export behavior."}
-{"file": ".trellis/tasks/archive/2026-05/05-10-05-10-rvv-vector-shape-selection/prd.md", "reason": "Regression context for the completed capability-driven i32 shape-selection task."}
-{"file": ".trellis/tasks/archive/2026-05/05-10-rvv-i32-binary-descriptor-registry/prd.md", "reason": "Regression context for the completed i32 binary descriptor registry task."}

@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first stage order, and stack constraints."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/mem_window/runtime_param boundaries for selected RVV variants."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, byte-strided memory form, and Stage2 route rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target artifact handoff, and mirror-vs-authority contract."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization and route-provider ownership boundaries."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization and Stage2 typed RVV coverage constraints."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/runtime evidence and fail-closed testing policy."}
-{"phase": "implementation", "summary": "Migrated bounded strided_load_unit_store authority to runtime byte stride: source-input-buffer plus source-byte-stride, stride_unit byte, runtime ABI order src,out,n,stride_bytes, provider byte-offset base emission, generated-bundle stride coverage, and fail-closed verifier/route tests."}

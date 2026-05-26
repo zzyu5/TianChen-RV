@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Preserve tcrv.exec execution/diagnostic boundary while adding selected-path plan diagnostics"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Define plugin-owned emission plan hook and registry routing contract"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keep extension details plugin-local behind generic interfaces"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Align selected-path traversal and variant selection semantics"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Document emission plans as metadata intent, not executable proof"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Follow C++/lit test evidence expectations"}

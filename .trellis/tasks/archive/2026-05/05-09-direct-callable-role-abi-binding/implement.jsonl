@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants for TianChen-RV implementation stack and boundaries."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Exec mem_window/runtime_param/dispatch role contract and compute-free boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI callable/export layering and direct RVV/scalar microkernel contracts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local microkernel and runtime ABI export boundary."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin-local microkernel and source export boundary."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck coverage for ABI/export changes."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and emission path review checklist."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensures target/plugin details stay local and core remains generic."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensures no compute semantics are added to tcrv.exec."}

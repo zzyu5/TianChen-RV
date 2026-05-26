@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check no Python compiler-core, descriptor authority, direct-C route, or independent backend drift was introduced"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check TensorExtLite object route remains plugin-owned and source-front-door marker is not artifact authority"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected object/header export consumes materialized EmitC through the common handoff"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime/object claims stay bounded to object packaging without runtime correctness/performance"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++/readobj coverage matches the changed target artifact behavior"}

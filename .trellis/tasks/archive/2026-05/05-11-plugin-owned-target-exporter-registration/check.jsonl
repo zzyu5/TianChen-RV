@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays within the C++/MLIR/LLVM/TableGen/CMake/lit stack and project scope."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Review whether Toy target artifact registration is now plugin-owned without core semantic branches."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Review the new registry/helper API against existing ExtensionPluginRegistry contracts."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check locality, plugin ownership, and absence of extension-specific core branches."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact route registration, candidate validation, and duplicate-route fail-closed behavior."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final locality checklist for plugin-owned target exporter registration."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Final compute-boundary checklist for tcrv.exec."}
-{"file": ".trellis/tasks/archive/2026-05/05-11-toy-plugin-target-artifact-route/prd.md", "reason": "Ensure the previously proven Toy front-door artifact behavior is preserved."}

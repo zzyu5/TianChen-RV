@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants for reviewing compiler stack, Python boundary, tcrv.exec compute-free contract, and evidence claims."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific behavior stays plugin/dialect/target-owned and m2 capability/config selection is capability-backed."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check the bounded linalg i32 binary frontend path feeds execution planning without generic compute IR shortcuts."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected-boundary, emission-plan, target export, and parameter layering consistency."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck and build validation satisfy required test forms."}

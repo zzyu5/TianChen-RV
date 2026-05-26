@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check source-of-truth and global red lines."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV behavior remains plugin/target-owned and finite i32-vmul metadata is preserved."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback behavior remains plugin/target-owned and finite i32-vmul fallback metadata is preserved."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify dispatch artifact export, runtime ABI layering, and route preflight behavior."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify frontend/planning/selection/dispatch runtime guard boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify local dry-run and real ssh evidence claims use the correct test/evidence boundary."}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify runtime/correctness evidence is bounded to the exact RVV dispatch slice."}

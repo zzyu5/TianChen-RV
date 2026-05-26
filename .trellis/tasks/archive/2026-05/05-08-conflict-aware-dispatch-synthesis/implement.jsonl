@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability availability and conflict legality decisions required by dispatch planning."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines variant generation, selection, dispatch, and tuning boundaries."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec scope and compute-free execution organization constraints."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Keeps dispatch synthesis separate from lowering, emission, runtime ABI, and hardware claims."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck testing expectations for MLIR compiler behavior."}

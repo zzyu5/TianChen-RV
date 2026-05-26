@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global implementation and architecture invariants remain intact."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no compute semantics or target-family logic is moved into tcrv.exec."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify dispatch runtime ABI role binding and evidence scope."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify local testing and RVV evidence claims use the right scope."}

@@ -1,6 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global TianChen-RV architecture and stack invariants for deletion-only compiler work."}
-{"file":".trellis/spec/architecture/design-boundaries.md","reason":"Boundary against descriptor-driven exporters, independent backend dialects, and false hardware claims."}
-{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"Core execution-envelope contract; compute semantics must remain in extension families."}
-{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Scalar fallback plugin contract and obsolete frontend-selection wording to correct."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Future accepted lowering route and descriptor boundary for rebuild gaps."}
-{"file":".trellis/tasks/archive/2026-05/05-15-rvv-finite-selected-source-authority-deletion/prd.md","reason":"Immediate prior deletion baseline for analogous RVV frontend authority removal."}

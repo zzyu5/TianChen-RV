@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body route-entry ownership, scalar-broadcast elementwise family facts, provider route-control, mirror metadata, and authority-leak boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral and consume only provider-built routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/generated-bundle/ssh-rvv evidence and runtime correctness claims."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected variant and pre-realized typed RVV body route-entry flow does not use metadata as authority."}

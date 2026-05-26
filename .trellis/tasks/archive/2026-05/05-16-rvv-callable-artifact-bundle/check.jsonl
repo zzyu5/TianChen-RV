@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler stack and forbidden descriptor/direct-C/Python-core boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check callable artifacts still derive from explicit extension-family ops through EmitC"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check bundle index/component metadata does not overclaim runtime correctness"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific logic remains plugin/target owned and ssh rvv claims stay bounded"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, bundle/header metadata, unsupported-shape failure, and remote evidence scope"}

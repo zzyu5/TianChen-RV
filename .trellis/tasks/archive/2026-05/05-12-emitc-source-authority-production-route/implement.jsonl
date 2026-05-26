@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and source-of-truth boundary for this source-authority migration."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Defines unified extension-family route and forbids descriptor-driven computation/direct C string emission as architecture."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines the current extension family ops -> EmitC -> C/C++ emitter route and generated op-interface boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact export route, parameter layering, clang default path, and conservative source artifact claims."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-owned binary microkernel body, selected vector shape, runtime AVL/VL, and route evidence boundaries."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Requires extension-local mapping through common interfaces without family-specific core orchestration branches."}
-{"file": ".trellis/tasks/archive/2026-05/05-12-emitc-source-authority-production-route/prd.md", "reason": "Archived task PRD with goal, requirements, acceptance criteria, and validation record."}

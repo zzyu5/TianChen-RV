@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and deletion-campaign invariants"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Primary RVV plugin boundary and scalar fallback interaction context"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Directly conflicting scalar fallback metadata-route spec to repair"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and deleted-route evidence policy"}

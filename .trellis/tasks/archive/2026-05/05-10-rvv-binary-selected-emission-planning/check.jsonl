@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify global stack and compute-free core boundaries remain intact"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV finite binary selected-path behavior and metadata preservation"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify extraction stays plugin-local and avoids generic core target branches"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify runtime ABI, route ownership, artifact kind, and parameter layering"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused C++ and lit coverage match changed behavior"}

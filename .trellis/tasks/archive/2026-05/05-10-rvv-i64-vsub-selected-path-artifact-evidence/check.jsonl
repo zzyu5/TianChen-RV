@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global compiler stack and source-of-truth compliance."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify the result remains a bounded RVV finite-family selected path with truthful evidence claims."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify proposal, legality, readiness, and emission routing remain plugin-interface based."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify RVV semantics were not moved into generic core orchestration."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify linalg frontend to selected path behavior stays within the bounded RVV binary contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify selected-boundary, emission-plan, runtime ABI, and artifact export metadata cohere."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and evidence match the changed behavior."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify parameter layering stays intact."}

@@ -1,6 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback metadata-only and no bridge authority"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV family boundary and selected metadata constraints"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "deleted direct C route contract"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "future executable route must use EmitC"}
-{"file": "lib/Plugin/Scalar/ScalarExtensionPlugin.cpp", "reason": "scalar plugin bridge consumer"}

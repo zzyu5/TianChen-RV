@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundary for TianChen-RV"}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction-template selected role, selected-boundary, metadata, and artifact adapter contracts"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin materialized EmitC route, selected boundary, config/VL, and deleted direct-route constraints"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "EmitC/runtime/target artifact export boundaries and fail-closed RVV direct-route deletion rules"}
-{"file": ".trellis/tasks/archive/2026-05/05-18-rvv-construction-template-selected-boundary-handoff/prd.md", "reason": "Previous completed handoff and known remaining synthesis gap"}

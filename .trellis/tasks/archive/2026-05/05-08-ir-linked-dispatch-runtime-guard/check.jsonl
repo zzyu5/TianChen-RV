@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Project-wide verification scope for this compiler task."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check exec dialect contract and target-neutral verification."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check parameter layering and capability/runtime separation."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected variant and dispatch synthesis behavior."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-owned dispatch details."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback path remains coherent."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check dispatch C runtime ABI export behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check tests and evidence meet project expectations."}

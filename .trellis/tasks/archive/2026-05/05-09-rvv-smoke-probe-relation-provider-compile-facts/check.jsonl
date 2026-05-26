@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Top-level project spec index for review scope."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify relation-provider capability lookup remains scoped and explicit."}
-{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Verify module target profile facts participate in exporter decisions correctly."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no compute details leak into tcrv.exec."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV behavior remains target/plugin-local."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify export metadata and runtime parameter layering are preserved."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify no generic front door gains hard-coded RVV logic."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/FileCheck coverage is focused and stable."}

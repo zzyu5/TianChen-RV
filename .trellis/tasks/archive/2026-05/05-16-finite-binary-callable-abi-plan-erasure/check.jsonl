@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify deletion stays inside project-wide stack and descriptor-erasure rules."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify specs no longer protect RuntimeABICallablePlan or invocation comment contracts."}
-{"file": "lib/Support/CMakeLists.txt", "reason": "Verify deleted support source is not compiled."}
-{"file": "test/CMakeLists.txt", "reason": "Verify deleted standalone test target is removed from check-tianchenrv dependencies."}
-{"file": "include/TianChenRV/Support/RuntimeABIContract.h", "reason": "Verify remaining neutral finite-binary shape helpers do not recreate callable-plan metadata mirrors."}
-{"file": "lib/Support/RuntimeABIContract.cpp", "reason": "Verify remaining support implementation is limited to role/shape helpers."}
-{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify remaining target tests still cover concrete runtime ABI parameter validation without callable-plan authority."}

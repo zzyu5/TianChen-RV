@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler stack and source-of-truth boundaries after implementation."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-local ownership, first-slice constraints, runtime AVL/VL contract, and ssh rvv evidence expectations."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no descriptor/direct-C/source-export route is restored and artifact routes fail closed correctly."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check materialized EmitC route and selected target artifact handoff behavior."}

@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for compiler changes."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Descriptor boundary and current extension family ops to EmitC/native compiler route."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, dispatch ABI, preflight, header/object, and bundle metadata contracts."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected-config, runtime AVL/VL, microkernel, and artifact export boundaries."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Checklist for target, dispatch, and emission logic changes."}

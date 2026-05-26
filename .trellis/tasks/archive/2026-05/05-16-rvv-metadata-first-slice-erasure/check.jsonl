@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "verify deletion keeps the compiler stack and architecture boundaries intact"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check that RVV no-body metadata first-slice authority is not preserved"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check no replacement unsupported RVV emission/runtime/artifact route was added"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused lit/C++ evidence expectations for changed compiler surfaces"}

@@ -1,5 +1,0 @@
-{"file":".trellis/spec/capability-model/index.md","reason":"capability model owner and pre-development checklist"}
-{"file":".trellis/spec/capability-model/capability-contract.md","reason":"TargetCapabilitySet query contract and decision-object invariants"}
-{"file":".trellis/spec/capability-model/profiles.md","reason":"RVV/offload profile facts and property-style capability examples"}
-{"file":".trellis/spec/plugin-protocol/index.md","reason":"plugin-locality guardrails for capability consumers"}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"required C++ and lit validation forms"}

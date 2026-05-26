@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines current scalar fallback metadata-only contract and the deleted microkernel residue that the task must erase."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines deleted direct C exporter behavior and the fail-closed emission/runtime boundary for scalar source-export routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines how deletion-campaign tests should assert unsupported/deleted-route behavior instead of positive direct-C support."}

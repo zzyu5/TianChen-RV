@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Check that implementation remains in C++/MLIR/TableGen/CMake/lit."}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec stays compute-free and RVV-specific fields are not added."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check generic plugin proposal metadata and registry validation behavior."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check plugin locality and no core target-family interpretation."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed policy metadata remains plugin-local and non-compute."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check materialization/selection/dispatch metadata boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required local MLIR/C++/lit evidence."}

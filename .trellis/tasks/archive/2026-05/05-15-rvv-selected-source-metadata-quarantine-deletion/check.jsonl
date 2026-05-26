@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global stack and descriptor-erasure constraints after changes."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check deletion did not rebuild descriptor/exporter or independent backend paths."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed-body and plugin-local boundary wording after selected-source deletion."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check active lowering/runtime spec no longer preserves selected-source source-kind authority."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-no-body-rvv-pipeline-expectation-deletion/prd.md", "reason": "Check continuity from previous deletion round."}

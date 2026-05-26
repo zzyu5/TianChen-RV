@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants for review"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "confirm no descriptor/direct-C exporter architecture remains protected"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "confirm no replacement bypasses extension family ops to EmitC"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "confirm direct C routes are absent or fail closed"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "confirm tests no longer protect positive direct source output"}
-{"file": ".trellis/tasks/archive/2026-05/05-15-direct-c-source-frontdoor-deletion/prd.md", "reason": "archived task acceptance criteria for checking"}

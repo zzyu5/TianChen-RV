@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global invariants for final verification"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime artifact evidence verification"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV authority and legacy route guardrails for verification"}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route neutrality verification"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused test and evidence policy"}

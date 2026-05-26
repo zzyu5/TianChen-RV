@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec dispatch, case, fallback, variant, and runtime boundary semantics."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Constrains target capability facts and keeps hardware capability separate from runtime/control metadata."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Covers variant proposal, legality, selection, and dispatch routing responsibilities."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin locality and target-owned RVV behavior relevant to the selected branch."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback plugin locality and fallback variant expectations."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines export and runtime ABI boundary requirements for generated target artifacts."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck and compiler artifact testing expectations."}

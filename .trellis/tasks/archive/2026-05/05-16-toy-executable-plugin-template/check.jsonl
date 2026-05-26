@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Check global compiler stack, unified extension-family, descriptor-boundary, and source-of-truth constraints."}
-{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check construction protocol evidence, typed role/interface realization, and no source-skeleton regressions."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin registry and common interface routing behavior."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check that core/common code remains extension-neutral."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check Toy route remains non-RVV and does not expand RVV first-slice scope."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check route construction, generated interface provenance, and common EmitC materialization behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck validation coverage."}

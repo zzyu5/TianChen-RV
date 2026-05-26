@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and source of truth."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Wrong-logic boundary: no descriptor-driven microkernel/exporter framework."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current accepted lowering route and descriptor boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Direct C semantic exporter deleted-route contracts and target artifact boundary."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for deleted direct C exporter coverage."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin boundary and deleted scalar direct route language."}
-{"file": ".trellis/tasks/archive/2026-05/05-15-direct-c-source-frontdoor-deletion/prd.md", "reason": "Previous deletion round context and residual scalar owner classification."}

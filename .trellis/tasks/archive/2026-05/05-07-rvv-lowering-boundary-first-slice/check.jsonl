@@ -1,9 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Global compiler stack and architecture invariants for review"}
-{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"Review tcrv.exec compute-free boundary and dispatch/fallback invariants"}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Review RVV dialect/plugin locality and unsupported evidence claims"}
-{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Review scalar fallback metadata-only preservation"}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Review registry/interface dependency direction"}
-{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Review plugin-local extension details"}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Review selected path and fallback behavior"}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Review lowering/emission evidence boundaries"}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Review testing contract coverage"}

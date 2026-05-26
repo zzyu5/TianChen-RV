@@ -1,6 +1,0 @@
-{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "Direct RVV microkernel source/object selected march and MABI relation-provider lookup"}
-{"file": "lib/Target/Builtin/RVVScalarDispatch.cpp", "reason": "RVV+scalar dispatch object selected march and MABI relation-provider lookup"}
-{"file": "test/Transforms/ExecutionPlanning/execution-planning-pipeline-module-target-profile.mlir", "reason": "Module target profile selected march source-export coverage"}
-{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-module-target-profile-object.mlir", "reason": "Module target profile selected march dispatch object preflight coverage"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Durable RVV exact-provider and relation-provider selected compile fact contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Durable direct RVV and RVV+scalar dispatch artifact export compile fact contract"}

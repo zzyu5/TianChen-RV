@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 boundaries, and descriptor/source-front-door red lines."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body/config authority, selected-body realization owner registry, route-entry bridge, segment2 route-family and statement-plan boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/generated-bundle/runtime evidence requirements for RVV route-supported and executable claims."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality checks for keeping RVV-specific realization/provider authority inside RVV plugin code."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary guardrail for typed tcrv_rvv body and no high-level/core compute drift."}

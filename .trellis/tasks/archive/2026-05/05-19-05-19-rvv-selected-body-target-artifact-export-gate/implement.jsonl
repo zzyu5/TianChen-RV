@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for this implementation task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body authority, and Stage 1/2 route-boundary rules."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route ownership and common materialization neutrality requirements."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target export/runtime boundary and evidence expectations for emission artifacts."}

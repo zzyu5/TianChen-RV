@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Validate that the completed change preserves descriptor-erasure and unified TCRV compiler-stack invariants."}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Check Offload remains metadata-only and unsupported without publishing descriptor route identity or target artifact records."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check unsupported emission-plan behavior remains truthful and does not rebuild source/artifact routes."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit tests cover the changed fail-closed module behavior."}

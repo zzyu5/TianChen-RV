@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "root spec index and pre-development routing for bounded ABI/export work"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "protect tcrv.exec compute-free boundary while changing dispatch ABI/export path"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "keep capability facts distinct from runtime control ABI values"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and descriptor-local element_count boundary"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin locality for fallback callable export"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI and emission artifact contract for target export path"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck testing contract for generated artifacts"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "evidence boundary and RVV claim discipline"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "dispatch variant and runtime control values must remain distinct"}

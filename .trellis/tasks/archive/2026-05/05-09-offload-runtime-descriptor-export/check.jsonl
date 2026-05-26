@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and implementation stack boundary"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Compute-free tcrv.exec and emission-plan metadata contract"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry and target artifact preflight interface expectations"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and runtime-offload descriptor validation requirements"}
-{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Offload selected-plan metadata and descriptor contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required compiler behavior tests and evidence boundaries"}

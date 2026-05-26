@@ -1,8 +1,0 @@
-{"file":"AGENTS.md","reason":"Repository-level agent and project boundary instructions"}
-{"file":".trellis/spec/index.md","reason":"Spec index and pre-development routing"}
-{"file":".trellis/spec/capability-model/capability-contract.md","reason":"Capability facts versus runtime/config parameter boundaries"}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Variant generation and selection contracts affected by artifact metadata"}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-local lowering/export boundary"}
-{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Scalar fallback plugin-local lowering/export boundary"}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Emission manifest and runtime ABI contract"}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"lit/FileCheck evidence expectations"}

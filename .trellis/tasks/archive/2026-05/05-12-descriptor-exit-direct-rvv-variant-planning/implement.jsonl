@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, descriptor-debt, compute-free exec, and Python tooling-only invariants."}
-{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V architecture boundary and descriptor-driven computation prohibition."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Typed extension op plus generated lowerable interface plus common EmitC route contract."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, selected vector config, and artifact export layering for RVV direct routes."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin typed microkernel body, selected vector-shape, descriptor boundary, and no runtime-claim rules."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal/selection boundary and typed extension-family planning contract."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation requirements for RVV direct planning/export paths."}
-{"file": ".trellis/tasks/archive/2026-05/05-12-descriptor-exit-direct-rvv-variant-planning/prd.md", "reason": "Current task goal, scope, requirements, acceptance criteria, and validation commands."}
-{"file": ".trellis/tasks/archive/2026-05/05-12-descriptor-exit-linalg-finite-binary-frontend/prd.md", "reason": "Predecessor descriptor-exit context for source-derived finite binary authority."}

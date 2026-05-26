@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Confirm changes still respect global stack and deletion-only boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export wording no longer makes route metadata authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify remaining wording aligns with materialized EmitC as the future route."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry behavior stays plugin-local without metadata descriptor authority."}
-{"file": "include/TianChenRV/Target/TargetArtifactExport.h", "reason": "Check public API removal and remaining concrete validation surface."}
-{"file": "lib/Target/TargetArtifactExport.cpp", "reason": "Check implementation no longer performs route metadata preflight or extension bundle metadata requirements."}
-{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify focused C++ tests cover remaining concrete export behavior and no old metadata authority."}
-{"file": "lib/Transforms/ExecutionPlanCoherence.cpp", "reason": "Verify coherence preflight no longer depends on target route metadata authority."}
-{"file": "include/TianChenRV/Transforms/Passes.td", "reason": "Verify pass description no longer claims artifact route metadata agreement."}

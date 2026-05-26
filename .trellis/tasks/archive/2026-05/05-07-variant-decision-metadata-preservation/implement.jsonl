@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec variant, dispatch, fallback, and verifier boundaries changed by generic metadata preservation."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin proposal and registry interface expectations for generic core orchestration."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Constrains metadata preservation to generic core paths with extension details plugin-local."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines proposal, materialization, dispatch, and selection metadata flow."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines required capability availability and guarded dispatch behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck and C++ evidence style."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Checks capability-driven variant and dispatch behavior without target-specific branches."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checks plugin-local extension semantics and generic core orchestration."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checks tcrv.exec remains execution-focused and compute-free."}

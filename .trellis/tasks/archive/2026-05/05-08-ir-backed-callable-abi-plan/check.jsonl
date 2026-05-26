@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify core exec boundary remains compute-free"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify parameter layering is preserved"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify export/runtime contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify test coverage expectations"}

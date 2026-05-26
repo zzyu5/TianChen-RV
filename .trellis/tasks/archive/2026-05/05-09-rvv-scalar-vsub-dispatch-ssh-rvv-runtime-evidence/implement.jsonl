@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants and spec routing"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundaries and runtime evidence constraints"}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback artifact and dispatch boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact emission and runtime ABI contract"}
-{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "runtime evidence interpretation discipline"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit and build validation expectations"}

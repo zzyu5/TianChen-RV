@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and deletion-campaign architecture boundary."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Primary lowering/runtime contract that still contains stale direct-C route absence requirements."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current extension-family ops to EmitC route and descriptor/direct-C boundary."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality and no independent backend/direct-C route authority."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy to update from deleted direct-C named absence to current generic behavior."}

@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR invariants and source-of-truth boundary."}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Primary C++/MLIR/TableGen/CMake implementation boundary."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Hardware truth and non-goals for RVV/runtime claims."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export route and runtime/object claim boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV bounded i32-vadd microkernel and hardware evidence boundary."}
-{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback bounded i32-vadd callable route boundary."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ testing requirements for artifact routes."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure object route remains target/plugin-local rather than core-specialized."}

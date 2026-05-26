@@ -1,6 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Verify final work preserves global compiler stack, RVV-first Stage2 order, and source/descriptor authority boundaries."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check reduce-add remains typed-body and RVV plugin-owned, with no legacy i32/source-front-door compatibility route."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check provider owns reduction mapping and common EmitC/export remains neutral."}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Check any changed orchestration stays interface/plugin-local rather than family-name semantic branching."}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Check route-supported and executable evidence claims are accurately separated."}
-{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused tests, ssh rvv evidence, dry-run evidence, and active-authority scan cover the bounded reduction slice."}

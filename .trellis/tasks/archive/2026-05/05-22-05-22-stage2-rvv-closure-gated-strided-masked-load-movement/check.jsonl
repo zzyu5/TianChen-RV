@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Review current changes against global invariants and RVV Stage2 boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV typed body, plugin locality, fail-closed legacy/source paths, and ssh evidence."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review provider-built route, common EmitC neutrality, target artifact mirrors, and materialized route handoff."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused compiler tests, negative tests, generated-bundle evidence, and runtime evidence."}
-{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-strided-masked-load-movement/prd.md", "reason": "Task acceptance criteria and validation plan for final self-check."}

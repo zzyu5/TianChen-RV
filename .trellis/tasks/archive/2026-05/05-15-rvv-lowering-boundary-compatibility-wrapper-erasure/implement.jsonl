@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundaries and deletion-campaign stack constraints."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines generic SelectedLoweringBoundaryMaterializer routing through ExtensionPluginRegistry."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local lowering-boundary hook responsibilities and the stale wrapper wording to remove."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines active MLIR/C++ testing obligations and stale compatibility coverage to align."}

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Final check must preserve stack boundary and descriptor/direct-C/source-export deletion rules."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify retained target artifact tests do not restore descriptor/direct-C/source authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify source-to-bundle coverage uses the common one-command front door and lower-level exporters start from materialized IR."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV retained coverage stays within the bounded selected EmitC route and does not claim new runtime proof."}

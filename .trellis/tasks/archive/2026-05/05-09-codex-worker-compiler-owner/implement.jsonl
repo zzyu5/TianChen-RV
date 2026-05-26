@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR invariants and source-of-truth boundaries."}
-{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Keeps implementation in C++/MLIR/TableGen/CMake and Python out of compiler internals."}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines structured target capability facts and compiler decision participation."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local capability, descriptor, lowering-boundary, and parameter-layer contracts."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines plugin proposal, selection, lowering-boundary, and planning pipeline behavior."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission/target artifact parameter layering and non-claim boundaries."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/C++ validation expectations for compiler behavior."}

@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global implementation stack and project invariants"}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV evidence and no-runtime-claim boundaries"}
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability fact versus variant metadata versus runtime parameter layering"}
-{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "core dialect compute-free execution metadata boundary"}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local capacity metadata and lowering/emission boundaries"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission plan, manifest, bundle, and runtime ABI handoff metadata contract"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ evidence and no performance claim testing policy"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "execution planning pipeline, selected boundary, and coherence requirements"}

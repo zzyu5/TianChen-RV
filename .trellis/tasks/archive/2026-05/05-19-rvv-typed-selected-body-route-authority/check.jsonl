@@ -1,6 +1,0 @@
-{"file":".trellis/spec/index.md","reason":"Verify implementation respects global stack and architecture invariants."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check Stage 1 route-authority replacement against RVV plugin contract."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check no semantic selection moved into common EmitC/export code."}
-{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Check runtime/emission claims remain bounded and fail-closed."}
-{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Check route provider remains plugin-owned and interface-local."}
-{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Check no Stage 2 coverage expansion or source-front-door restoration was introduced."}

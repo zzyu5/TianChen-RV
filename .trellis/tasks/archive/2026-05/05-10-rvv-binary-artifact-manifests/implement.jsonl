@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, capability, plugin, and testing boundaries for this target-support refactor."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Finite RVV family, selected vector-shape, and plugin-local RVV semantics constraints."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export route ownership, manifest, and parameter layering contract."}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin locality and no extension-specific core branch guidance."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit test expectations for route manifests and target artifact export."}

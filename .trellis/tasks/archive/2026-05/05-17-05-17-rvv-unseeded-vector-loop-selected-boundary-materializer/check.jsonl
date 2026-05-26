@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global compiler stack and no descriptor/direct-C/Python compiler-core drift after implementation."}
-{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify RVV runtime claims are backed by ssh rvv evidence or explicitly scoped."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify source materialization remains plugin-owned and seed metadata is no longer positive authority."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-local ownership, typed body legality, and bounded i32m1 artifact route behavior."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify source pass registration stays pass plumbing only and common registry stays semantic-free."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no descriptor/direct-C/source-export route is restored and unsupported paths fail closed."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected emission-plan to materialized EmitC object/header/bundle handoff remains intact."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/FileCheck, C++ checks, scans, and RVV evidence satisfy the changed behavior."}

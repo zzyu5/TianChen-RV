@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the final implementation preserves the RVV-first authority chain and current stack boundaries."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that multiply-add/accumulator semantics remain RVV plugin-owned and typed-body-derived, with fail-closed diagnostics before route/artifact authority."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and mirror-only target artifact metadata."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++/generated-bundle/ssh-rvv evidence and no overclaimed runtime correctness."}

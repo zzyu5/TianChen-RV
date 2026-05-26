@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check that capability properties remain generic in core support."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV decisions are plugin-local and documented."}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check that target semantics do not leak into core passes."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check proposal/legality/cost behavior against variant pipeline rules."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check test coverage and evidence style."}

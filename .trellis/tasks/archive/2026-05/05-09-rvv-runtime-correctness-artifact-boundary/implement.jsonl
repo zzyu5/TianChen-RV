@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "global project invariants for C++/MLIR stack, compute-free exec dialect, plugin locality, and RVV evidence claims"}
-{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin-owned lowering/emission and target/exporter integration boundary"}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "registry routing and selected-path emission-plan ownership constraints"}
-{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "keeps RVV-specific semantics out of core orchestration"}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "bounded linalg i32-vadd frontend and execution planning pipeline contract"}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact bundle, runtime ABI, and RVV evidence boundary"}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and ssh RVV evidence requirements"}

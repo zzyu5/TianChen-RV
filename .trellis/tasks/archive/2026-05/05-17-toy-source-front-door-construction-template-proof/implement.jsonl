@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundary and source-of-truth invariants for the Toy source front-door task."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines SourceFrontDoorPassRegistration ownership and registry contracts."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Constrains Toy selected boundary to EmitC route and target artifact handoff."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Keeps source front-door rebuild plugin-owned and separate from deleted core RVV source frontend behavior."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck and C++ test expectations for plugin registry, front-door, and artifact export behavior."}

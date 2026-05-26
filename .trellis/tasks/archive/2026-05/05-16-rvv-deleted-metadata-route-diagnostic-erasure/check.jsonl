@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify global invariants and stack boundaries after deletion."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify active RVV behavior no longer preserves deleted metadata-route names."}
-{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin routing remains interface-owned and not replaced by core family branches."}
-{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify fail-closed emission behavior remains generic and no replacement route was added."}
-{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify active tests no longer encode obsolete deleted-route diagnostic contracts."}
