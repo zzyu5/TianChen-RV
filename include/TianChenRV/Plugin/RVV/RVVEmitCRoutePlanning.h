@@ -1461,6 +1461,25 @@ bool isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+struct RVVSelectedBodyCompareSelectMaskRouteFamilyOwner {
+  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
+  using ProviderPlanVerifier = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanVerifier verifyProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyCompareSelectMaskRouteFamilyOwner>
+getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners();
+
+bool isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(

@@ -22205,6 +22205,220 @@ llvm::Error verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+static bool
+isRVVSelectedBodyCompareSelectMaskProducerRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(operation) ||
+         isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(operation);
+}
+
+static bool
+isRVVSelectedBodyCompareSelectMaskMemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static llvm::Error verifyRVVSelectedBodyCompareSelectMaskCommonFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context,
+    llvm::StringRef ownerName, bool requiresSelectLayout,
+    bool requiresMaskedPassthroughLayout) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (description.providerSupportedMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires provider_supported_mirror to be derived from the typed "
+        "family plan before provider materialization");
+  if (description.runtimeControlPlanID.empty() ||
+      description.runtimeABIOrder.empty() ||
+      description.runtimeABIParameters.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires provider-derived runtime AVL/VL and ABI facts before "
+        "provider materialization");
+  if (description.requiredHeaderDeclarations.empty() ||
+      description.cTypeMappingSummary.empty() || description.vlCType.empty() ||
+      description.vectorTypeName.empty() || description.vectorCType.empty() ||
+      description.maskTypeName.empty() || description.maskCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires provider-derived header, vector type, and mask type "
+        "facts before provider materialization");
+  if (description.comparePredicateKind.empty() ||
+      description.compareIntrinsic.empty() || description.maskName.empty() ||
+      description.maskRole.empty() || description.maskSource.empty() ||
+      description.maskMemoryForm.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires compare predicate, compare intrinsic, mask result, mask "
+        "role, mask source, and mask memory-form facts from the typed body");
+  if (requiresSelectLayout && description.selectLayout.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires selected-value/passthrough select layout facts");
+  if (requiresMaskedPassthroughLayout &&
+      (description.inactiveLaneContract.empty() ||
+       description.maskedPassthroughLayout.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires inactive-lane and masked-passthrough layout facts");
+  if (description.sourceMemoryForm.empty() ||
+      description.destinationMemoryForm.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " compare/select mask route-family owner '" +
+        ownerName +
+        "' requires source and destination memory-form facts");
+  return llvm::Error::success();
+}
+
+static llvm::Error
+verifyRVVSelectedBodyCompareSelectMaskProducerRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (!isRVVSelectedBodyCompareSelectMaskProducerRouteFamilyConsumer(operation))
+    return llvm::Error::success();
+
+  if (isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(operation)) {
+    if (llvm::Error error =
+            verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+                analysis, context))
+      return error;
+    return verifyRVVSelectedBodyCompareSelectMaskCommonFacts(
+        analysis, context, "compare/select mask producer",
+        /*requiresSelectLayout=*/true,
+        /*requiresMaskedPassthroughLayout=*/true);
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+  if (analysis.description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      analysis.description.computedMaskSelectMaskProducerSource.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select mask producer owner requires computed-mask select "
+        "family plan and mask-producer source mirrors from the typed plan");
+  return verifyRVVSelectedBodyCompareSelectMaskCommonFacts(
+      analysis, context, "compare/select mask producer",
+      /*requiresSelectLayout=*/true,
+      /*requiresMaskedPassthroughLayout=*/false);
+}
+
+static llvm::Error
+verifyRVVSelectedBodyCompareSelectMaskMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (!isRVVSelectedBodyCompareSelectMaskMemoryRouteFamilyConsumer(operation))
+    return llvm::Error::success();
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+  if (!analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select mask memory consumer owner requires the "
+        "computed-mask memory route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
+      *analysis.computedMaskMemoryRouteFamilyPlan;
+  if (!plan.usesVectorCompareProducer || plan.usesRuntimeScalarProducer)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select mask memory consumer owner requires a "
+        "compare-produced vector mask plan, not runtime-scalar or metadata "
+        "mask authority");
+  if (analysis.description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      analysis.description.computedMaskMemoryMaskProducerSource.empty() ||
+      analysis.description.computedMaskMemoryRouteFamilyPlanID !=
+          plan.familyPlanID ||
+      analysis.description.computedMaskMemoryMaskProducerSource !=
+          plan.maskProducerSource)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select mask memory consumer owner requires computed-mask "
+        "memory family and mask-producer mirrors to come from the validated "
+        "typed family plan");
+  return verifyRVVSelectedBodyCompareSelectMaskCommonFacts(
+      analysis, context, "computed-mask memory mask consumer",
+      /*requiresSelectLayout=*/false,
+      /*requiresMaskedPassthroughLayout=*/true);
+}
+
+llvm::ArrayRef<RVVSelectedBodyCompareSelectMaskRouteFamilyOwner>
+getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners() {
+  static const RVVSelectedBodyCompareSelectMaskRouteFamilyOwner owners[] = {
+      {"compare/select mask producer",
+       isRVVSelectedBodyCompareSelectMaskProducerRouteFamilyConsumer,
+       verifyRVVSelectedBodyCompareSelectMaskProducerRouteFamilyProviderPlans},
+      {"computed-mask memory mask consumer",
+       isRVVSelectedBodyCompareSelectMaskMemoryRouteFamilyConsumer,
+       verifyRVVSelectedBodyCompareSelectMaskMemoryRouteFamilyProviderPlans},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  for (const RVVSelectedBodyCompareSelectMaskRouteFamilyOwner &owner :
+       getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
+}
+
+llvm::Error verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  unsigned selectedOwners = 0;
+  for (const RVVSelectedBodyCompareSelectMaskRouteFamilyOwner &owner :
+       getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners()) {
+    if (!owner.isConsumer || !owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete compare/select mask route-family owner "
+          "registry entry");
+    if (owner.isConsumer(analysis.description.operation))
+      ++selectedOwners;
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
+  if (!selectedOwners &&
+      isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
+          analysis.description.operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " failed to select a compare/select mask route-family owner for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  if (selectedOwners > 1)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " matched multiple compare/select mask route-family owners for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
@@ -23192,6 +23406,10 @@ llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
     if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
       return error;
   }
+  if (llvm::Error error =
+          verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
   return llvm::Error::success();
 }
 
@@ -39352,6 +39570,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.mask_source", description.maskSource});
     metadata.push_back(
         {"tcrv_rvv.mask_memory_form", description.maskMemoryForm});
+    if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+      metadata.push_back({"tcrv_rvv.inactive_lane_contract",
+                          description.inactiveLaneContract});
+      metadata.push_back({"tcrv_rvv.masked_passthrough_layout",
+                          description.maskedPassthroughLayout});
+    }
     if (description.operation ==
         RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect) {
       metadata.push_back({"tcrv_rvv.secondary_compare_predicate_kind",

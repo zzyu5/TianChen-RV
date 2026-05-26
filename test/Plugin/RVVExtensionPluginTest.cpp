@@ -4967,6 +4967,128 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
        "runtime_i32_splat_store"});
 }
 
+int runCompareSelectMaskRouteFamilyOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyCompareSelectMaskRouteFamilyOwner>
+      owners = getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners();
+  if (int result = expect(
+          owners.size() == 2,
+          "compare/select mask route-family owner registry has exactly two "
+          "active owner entries"))
+    return result;
+  if (int result = expect(
+          owners[0].familyName == "compare/select mask producer" &&
+              owners[1].familyName == "computed-mask memory mask consumer",
+          "compare/select mask route-family owner registry preserves the "
+          "producer and adjacent computed-mask consumer boundary"))
+    return result;
+  for (const auto &owner : owners) {
+    if (int result = expect(
+            owner.isConsumer != nullptr && owner.verifyProviderPlan != nullptr,
+            "compare/select mask route-family owner registry entries carry "
+            "consumer and verifier hooks"))
+      return result;
+  }
+  if (int result = expect(
+          owners[0].isConsumer(RVVSelectedBodyOperationKind::CmpSelect) &&
+              owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskSelect) &&
+              owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) &&
+              owners[0].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarDualCompareMaskAndSelect) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore),
+          "compare/select mask producer owner covers active compare/select "
+          "routes and excludes adjacent memory consumers"))
+    return result;
+  if (int result = expect(
+          owners[1].isConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskStridedStore) &&
+              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                       ComputedMaskIndexedGatherLoadUnitStore) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskSelect) &&
+              !owners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                         RuntimeScalarComputedMaskLoadStore),
+          "computed-mask memory mask consumer owner covers compare-produced "
+          "memory consumers and excludes runtime-scalar mask producers"))
+    return result;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::CmpSelect,
+        RVVSelectedBodyOperationKind::ComputedMaskSelect,
+        RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+        RVVSelectedBodyOperationKind::ComputedMaskStridedStore}) {
+    if (int result = expect(
+            isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(op),
+            "aggregate compare/select mask owner consumer predicate is "
+            "registry backed across migrated consumers"))
+      return result;
+  }
+  if (int result = expect(
+          !isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::Add) &&
+              !isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore),
+          "ordinary elementwise and runtime-scalar computed-mask memory "
+          "routes remain outside the compare/select mask owner boundary"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlainComparePlan;
+  missingPlainComparePlan.description.operation =
+      RVVSelectedBodyOperationKind::CmpSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+              missingPlainComparePlan,
+              "compare/select mask owner registry unit test"),
+          {"requires the plain compare-select route-family plan",
+           "cmp_select"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingComputedMaskSelectPlan;
+  missingComputedMaskSelectPlan.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+              missingComputedMaskSelectPlan,
+              "compare/select mask owner registry unit test"),
+          {"requires the computed-mask select route-family plan",
+           "computed_mask_select"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingComputedMaskMemoryPlan;
+  missingComputedMaskMemoryPlan.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+              missingComputedMaskMemoryPlan,
+              "compare/select mask owner registry unit test"),
+          {"requires the computed-mask memory route-family plan",
+           "computed_masked_unit_load_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis nonCompareMaskAnalysis;
+  nonCompareMaskAnalysis.description.operation = RVVSelectedBodyOperationKind::Add;
+  return expectSuccess(
+      verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+          nonCompareMaskAnalysis,
+          "compare/select mask owner registry unit test"),
+      "non compare/select mask route with no mask family plan is accepted by "
+      "the aggregate compare/select mask owner verifier");
+}
+
 int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
@@ -18087,6 +18209,8 @@ int main() {
   if (int result = runMemoryRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runElementwiseSelectRouteFamilyOwnerRegistryTest())
+    return result;
+  if (int result = runCompareSelectMaskRouteFamilyOwnerRegistryTest())
     return result;
   if (int result =
           runReductionAccumulationContractionRouteFamilyOwnerRegistryTest())

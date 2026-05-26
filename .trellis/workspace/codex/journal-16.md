@@ -839,3 +839,64 @@ Extracted the RVV plugin-local standalone reduction/accumulation owner, migrated
 ### Next Steps
 
 - None - task complete
+
+
+## Session 252: Stage2 RVV compare/select mask route-family owner
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV compare/select mask route-family owner
+**Branch**: `main`
+
+### Summary
+
+Added a plugin-local compare/select mask route-family owner boundary over active
+compare/select mask producers and adjacent compare-produced computed-mask memory
+consumers, then validated provider and target artifact ABI facts.
+
+### Main Changes
+
+- Added `RVVSelectedBodyCompareSelectMaskRouteFamilyOwner` registry/API and an
+  aggregate provider-plan verifier.
+- Connected the aggregate verifier to the production route-family provider
+  validation path after the existing memory and elementwise/select family
+  verifiers.
+- Migrated active consumers under the new boundary: primary `cmp_select` /
+  computed-mask select producers and adjacent compare-produced
+  `computed_masked_unit_load_store`-class memory consumers.
+- Added target artifact validation for compare/select mask headers, vector/mask
+  type mappings, ABI mappings, family-plan metadata mirrors, runtime ABI order,
+  mask role/source/form, select/passthrough layout, and computed-mask memory
+  layout.
+- Added focused C++ owner registry coverage and fail-closed missing-plan
+  diagnostics.
+- Validation: RVV plugin build/test passed; generated-bundle dry-runs passed
+  for `cmp_select` and `computed_masked_unit_load_store`; `ssh rvv` `cmp_select`
+  passed counts 0, 1, 8, 17, and 1024; focused non-regression dry-runs passed;
+  added-line authority scan passed; `git diff --check` passed;
+  `check-tianchenrv` passed 390/390.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | `rvv: add compare select mask route owner` |
+
+### Testing
+
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run ... --op-kind cmp_select`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run ... --op-kind computed_masked_unit_load_store`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py ... --op-kind cmp_select --runtime-count 0 --runtime-count 1 --runtime-count 8 --runtime-count 17 --runtime-count 1024`
+- [OK] focused generated-bundle non-regression dry-runs
+- [OK] added-line authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (390/390)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

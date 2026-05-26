@@ -199,6 +199,61 @@ bool isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
              RuntimeScalarComputedMaskStandaloneReduceAdd;
 }
 
+bool isRVVCompareSelectMaskProducerRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarDualCompareMaskAndSelect:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVPlainCompareSelectMaskRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation == plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
+}
+
+bool isRVVComputedMaskSelectRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarDualCompareMaskAndSelect:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskStridedLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVCompareSelectMaskRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVCompareSelectMaskProducerRouteFamilyOperation(operation) ||
+         isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(operation);
+}
+
 llvm::Error requireCandidateMetadataMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef expected, llvm::StringRef label) {
@@ -245,6 +300,157 @@ bool runtimeABIParameterEquals(const support::RuntimeABIParameter &lhs,
                                const support::RuntimeABIParameter &rhs) {
   return lhs.cName == rhs.cName && lhs.cType == rhs.cType &&
          lhs.role == rhs.role && lhs.ownership == rhs.ownership;
+}
+
+llvm::Error validateRVVCompareSelectMaskRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer requires "
+        "provider-derived required_header_declarations before accepting the "
+        "route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer requires at least one "
+        "provider route header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "compare/select mask target artifact consumer saw an empty "
+          "provider route header declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("compare/select mask target artifact consumer requires "
+                      "rebuilt provider route header '") +
+          trimmed + "' before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVCompareSelectMaskRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() || description.maskTypeName.empty() ||
+      description.maskCType.empty() || description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer requires "
+        "provider-derived VL, vector, mask, and C type mapping facts before "
+        "artifact export");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("compare/select mask target artifact consumer requires "
+                    "rebuilt provider route type mapping '!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("compare/select mask target artifact consumer requires "
+                    "rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+  if (!routeHasTypeMapping(route, description.maskTypeName,
+                           description.maskCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("compare/select mask target artifact consumer requires "
+                    "rebuilt provider route type mapping '") +
+        description.maskTypeName + "' -> '" + description.maskCType + "'");
+  if (!description.indexVectorTypeName.empty()) {
+    if (description.indexVectorCType.empty())
+      return makeRVVTargetRouteError(
+          "compare/select mask target artifact consumer requires index vector "
+          "C type facts when index vector type facts are present");
+    if (!routeHasTypeMapping(route, description.indexVectorTypeName,
+                             description.indexVectorCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("compare/select mask target artifact consumer requires "
+                      "rebuilt provider route type mapping '") +
+          description.indexVectorTypeName + "' -> '" +
+          description.indexVectorCType + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVCompareSelectMaskRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("compare/select mask target artifact consumer requires "
+                    "rebuilt provider route ABI mapping count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("compare/select mask target artifact consumer requires "
+                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("compare/select mask target artifact consumer requires "
+                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVCompareSelectMaskRouteFamilyOperation(description.operation))
+    return llvm::Error::success();
+
+  if (description.comparePredicateKind.empty() ||
+      description.compareIntrinsic.empty() || description.maskName.empty() ||
+      description.maskRole.empty() || description.maskSource.empty() ||
+      description.maskMemoryForm.empty())
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer requires "
+        "provider-derived compare predicate, compare intrinsic, mask result, "
+        "mask role, mask source, and mask memory-form facts before artifact "
+        "export");
+  if (isRVVCompareSelectMaskProducerRouteFamilyOperation(
+          description.operation) &&
+      description.selectLayout.empty())
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer requires "
+        "provider-derived selected-value/passthrough layout facts before "
+        "artifact export");
+  if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+          description.operation) &&
+      (description.inactiveLaneContract.empty() ||
+       description.maskedPassthroughLayout.empty()))
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer requires "
+        "provider-derived inactive-lane and masked-passthrough layout facts "
+        "before artifact export");
+
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskRouteTypeMappings(route, description))
+    return error;
+  return validateRVVCompareSelectMaskRouteABIMappings(route, description);
 }
 
 bool stepHasResult(const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
@@ -1203,6 +1409,159 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
           "selected typed RVV body provider support"))
     return error;
 
+  if (isRVVCompareSelectMaskRouteFamilyOperation(description.operation)) {
+    if (isRVVPlainCompareSelectMaskRouteFamilyOperation(
+            description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.plain_compare_select_route_family_plan",
+              description.plainCompareSelectRouteFamilyPlanID,
+              "selected typed RVV plain compare-select route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.computed_mask_select_route_family_plan", "",
+              "selected typed RVV computed-mask select route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
+              "selected typed RVV computed-mask memory route-family plan"))
+        return error;
+    } else if (isRVVComputedMaskSelectRouteFamilyOperation(
+                   description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.computed_mask_select_route_family_plan",
+              description.computedMaskSelectRouteFamilyPlanID,
+              "selected typed RVV computed-mask select route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate,
+              "tcrv_rvv.computed_mask_select_mask_producer_source",
+              description.computedMaskSelectMaskProducerSource,
+              "selected typed RVV computed-mask select producer source"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.plain_compare_select_route_family_plan", "",
+              "selected typed RVV plain compare-select route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
+              "selected typed RVV computed-mask memory route-family plan"))
+        return error;
+    } else if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+                   description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.computed_mask_memory_route_family_plan",
+              description.computedMaskMemoryRouteFamilyPlanID,
+              "selected typed RVV computed-mask memory route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate,
+              "tcrv_rvv.computed_mask_memory_mask_producer_source",
+              description.computedMaskMemoryMaskProducerSource,
+              "selected typed RVV computed-mask memory producer source"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.plain_compare_select_route_family_plan", "",
+              "selected typed RVV plain compare-select route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.computed_mask_select_route_family_plan", "",
+              "selected typed RVV computed-mask select route-family plan"))
+        return error;
+    }
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.memory_form",
+            plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+                description.memoryForm),
+            "selected typed RVV compare/select mask memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_control_plan",
+            description.runtimeControlPlanID,
+            "selected typed RVV compare/select mask runtime AVL/VL control "
+            "plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_abi_order",
+            description.runtimeABIOrder,
+            "selected typed RVV compare/select mask runtime ABI order"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.required_header_declarations",
+            description.requiredHeaderDeclarations,
+            "selected typed RVV compare/select mask route header requirements"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.c_type_mapping",
+            description.cTypeMappingSummary,
+            "selected typed RVV compare/select mask route type mapping "
+            "summary"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_role", description.maskRole,
+            "selected typed RVV compare/select mask role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_source", description.maskSource,
+            "selected typed RVV compare/select mask source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_memory_form",
+            description.maskMemoryForm,
+            "selected typed RVV compare/select mask memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.source_memory_form",
+            description.sourceMemoryForm,
+            "selected typed RVV compare/select mask source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.destination_memory_form",
+            description.destinationMemoryForm,
+            "selected typed RVV compare/select mask destination memory form"))
+      return error;
+    if (isRVVCompareSelectMaskProducerRouteFamilyOperation(
+            description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.select_layout",
+              description.selectLayout,
+              "selected typed RVV compare/select selected-value layout"))
+        return error;
+      if (description.operation ==
+          plugin::rvv::RVVSelectedBodyOperationKind::
+              RuntimeScalarDualCompareMaskAndSelect) {
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.mask_composition",
+                description.maskComposition,
+                "selected typed RVV dual compare mask composition"))
+          return error;
+      }
+    }
+    if (isRVVPlainCompareSelectMaskRouteFamilyOperation(
+            description.operation) ||
+        isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+            description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.inactive_lane_contract",
+              description.inactiveLaneContract,
+              "selected typed RVV compare/select mask inactive lane "
+              "contract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.masked_passthrough_layout",
+              description.maskedPassthroughLayout,
+              "selected typed RVV compare/select mask passthrough layout"))
+        return error;
+    }
+    if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+            description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.masked_memory_layout",
+              description.indexedMemoryLayout,
+              "selected typed RVV computed-mask memory layout"))
+        return error;
+    }
+  }
+
   if (isRVVSegment2RouteFamilyOperation(description.operation)) {
     if (isRVVPlainSegment2RouteFamilyOperation(description.operation)) {
       if (llvm::Error error = requireCandidateMetadataMirror(
@@ -1839,6 +2198,9 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   if (llvm::Error error =
           validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
               route, *description))
+    return std::move(error);
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskRoutePayloadFacts(route, *description))
     return std::move(error);
 
   if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
