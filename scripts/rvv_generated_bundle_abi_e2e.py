@@ -1422,6 +1422,19 @@ class OpExpectation:
         return f"__riscv_{op_leaf}_vv_{self.element_type}{self.lmul}"
 
     @property
+    def masked_elementwise_compute_intrinsic(self) -> str:
+        op_leaf = {
+            "masked_add": "vadd",
+            "masked_sub": "vsub",
+            "masked_mul": "vmul",
+        }.get(self.kind)
+        if not op_leaf:
+            raise EvidenceError(
+                f"{self.kind} has no masked elementwise compute intrinsic expectation"
+            )
+        return f"__riscv_{op_leaf}_vv_{self.element_type}{self.lmul}"
+
+    @property
     def macc_compute_intrinsic(self) -> str:
         if not (self.is_macc_add or self.is_scalar_broadcast_macc_add):
             raise EvidenceError(
@@ -2598,6 +2611,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
         expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])",
+        compare_predicate_kind="eq",
     ),
     "masked_sub": OpExpectation(
         kind="masked_sub",
@@ -2613,6 +2627,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(200 + (int32_t)index) : (int32_t)(30 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(200 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
         expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] - rhs[index]) : lhs[index])",
+        compare_predicate_kind="eq",
     ),
     "masked_mul": OpExpectation(
         kind="masked_mul",
@@ -2628,6 +2643,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(100 + (int32_t)index))",
         expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] * rhs[index]) : lhs[index])",
+        compare_predicate_kind="eq",
     ),
     "scalar_broadcast_add": OpExpectation(
         kind="scalar_broadcast_add",
@@ -7259,6 +7275,32 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = compare_select_predicate_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_masked_elementwise:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.compare_intrinsic,
+            expectation.masked_elementwise_compute_intrinsic,
+            expectation.select_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ masked elementwise vector C type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ masked elementwise mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ masked elementwise intrinsic spelling",
+            )
     if expectation.has_conversion_sew_policy_boundary:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -17062,6 +17104,63 @@ def mask_tail_policy_boundary_summary(
             "runtime_counts": runtime_counts,
             "runtime_counts_are_execution_cases_not_policy_authority": True,
         }
+    if expectation.is_masked_elementwise:
+        return {
+            "source": (
+                "typed tcrv_rvv masked elementwise body/config -> "
+                "compare-produced mask -> RVV route-family facts -> "
+                "residual operand bindings -> statement plan -> emitted "
+                "masked add and passthrough merge"
+            ),
+            "authority": (
+                "provider-derived typed tcrv_rvv masked elementwise "
+                "body/config/runtime facts"
+            ),
+            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "selected_mask_abi": {
+                "external_mask": False,
+                "producer": "tcrv_rvv.compare",
+                "role": MASKED_ADD_MASK_ROLE,
+                "source": MASKED_ADD_MASK_SOURCE,
+                "memory_form": "compare-produced-mask",
+            },
+            "tail_policy": expected_metadata_for(expectation).get(
+                "tcrv_rvv.tail_policy"
+            ),
+            "mask_policy": expected_metadata_for(expectation).get(
+                "tcrv_rvv.mask_policy"
+            ),
+            "active_lane_contract": (
+                "compare-true lanes compute lhs op rhs through the masked "
+                "elementwise active value"
+            ),
+            "inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
+            "masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
+            "materialized_body": {
+                "typed_compute_op": materialized_checks.get("typed_compute_op"),
+                "memory_form": materialized_checks.get("memory_form"),
+                "runtime_avl_vl_boundary": materialized_checks.get(
+                    "runtime_avl_vl_boundary", {}
+                ),
+            },
+            "emitted_cpp": {
+                "compare_intrinsic": "__riscv_vmseq_vv_i32m1_b32",
+                "active_compute_intrinsic": (
+                    expectation.masked_elementwise_compute_intrinsic
+                ),
+                "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
+                "intrinsics": emitted_cpp_checks.get("intrinsics", []),
+            },
+            "route_metadata": mask_tail_policy_metadata_from_bundle(
+                bundle_checks, expectation
+            ),
+            "artifact_abi": {
+                "prototype": bundle_checks["header"]["prototype"],
+                "runtime_abi_order": expectation.runtime_abi_order,
+            },
+            "runtime_counts": runtime_counts,
+            "runtime_counts_are_execution_cases_not_policy_authority": True,
+        }
     if not expectation.is_masked_unit_store:
         return {}
     return {
@@ -18097,7 +18196,11 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_masked_unit_store or expectation.is_computed_mask_standalone_reduce:
+        if (
+            expectation.is_masked_elementwise
+            or expectation.is_masked_unit_store
+            or expectation.is_computed_mask_standalone_reduce
+        ):
             evidence["mask_tail_policy_boundary"] = (
                 mask_tail_policy_boundary_summary(
                     expectation=expectation,

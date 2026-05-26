@@ -363,3 +363,36 @@ Strengthened standalone_reduce_add route-family ABI validation, direct route-ent
 ### Next Steps
 
 - None - task complete
+
+
+## Session 242: Stage2 RVV masked elementwise route-family owner
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV masked elementwise route-family owner
+**Branch**: `main`
+
+### Summary
+
+Adopted masked_add into the RVV route-control provider boundary, strengthened masked elementwise statement-plan diagnostics and generated-bundle mask/tail evidence, proved the route on ssh rvv, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

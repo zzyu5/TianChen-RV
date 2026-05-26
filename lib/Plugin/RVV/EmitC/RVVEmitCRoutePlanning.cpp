@@ -23317,6 +23317,13 @@ static bool isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer(
          description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
 }
 
+static bool isRVVSelectedBodyMaskedElementwiseRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
+             description.operation) &&
+         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+}
+
 static bool isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
@@ -23450,6 +23457,12 @@ static llvm::Error buildOrdinaryElementwiseRouteControlProviderPlan(
     RVVSelectedBodyRouteControlProviderPlan &plan,
     const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
     llvm::StringRef context);
+static llvm::Error buildMaskedElementwiseRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
 static llvm::Error buildScalarBroadcastElementwiseRouteControlProviderPlan(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
@@ -23535,6 +23548,9 @@ getRVVSelectedBodyRouteControlProviderOwners() {
       {"ordinary elementwise arithmetic",
        isRVVSelectedBodyOrdinaryElementwiseRouteControlConsumer,
        buildOrdinaryElementwiseRouteControlProviderPlan},
+      {"masked elementwise arithmetic",
+       isRVVSelectedBodyMaskedElementwiseRouteControlConsumer,
+       buildMaskedElementwiseRouteControlProviderPlan},
       {"scalar-broadcast elementwise",
        isRVVSelectedBodyScalarBroadcastElementwiseRouteControlConsumer,
        buildScalarBroadcastElementwiseRouteControlProviderPlan},
@@ -23758,6 +23774,36 @@ static llvm::Error buildOrdinaryElementwiseRouteControlProviderPlan(
   runtimeControlPlan =
       &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan;
   plan.controlsOrdinaryElementwiseArithmetic = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildMaskedElementwiseRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.elementwiseArithmeticPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified masked "
+        "elementwise arithmetic route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.elementwiseArithmeticRouteFamilyPlan ||
+      materializationFacts.elementwiseArithmeticPlan !=
+          &*analysis.elementwiseArithmeticRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires masked elementwise "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  runtimeControlPlan =
+      &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan;
+  plan.controlsMaskedElementwiseArithmetic = true;
   return llvm::Error::success();
 }
 
@@ -29725,6 +29771,23 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " scalar-broadcast elementwise statement plan requires the "
+          "RVV-owned route-control provider plan before route statement "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  }
+  if (isMaskedArithmetic) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(
+            analysis, materializationFacts, context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    if (!routeControlPlan->plansRouteControl ||
+        !routeControlPlan->controlsMaskedElementwiseArithmetic ||
+        routeControlPlan->runtimeControlPlan !=
+            &materializationFacts.elementwiseArithmeticPlan->runtimeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " masked elementwise arithmetic statement plan requires the "
           "RVV-owned route-control provider plan before route statement "
           "construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");

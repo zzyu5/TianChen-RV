@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage2 typed route constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned realization, route-control, operand-binding, statement-plan, mask/tail policy, and provider ownership rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, typed body, realization, and mirror-only emission-plan constraints"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing policy for RVV runtime evidence and legacy/source-front-door restrictions"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle mask/tail evidence and runtime correctness requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-standalone-reduction-route-family-owner/prd.md", "reason": "Recent completed route-family owner pattern for PRD, evidence, and validation scope"}

@@ -829,16 +829,17 @@ statement construction. This boundary sits after route-family provider-plan
 verification and materialization facts, and before family statement plans are
 attached to `TCRVEmitCLowerableRoute`.
 
-The required consumers are mature ordinary elementwise arithmetic,
-scalar-broadcast elementwise arithmetic, plain compare/select, computed-mask
-select, widening conversion, non-segment computed-mask memory, segment2 memory,
-base memory movement, standalone reduction, scalar-broadcast MAcc, runtime
-scalar splat-store, computed-mask accumulation MAcc, and contraction families.
-Contraction may remain a direct-provider route family only after consuming this
-boundary through the direct contraction route-provider owner. It must not keep
-central ad hoc statement construction as active route authority. Other migrated
-families may continue to use their existing family-local checks until they are
-explicitly moved onto this boundary.
+The required consumers are mature ordinary elementwise arithmetic, masked
+elementwise arithmetic, scalar-broadcast elementwise arithmetic, plain
+compare/select, computed-mask select, widening conversion, non-segment
+computed-mask memory, segment2 memory, base memory movement, standalone
+reduction, scalar-broadcast MAcc, runtime scalar splat-store, computed-mask
+accumulation MAcc, and contraction families. Contraction may remain a
+direct-provider route family only after consuming this boundary through the
+direct contraction route-provider owner. It must not keep central ad hoc
+statement construction as active route authority. Other migrated families may
+continue to use their existing family-local checks until they are explicitly
+moved onto this boundary.
 
 ### 2. Signatures
 
@@ -894,11 +895,11 @@ carry:
 - a pointer to the same-analysis selected target capability facts;
 - a pointer to the owning family `RVVRuntimeAVLVLControlPlan`;
 - consumer flags for ordinary elementwise arithmetic, scalar-broadcast
-  elementwise arithmetic, plain compare/select, computed-mask select,
-  widening conversion, non-segment computed-mask memory, segment2 memory, base
-  memory movement, standalone reduction, scalar-broadcast MAcc, runtime scalar
-  splat-store, computed-mask accumulation MAcc, contraction, or future adopted
-  families;
+  elementwise arithmetic, masked elementwise arithmetic, plain compare/select,
+  computed-mask select, widening conversion, non-segment computed-mask memory,
+  segment2 memory, base memory movement, standalone reduction,
+  scalar-broadcast MAcc, runtime scalar splat-store, computed-mask
+  accumulation MAcc, contraction, or future adopted families;
 - mirror labels for control plan id, config contract, runtime VL contract,
   runtime AVL source, runtime ABI order, tail policy, mask policy, selected
   capability provider, and selected legality.
@@ -937,6 +938,11 @@ fields only after provider route construction.
   family plan verifier -> materialization facts -> elementwise/select
   operand-binding facts -> route-control provider plan -> compare/select
   statement plan -> provider-built route.
+- Good: typed masked elementwise arithmetic `tcrv_rvv` body -> elementwise
+  arithmetic family plan verifier with compare-produced mask and passthrough
+  facts -> materialization facts -> residual operand-binding facts ->
+  route-control provider plan -> elementwise arithmetic statement plan ->
+  provider-built route.
 - Good: typed computed-mask select `tcrv_rvv` body -> computed-mask select
   family plan verifier with vector/runtime-scalar producer-source facts ->
   materialization facts -> elementwise/select operand-binding facts ->
@@ -982,8 +988,9 @@ fields only after provider route construction.
 ### 6. Tests Required
 
 - C++ positive coverage for every family that adopts the route-control plan,
-  asserting that typed config facts, selected target capability facts, and the
-  family runtime-control plan are joined before statement planning.
+  including masked elementwise arithmetic, asserting that typed config facts,
+  selected target capability facts, and the family runtime-control plan are
+  joined before statement planning.
 - For direct-provider adopters such as contraction, C++ positive coverage must
   assert the route-control provider plan is consumed before direct statement
   construction, without requiring a wrapper-only statement-plan layer.
@@ -1427,10 +1434,10 @@ family plans, materialization facts, and operand-binding facts have been
 validated. The RVV planning layer must expose one RVV-owned statement-plan
 boundary for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`/`Sub`/`Mul`,
 masked `Add`/`Sub`/`Mul`, and strided `Add` where those routes are
-production-active. Ordinary `Add`/`Sub`/`Mul` and scalar-broadcast
-`Add`/`Sub`/`Mul` must consume the shared route-control provider plan before
-this statement plan builds the setvl/load/broadcast-or-load/compute/store
-sequence.
+production-active. Ordinary `Add`/`Sub`/`Mul`, masked `Add`/`Sub`/`Mul`, and
+scalar-broadcast `Add`/`Sub`/`Mul` must consume the shared route-control
+provider plan before this statement plan builds the setvl/load/compare/
+broadcast-or-load/compute/merge/store sequence.
 
 The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
 adds neutral headers, type mappings, ABI mappings, selected-boundary source
@@ -1486,12 +1493,12 @@ not a route-support declaration by itself.
   plan without changing unrelated route-family behavior.
 - An included elementwise arithmetic route has no matching verified family
   plan -> fail closed before route statement construction.
-- An included ordinary or scalar-broadcast elementwise arithmetic route lacks
-  the shared route-control provider plan, carries stale materialization facts
-  from another selected route analysis, has wrong runtime AVL/VL control
-  facts, or has SEW/LMUL/policy/capability mirrors that disagree with the
-  typed body/config and selected target facts -> fail closed before route
-  statement construction.
+- An included ordinary, masked, or scalar-broadcast elementwise arithmetic
+  route lacks the shared route-control provider plan, carries stale
+  materialization facts from another selected route analysis, has wrong runtime
+  AVL/VL control facts, or has SEW/LMUL/policy/capability mirrors that
+  disagree with the typed body/config and selected target facts -> fail closed
+  before route statement construction.
 - An included route lacks the required operand-binding facts from the
   elementwise/select or residual facts boundary -> fail closed before route
   statement construction.
@@ -1515,9 +1522,13 @@ not a route-support declaration by itself.
   scalar-broadcast family plan verifier -> materialization facts ->
   elementwise/select operand-binding facts -> route-control provider plan ->
   RVV-owned statement plan with scalar splat leaf -> provider-built route.
-- Good: typed masked or strided elementwise arithmetic `tcrv_rvv` body ->
-  family plan verifier -> materialization facts -> residual operand-binding
-  facts -> RVV-owned statement plan -> provider-built route.
+- Good: typed masked elementwise arithmetic `tcrv_rvv` body -> family plan
+  verifier with compare-produced mask and passthrough facts ->
+  materialization facts -> residual operand-binding facts -> route-control
+  provider plan -> RVV-owned statement plan -> provider-built route.
+- Good: typed strided elementwise arithmetic `tcrv_rvv` body -> family plan
+  verifier -> materialization facts -> residual operand-binding facts ->
+  RVV-owned statement plan -> provider-built route.
 - Base: compare/select, memory, math, runtime scalar splat-store, and future
   families keep their own statement construction surfaces and receive an empty
   elementwise arithmetic statement plan.
@@ -1533,8 +1544,9 @@ not a route-support declaration by itself.
   `Add`/`Sub`/`Mul`, and strided `Add`, including ordinary and
   scalar-broadcast elementwise route-control provider-plan consumption.
 - C++ fail-closed diagnostics for at least one missing or stale statement-plan
-  dependency before route statement construction, plus stale ordinary
-  elementwise route-control analysis/runtime AVL/policy/capability facts.
+  dependency before route statement construction, plus stale ordinary and
+  masked elementwise route-control analysis/runtime AVL/policy/capability
+  facts.
 - C++ default/empty-plan coverage for unrelated route families.
 - Representative lit/FileCheck coverage proving existing explicit,
   pre-realized, generic, and selected-boundary elementwise arithmetic artifacts

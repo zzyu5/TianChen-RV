@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id masked-add --overwrite --op-kind masked_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id masked-add --overwrite --op-kind masked_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/masked-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MASKED --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/masked-add/masked_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/masked-add/masked_add/rvv_generated_bundle_abi_masked_add_harness.c
@@ -38,6 +38,12 @@
 # MASKED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
 # MASKED-DAG: "value": "passthrough-vector-preserves-inactive-lanes"
 # MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_binary"
+# MASKED-DAG: "mask_tail_policy_boundary":
+# MASKED-DAG: "authority": "provider-derived typed tcrv_rvv masked elementwise body/config/runtime facts"
+# MASKED-DAG: "producer": "tcrv_rvv.compare"
+# MASKED-DAG: "active_compute_intrinsic": "__riscv_vadd_vv_i32m1"
+# MASKED-DAG: "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1"
+# MASKED-DAG: "runtime_counts_are_execution_cases_not_policy_authority": true
 # MASKED-DAG: "inactive_lane_contract": "masked-off lanes must preserve the explicit passthrough vector"
 # MASKED-DAG: "mask_coverage_contract": "multi-lane masked elementwise cases require true and false mask lanes"
 # MASKED-DAG: "status": "dry_run_success"
@@ -47,4 +53,4 @@
 # HARNESS: mask_true_lanes
 # HARNESS: mask_false_lanes
 # HARNESS: passthrough_preserved_lanes
-# HARNESS: const size_t counts[] = {7, 16, 23};
+# HARNESS: const size_t counts[] = {0, 7, 16, 23, 257};

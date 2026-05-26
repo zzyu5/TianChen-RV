@@ -4750,13 +4750,14 @@ int runRouteControlProviderOwnerRegistryTest() {
                      RVVSelectedBodyRouteControlProviderOwner>
       owners = getRVVSelectedBodyRouteControlProviderOwners();
   if (int result =
-          expect(owners.size() == 14,
-                 "route-control provider owner registry has exactly fourteen "
+          expect(owners.size() == 15,
+                 "route-control provider owner registry has exactly fifteen "
                  "active adopted family entries"))
     return result;
 
   const llvm::StringRef expectedNames[] = {
       "ordinary elementwise arithmetic",
+      "masked elementwise arithmetic",
       "scalar-broadcast elementwise",
       "plain compare-select",
       "computed-mask select",
@@ -4792,6 +4793,9 @@ int runRouteControlProviderOwnerRegistryTest() {
       {RVVSelectedBodyOperationKind::Add,
        RVVSelectedBodyMemoryForm::VectorRHSLoad,
        "ordinary elementwise arithmetic"},
+      {RVVSelectedBodyOperationKind::MaskedAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad,
+       "masked elementwise arithmetic"},
       {RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
        RVVSelectedBodyMemoryForm::RHSScalarBroadcast,
        "scalar-broadcast elementwise"},
@@ -4899,6 +4903,20 @@ int runRouteControlProviderOwnerRegistryTest() {
               .takeError(),
           {"requires the verified elementwise arithmetic route-family plan",
            "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingMaskedElementwisePlan;
+  missingMaskedElementwisePlan.description =
+      makeDescription(RVVSelectedBodyOperationKind::MaskedAdd,
+                      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              missingMaskedElementwisePlan, emptyMaterializationFacts,
+              "route-control provider owner registry unit test")
+              .takeError(),
+          {"requires the verified masked elementwise arithmetic "
+           "route-family plan",
+           "masked_add"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleElementwiseMaterialization =
@@ -11981,6 +11999,16 @@ module {
 }
 
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteControlProviderPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @rvv_i32m1_masked_add_kernel {
@@ -12082,6 +12110,161 @@ module {
                   *routeDescription,
                   "RVV generic masked add selected-body route description"),
           "verify RVV generic masked add selected-body route description"))
+    return result;
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+      analysis = analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+          variant, kernel, capabilities, VariantEmissionRole::DirectVariant));
+  if (!analysis)
+    return fail("analyze RVV masked add route-control route: " +
+                llvm::toString(analysis.takeError()));
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts>
+      materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+          *analysis, "RVV masked add route-control provider unit test");
+  if (!materializationFacts)
+    return fail("RVV masked add materialization facts: " +
+                llvm::toString(materializationFacts.takeError()));
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVSelectedBodyResidualRouteOperandBindingFacts>
+      residualFacts = getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          *analysis, "RVV masked add route-control provider unit test");
+  if (!residualFacts)
+    return fail("RVV masked add residual operand-binding facts: " +
+                llvm::toString(residualFacts.takeError()));
+  auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
+      *analysis, *materializationFacts,
+      "RVV masked add route-control provider unit test");
+  if (!routeControlPlan)
+    return fail("RVV masked add route-control provider plan: " +
+                llvm::toString(routeControlPlan.takeError()));
+  if (int result = expect(
+          routeControlPlan->plansRouteControl &&
+              routeControlPlan->controlsMaskedElementwiseArithmetic &&
+              !routeControlPlan->controlsOrdinaryElementwiseArithmetic &&
+              routeControlPlan->runtimeControlPlan ==
+                  &materializationFacts->elementwiseArithmeticPlan
+                       ->runtimeControlPlan &&
+              routeControlPlan->typedConfigFacts ==
+                  &analysis->typedConfigFacts &&
+              routeControlPlan->selectedTargetCapabilityFacts ==
+                  &analysis->selectedTargetCapabilityFacts &&
+              routeControlPlan->runtimeABIOrderMirror == "lhs,rhs,out,n" &&
+              routeControlPlan->tailPolicyMirror == "agnostic" &&
+              routeControlPlan->maskPolicyMirror == "agnostic",
+          "RVV masked add route-control provider plan joins typed config, "
+          "selected capability, runtime AVL, ABI order, and tail/mask policy "
+          "facts before statement planning"))
+    return result;
+
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyElementwiseSelectFacts;
+  auto statementPlan = getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+      *analysis, *materializationFacts, emptyElementwiseSelectFacts,
+      *residualFacts, "RVV masked add statement-plan route-control unit test");
+  if (!statementPlan)
+    return fail("RVV masked add statement-plan route-control: " +
+                llvm::toString(statementPlan.takeError()));
+  if (int result = expect(
+          statementPlan->plansElementwiseArithmeticRoute &&
+              statementPlan->plansMaskedElementwiseArithmetic &&
+              statementPlan->elementwiseArithmeticPlan ==
+                  materializationFacts->elementwiseArithmeticPlan &&
+              statementPlan->loop.bodySteps.size() == 7 &&
+              statementPlan->loop.bodySteps[3].callee ==
+                  "__riscv_vmseq_vv_i32m1_b32" &&
+              statementPlan->loop.bodySteps[4].callee ==
+                  "__riscv_vadd_vv_i32m1" &&
+              statementPlan->loop.bodySteps[5].callee ==
+                  "__riscv_vmerge_vvm_i32m1",
+          "RVV masked add statement plan consumes route-control facts before "
+          "attaching compare, active add, passthrough merge, and store steps"))
+    return result;
+
+  auto makeMaskedAddResidualFacts =
+      [](tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis &routeAnalysis,
+         llvm::StringRef label) {
+        return getRVVSelectedBodyResidualRouteOperandBindingFacts(routeAnalysis,
+                                                                  label);
+      };
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis
+      staleRuntimeABIOrder = *analysis;
+  staleRuntimeABIOrder.description.runtimeABIOrder = "lhs,rhs,out,metadata_n";
+  auto staleRuntimeMaterialization =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRuntimeABIOrder,
+          "RVV masked add stale runtime ABI route-control unit test");
+  if (!staleRuntimeMaterialization)
+    return fail("RVV masked add stale runtime ABI materialization facts: " +
+                llvm::toString(staleRuntimeMaterialization.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleRuntimeABIOrder, *staleRuntimeMaterialization,
+              "RVV masked add stale runtime ABI route-control unit test")
+              .takeError(),
+          {"route-control provider plan description runtime ABI order",
+           "lhs,rhs,out,n", "lhs,rhs,out,metadata_n"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis stalePolicy =
+      *analysis;
+  stalePolicy.elementwiseArithmeticRouteFamilyPlan->runtimeControlPlan
+      .tailPolicy = "undisturbed";
+  auto stalePolicyMaterialization = getRVVSelectedBodyRouteMaterializationFacts(
+      stalePolicy, "RVV masked add stale policy route-control unit test");
+  if (!stalePolicyMaterialization)
+    return fail("RVV masked add stale policy materialization facts: " +
+                llvm::toString(stalePolicyMaterialization.takeError()));
+  auto stalePolicyResidual = makeMaskedAddResidualFacts(
+      stalePolicy, "RVV masked add stale policy route-control unit test");
+  if (!stalePolicyResidual)
+    return fail("RVV masked add stale policy residual facts: " +
+                llvm::toString(stalePolicyResidual.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              stalePolicy, *stalePolicyMaterialization,
+              emptyElementwiseSelectFacts, *stalePolicyResidual,
+              "RVV masked add stale policy route-control unit test")
+              .takeError(),
+          {"route-control provider plan tail policy", "agnostic",
+           "undisturbed"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis staleTarget =
+      *analysis;
+  staleTarget.selectedTargetCapabilityFacts.supportedSEW = "64";
+  auto staleTargetMaterialization = getRVVSelectedBodyRouteMaterializationFacts(
+      staleTarget, "RVV masked add stale target route-control unit test");
+  if (!staleTargetMaterialization)
+    return fail("RVV masked add stale target materialization facts: " +
+                llvm::toString(staleTargetMaterialization.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteControlProviderPlan(
+              staleTarget, *staleTargetMaterialization,
+              "RVV masked add stale target route-control unit test")
+              .takeError(),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis copiedAnalysis =
+      *analysis;
+  auto copiedResidual = makeMaskedAddResidualFacts(
+      copiedAnalysis,
+      "RVV masked add stale-analysis route-control unit test");
+  if (!copiedResidual)
+    return fail("RVV masked add copied residual facts: " +
+                llvm::toString(copiedResidual.takeError()));
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              copiedAnalysis, *materializationFacts,
+              emptyElementwiseSelectFacts, *copiedResidual,
+              "RVV masked add stale-analysis route-control unit test")
+              .takeError(),
+          {"route-control provider plan requires masked elementwise "
+           "materialization facts from the same selected route analysis",
+           "masked_add"}))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
