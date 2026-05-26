@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global authority chain and RVV Stage2 verification requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check MAcc/accumulation owner locality, provider ownership, target mirror boundaries, and fail-closed diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route authority and common EmitC neutrality"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains ABI/envelope-only and compute stays in typed RVV body"}
+{"file": ".trellis/tasks/05-27-05-27-stage2-rvv-macc-route-family-owner/prd.md", "reason": "Task-local requirements, acceptance criteria, and validation plan"}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-macc-owner-dry-run/evidence.json", "reason": "Generated-bundle dry-run evidence for migrated computed-mask MAcc and scalar-broadcast MAcc consumers"}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-macc-owner-ssh-rvv-clean/evidence.json", "reason": "Real ssh rvv correctness evidence for computed-mask MAcc over counts 0, 7, 16, 23, and 257"}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-macc-owner-direct-nonreg-dry-run/evidence.json", "reason": "Focused direct pre-realized non-regression dry-run covering segment2, compare/select, contraction, and base memory paths"}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-macc-owner-pre-realized-nonreg-dry-run/evidence.json", "reason": "Focused pre-realized non-regression dry-run covering masked elementwise, reduction, scalar-broadcast, conversion, runtime-scalar, and strided memory paths"}

@@ -4972,26 +4972,99 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyMAccRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::isRVVSelectedBodyMAccRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyMAccRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::RVVSelectedBodyMAccRouteFamilyOwner>
+      maccOwners = getRVVSelectedBodyMAccRouteFamilyOwners();
+  if (int result =
+          expect(maccOwners.size() == 3,
+                 "MAcc route-family owner registry has exactly three active "
+                 "owner entries"))
+    return result;
+  if (int result = expect(
+          maccOwners[0].familyName == "plain MAcc" &&
+              maccOwners[1].familyName == "scalar-broadcast MAcc" &&
+              maccOwners[2].familyName == "computed-mask MAcc",
+          "MAcc route-family owner registry preserves explicit family "
+          "ownership for plain, scalar-broadcast, and computed-mask MAcc"))
+    return result;
+  for (const auto &owner : maccOwners) {
+    if (int result =
+            expect(owner.isConsumer != nullptr &&
+                       owner.verifyProviderPlan != nullptr,
+                   "MAcc route-family owner registry entries carry consumer "
+                   "and verifier hooks"))
+      return result;
+  }
+  if (int result = expect(
+          maccOwners[0].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !maccOwners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !maccOwners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "plain MAcc owner classification is isolated inside MAcc family"))
+    return result;
+  if (int result = expect(
+          maccOwners[1].isConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              !maccOwners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !maccOwners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "scalar-broadcast MAcc owner classification is isolated inside "
+          "MAcc family"))
+    return result;
+  if (int result = expect(
+          maccOwners[2].isConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
+              maccOwners[2].isConsumer(RVVSelectedBodyOperationKind::
+                                           RuntimeScalarComputedMaskedMAccAdd) &&
+              !maccOwners[2].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !maccOwners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd),
+          "computed-mask MAcc owner classification excludes standalone "
+          "accumulation consumers"))
+    return result;
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::MAccAdd,
+        RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyMAccRouteFamilyConsumer(op),
+            "MAcc aggregate consumer predicate is registry backed across all "
+            "active MAcc owner families"))
+      return result;
+  }
+  if (int result =
+          expect(!isRVVSelectedBodyMAccRouteFamilyConsumer(
+                     RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd) &&
+                     !isRVVSelectedBodyMAccRouteFamilyConsumer(
+                         RVVSelectedBodyOperationKind::Add),
+                 "standalone accumulation and elementwise arithmetic remain "
+                 "outside the MAcc family owner boundary"))
+    return result;
 
   llvm::ArrayRef<tianchenrv::plugin::rvv::
                      RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner>
       owners =
           getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners();
   if (int result =
-          expect(owners.size() == 5,
+          expect(owners.size() == 4,
                  "reduction/accumulation/contraction route-family owner "
-                 "registry has exactly five active owner entries"))
+                 "registry has exactly four active owner entries"))
     return result;
   if (int result = expect(
           owners[0].familyName == "contraction" &&
-              owners[1].familyName == "plain MAcc" &&
-              owners[2].familyName == "scalar-broadcast MAcc" &&
-              owners[3].familyName == "standalone reduction" &&
-              owners[4].familyName == "computed-mask accumulation",
+              owners[1].familyName == "MAcc/accumulation" &&
+              owners[2].familyName == "standalone reduction" &&
+              owners[3].familyName == "computed-mask standalone accumulation",
           "reduction/accumulation/contraction route-family owner registry "
           "preserves explicit math-cluster ownership"))
     return result;
@@ -5017,46 +5090,41 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
     return result;
   if (int result = expect(
           owners[1].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
-              !owners[1].isConsumer(
+              owners[1].isConsumer(
                   RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
+              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskedMAccAdd) &&
               !owners[1].isConsumer(
-                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
-          "plain MAcc owner classification is isolated"))
+                  RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd),
+          "MAcc/accumulation owner delegates all active MAcc consumers"))
     return result;
   if (int result = expect(
           owners[2].isConsumer(
-              RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
-              !owners[2].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
-              !owners[2].isConsumer(
-                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
-          "scalar-broadcast MAcc owner classification is isolated"))
-    return result;
-  if (int result = expect(
-          owners[3].isConsumer(
               RVVSelectedBodyOperationKind::StandaloneReduceAdd) &&
-              owners[3].isConsumer(RVVSelectedBodyOperationKind::
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStandaloneReduceAdd) &&
-              owners[3].isConsumer(RVVSelectedBodyOperationKind::
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
                                        RuntimeScalarComputedMaskStandaloneReduceAdd) &&
-              !owners[3].isConsumer(
+              !owners[2].isConsumer(
                   RVVSelectedBodyOperationKind::WideningDotReduceAdd) &&
-              !owners[3].isConsumer(
+              !owners[2].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
           "standalone reduction owner classification is isolated"))
     return result;
   if (int result = expect(
-          owners[4].isConsumer(
-              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
-              owners[4].isConsumer(RVVSelectedBodyOperationKind::
-                                       RuntimeScalarComputedMaskedMAccAdd) &&
-              owners[4].isConsumer(RVVSelectedBodyOperationKind::
+          owners[3].isConsumer(RVVSelectedBodyOperationKind::
                                        ComputedMaskStandaloneReduceAdd) &&
-              !owners[4].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
-              !owners[4].isConsumer(
+              owners[3].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskStandaloneReduceAdd) &&
+              !owners[3].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !owners[3].isConsumer(
                   RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) &&
-              !owners[4].isConsumer(
-                  RVVSelectedBodyOperationKind::WideningMAccAdd),
-          "computed-mask accumulation owner classification is isolated"))
+              !owners[3].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "computed-mask standalone accumulation owner classification is "
+          "isolated from active MAcc consumers"))
     return result;
 
   for (RVVSelectedBodyOperationKind op :
@@ -5070,7 +5138,7 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
             isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
                 op),
             "aggregate reduction/accumulation/contraction consumer predicate "
-            "is registry backed across all five owner families"))
+            "is registry backed across all four owner families"))
       return result;
   }
   if (int result = expect(
@@ -5106,6 +5174,12 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
   missingScalarBroadcastMAccPlan.description.operation =
       RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
   if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+              missingScalarBroadcastMAccPlan, "MAcc owner registry unit test"),
+          {"requires the scalar-broadcast MAcc route-family plan",
+           "scalar_broadcast_macc_add"}))
+    return result;
+  if (int result = expectErrorContains(
           verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
               missingScalarBroadcastMAccPlan,
               "reduction/accumulation/contraction owner registry unit test"),
@@ -5117,6 +5191,11 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
   missingPlainMAccPlan.description.operation =
       RVVSelectedBodyOperationKind::MAccAdd;
   if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+              missingPlainMAccPlan, "MAcc owner registry unit test"),
+          {"requires the plain MAcc route-family plan", "macc_add"}))
+    return result;
+  if (int result = expectErrorContains(
           verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
               missingPlainMAccPlan,
               "reduction/accumulation/contraction owner registry unit test"),
@@ -5126,6 +5205,12 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
   RVVSelectedBodyRouteAnalysis missingAccumulationPlan;
   missingAccumulationPlan.description.operation =
       RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+              missingAccumulationPlan, "MAcc owner registry unit test"),
+          {"requires the computed-mask accumulation route-family plan",
+           "computed_masked_macc_add"}))
+    return result;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
               missingAccumulationPlan,
@@ -5175,6 +5260,13 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
       .emplace();
   staleScalarBroadcastMAccNonConsumer.scalarBroadcastMAccRouteFamilyPlan
       ->operation = RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+              staleScalarBroadcastMAccNonConsumer,
+              "MAcc owner registry unit test"),
+          {"must not carry a scalar-broadcast MAcc route-family plan",
+           "add"}))
+    return result;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
               staleScalarBroadcastMAccNonConsumer,

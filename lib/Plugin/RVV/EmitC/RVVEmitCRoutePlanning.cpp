@@ -22998,6 +22998,61 @@ verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+llvm::ArrayRef<RVVSelectedBodyMAccRouteFamilyOwner>
+getRVVSelectedBodyMAccRouteFamilyOwners() {
+  static const RVVSelectedBodyMAccRouteFamilyOwner owners[] = {
+      {"plain MAcc", isRVVSelectedBodyPlainMAccRouteFamilyConsumer,
+       verifyRVVSelectedBodyPlainMAccRouteFamilyProviderPlans},
+      {"scalar-broadcast MAcc",
+       isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer,
+       verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans},
+      {"computed-mask MAcc",
+       isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer,
+       verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyMAccRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  for (const RVVSelectedBodyMAccRouteFamilyOwner &owner :
+       getRVVSelectedBodyMAccRouteFamilyOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
+}
+
+llvm::Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  unsigned selectedOwners = 0;
+  for (const RVVSelectedBodyMAccRouteFamilyOwner &owner :
+       getRVVSelectedBodyMAccRouteFamilyOwners()) {
+    if (!owner.isConsumer || !owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete MAcc route-family owner registry entry");
+    if (owner.isConsumer(analysis.description.operation))
+      ++selectedOwners;
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
+  if (selectedOwners > 1)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " matched multiple MAcc route-family owners for operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  return llvm::Error::success();
+}
+
+static bool isRVVSelectedBodyComputedMaskStandaloneAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+             operation) &&
+         !isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+             operation);
+}
+
 llvm::ArrayRef<
     RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner>
 getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners() {
@@ -23006,17 +23061,13 @@ getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners() {
           {"contraction",
            isRVVSelectedBodyContractionRouteFamilyConsumer,
            verifyRVVSelectedBodyContractionRouteFamilyProviderPlans},
-          {"plain MAcc",
-           isRVVSelectedBodyPlainMAccRouteFamilyConsumer,
-           verifyRVVSelectedBodyPlainMAccRouteFamilyProviderPlans},
-          {"scalar-broadcast MAcc",
-           isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer,
-           verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans},
+          {"MAcc/accumulation", isRVVSelectedBodyMAccRouteFamilyConsumer,
+           verifyRVVSelectedBodyMAccRouteFamilyProviderPlans},
           {"standalone reduction",
            isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer,
            verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans},
-          {"computed-mask accumulation",
-           isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer,
+          {"computed-mask standalone accumulation",
+           isRVVSelectedBodyComputedMaskStandaloneAccumulationRouteFamilyConsumer,
            verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans},
       };
   return owners;

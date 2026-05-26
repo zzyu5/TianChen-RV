@@ -1501,6 +1501,25 @@ llvm::Error
 verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+struct RVVSelectedBodyMAccRouteFamilyOwner {
+  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
+  using ProviderPlanVerifier = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanVerifier verifyProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyMAccRouteFamilyOwner>
+getRVVSelectedBodyMAccRouteFamilyOwners();
+
+bool isRVVSelectedBodyMAccRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 struct RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(

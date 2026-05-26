@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, and Stage1/Stage2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, MAcc/accumulation family ownership, provider route construction, route-control, statement-plan, artifact mirror, and fail-closed rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership, common EmitC neutrality, provider-built route authority, and target artifact handoff"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and selected typed extension-body consumption"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-route-family-artifact-abi-consumer-owner/prd.md", "reason": "Predecessor segment2 artifact ABI consumer pattern and validation bar"}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-route-entry-macc-realization-owner/prd.md", "reason": "Prior MAcc route-entry selected-body realization closure and existing non-regression expectations"}
+{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-macc-accumulator-runtime-artifact-boundary/prd.md", "reason": "Plain MAcc accumulator/runtime/artifact boundary context"}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-computed-mask-macc-accumulator-mask-artifact-boundary/prd.md", "reason": "Computed-mask MAcc mask/accumulator/artifact boundary context"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Declared explicit MAcc/accumulation route-family owner API, consumer classification, and provider-plan verification entry point"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Extracted MAcc family owner registry over plain, scalar-broadcast, and computed-mask MAcc consumers and routed broad accumulation registry through the aggregate owner"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Made target artifact ABI validation consume provider-built MAcc family payload, metadata mirror, header/type/ABI, statement-plan, mask, accumulator, and result facts before export"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added focused owner registry, consumer membership, stale-plan, and non-consumer diagnostics coverage for the MAcc family owner"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-macc-add.mlir", "reason": "Added computed-mask MAcc target artifact fail-closed checks for stale route, provider mirror, binding, ABI, header, type, family-plan, and layout facts"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-macc-add.mlir", "reason": "Added scalar-broadcast MAcc adjacent-consumer fail-closed checks for stale route, plan, ABI, and type facts"}

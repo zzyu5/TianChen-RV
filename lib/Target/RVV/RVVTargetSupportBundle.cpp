@@ -121,6 +121,34 @@ bool isRVVPlainSegment2RouteFamilyOperation(
                  Segment2InterleaveUnitLoad;
 }
 
+bool isRVVMAccRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVScalarBroadcastMAccRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+         plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+}
+
+bool isRVVComputedMaskMAccRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
+         operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                          RuntimeScalarComputedMaskedMAccAdd;
+}
+
 llvm::Error requireCandidateMetadataMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef expected, llvm::StringRef label) {
@@ -467,6 +495,269 @@ llvm::Error validateRVVSegment2RoutePayloadFacts(
   return validateRVVSegment2RouteStatementPlan(route, description);
 }
 
+llvm::Error validateRVVMAccRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-derived "
+        "required_header_declarations before accepting the route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires at least one provider route "
+        "header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "MAcc target artifact consumer saw an empty provider route header "
+          "declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("MAcc target artifact consumer requires rebuilt "
+                      "provider route header '") +
+          trimmed + "' before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMAccRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-derived VL, vector, "
+        "and C type mapping facts before artifact export");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires rebuilt provider "
+                    "route type mapping '!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires rebuilt provider "
+                    "route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+
+  if (isRVVComputedMaskMAccRouteFamilyOperation(description.operation)) {
+    if (description.maskTypeName.empty() || description.maskCType.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask MAcc target artifact consumer requires "
+          "provider-derived mask type mapping facts before artifact export");
+    if (!routeHasTypeMapping(route, description.maskTypeName,
+                             description.maskCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("computed-mask MAcc target artifact consumer requires "
+                      "rebuilt provider route type mapping '") +
+          description.maskTypeName + "' -> '" + description.maskCType + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMAccRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires rebuilt provider "
+                    "route ABI mapping count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("MAcc target artifact consumer requires rebuilt provider "
+                      "route ABI mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("MAcc target artifact consumer requires rebuilt provider "
+                      "route ABI mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMAccRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getCallOpaqueSteps().empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-built pre-loop setvl "
+        "statement facts before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires rebuilt provider route "
+        "pre-loop setvl statement to define the full-chunk VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "MAcc target artifact consumer requires pre-loop statements to "
+          "carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires exactly one provider-built "
+        "runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-built loop bounds "
+        "and step to mirror runtime AVL/VL route facts");
+  if (description.runtimeABIParameters.empty() ||
+      loop.upperBound.expression != description.runtimeABIParameters.back().cName ||
+      loop.upperBound.cType != description.runtimeABIParameters.back().cType)
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-built loop upper "
+        "bound to use the runtime n/AVL ABI parameter");
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-built loop setvl "
+        "statement to define per-iteration VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "MAcc target artifact consumer requires loop statements to carry "
+          "selected typed RVV source provenance");
+
+  if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+      !routeLoopContainsCallee(loop, description.intrinsic) ||
+      !routeLoopContainsCallee(loop, description.storeIntrinsic))
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-built vector load, "
+        "MAcc arithmetic, and store statements before artifact export");
+
+  if (isRVVScalarBroadcastMAccRouteFamilyOperation(description.operation) &&
+      !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic))
+    return makeRVVTargetRouteError(
+        "scalar-broadcast MAcc target artifact consumer requires "
+        "provider-built RHS scalar broadcast statement facts before artifact "
+        "export");
+
+  if (isRVVComputedMaskMAccRouteFamilyOperation(description.operation)) {
+    if (!routeLoopContainsCallee(loop, description.compareIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask MAcc target artifact consumer requires "
+          "provider-built compare statement facts before artifact export");
+    if (!description.maskedMergeIntrinsic.empty() &&
+        !routeLoopContainsCallee(loop, description.maskedMergeIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask MAcc target artifact consumer requires "
+          "provider-built masked-merge statement facts before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMAccRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVMAccRouteFamilyOperation(description.operation))
+    return llvm::Error::success();
+
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires rebuilt provider "
+                    "route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+
+  if (description.providerSupportedMirror.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires a provider-supported mirror "
+        "label after route construction");
+  if (description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider route operand "
+        "binding facts before artifact export");
+  if (description.maccAccumulatorLayout.empty() ||
+      description.maccResultLayout.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-derived accumulator "
+        "and result layout facts before artifact export");
+
+  if (description.operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
+    if (description.plainMAccRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "plain MAcc target artifact consumer requires a provider-derived "
+          "plain MAcc route-family plan mirror before artifact export");
+  } else if (isRVVScalarBroadcastMAccRouteFamilyOperation(
+                 description.operation)) {
+    if (description.scalarBroadcastMAccRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "scalar-broadcast MAcc target artifact consumer requires a "
+          "provider-derived scalar-broadcast MAcc route-family plan mirror "
+          "before artifact export");
+    if (description.rhsBroadcastIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "scalar-broadcast MAcc target artifact consumer requires a "
+          "provider-derived RHS scalar broadcast intrinsic before artifact "
+          "export");
+  } else if (isRVVComputedMaskMAccRouteFamilyOperation(
+                 description.operation)) {
+    if (description.accumulationRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask MAcc target artifact consumer requires a "
+          "provider-derived accumulation route-family plan mirror before "
+          "artifact export");
+    if (description.accumulationComputeSuffix.empty() ||
+        description.accumulationMaskProducerSource.empty() ||
+        description.accumulationAccumulatorContract.empty() ||
+        description.accumulationResultContract.empty() ||
+        description.maskRole.empty() || description.maskSource.empty() ||
+        description.maskMemoryForm.empty() ||
+        description.inactiveLaneContract.empty() ||
+        description.maskedPassthroughLayout.empty() ||
+        description.comparePredicateKind.empty() ||
+        description.compareIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask MAcc target artifact consumer requires "
+          "provider-derived mask, passthrough, compare, accumulator, "
+          "and result facts before artifact export");
+  }
+
+  if (llvm::Error error = validateRVVMAccRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error = validateRVVMAccRouteTypeMappings(route, description))
+    return error;
+  if (llvm::Error error = validateRVVMAccRouteABIMappings(route, description))
+    return error;
+  return validateRVVMAccRouteStatementPlan(route, description);
+}
+
 struct RVVSelectedVariantRouteValidation {
   conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::rvv::RVVSelectedBodyEmitCRouteDescription description;
@@ -674,6 +965,139 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
                  candidate, "tcrv_rvv.segment2_memory_route_family_plan", "",
                  "selected typed RVV segment2 route-family plan")) {
     return error;
+  }
+
+  if (isRVVMAccRouteFamilyOperation(description.operation)) {
+    if (description.operation ==
+        plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.plain_macc_route_family_plan",
+              description.plainMAccRouteFamilyPlanID,
+              "selected typed RVV plain MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+              "", "selected typed RVV scalar-broadcast MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_route_family_plan", "",
+              "selected typed RVV accumulation route-family plan"))
+        return error;
+    } else if (isRVVScalarBroadcastMAccRouteFamilyOperation(
+                   description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+              description.scalarBroadcastMAccRouteFamilyPlanID,
+              "selected typed RVV scalar-broadcast MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.plain_macc_route_family_plan", "",
+              "selected typed RVV plain MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_route_family_plan", "",
+              "selected typed RVV accumulation route-family plan"))
+        return error;
+    } else if (isRVVComputedMaskMAccRouteFamilyOperation(
+                   description.operation)) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_route_family_plan",
+              description.accumulationRouteFamilyPlanID,
+              "selected typed RVV computed-mask MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_compute_suffix",
+              description.accumulationComputeSuffix,
+              "selected typed RVV computed-mask MAcc compute suffix"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_mask_producer_source",
+              description.accumulationMaskProducerSource,
+              "selected typed RVV computed-mask MAcc mask producer"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_accumulator_contract",
+              description.accumulationAccumulatorContract,
+              "selected typed RVV computed-mask MAcc accumulator contract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_result_contract",
+              description.accumulationResultContract,
+              "selected typed RVV computed-mask MAcc result contract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.accumulation_scalar_carry_contract",
+              description.accumulationScalarCarryContract,
+              "selected typed RVV computed-mask MAcc scalar carry contract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.plain_macc_route_family_plan", "",
+              "selected typed RVV plain MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+              "", "selected typed RVV scalar-broadcast MAcc route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_role", description.maskRole,
+              "selected typed RVV computed-mask MAcc mask role"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_source", description.maskSource,
+              "selected typed RVV computed-mask MAcc mask source"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_memory_form",
+              description.maskMemoryForm,
+              "selected typed RVV computed-mask MAcc mask memory form"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.inactive_lane_contract",
+              description.inactiveLaneContract,
+              "selected typed RVV computed-mask MAcc inactive lane contract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.masked_passthrough_layout",
+              description.maskedPassthroughLayout,
+              "selected typed RVV computed-mask MAcc passthrough layout"))
+        return error;
+    }
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.memory_form",
+            plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+                description.memoryForm),
+            "selected typed RVV MAcc memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_control_plan",
+            description.runtimeControlPlanID,
+            "selected typed RVV MAcc runtime AVL/VL control plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_abi_order",
+            description.runtimeABIOrder,
+            "selected typed RVV MAcc runtime ABI order"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.required_header_declarations",
+            description.requiredHeaderDeclarations,
+            "selected typed RVV MAcc route header requirements"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.c_type_mapping",
+            description.cTypeMappingSummary,
+            "selected typed RVV MAcc route type mapping summary"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.macc_accumulator_layout",
+            description.maccAccumulatorLayout,
+            "selected typed RVV MAcc accumulator layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.macc_result_layout",
+            description.maccResultLayout,
+            "selected typed RVV MAcc result layout"))
+      return error;
   }
 
   llvm::StringRef targetCapabilityProviderMirror =
@@ -900,6 +1324,9 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
 
   if (llvm::Error error = validateRVVSegment2RoutePayloadFacts(
           route, *description))
+    return std::move(error);
+  if (llvm::Error error =
+          validateRVVMAccRoutePayloadFacts(route, *description))
     return std::move(error);
 
   if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(

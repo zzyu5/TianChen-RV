@@ -756,3 +756,41 @@ Moved segment2 TCRVEmitCLowerableRoute construction onto selected-body segment2 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 250: Stage2 RVV MAcc route-family owner
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV MAcc route-family owner
+**Branch**: `main`
+
+### Summary
+
+Extracted RVV plugin-local MAcc route-family ownership, migrated computed-mask and scalar-broadcast MAcc artifact consumers, and validated provider-built route facts through generated bundle and ssh rvv evidence.
+
+### Main Changes
+
+- Added explicit `RVVSelectedBodyMAccRouteFamilyOwner` registry and aggregate provider-plan verifier for plain MAcc, scalar-broadcast MAcc, and computed-mask MAcc.
+- Routed the broader reduction/accumulation/contraction registry through the MAcc aggregate owner while keeping standalone computed-mask accumulation separate.
+- Added target artifact ABI validation for MAcc route payload facts: provider-supported mirror, route operand binding, accumulator/result layout, family plan, headers, type mappings, ABI mappings, loop statement plan, mask/passthrough/compare facts, and selected typed RVV provenance.
+- Migrated active consumers: `computed_masked_macc_add` and `scalar_broadcast_macc_add`; runtime-scalar computed-mask MAcc remains covered by the computed-mask MAcc family predicate and focused lit regression.
+- Added focused C++ registry tests and target lit fail-closed checks for stale route/provider/binding/ABI/header/type/family/layout facts.
+- Validation: RVV plugin test passed; focused MAcc artifact lit passed; generated-bundle dry-run passed for both migrated MAcc consumers; `ssh rvv` computed-mask MAcc passed counts 0, 7, 16, 23, and 257; focused non-regression dry-runs passed; touched production diff authority scan passed; `git diff --check` passed; `check-tianchenrv` passed 390/390 after the target payload fix.
+- Note: an earlier accidental duplicate full-check run produced artifact-directory race failures, then a clean complete check passed 390/390.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

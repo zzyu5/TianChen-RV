@@ -1,6 +1,10 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-generic-scalar-broadcast-macc-add-emitc-route/s//rvv-script-derived-scalar-broadcast-macc-route/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-ROUTE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-scalar-broadcast-macc-route-family-plan.v1/s//rvv-script-derived-scalar-broadcast-macc-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs_scalar,acc,out,n/s//lhs,acc,rhs_scalar,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-TYPE
 
 // Pre-realized scalar-broadcast macc selected-body input. The RVV plugin must
 // consume explicit typed operation/config/runtime facts into load/splat/load/
@@ -86,3 +90,22 @@ module {
 // HEADER: tianchenrv.rvv.exec_abi_bindings: lhs=lhs-input-buffer->@abi_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;out=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count
 // HEADER: tianchenrv.rvv.scalar_broadcast_macc_route_family_plan: rvv-scalar-broadcast-macc-route-family-plan.v1
 // HEADER: void tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_pre_realized_body_rvv_scalar_broadcast_macc_add(const int32_t *lhs, int32_t rhs_scalar, const int32_t *acc, int32_t *out, size_t n);
+
+// STALE-SBMACC-ROUTE: RVV materialized EmitC target artifact bridge failed
+// STALE-SBMACC-ROUTE: candidate rvv_emitc_lowerable_route provenance must mirror selected typed RVV body route
+// STALE-SBMACC-ROUTE-SAME: rvv-script-derived-scalar-broadcast-macc-route
+
+// STALE-SBMACC-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-SBMACC-PLAN: tcrv_rvv.scalar_broadcast_macc_route_family_plan
+// STALE-SBMACC-PLAN-SAME: must mirror
+// STALE-SBMACC-PLAN-SAME: rvv-script-derived-scalar-broadcast-macc-plan.v1
+
+// STALE-SBMACC-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-SBMACC-ABI: tcrv_rvv.runtime_abi_order
+// STALE-SBMACC-ABI-SAME: must mirror
+// STALE-SBMACC-ABI-SAME: lhs,acc,rhs_scalar,out,n
+
+// STALE-SBMACC-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-SBMACC-TYPE: tcrv_rvv.c_type_mapping
+// STALE-SBMACC-TYPE-SAME: must mirror
+// STALE-SBMACC-TYPE-SAME: vl:uint64_t
