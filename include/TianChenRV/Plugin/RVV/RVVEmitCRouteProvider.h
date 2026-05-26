@@ -62,6 +62,7 @@ enum class RVVSelectedBodyOperationKind {
   ComputedMaskIndexedScatterStoreUnitLoad,
   ComputedMaskSegment2LoadUnitStore,
   ComputedMaskSegment2StoreUnitLoad,
+  ComputedMaskSegment2UpdateUnitLoad,
   Segment2DeinterleaveUnitStore,
   Segment2InterleaveUnitLoad,
   ScalarBroadcastAdd,

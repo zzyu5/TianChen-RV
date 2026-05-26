@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 boundary, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, typed body authority, segment2/computed-mask route-family ownership, provider plans, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/C++/generated-bundle/ssh rvv evidence requirements and authority leak constraints."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local route provider and selected-body hook boundary."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage2 typed RVV selected path and metadata mirror constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and selected body import requirements."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR/TableGen/CMake implementation stack and Python tooling boundary."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing guide for RVV route/lowering/artifact changes."}

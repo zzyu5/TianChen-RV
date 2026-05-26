@@ -75,7 +75,9 @@ bool isRVVSelectedBodyMaskedMemoryMovementRoute(
                    ComputedMaskIndexedScatterStoreUnitLoad ||
          op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
          op ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad ||
+         op ==
+             RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
 }
 
 bool isRVVSelectedBodyMaskedStoreRoute(RVVSelectedBodyOperationKind op) {
@@ -106,7 +108,9 @@ bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
                    ComputedMaskIndexedScatterStoreUnitLoad ||
          op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
          op ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad ||
+         op ==
+             RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
 }
 
 bool isRVVSelectedBodyComputedMaskStridedStoreRoute(

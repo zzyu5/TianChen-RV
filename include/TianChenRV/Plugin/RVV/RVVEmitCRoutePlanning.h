@@ -605,6 +605,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   bool usesIndexedScatter = false;
   bool usesSegment2Load = false;
   bool usesSegment2Store = false;
+  bool usesSegment2Update = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;
@@ -627,6 +628,8 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef indexScaleIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef arithmeticKind;
+  llvm::StringRef arithmeticIntrinsic;
   llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;
   llvm::StringRef stridedStoreIntrinsic;
@@ -1171,6 +1174,7 @@ struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
   bool plansPlainSegment2InterleaveUnitLoad = false;
   bool plansComputedMaskSegment2LoadUnitStore = false;
   bool plansComputedMaskSegment2StoreUnitLoad = false;
+  bool plansComputedMaskSegment2UpdateUnitLoad = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;

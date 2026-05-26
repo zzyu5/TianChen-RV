@@ -631,7 +631,12 @@ bool isPreRealizedComputedMaskSegment2LoadOpKind(llvm::StringRef opKind) {
 }
 
 bool isPreRealizedComputedMaskSegment2StoreOpKind(llvm::StringRef opKind) {
-  return opKind == "computed_masked_segment2_store_unit_load";
+  return opKind == "computed_masked_segment2_store_unit_load" ||
+         opKind == "computed_masked_segment2_update_unit_load";
+}
+
+bool isPreRealizedComputedMaskSegment2UpdateOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_segment2_update_unit_load";
 }
 
 bool isPreRealizedComputedMaskMemoryMovementPredicateKind(
@@ -864,7 +869,15 @@ bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
            tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
 
   if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(op))
+          tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(op)) {
+    const bool isUpdate =
+        isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind());
+    auto arithmeticKind =
+        body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
+    if (isUpdate && (!arithmeticKind || arithmeticKind.getValue() != "add"))
+      return false;
+    if (!isUpdate && arithmeticKind)
+      return false;
     return isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()) &&
            isPreRealizedComputedMaskSegment2StoreMemoryForm(
                body.getMemoryForm()) &&
@@ -891,6 +904,7 @@ bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
                tcrv::rvv::getRVVFirstSliceSEWBits() &&
            body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
            tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
+  }
 
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(op))
@@ -5374,7 +5388,8 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
   if (!isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask segment2 store body currently "
-        "supports only op_kind 'computed_masked_segment2_store_unit_load'");
+        "supports only op_kind 'computed_masked_segment2_store_unit_load' or "
+        "'computed_masked_segment2_update_unit_load'");
   if (!isPreRealizedComputedMaskMemoryMovementPredicateKind(
           body.getPredicateKind()))
     return makeRVVPluginError(
@@ -5384,6 +5399,21 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask segment2 store body currently "
         "supports only memory_form 'computed-mask-unit-load-segment2-store'");
+  const bool isUpdate =
+      isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind());
+  auto arithmeticKind =
+      body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
+  if (isUpdate) {
+    if (!arithmeticKind || arithmeticKind.getValue() != "add")
+      return makeRVVPluginError(
+          "pre-realized RVV selected computed-mask segment2 update body "
+          "requires arithmetic_kind 'add' before plugin-local realization");
+  } else if (arithmeticKind) {
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body must not "
+        "carry arithmetic_kind; the plain store route cannot be authorized by "
+        "stale arithmetic metadata");
+  }
   if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask segment2 store body requires "
@@ -9523,10 +9553,23 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
             builder, loc, compareLhsLoad.getLoaded(),
             compareRhsLoad.getLoaded(), setvl.getVl(),
             computedMaskSegment2StoreBody.getPredicateKind()));
+    mlir::Value field0Payload = field0Load.getLoaded();
+    if (isPreRealizedComputedMaskSegment2UpdateOpKind(
+            computedMaskSegment2StoreBody.getOpKind())) {
+      auto arithmeticKind =
+          computedMaskSegment2StoreBody->getAttrOfType<mlir::StringAttr>(
+              "arithmetic_kind");
+      llvm::Expected<mlir::Operation *> update =
+          createRealizedGenericBinaryCompute(
+              builder, loc, arithmeticKind.getValue(), field0Load.getLoaded(),
+              field1Load.getLoaded(), setvl.getVl());
+      if (!update)
+        return update.takeError();
+      field0Payload = (*update)->getResult(0);
+    }
     createRealizedGenericMaskedSegment2Store(
         builder, loc, computedMaskSegment2StoreBody.getDst(),
-        compare.getMask(), field0Load.getLoaded(), field1Load.getLoaded(),
-        setvl.getVl(),
+        compare.getMask(), field0Payload, field1Load.getLoaded(), setvl.getVl(),
         static_cast<std::int64_t>(
             computedMaskSegment2StoreBody.getSegmentCount()),
         computedMaskSegment2StoreBody.getDestinationMemoryForm(),

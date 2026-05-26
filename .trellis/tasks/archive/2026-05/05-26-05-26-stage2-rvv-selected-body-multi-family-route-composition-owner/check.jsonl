@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work preserves global TianChen-RV authority chain and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected-body/provider ownership, typed-body facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify evidence quality, generated-bundle checks, ssh rvv evidence, and authority leak scan."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin-local integration and no core semantic branch drift."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-path metadata remains mirror-only."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime roles do not become compute or route authority."}

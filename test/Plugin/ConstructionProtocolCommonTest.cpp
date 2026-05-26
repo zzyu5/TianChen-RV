@@ -1772,6 +1772,8 @@ int runRVVCommonValidationTest() {
                    "computed_masked_segment2_load_unit_store" ||
                route.operationMnemonic ==
                    "computed_masked_segment2_store_unit_load" ||
+               route.operationMnemonic ==
+                   "computed_masked_segment2_update_unit_load" ||
                isComputedMaskSelectRoute ||
                isComputedMaskStandaloneReduceRoute ||
                isRuntimeScalarComputedMaskStandaloneReduceRoute ||
@@ -1840,6 +1842,9 @@ int runRVVCommonValidationTest() {
     const bool hasComputedMaskSegment2Store =
         route.operationMnemonic ==
         "computed_masked_segment2_store_unit_load";
+    const bool hasComputedMaskSegment2Update =
+        route.operationMnemonic ==
+        "computed_masked_segment2_update_unit_load";
     const bool hasSegment2Deinterleave =
         route.operationMnemonic == "segment2_deinterleave_unit_store";
     const bool hasSegment2Interleave =
@@ -1897,6 +1902,7 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskIndexedScatter          ? 14u
         : hasComputedMaskSegment2Load            ? 16u
         : hasComputedMaskSegment2Store           ? 14u
+        : hasComputedMaskSegment2Update          ? 15u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
         : hasRuntimeScalarSplatStore             ? 7u
@@ -2011,7 +2017,9 @@ int runRVVCommonValidationTest() {
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
-               "computed_masked_segment2_store_unit_load") {
+                   "computed_masked_segment2_store_unit_load" ||
+               route.operationMnemonic ==
+                   "computed_masked_segment2_update_unit_load") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();

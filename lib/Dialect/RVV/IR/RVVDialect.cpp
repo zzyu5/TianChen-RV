@@ -472,8 +472,9 @@ bool isAllowedTypedComputedMaskSegment2StorePreRealizedBodyAttr(
          name == kSource1MemoryFormAttrName ||
          name == kDestinationMemoryFormAttrName || name == kMaskRoleAttrName ||
          name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
-         name == kInactiveLanePolicyAttrName || name == kSEWAttrName ||
-         name == kLMULAttrName || name == kPolicyAttrName;
+         name == kInactiveLanePolicyAttrName || name == "arithmetic_kind" ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
 }
 
 bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
@@ -1246,7 +1247,8 @@ bool isSupportedTypedComputedMaskSegment2LoadPreRealizedBodyOpKind(
 
 bool isSupportedTypedComputedMaskSegment2StorePreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "computed_masked_segment2_store_unit_load";
+  return opKind == "computed_masked_segment2_store_unit_load" ||
+         opKind == "computed_masked_segment2_update_unit_load";
 }
 
 bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
@@ -6939,9 +6941,9 @@ TypedComputedMaskSegment2StorePreRealizedBodyOp::verify() {
              << kDestinationMemoryFormAttrName << "', '" << kMaskRoleAttrName
              << "', '" << kMaskSourceAttrName << "', '"
              << kMaskMemoryFormAttrName << "', '" << kInactiveLanePolicyAttrName
-             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
-             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
-             << attr.getName() << "'";
+             << "', 'arithmetic_kind', '" << kSEWAttrName << "', '"
+             << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
   if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
@@ -6958,8 +6960,9 @@ TypedComputedMaskSegment2StorePreRealizedBodyOp::verify() {
           getOpKind()))
     return emitOpError()
            << "currently supports only op_kind "
-              "\"computed_masked_segment2_store_unit_load\" for the bounded "
-              "selected-body computed-mask segment2 store hook";
+              "\"computed_masked_segment2_store_unit_load\" or "
+              "\"computed_masked_segment2_update_unit_load\" for the bounded "
+              "selected-body computed-mask segment2 store/update hook";
   if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
           getPredicateKind()))
     return emitOpError()
@@ -6971,6 +6974,22 @@ TypedComputedMaskSegment2StorePreRealizedBodyOp::verify() {
            << "currently supports only memory_form "
               "\"computed-mask-unit-load-segment2-store\" for the bounded "
               "selected-body computed-mask segment2 store hook";
+  mlir::StringAttr arithmeticKind =
+      op->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
+  const bool isUpdate =
+      getOpKind() == "computed_masked_segment2_update_unit_load";
+  if (isUpdate) {
+    if (!arithmeticKind || arithmeticKind.getValue() != "add")
+      return emitOpError()
+             << "requires arithmetic_kind \"add\" for "
+                "computed_masked_segment2_update_unit_load so the typed "
+                "pre-realized body carries the composed arithmetic step";
+  } else if (arithmeticKind) {
+    return emitOpError()
+           << "does not accept arithmetic_kind on plain "
+              "computed_masked_segment2_store_unit_load; arithmetic metadata "
+              "cannot authorize the non-composed store route";
+  }
   if (static_cast<std::int64_t>(getSegmentCount()) != 2)
     return emitOpError()
            << "requires segment_count 2 for the bounded computed-mask "

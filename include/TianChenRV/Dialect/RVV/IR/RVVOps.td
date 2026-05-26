@@ -1833,20 +1833,23 @@ def TypedComputedMaskSegment2StorePreRealizedBodyOp
     signed i32 vector compare produces an in-body mask SSA value and masked
     segment2 memory movement stores two active field vectors into one
     interleaved destination memory window while preserving inactive lanes by
-    not writing compare-false lanes. The op is nested directly in a selected
+    not writing compare-false lanes. The bounded update spelling may also
+    carry arithmetic_kind = "add", in which case the RVV plugin realizes a
+    typed vector add over the two field source vectors before storing the
+    updated field0 payload. The op is nested directly in a selected
     tcrv.exec.variant and binds explicit runtime ABI values for compare lhs,
     compare rhs, field0 source, field1 source, interleaved destination, and
-    runtime n/AVL together with compare predicate, segment count,
-    source/destination memory forms, field roles, mask role/source/config,
-    inactive-lane preservation policy, compile-time RVV data/mask config, and
-    policy.
+    runtime n/AVL together with compare predicate, optional arithmetic kind,
+    segment count, source/destination memory forms, field roles, mask
+    role/source/config, inactive-lane preservation policy, compile-time RVV
+    data/mask config, and policy.
 
     This op is not a segmented-memory framework, route label, descriptor,
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/load/load/load/compare/
-    masked_segment2_store tcrv_rvv body structure before the provider may
-    construct a TCRVEmitCLowerableRoute.
+    optional binary/masked_segment2_store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
   }];
 
   let arguments = (ins
@@ -1869,6 +1872,7 @@ def TypedComputedMaskSegment2StorePreRealizedBodyOp
     StrAttr:$mask_source,
     StrAttr:$mask_memory_form,
     StrAttr:$inactive_lane_policy,
+    OptionalAttr<StrAttr>:$arithmetic_kind,
     I64Attr:$sew,
     StrAttr:$lmul,
     TCRVRVV_PolicyAttr:$policy
