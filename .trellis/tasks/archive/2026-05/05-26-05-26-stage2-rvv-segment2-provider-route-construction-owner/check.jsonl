@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV segment2 provider route construction follows selected-body/provider-plan authority and fail-closed contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and consumes provider-built routes only"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin/core boundary and route-provider ownership remain local"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, generated-bundle evidence, ssh-rvv evidence, and authority scans meet policy"}
+{"file": ".trellis/tasks/05-26-05-26-stage2-rvv-segment2-provider-route-construction-owner/prd.md", "reason": "Verify implementation and evidence satisfy task acceptance criteria"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2", "result": "passed"}
+{"check": "./build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed", "evidence": "RVV extension plugin smoke test passed"}
+{"check": "rvv_generated_bundle_abi_e2e dry-run", "result": "passed", "artifact_dir": "artifacts/tmp/stage2_segment2_route_construction/dry-run-segment2-update-interleave", "coverage": "computed_masked_segment2_update_unit_load and segment2_interleave_unit_load"}
+{"check": "rvv_generated_bundle_abi_e2e ssh rvv", "result": "passed", "artifact_dir": "artifacts/tmp/stage2_segment2_route_construction/ssh-segment2-update", "coverage": "computed_masked_segment2_update_unit_load counts=0,7,16,23,257"}
+{"check": "rvv_generated_bundle_abi_e2e direct route-entry dry-run", "result": "passed", "artifact_dir": "artifacts/tmp/stage2_segment2_route_construction/dry-run-direct-route-entry-nonreg", "coverage": "segment2 load/store/update, segment2 interleave/deinterleave, compare-select, standalone reduction, MAcc, computed-mask MAcc, base memory, widening dot contraction"}
+{"check": "rvv_generated_bundle_abi_e2e selected-boundary dry-run", "result": "passed", "artifact_dir": "artifacts/tmp/stage2_segment2_route_construction/dry-run-selected-boundary-nonreg", "coverage": "masked elementwise, scalar broadcast, reduction, conversion, runtime scalar"}
+{"check": "authority scan", "result": "passed", "details": "Touched-file scan returned only pre-existing exact intrinsic literals, fail-closed legacy tests, and PRD non-goal wording; added diff introduced no RVVI32M1, rvv-i32m1, tcrv_rvv.i32_ positive route, source-front-door, descriptor, direct-C, source-export, route-id-as-authority, or metadata-as-authority leak."}
+{"check": "cmake --build build --target check-tianchenrv -j2", "result": "passed", "evidence": "390/390"}

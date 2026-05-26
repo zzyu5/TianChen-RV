@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
@@ -204,6 +205,145 @@ llvm::Error addCallStepFromSource(
   return llvm::Error::success();
 }
 
+bool runtimeABIParameterEquals(const support::RuntimeABIParameter &lhs,
+                               const support::RuntimeABIParameter &rhs) {
+  return lhs.cName == rhs.cName && lhs.cType == rhs.cType &&
+         lhs.role == rhs.role && lhs.ownership == rhs.ownership;
+}
+
+llvm::Error addSegment2RouteHeadersFromProviderPlan(
+    conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
+    llvm::StringRef context) {
+  if (plan.requiredHeaders.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires owner-built header facts "
+        "before creating TCRVEmitCLowerableRoute");
+  for (llvm::StringRef header : plan.requiredHeaders)
+    route.addHeader(header);
+  return llvm::Error::success();
+}
+
+llvm::Error addSegment2RouteTypeMappingsFromProviderPlan(
+    conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
+    llvm::StringRef context) {
+  if (plan.vlTypeName.empty() || plan.vlCType.empty() ||
+      plan.vectorTypeName.empty() || plan.vectorCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires owner-built VL/vector type "
+        "mapping facts before creating TCRVEmitCLowerableRoute");
+  route.addTypeMapping(plan.vlTypeName, plan.vlCType);
+  route.addTypeMapping(plan.vectorTypeName, plan.vectorCType);
+  if (plan.plansComputedMaskSegment2LoadUnitStore ||
+      plan.plansComputedMaskSegment2StoreUnitLoad ||
+      plan.plansComputedMaskSegment2UpdateUnitLoad) {
+    if (plan.maskTypeName.empty() || plan.maskCType.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 route construction requires owner-built "
+          "mask type mapping facts before creating TCRVEmitCLowerableRoute");
+    route.addTypeMapping(plan.maskTypeName, plan.maskCType);
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error appendSegment2RouteABIParameter(
+    llvm::SmallVectorImpl<const support::RuntimeABIParameter *> &parameters,
+    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
+    llvm::StringRef context) {
+  if (!parameter)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires owner-built ABI binding for '" +
+        logicalName + "' before creating TCRVEmitCLowerableRoute for family '" +
+        plan.selectedBodyFamilyName + "'");
+  parameters.push_back(parameter);
+  return llvm::Error::success();
+}
+
+llvm::Error addSegment2RouteABIMappingsFromProviderPlan(
+    conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
+    llvm::StringRef context) {
+  llvm::SmallVector<const support::RuntimeABIParameter *, 6> parameters;
+  if (plan.plansComputedMaskSegment2LoadUnitStore ||
+      plan.plansComputedMaskSegment2StoreUnitLoad ||
+      plan.plansComputedMaskSegment2UpdateUnitLoad) {
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.compareLhsABI, "cmp_lhs", plan, context))
+      return error;
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.compareRhsABI, "cmp_rhs", plan, context))
+      return error;
+  }
+
+  if (plan.plansPlainSegment2DeinterleaveUnitStore ||
+      plan.plansComputedMaskSegment2LoadUnitStore) {
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.sourceABI, "src", plan, context))
+      return error;
+  }
+
+  if (plan.plansPlainSegment2DeinterleaveUnitStore ||
+      plan.plansComputedMaskSegment2LoadUnitStore) {
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.field0ABI, "out0", plan, context))
+      return error;
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.field1ABI, "out1", plan, context))
+      return error;
+  } else {
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.field0ABI, "src0", plan, context))
+      return error;
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.field1ABI, "src1", plan, context))
+      return error;
+  }
+
+  if (plan.plansPlainSegment2InterleaveUnitLoad ||
+      plan.plansComputedMaskSegment2StoreUnitLoad ||
+      plan.plansComputedMaskSegment2UpdateUnitLoad) {
+    if (llvm::Error error = appendSegment2RouteABIParameter(
+            parameters, plan.destinationABI, "dst", plan, context))
+      return error;
+  }
+
+  if (llvm::Error error = appendSegment2RouteABIParameter(
+          parameters, plan.runtimeElementCountABI, "n", plan, context))
+    return error;
+
+  if (parameters.size() != description.runtimeABIParameters.size())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction ABI order from owner-built provider "
+        "plan has " +
+        llvm::Twine(parameters.size()) + " entries but route description has " +
+        llvm::Twine(description.runtimeABIParameters.size()) +
+        " entries before creating TCRVEmitCLowerableRoute");
+
+  for (std::size_t index = 0; index < parameters.size(); ++index) {
+    const support::RuntimeABIParameter &expected =
+        *parameters[index];
+    const support::RuntimeABIParameter &described =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(expected, described))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 route construction ABI order from owner-built provider "
+          "plan disagrees with selected route ABI mirror at index " +
+          llvm::Twine(index) + " for family '" + plan.selectedBodyFamilyName +
+          "'");
+    route.addABIValueMapping(expected, expected.cName);
+  }
+  return llvm::Error::success();
+}
+
 static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     RVVSelectedBodyRouteAnalysis &analysis,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
@@ -311,10 +451,35 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVSelectedBodyDirectContractionRouteProviderPlan
       directContractionProviderPlan = *directContractionProviderPlanOrError;
 
+  std::optional<RVVSelectedBodySegment2RouteFamilyProviderPlan>
+      segment2RouteConstructionPlan;
+  if (isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(description)) {
+    llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
+        segment2RouteConstructionPlanOrError =
+            getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+                analysis, materializationFacts, memoryOperandBindingFacts,
+                "selected RVV EmitC route construction");
+    if (!segment2RouteConstructionPlanOrError)
+      return segment2RouteConstructionPlanOrError.takeError();
+    if (!segment2RouteConstructionPlanOrError->plansSegment2MemoryRoute)
+      return makeRVVEmitCRouteProviderError(
+          "selected RVV EmitC route construction requires the matched "
+          "segment2 route-family planning owner to produce a provider plan "
+          "before constructing TCRVEmitCLowerableRoute");
+    segment2RouteConstructionPlan =
+        *segment2RouteConstructionPlanOrError;
+  }
+
   conversion::emitc::TCRVEmitCLowerableRoute route(
-      analysis.description.emitCRouteID,
+      segment2RouteConstructionPlan ? segment2RouteConstructionPlan->emitCRouteID
+                                    : analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
-  if (!materializationFacts.requiredHeaders.empty()) {
+  if (segment2RouteConstructionPlan) {
+    if (llvm::Error error = addSegment2RouteHeadersFromProviderPlan(
+            route, *segment2RouteConstructionPlan,
+            "selected RVV EmitC route construction"))
+      return error;
+  } else if (!materializationFacts.requiredHeaders.empty()) {
     for (llvm::StringRef header : materializationFacts.requiredHeaders)
       route.addHeader(header);
   } else {
@@ -322,18 +487,29 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     route.addHeader("stdint.h");
     route.addHeader("riscv_vector.h");
   }
-  route.addTypeMapping("!tcrv_rvv.vl", vlCType);
-  route.addTypeMapping(resultVectorTypeName, resultVectorCType);
-  if (!description.indexVectorTypeName.empty())
-    route.addTypeMapping(typedConfigFacts.indexVectorTypeName,
-                         typedConfigFacts.indexVectorCType);
-  if (!sourceVectorTypeName.empty())
-    route.addTypeMapping(sourceVectorTypeName, sourceVectorCType);
-  if (!maskTypeName.empty())
-    route.addTypeMapping(maskTypeName, maskCType);
-  for (const support::RuntimeABIParameter &parameter :
-       description.runtimeABIParameters)
-    route.addABIValueMapping(parameter, parameter.cName);
+  if (segment2RouteConstructionPlan) {
+    if (llvm::Error error = addSegment2RouteTypeMappingsFromProviderPlan(
+            route, *segment2RouteConstructionPlan,
+            "selected RVV EmitC route construction"))
+      return error;
+    if (llvm::Error error = addSegment2RouteABIMappingsFromProviderPlan(
+            route, description, *segment2RouteConstructionPlan,
+            "selected RVV EmitC route construction"))
+      return error;
+  } else {
+    route.addTypeMapping("!tcrv_rvv.vl", vlCType);
+    route.addTypeMapping(resultVectorTypeName, resultVectorCType);
+    if (!description.indexVectorTypeName.empty())
+      route.addTypeMapping(typedConfigFacts.indexVectorTypeName,
+                           typedConfigFacts.indexVectorCType);
+    if (!sourceVectorTypeName.empty())
+      route.addTypeMapping(sourceVectorTypeName, sourceVectorCType);
+    if (!maskTypeName.empty())
+      route.addTypeMapping(maskTypeName, maskCType);
+    for (const support::RuntimeABIParameter &parameter :
+         description.runtimeABIParameters)
+      route.addABIValueMapping(parameter, parameter.cName);
+  }
 
   llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> withVLSource =
       getEmitCSourceProvenance(slice->withVL.getOperation(), "scope");

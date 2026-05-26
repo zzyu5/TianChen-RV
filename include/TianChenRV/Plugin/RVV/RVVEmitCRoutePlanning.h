@@ -1198,6 +1198,12 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   bool plansComputedMaskSegment2StoreUnitLoad = false;
   bool plansComputedMaskSegment2UpdateUnitLoad = false;
 
+  llvm::StringRef emitCRouteID;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef vlTypeName;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef maskTypeName;
+
   const support::RuntimeABIParameter *compareLhsABI = nullptr;
   const support::RuntimeABIParameter *compareRhsABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
@@ -1209,6 +1215,8 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   llvm::StringRef familyPlanIDMirror;
   llvm::StringRef providerSupportedMirror;
   llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef routeOperandBindingPlanIDMirror;
+  llvm::StringRef routeOperandBindingSummaryMirror;
   llvm::StringRef requiredHeaderDeclarationsMirror;
   llvm::StringRef cTypeMappingSummaryMirror;
 

@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR stack, RVV-first authority chain, and Stage1/Stage2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body route-entry family ownership, segment2 provider-plan boundary, provider route construction, fail-closed diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership, common EmitC neutrality, metadata mirror restrictions"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned route provider and registry/interface authority boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/generated-bundle/ssh-rvv evidence requirements and metadata-only test restrictions"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-local route-provider and selected-body realization review checklist"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute ownership and RVV route shape checks"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/config facts constrain provider legality without becoming route authority"}
+{"file": ".trellis/tasks/05-26-05-26-stage2-rvv-segment2-provider-route-construction-owner/prd.md", "reason": "Task-local implementation scope, acceptance criteria, and validation plan"}
+{"outcome": "implemented", "summary": "RVVEmitCRouteProvider now requests the selected-body segment2 route-family provider plan before constructing TCRVEmitCLowerableRoute, uses the plan route id, required headers, VL/vector/mask type mappings, and ABI order, and keeps non-segment2 routes on the prior path."}
+{"outcome": "implemented", "summary": "Segment2 provider-plan payload now carries route-construction facts: emitCRouteID, requiredHeaders, VL/vector/mask type names, provider_supported_mirror, runtime ABI mirror, and operand-binding mirrors."}
+{"outcome": "implemented", "summary": "Computed-mask segment2 update, computed-mask segment2 load/store, and plain segment2 deinterleave/interleave tests now assert provider-built routes consume selected-body family/provider-plan facts, including fail-closed stale mirror diagnostics."}

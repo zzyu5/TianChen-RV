@@ -311,7 +311,15 @@ Made the typed widening conversion route family direct route-entry capable for s
 
 ### Main Changes
 
-(Add details)
+- `RVVEmitCRouteProvider` now obtains the segment2 route-family provider plan
+  before constructing `TCRVEmitCLowerableRoute`, and uses that plan for route
+  id, headers, type mappings, and ABI mappings.
+- Segment2 provider-plan payloads now carry route-construction facts from the
+  selected-body family owner, typed config, runtime, mask, memory, arithmetic,
+  and operand-binding facts.
+- Focused C++ coverage now proves computed-mask segment2 update plus adjacent
+  segment2 families build provider routes from provider plans and fail closed on
+  stale mirrors.
 
 ### Git Commits
 
@@ -321,7 +329,15 @@ Made the typed widening conversion route family direct route-entry capable for s
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] generated-bundle dry-runs for segment2 update/interleave and
+  non-regression owner groups
+- [OK] real `ssh rvv` generated-bundle run for
+  `computed_masked_segment2_update_unit_load`, counts `0,7,16,23,257`
+- [OK] authority scan on touched production/test/PRD files
+- [OK] `cmake --build build --target check-tianchenrv -j2` (390/390)
 
 ### Status
 
@@ -626,6 +642,39 @@ Introduced a plugin-local segment2 route-family planning owner registry, migrate
 - [OK] production/test touched-file authority scan
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` (390/390)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 249: Stage2 RVV segment2 provider route construction
+
+**Date**: 2026-05-26
+**Task**: Stage2 RVV segment2 provider route construction
+**Branch**: `main`
+
+### Summary
+
+Moved segment2 TCRVEmitCLowerableRoute construction onto selected-body segment2 family provider plans, added update/plain segment2 route payload tests, generated-bundle evidence, ssh rvv update evidence, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| same commit | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

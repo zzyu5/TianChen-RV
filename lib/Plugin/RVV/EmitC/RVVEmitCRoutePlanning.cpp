@@ -28787,6 +28787,8 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
         "' instead of its registered route-entry family before provider route "
         "construction");
 
+  plan.vlTypeName = "!tcrv_rvv.vl";
+
   if (llvm::Error error =
           requireRVVSegment2PlanningOwnerBackedBySelectedBodyFamily(
               familyName, description, context))
@@ -28855,6 +28857,8 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     plan.requiredHeaderDeclarationsMirror =
         segmentPlan.requiredHeaderDeclarations;
     plan.cTypeMappingSummaryMirror = segmentPlan.cTypeMappingSummary;
+    plan.requiredHeaders = segmentPlan.requiredHeaders;
+    plan.vectorTypeName = segmentPlan.vectorTypeName;
     plan.setVLIntrinsic = segmentPlan.setVLIntrinsic;
     plan.vectorLoadIntrinsic = segmentPlan.vectorLoadIntrinsic;
     plan.storeIntrinsic = segmentPlan.storeIntrinsic;
@@ -28919,6 +28923,9 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     plan.requiredHeaderDeclarationsMirror =
         computedPlan.requiredHeaderDeclarations;
     plan.cTypeMappingSummaryMirror = computedPlan.cTypeMappingSummary;
+    plan.requiredHeaders = computedPlan.requiredHeaders;
+    plan.vectorTypeName = computedPlan.vectorTypeName;
+    plan.maskTypeName = computedPlan.maskTypeName;
     plan.setVLIntrinsic = computedPlan.setVLIntrinsic;
     plan.vectorLoadIntrinsic = computedPlan.vectorLoadIntrinsic;
     plan.storeIntrinsic = computedPlan.maskedStoreIntrinsic;
@@ -28935,6 +28942,16 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     plan.vlCType = computedPlan.vlCType;
     plan.maskCType = computedPlan.maskCType;
   }
+
+  llvm::StringRef expectedRouteID =
+      getRVVSelectedBodyEmitCRouteID(expectedOperation);
+  if (description.emitCRouteID != expectedRouteID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " segment2 route-family planning owner '" +
+        familyName + "' requires route id mirror '" + expectedRouteID +
+        "' from the selected typed route facts before provider route "
+        "construction, but saw '" + description.emitCRouteID + "'");
+  plan.emitCRouteID = expectedRouteID;
 
   if (!memoryOperandBindingFacts.bindsSegment2Memory)
     return makeRVVEmitCRouteProviderError(
@@ -28968,6 +28985,59 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
         "' requires memory operand-binding facts from the same selected route "
         "analysis before provider route construction");
   plan.bindingPlan = memoryOperandBindingFacts.bindingPlan;
+  plan.routeOperandBindingPlanIDMirror = description.routeOperandBindingPlanID;
+  plan.routeOperandBindingSummaryMirror =
+      description.routeOperandBindingSummary;
+
+  if (plan.requiredHeaders.empty() ||
+      description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarationsMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires required-header route construction facts to mirror the "
+        "verified family provider plan before provider route construction");
+  if (description.cTypeMappingSummary != plan.cTypeMappingSummaryMirror ||
+      plan.vectorTypeName.empty() || plan.vectorCType.empty() ||
+      plan.vlTypeName.empty() || plan.vlCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires C type mapping facts from the verified family provider "
+        "plan before provider route construction");
+  if (isComputedMaskSegment2 &&
+      (plan.maskTypeName.empty() || plan.maskCType.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires mask type mapping facts from the computed-mask provider "
+        "plan before provider route construction");
+  if (description.providerSupportedMirror != plan.providerSupportedMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires provider_supported_mirror to mirror the selected "
+        "family provider plan before provider route construction");
+  if (description.runtimeABIOrder != plan.runtimeABIOrderMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires runtime ABI order to mirror the selected family provider "
+        "plan before provider route construction");
+  if (!description.segment2MemoryRouteFamilyPlanID.empty() &&
+      description.segment2MemoryRouteFamilyPlanID != plan.familyPlanIDMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires non-empty segment2 route-family plan mirror to match the "
+        "owner-built provider plan before provider route construction");
+  if (plan.routeOperandBindingPlanIDMirror.empty() ||
+      plan.routeOperandBindingSummaryMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family planning owner '" + familyName +
+        "' requires route operand-binding mirrors from RVV-owned binding facts "
+        "before provider route construction");
 
   llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
       getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
