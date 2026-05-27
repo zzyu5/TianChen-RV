@@ -1364,6 +1364,12 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_computed_mask_select_pre_realized_body %cmp_lhs, %cmp_rhs, %true_value, %false_value, %out, %n {lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-vector-select", op_kind = "computed_mask_select", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_runtime_i32_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_i32_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1681,7 +1687,9 @@ module {
       return result;
     const bool expectsSelectedBoundaryProducer =
         expectedProviderPlanID ==
-        "rvv-computed-mask-select-route-family-plan.v1";
+            "rvv-computed-mask-select-route-family-plan.v1" ||
+        expectedProviderPlanID ==
+            "rvv-runtime-scalar-splat-store-route-family-plan.v1";
     const bool routeEntryEligible = (*owner)->isRouteEntryConsumer != nullptr &&
                                     (*owner)->isRouteEntryConsumer(preRealized);
     if (expectsSelectedBoundaryProducer) {
@@ -1823,6 +1831,18 @@ module {
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
               llvm::Twine("selected-body producer @") + variantName +
                   " realizes compare/value loads, select, and store"))
+        return result;
+    }
+    if (expectedProviderPlanID ==
+        "rvv-runtime-scalar-splat-store-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 0,
+              llvm::Twine("selected-body producer @") + variantName +
+                  " realizes runtime scalar splat and store without load or "
+                  "binary compute"))
         return result;
     }
     if (expectedProviderPlanID ==
@@ -1972,6 +1992,8 @@ module {
                     expectedProviderPlanID ||
                 routeDescription->wideningConversionRouteFamilyPlanID ==
                     expectedProviderPlanID ||
+                routeDescription->runtimeScalarSplatStoreRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
                 routeDescription->segment2MemoryRouteFamilyPlanID ==
                     expectedProviderPlanID,
             llvm::Twine("realized @") + variantName +
@@ -2018,6 +2040,13 @@ module {
           "tcrv_rvv.typed_computed_mask_select_pre_realized_body",
           "elementwise/compare-select",
           "rvv-computed-mask-select-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_runtime_i32_splat_store",
+          "tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body",
+          "runtime scalar splat-store",
+          "rvv-runtime-scalar-splat-store-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(

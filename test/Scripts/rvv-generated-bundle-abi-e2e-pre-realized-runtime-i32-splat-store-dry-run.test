@@ -1,0 +1,60 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-i32-splat-store --overwrite --op-kind runtime_i32_splat_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 19 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-i32-splat-store/evidence.json
+# RUN: FileCheck %s --check-prefix=SPLAT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-i32-splat-store/runtime_i32_splat_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-i32-splat-store/runtime_i32_splat_store/rvv_generated_bundle_abi_runtime_i32_splat_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "runtime_i32_splat_store"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SPLAT-DAG: "input_mode": "pre-realized-selected-body"
+# SPLAT-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-i32-splat-store.mlir"
+# SPLAT-DAG: "prototype": "void tcrv_emitc_pre_realized_body_runtime_i32_splat_store_kernel_pre_realized_body_rvv_runtime_i32_splat_store(int32_t rhs_scalar, int32_t *out, size_t n);"
+# SPLAT-DAG: "expected_function": "tcrv_emitc_pre_realized_body_runtime_i32_splat_store_kernel_pre_realized_body_rvv_runtime_i32_splat_store"
+# SPLAT-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-i32-splat-store-callable-c-abi.v1"
+# SPLAT-DAG: "expected_selected_variant": "pre_realized_body_rvv_runtime_i32_splat_store"
+# SPLAT-DAG: "rhs_scalar_values": [
+# SPLAT-DAG: -37
+# SPLAT-DAG: 19
+# SPLAT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SPLAT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SPLAT-DAG: "route_entry_realization": false
+# SPLAT-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# SPLAT-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SPLAT-DAG: "pre_realized_body_consumed": true
+# SPLAT-DAG: "key": "rvv_emitc_lowerable_route"
+# SPLAT-DAG: "value": "rvv-generic-runtime-i32-splat-store-emitc-route"
+# SPLAT-DAG: "key": "rvv_selected_body_operation"
+# SPLAT-DAG: "value": "runtime_i32_splat_store"
+# SPLAT-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SPLAT-DAG: "value": "tcrv_rvv.splat"
+# SPLAT-DAG: "key": "tcrv_rvv.memory_form"
+# SPLAT-DAG: "value": "runtime-scalar-splat-store"
+# SPLAT-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SPLAT-DAG: "value": "rhs_scalar,out,n"
+# SPLAT-DAG: "key": "tcrv_rvv.runtime_control_plan"
+# SPLAT-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
+# SPLAT-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# SPLAT-DAG: "value": "rvv-route-operand-binding:runtime_i32_splat_store.v1"
+# SPLAT-DAG: "key": "tcrv_rvv.runtime_scalar_splat_store_route_family_plan"
+# SPLAT-DAG: "value": "rvv-runtime-scalar-splat-store-route-family-plan.v1"
+# SPLAT-DAG: "typed_compute_op": "tcrv_rvv.splat"
+# SPLAT-DAG: "memory_form": "runtime-scalar-splat-store"
+# SPLAT-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
+# SPLAT-DAG: "rhs_scalar_coverage_contract": "runtime scalar operand cases must execute the same generated artifact with explicit runtime RHS scalar values"
+# SPLAT-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_runtime_i32_splat_store_kernel_pre_realized_body_rvv_runtime_i32_splat_store(rhs_scalar, out, n);
+# HARNESS: int32_t expected = rhs_scalar;
+# HARNESS: out[index] != expected
+# HARNESS: touched tail sentinel
+# HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)19};
+# HARNESS: run_case(counts[index], rhs_scalar_values[scalar_index]);

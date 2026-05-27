@@ -1166,3 +1166,53 @@ provider route family and neutral EmitC/export path.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 258: Stage2 RVV runtime memory selected-body realization
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV runtime memory selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Proved runtime_i32_splat_store through the RVV plugin-local selected-body realization producer, generated bundle ABI path, ssh rvv correctness evidence, and archived the Trellis task.
+
+### Main Changes
+
+- Added `rvv_pre_route_runtime_i32_splat_store` to the C++ selected-body producer route-path test and required it to use the selected-boundary producer instead of direct route-entry.
+- Verified the realized body shape for runtime scalar splat/store: one `tcrv_rvv.splat`, one `tcrv_rvv.store`, no `tcrv_rvv.load`, and no `tcrv_rvv.binary`.
+- Extended provider route checks so the realized body must reach `rvv-runtime-scalar-splat-store-route-family-plan.v1` and build one migrated statement-plan loop.
+- Added a focused generated-bundle dry-run lit consumer for pre-realized `runtime_i32_splat_store`, checking selected lowering-boundary materialization, runtime ABI order, provider route facts, runtime scalar coverage, and no descriptor/source-front-door/legacy-i32 authority.
+- Recorded negative direct route-entry evidence, real `ssh rvv` evidence for counts `0,1,16,23,257` and RHS scalars `-37,19`, bounded adjacent route non-regression, authority scan, Trellis validation, and single-instance `check-tianchenrv` success in the archived task PRD.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit for the runtime splat-store generated-bundle dry-run and
+  target fixture from `build/test`
+- [OK] generated-bundle dry-run for `runtime_i32_splat_store` counts
+  `0,1,16,23,257` and RHS scalars `-37,19`
+- [OK] direct pre-realized route-entry request for `runtime_i32_splat_store`
+  fails closed
+- [OK] `ssh rvv` generated-bundle run for `runtime_i32_splat_store` counts
+  `0,1,16,23,257` and RHS scalars `-37,19`
+- [OK] bounded adjacent selected-body route non-regression dry-run
+- [OK] Trellis validation, `git diff --check`, authority scan, and
+  single-instance `check-tianchenrv`: 391/391
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
