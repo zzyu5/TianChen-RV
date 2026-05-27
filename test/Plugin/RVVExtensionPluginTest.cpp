@@ -1241,9 +1241,8 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
   }
 
   const llvm::StringRef routeEntryOwners[] = {
-      "elementwise/compare-select", "standalone reduction", "MAcc",
-      "contraction", "widening conversion", "base memory movement",
-      "segment2 memory"};
+      "elementwise/compare-select", "standalone reduction", "contraction",
+      "widening conversion", "base memory movement", "segment2 memory"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1492,6 +1491,14 @@ module {
       %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
       tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_owner_negative_scalar_broadcast_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
@@ -1692,6 +1699,9 @@ module {
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
+        expectedProviderPlanID == "rvv-plain-macc-route-family-plan.v1" ||
+        expectedProviderPlanID ==
+            "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
         ((variantName == "rvv_pre_route_computed_masked_macc_add" ||
           variantName ==
               "rvv_pre_route_runtime_scalar_computed_masked_macc_add") &&
@@ -1807,8 +1817,20 @@ module {
               countNestedOps(variant, "tcrv_rvv.load") == 3 &&
                   countNestedOps(variant, "tcrv_rvv.macc") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
-              llvm::Twine("direct route-entry @") + variantName +
+              llvm::Twine("selected-body producer @") + variantName +
                   " realizes lhs/rhs/acc loads, macc, and store"))
+        return result;
+    }
+    if (expectedProviderPlanID ==
+        "rvv-scalar-broadcast-macc-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.macc") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("selected-body producer @") + variantName +
+                  " realizes lhs load, RHS scalar splat, accumulator load, "
+                  "macc, and store"))
         return result;
     }
     if (expectedProviderPlanID ==
@@ -2633,9 +2655,11 @@ module {
     if (owner.familyName == "MAcc")
       maccOwner = &owner;
   }
-  if (int result =
-          expect(maccOwner != nullptr && maccOwner->realize != nullptr,
-                 "found migrated MAcc owner-local realization hook"))
+  if (int result = expect(maccOwner != nullptr &&
+                              maccOwner->realize != nullptr &&
+                              maccOwner->isRouteEntryConsumer == nullptr,
+                          "found migrated MAcc owner-local realization hook "
+                          "without direct route-entry predicate"))
     return result;
   VariantOp nonOwnedBaseVariant =
       findVariant(kernel, "rvv_pre_route_owner_mismatch_strided_load_unit_store");
@@ -2708,6 +2732,66 @@ module {
            "role 'runtime-element-count' before RVV selected-body realization"}))
     return result;
   runtimeN->setAttr("role", originalRuntimeNRole);
+
+  VariantOp negativePlainMAccVariant =
+      findVariant(kernel, "rvv_pre_route_owner_negative_macc_add");
+  auto negativePlainMAccBody =
+      llvm::dyn_cast_or_null<tianchenrv::tcrv::rvv::TypedMAccPreRealizedBodyOp>(
+          findFirstNestedOp(negativePlainMAccVariant,
+                            "tcrv_rvv.typed_macc_pre_realized_body"));
+  if (int result = expect(
+          negativePlainMAccBody != nullptr,
+          "found plain MAcc pre-realized body for direct route-entry demotion"))
+    return result;
+  if (int result = expect(
+          maccOwner->isRouteEntryConsumer == nullptr ||
+              !maccOwner->isRouteEntryConsumer(
+                  negativePlainMAccBody.getOperation()),
+          "macc_add fixture is not direct route-entry eligible after selected "
+          "realization migration"))
+    return result;
+  {
+    mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> plainMAccRouteEntry =
+        tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+            VariantLoweringBoundaryRequest(
+                negativePlainMAccVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, directRouteEntryBuilder));
+    if (plainMAccRouteEntry)
+      return fail("direct route-entry accepted macc_add instead of requiring "
+                  "selected-body producer realization");
+    if (int result = expectErrorContains(
+            plainMAccRouteEntry.takeError(),
+            {"selected-body route-entry realization currently supports only",
+             "selected body belongs to another RVV realization family"}))
+      return result;
+  }
+
+  if (int result = expect(
+          maccOwner->isRouteEntryConsumer == nullptr ||
+              !maccOwner->isRouteEntryConsumer(negativeMAccBody.getOperation()),
+          "scalar_broadcast_macc_add fixture is not direct route-entry "
+          "eligible after selected realization migration"))
+    return result;
+  {
+    mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+        scalarBroadcastMAccRouteEntry =
+            tianchenrv::plugin::rvv::
+                realizePreRealizedRVVRouteEntrySelectedBody(
+                    VariantLoweringBoundaryRequest(
+                        negativeMAccVariant, kernel, capabilities,
+                        VariantEmissionRole::DirectVariant,
+                        directRouteEntryBuilder));
+    if (scalarBroadcastMAccRouteEntry)
+      return fail("direct route-entry accepted scalar_broadcast_macc_add "
+                  "instead of requiring selected-body producer realization");
+    if (int result = expectErrorContains(
+            scalarBroadcastMAccRouteEntry.takeError(),
+            {"selected-body route-entry realization currently supports only",
+             "selected body belongs to another RVV realization family"}))
+      return result;
+  }
 
   const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
       *computedMaskMAccOwner = nullptr;

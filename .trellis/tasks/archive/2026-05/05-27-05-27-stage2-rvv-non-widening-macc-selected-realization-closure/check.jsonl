@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "final authority-chain and stage-order review"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check selected-body realization registry, plain/scalar-broadcast MAcc provider facts, direct-route-entry demotion, and fail-closed diagnostics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "check tcrv.exec remains ABI/runtime envelope only and mirror metadata is not authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check common EmitC remains neutral and provider-built route remains authority"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused C++/lit/script/ssh evidence matches non-widening MAcc claims"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-non-widening-macc-selected-realization-closure/prd.md", "reason": "task-specific acceptance criteria and validation plan"}

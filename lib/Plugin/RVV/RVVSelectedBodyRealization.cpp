@@ -1012,18 +1012,6 @@ bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
   return isRVVSelectedBodySegment2RouteEntryFamilyConsumer(op);
 }
 
-bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
-  auto body = llvm::dyn_cast<tcrv::rvv::TypedMAccPreRealizedBodyOp>(op);
-  if (!body)
-    return false;
-  if (isPreRealizedScalarBroadcastMAccBody(body.getOpKind(),
-                                           body.getMemoryForm()))
-    return isPreRealizedScalarBroadcastMAccOpKind(body.getOpKind()) &&
-           isPreRealizedScalarBroadcastMAccMemoryForm(body.getMemoryForm());
-  return body.getOpKind() == "macc_add" &&
-         body.getMemoryForm() == "vector-rhs-load";
-}
-
 bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
   auto body =
       llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(op);
@@ -1299,7 +1287,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
        isPreRealizedRVVStandaloneReductionRouteEntryOp,
        realizePreRealizedRVVStandaloneReductionOwner},
-      {"MAcc", isPreRealizedRVVMAccOwnerOp, isPreRealizedRVVMAccRouteEntryOp,
+      {"MAcc", isPreRealizedRVVMAccOwnerOp, nullptr,
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp,
        nullptr, realizePreRealizedRVVComputedMaskMAccOwner},

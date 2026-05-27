@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain, stage order, and no descriptor/source/front-door authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, plain/scalar-broadcast MAcc statement-plan boundary, route-provider facts, and fail-closed diagnostics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window/runtime_param ABI envelope and mirror-only diagnostic authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute provider-built contract and neutral common EmitC materialization"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused MLIR/FileCheck/script and ssh rvv evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-macc-selected-realization/prd.md", "reason": "previous computed_masked_macc_add selected-boundary migration and direct shortcut demotion"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-runtime-scalar-macc-selected-realization/prd.md", "reason": "previous runtime_scalar_cmp_masked_macc_add selected-boundary migration and direct shortcut demotion"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-macc-route-family-owner/prd.md", "reason": "existing MAcc route-family owner and provider/target consumption boundary"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-non-widening-macc-selected-realization-closure/prd.md", "reason": "current task requirements and validation plan"}

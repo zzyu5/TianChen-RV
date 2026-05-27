@@ -1408,3 +1408,64 @@ validation, generated RVV C, and real `ssh rvv` correctness evidence.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 262: Stage2 RVV non-widening MAcc selected-body realization closure
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV non-widening MAcc selected-body realization closure
+**Branch**: `main`
+
+### Summary
+
+Demoted `macc_add` and `scalar_broadcast_macc_add` direct pre-realized
+route-entry authority while preserving selected-boundary generated RVV artifact
+execution.
+
+### Main Changes
+
+- Removed the MAcc direct route-entry owner predicate while keeping
+  owner-local selected-body realization active.
+- Updated generated-bundle tooling so `macc_add` and
+  `scalar_broadcast_macc_add` direct pre-realized route-entry requests fail
+  closed before route-entry materialization.
+- Replaced stale scalar-broadcast MAcc direct positive script coverage with
+  fail-closed coverage and added plain MAcc fail-closed coverage.
+- Proved selected-boundary dry-runs and real `ssh rvv` runs for counts
+  `0,1,16,23,257`; scalar-broadcast also covered RHS scalars `-37` and `91`.
+- Archived the Trellis task after recording PRD validation and authority-scan
+  evidence.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] Trellis task validation
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] direct route-entry fail-closed probes for `macc_add` and
+  `scalar_broadcast_macc_add`
+- [OK] selected-boundary generated-bundle dry-runs for `macc_add` and
+  `scalar_broadcast_macc_add`
+- [OK] real `ssh rvv` generated-bundle runs for `macc_add` and
+  `scalar_broadcast_macc_add`
+- [OK] bounded touched-file authority scan found no remaining positive MAcc
+  direct route-entry predicate or script/lit positive shortcut
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 392/392 after
+  rerunning once without duplicate lit invocation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
