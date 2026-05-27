@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-scalar-broadcast-elementwise-route-family-plan.v1/s//rvv-script-derived-scalar-broadcast-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs_scalar,out,n/s//lhs,out,rhs_scalar,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-ABI
 
 // Pre-realized selected-body input for one bounded Stage2 vector-scalar add.
 // The RVV plugin must realize the explicit RHS scalar ABI value into generic
@@ -73,4 +75,17 @@ module {
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:scalar_broadcast_add.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.scalar_broadcast_elementwise_route_family_plan: rvv-scalar-broadcast-elementwise-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1
 // HEADER: void tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add(const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n);
+
+// STALE-SB-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-SB-PLAN: tcrv_rvv.scalar_broadcast_elementwise_route_family_plan
+// STALE-SB-PLAN-SAME: must mirror
+// STALE-SB-PLAN-SAME: rvv-script-derived-scalar-broadcast-plan.v1
+
+// STALE-SB-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-SB-ABI: tcrv_rvv.runtime_abi_order
+// STALE-SB-ABI-SAME: must mirror
+// STALE-SB-ABI-SAME: lhs,out,rhs_scalar,n

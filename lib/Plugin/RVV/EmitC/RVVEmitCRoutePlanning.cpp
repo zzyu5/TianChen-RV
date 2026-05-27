@@ -22419,6 +22419,253 @@ llvm::Error verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+static bool isRVVSelectedBodyConversionDtypePolicyScalarBroadcastConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
+      operation);
+}
+
+static bool isRVVSelectedBodyConversionDtypePolicyWideningConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyWideningConversionRouteFamilyConsumer(operation);
+}
+
+static llvm::Error verifyRVVSelectedBodyConversionDtypePolicyCommonFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context,
+    llvm::StringRef ownerName, bool requiresWideningSourcePolicy,
+    bool requiresScalarBroadcastPolicy) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (description.providerSupportedMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy route-family owner '" + ownerName +
+        "' requires provider_supported_mirror to be derived from the typed "
+        "family plan before provider materialization");
+  if (description.runtimeControlPlanID.empty() ||
+      description.runtimeABIOrder.empty() ||
+      description.runtimeABIParameters.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy route-family owner '" + ownerName +
+        "' requires provider-derived runtime AVL/VL and ABI facts before "
+        "provider materialization");
+  if (description.configContractID.empty() ||
+      description.runtimeVLContractID.empty() ||
+      description.runtimeAVLASource.empty() || description.sew == 0 ||
+      description.lmul.empty() || description.tailPolicy.empty() ||
+      description.maskPolicy.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy route-family owner '" + ownerName +
+        "' requires typed result dtype, SEW/LMUL, policy, config, and "
+        "runtime-VL facts from the selected body");
+  if (description.requiredHeaderDeclarations.empty() ||
+      description.cTypeMappingSummary.empty() || description.vlCType.empty() ||
+      description.vectorTypeName.empty() || description.vectorCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy route-family owner '" + ownerName +
+        "' requires provider-derived header and result vector type facts "
+        "before provider materialization");
+  if (description.setVLIntrinsic.empty() ||
+      description.storeIntrinsic.empty() || description.resultName.empty() ||
+      description.intrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy route-family owner '" + ownerName +
+        "' requires provider-derived setvl, compute, store, and result "
+        "facts before provider materialization");
+  if (description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy route-family owner '" + ownerName +
+        "' requires route operand binding facts before provider "
+        "materialization");
+
+  if (requiresWideningSourcePolicy) {
+    if (description.wideningConversionRouteFamilyPlanID.empty() ||
+        description.sourceSEW == 0 || description.sourceLMUL.empty() ||
+        description.sourceVectorTypeName.empty() ||
+        description.sourceVectorCType.empty() ||
+        description.sourceVectorLoadIntrinsic.empty() ||
+        description.conversionRelation.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " conversion dtype-policy route-family owner '" + ownerName +
+          "' requires source dtype, source SEW/LMUL, source load, "
+          "conversion relation, and widening family plan facts from the "
+          "typed body");
+    if (description.sourceSEW >= description.sew)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " conversion dtype-policy route-family owner '" + ownerName +
+          "' requires widening conversion source SEW to be smaller than the "
+          "result SEW");
+  }
+
+  if (requiresScalarBroadcastPolicy) {
+    if (description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+        description.vectorLoadIntrinsic.empty() ||
+        description.rhsBroadcastIntrinsic.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " conversion dtype-policy route-family owner '" + ownerName +
+          "' requires scalar-broadcast family plan, vector load, and RHS "
+          "broadcast facts from the typed body");
+    if (description.sourceSEW != 0 || !description.sourceLMUL.empty() ||
+        !description.sourceVectorTypeName.empty() ||
+        !description.sourceVectorCType.empty() ||
+        !description.sourceVectorLoadIntrinsic.empty() ||
+        !description.conversionRelation.empty() ||
+        !description.wideningConversionRouteFamilyPlanID.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " conversion dtype-policy route-family owner '" + ownerName +
+          "' must not accept stale widening source/conversion facts for a "
+          "scalar-broadcast elementwise route");
+  }
+
+  return llvm::Error::success();
+}
+
+static llvm::Error
+verifyRVVSelectedBodyConversionDtypePolicyScalarBroadcastProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (!isRVVSelectedBodyConversionDtypePolicyScalarBroadcastConsumer(operation))
+    return llvm::Error::success();
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+  if (!analysis.scalarBroadcastElementwiseRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy scalar-broadcast owner requires the "
+        "scalar-broadcast elementwise route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan =
+      *analysis.scalarBroadcastElementwiseRouteFamilyPlan;
+  if (analysis.description.scalarBroadcastElementwiseRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy scalar-broadcast owner requires the "
+        "family-plan mirror to come from the validated scalar-broadcast "
+        "elementwise plan");
+  return verifyRVVSelectedBodyConversionDtypePolicyCommonFacts(
+      analysis, context, "scalar-broadcast elementwise dtype policy",
+      /*requiresWideningSourcePolicy=*/false,
+      /*requiresScalarBroadcastPolicy=*/true);
+}
+
+static llvm::Error
+verifyRVVSelectedBodyConversionDtypePolicyWideningProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (!isRVVSelectedBodyConversionDtypePolicyWideningConsumer(operation))
+    return llvm::Error::success();
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+  if (!analysis.wideningConversionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy widening owner requires the widening "
+        "conversion route-family plan before provider materialization for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  const RVVSelectedBodyWideningConversionRouteFamilyPlan &plan =
+      *analysis.wideningConversionRouteFamilyPlan;
+  if (analysis.description.wideningConversionRouteFamilyPlanID !=
+          plan.familyPlanID ||
+      analysis.description.sourceSEW != plan.sourceSEW ||
+      analysis.description.sourceLMUL != plan.sourceLMUL ||
+      analysis.description.sourceVectorTypeName !=
+          plan.sourceVectorTypeName ||
+      analysis.description.sourceVectorCType != plan.sourceVectorCType ||
+      analysis.description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      analysis.description.sew != plan.resultSEW ||
+      analysis.description.lmul != plan.resultLMUL ||
+      analysis.description.vectorTypeName != plan.resultVectorTypeName ||
+      analysis.description.vectorCType != plan.resultVectorCType ||
+      analysis.description.intrinsic != plan.conversionIntrinsic ||
+      analysis.description.conversionRelation != plan.conversionRelation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy widening owner requires source/result "
+        "dtype, route type, intrinsic, and relation facts to come from the "
+        "validated widening conversion plan");
+  return verifyRVVSelectedBodyConversionDtypePolicyCommonFacts(
+      analysis, context, "widening conversion dtype policy",
+      /*requiresWideningSourcePolicy=*/true,
+      /*requiresScalarBroadcastPolicy=*/false);
+}
+
+llvm::ArrayRef<RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner>
+getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners() {
+  static const RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner owners[] = {
+      {"widening conversion dtype policy",
+       isRVVSelectedBodyConversionDtypePolicyWideningConsumer,
+       verifyRVVSelectedBodyConversionDtypePolicyWideningProviderPlans},
+      {"scalar-broadcast elementwise dtype policy",
+       isRVVSelectedBodyConversionDtypePolicyScalarBroadcastConsumer,
+       verifyRVVSelectedBodyConversionDtypePolicyScalarBroadcastProviderPlans},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  for (const RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner &owner :
+       getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
+}
+
+llvm::Error
+verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  unsigned selectedOwners = 0;
+  for (const RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner &owner :
+       getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners()) {
+    if (!owner.isConsumer || !owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete conversion dtype-policy route-family "
+          "owner registry entry");
+    if (owner.isConsumer(analysis.description.operation))
+      ++selectedOwners;
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
+  if (!selectedOwners &&
+      isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
+          analysis.description.operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " failed to select a conversion dtype-policy route-family owner for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  if (selectedOwners > 1)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " matched multiple conversion dtype-policy route-family owners for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
@@ -23408,6 +23655,10 @@ llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
   }
   if (llvm::Error error =
           verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
               analysis, context))
     return error;
   return llvm::Error::success();

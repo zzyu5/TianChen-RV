@@ -5089,6 +5089,119 @@ int runCompareSelectMaskRouteFamilyOwnerRegistryTest() {
       "the aggregate compare/select mask owner verifier");
 }
 
+int runConversionDtypePolicyRouteFamilyOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner>
+      owners = getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners();
+  if (int result = expect(
+          owners.size() == 2,
+          "conversion dtype-policy route-family owner registry has exactly "
+          "two active owner entries"))
+    return result;
+  if (int result = expect(
+          owners[0].familyName == "widening conversion dtype policy" &&
+              owners[1].familyName ==
+                  "scalar-broadcast elementwise dtype policy",
+          "conversion dtype-policy route-family owner registry preserves the "
+          "primary widening and adjacent scalar-broadcast boundaries"))
+    return result;
+  for (const auto &owner : owners) {
+    if (int result = expect(
+            owner.isConsumer != nullptr && owner.verifyProviderPlan != nullptr,
+            "conversion dtype-policy route-family owner registry entries "
+            "carry consumer and verifier hooks"))
+      return result;
+  }
+
+  if (int result = expect(
+          owners[0].isConsumer(RVVSelectedBodyOperationKind::WidenI32ToI64) &&
+              owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::WidenI16ToI32) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::WideningMAccAdd),
+          "widening conversion dtype-policy owner covers conversion routes "
+          "and excludes adjacent scalar-broadcast and contraction routes"))
+    return result;
+  if (int result = expect(
+          owners[1].isConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastSub) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMul) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::WidenI32ToI64) &&
+              !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add),
+          "scalar-broadcast dtype-policy owner covers vector-scalar "
+          "elementwise routes and excludes widening/plain elementwise routes"))
+    return result;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::WidenI32ToI64,
+        RVVSelectedBodyOperationKind::WidenI16ToI32,
+        RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
+        RVVSelectedBodyOperationKind::ScalarBroadcastSub}) {
+    if (int result = expect(
+            isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(op),
+            "aggregate conversion dtype-policy owner consumer predicate is "
+            "registry backed across widening and scalar-broadcast consumers"))
+      return result;
+  }
+  if (int result = expect(
+          !isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::Add) &&
+              !isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
+                  RVVSelectedBodyOperationKind::MAccAdd) &&
+              !isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
+                  RVVSelectedBodyOperationKind::CmpSelect),
+          "ordinary elementwise, MAcc, and compare/select routes remain "
+          "outside the conversion dtype-policy owner boundary"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingWideningPlan;
+  missingWideningPlan.description.operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
+              missingWideningPlan,
+              "conversion dtype-policy owner registry unit test"),
+          {"requires the widening conversion route-family plan",
+           "widen_i32_to_i64"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingScalarBroadcastPlan;
+  missingScalarBroadcastPlan.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
+              missingScalarBroadcastPlan,
+              "conversion dtype-policy owner registry unit test"),
+          {"requires the scalar-broadcast elementwise route-family plan",
+           "scalar_broadcast_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis nonConversionDtypePolicyAnalysis;
+  nonConversionDtypePolicyAnalysis.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  return expectSuccess(
+      verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
+          nonConversionDtypePolicyAnalysis,
+          "conversion dtype-policy owner registry unit test"),
+      "non conversion dtype-policy route with no conversion/scalar-broadcast "
+      "family plan is accepted by the aggregate owner verifier");
+}
+
 int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
@@ -18211,6 +18324,8 @@ int main() {
   if (int result = runElementwiseSelectRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runCompareSelectMaskRouteFamilyOwnerRegistryTest())
+    return result;
+  if (int result = runConversionDtypePolicyRouteFamilyOwnerRegistryTest())
     return result;
   if (int result =
           runReductionAccumulationContractionRouteFamilyOwnerRegistryTest())

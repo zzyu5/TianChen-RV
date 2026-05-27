@@ -900,3 +900,69 @@ consumers, then validated provider and target artifact ABI facts.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 253: Stage2 RVV conversion dtype-policy route-family owner
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV conversion dtype-policy route-family owner
+**Branch**: `main`
+
+### Summary
+
+Added a plugin-local RVV conversion dtype-policy route-family owner boundary
+over the active widening conversion route and adjacent scalar-broadcast
+elementwise route, then made provider planning and target artifact validation
+consume owner-derived typed dtype, SEW/LMUL, policy, ABI, header/type, and
+family-plan facts.
+
+### Main Changes
+
+- Added `RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner` registry/API and
+  an aggregate provider-plan verifier.
+- Connected the aggregate verifier to the production RVV selected-body
+  route-family provider validation path.
+- Migrated existing widening conversion and scalar-broadcast elementwise
+  consumers behind the conversion dtype-policy owner.
+- Added target artifact validation for provider-derived route headers, vector
+  and C type mappings, runtime ABI order, statement-plan structure,
+  scalar-broadcast family facts, widening conversion family facts,
+  source/result dtype-policy mirrors, and stale incompatible mirror rejection.
+- Added focused C++ owner registry coverage and lit negative/positive target
+  header checks for stale scalar-broadcast, widening conversion, ABI, and
+  conversion-relation facts.
+- Recorded the durable conversion dtype-policy owner contract in
+  `.trellis/spec/extension-plugins/rvv-plugin.md`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | `rvv: add conversion dtype policy route owner` |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit for `pre-realized-selected-body-artifact-scalar-broadcast-add`
+  and `pre-realized-selected-body-artifact-widen-i32-to-i64`
+- [OK] generated-bundle dry-run for `scalar_broadcast_add` and
+  `widen_i32_to_i64`
+- [OK] real `ssh rvv` generated-bundle execution for `widen_i32_to_i64`,
+  counts `0,3,16,17,257`
+- [OK] touched-file and added-line authority scans found no new positive
+  legacy-i32, source-front-door, descriptor, route-id, artifact-name,
+  script-derived, metadata-derived, exact-intrinsic, or common EmitC route
+  authority.
+- [OK] `ninja -C build check-tianchenrv` (390/390). Earlier duplicate
+  concurrent attempts failed due self-induced `Text file busy` and temporary
+  directory races; the final clean rerun passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

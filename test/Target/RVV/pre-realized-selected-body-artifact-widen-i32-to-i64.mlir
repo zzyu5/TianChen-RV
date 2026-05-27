@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-widening-conversion-route-family-plan.v1/s//rvv-script-derived-widening-conversion-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONVERSION-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.conversion_relation\", value = \"signed-i32m1-to-i64m2/s//tcrv_rvv.conversion_relation\", value = \"script-derived-relation/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONVERSION-RELATION
 
 // Pre-realized selected-body input for one bounded Stage 2 signed widening
 // conversion slice. The RVV plugin must derive source i32/m1, destination
@@ -92,3 +94,13 @@ module {
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,result:signed-e64m2
 // HEADER: void tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64(const int32_t *lhs, int64_t *out, size_t n);
+
+// STALE-CONVERSION-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-CONVERSION-PLAN: tcrv_rvv.widening_conversion_route_family_plan
+// STALE-CONVERSION-PLAN-SAME: must mirror
+// STALE-CONVERSION-PLAN-SAME: rvv-script-derived-widening-conversion-plan.v1
+
+// STALE-CONVERSION-RELATION: RVV materialized EmitC target artifact bridge failed
+// STALE-CONVERSION-RELATION: tcrv_rvv.conversion_relation
+// STALE-CONVERSION-RELATION-SAME: must mirror
+// STALE-CONVERSION-RELATION-SAME: script-derived-relation

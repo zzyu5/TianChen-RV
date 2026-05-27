@@ -791,6 +791,32 @@ mapping remain in the owning RVV family plan and verifier. Common EmitC and
 target export may consume mirrors after route construction, but they must not
 own the route-family registry or infer RVV semantics from it.
 
+The conversion dtype-policy cluster is a route-family owner boundary over:
+
+- widening conversion routes, where the RVV widening conversion plan owns
+  source/result dtype, source/result SEW/LMUL, conversion relation, source
+  load, conversion intrinsic, store, runtime ABI, and route operand bindings;
+- adjacent scalar-broadcast elementwise routes, where the scalar-broadcast
+  elementwise plan owns the runtime scalar ABI value, RHS splat/broadcast,
+  result dtype/config/policy, elementwise intrinsic, store, runtime ABI, and
+  route operand bindings.
+
+The conversion dtype-policy owner may share aggregate verification and target
+artifact consumer checks across those two consumers, but it must not collapse
+their semantics. A scalar-broadcast elementwise route must fail closed if it
+carries stale widening source/destination/conversion facts. A widening
+conversion route must fail closed if source/result dtype policy or conversion
+relation facts are absent, stale, or derived from route ids, artifact names,
+ABI strings, scripts, or exact intrinsic spellings rather than the validated
+typed `tcrv_rvv` body and RVV family plan.
+
+Target artifact/header/object consumers for this cluster must rebuild the
+provider route from the selected variant and validate provider-derived headers,
+type mappings, ABI mappings, statement leaves, route operand binding mirrors,
+family-plan mirrors, source/result dtype policy facts, and conversion or
+scalar-broadcast facts before export. Artifact metadata, route ids, generated
+file names, or status fields are mirror-only and must not authorize export.
+
 Required tests for a new or changed owner registry:
 
 - C++ tests for registry membership, owner names, consumer classification,
