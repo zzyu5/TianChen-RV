@@ -22,18 +22,20 @@ sudo apt update
 sudo apt install -y qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
 ```
 
-本目录的 Makefile 默认使用 LLVM 20 的 clang：
+本目录的 Makefile 默认保持通用，不把某一台机器的 clang 路径或 libstdc++ 路径写死：
 
 ```make
-RVV_CXX ?= /usr/lib/llvm-20/bin/clang++
+RVV_CXX ?= clang++
 ```
 
-如果你的 clang 或 sysroot 不在默认位置，运行 `make` 时覆盖变量即可：
+如果你的 clang 或 sysroot 不在默认位置，运行 `make` 时覆盖变量即可。下面是一组在课堂同学机器上验证过的覆盖配置，适用于 LLVM 20 clang + Debian/Ubuntu riscv64 cross sysroot：
 
 ```bash
 make -f /path/to/examples/qemu/Makefile.rvv print-rvv-config \
-  RVV_CXX=/your/clang++ \
-  SYSROOT=/your/riscv64/sysroot
+  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
+  SYSROOT=/usr/riscv64-linux-gnu \
+  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
+  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
 ```
 
 ## 运行 add 示例
@@ -52,7 +54,10 @@ cp examples/qemu/harness_add.cpp /tmp/tcrv-rvv-qemu-add/harness.cpp
 
 make -C /tmp/tcrv-rvv-qemu-add \
   -f "$PWD/examples/qemu/Makefile.rvv" \
-  run-rvv
+  run-rvv \
+  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
+  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
+  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
 ```
 
 你应该能看到类似输出：
@@ -88,7 +93,10 @@ cp examples/qemu/harness_xor.cpp /tmp/tcrv-rvv-qemu-xor/harness.cpp
 
 make -C /tmp/tcrv-rvv-qemu-xor \
   -f "$PWD/examples/qemu/Makefile.rvv" \
-  run-rvv
+  run-rvv \
+  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
+  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
+  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
 ```
 
 你应该能在 `generated.cpp` 中看到：

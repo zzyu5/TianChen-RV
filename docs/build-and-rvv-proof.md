@@ -148,21 +148,26 @@ make -f /tmp/Makefile.rvv run-rvv \
   SYSROOT=/usr/riscv64-linux-gnu
 ```
 
-`examples/qemu/Makefile.rvv` 默认使用课堂验证过的 clang/riscv64 参数：
+`examples/qemu/Makefile.rvv` 默认保持通用，不把某台机器的 clang 或 libstdc++ 路径写死：
 
 ```make
-RVV_CXX ?= /usr/lib/llvm-20/bin/clang++
+RVV_CXX ?= clang++
 RVV_CXXFLAGS ?= --target=riscv64-linux-gnu \
                 -std=c++17 \
                 -O2 \
                 -march=rv64gcv \
                 -mabi=lp64d \
                 --sysroot=$(SYSROOT) \
-                --gcc-toolchain=/usr \
-                -I/usr/riscv64-linux-gnu/include/c++/14 \
-                -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu \
-                -L/usr/lib/gcc-cross/riscv64-linux-gnu/14 \
-                -static
+                $(RVV_EXTRA_CXXFLAGS)
+RVV_EXTRA_LDFLAGS ?=
+```
+
+下面是一组在课堂同学机器上验证过的覆盖配置，可以直接追加到 `make` 命令后面：
+
+```bash
+RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
+RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
+RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
 ```
 
 如果本机工具链路径不同，可以替换 `RVV_CXX`、`QEMU_RISCV64`、`SYSROOT`，或者覆盖 `RVV_CXXFLAGS`。PR 只要声明 runtime correctness，就应该记录实际编译和 QEMU 运行命令。

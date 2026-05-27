@@ -56,6 +56,7 @@ examples/qemu/             可选本地 QEMU proof Makefile 片段
 - [从零新增一个 RVV Slice：xor 示例](docs/add-rvv-xor-slice-workflow.md)
 - [25 个 RVV Slice 任务](assignments/rvv-slices-25.md)
 - [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)
+- [测试用例收集格式](docs/testcase-submission-format.md)
 
 ## 构建
 
