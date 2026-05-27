@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, Stage1/Stage2 boundary, and artifact authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, standalone reduction selected-boundary-only route-entry rule, runtime ABI binding, provider construction, target artifact mirrors, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope, mem_window/runtime_param ABI-role boundaries, and mirror-only emission diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle runtime evidence requirements, direct pre-realized route-entry scope, and ssh rvv claim standards."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-runtime-scalar-cmp-masked-memory-side-effect-boundary/prd.md", "reason": "Immediate prior executable-boundary pattern, evidence command shape, direct route-entry fail-closed handling, and non-regression scope."}

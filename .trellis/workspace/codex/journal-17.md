@@ -517,3 +517,48 @@ direct fail-closed, `ssh rvv` correctness, and `check-tianchenrv` 411/411.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 279: Stage2 RVV runtime-scalar masked standalone reduction boundary
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV runtime-scalar masked standalone reduction boundary
+**Branch**: `main`
+
+### Summary
+
+Closed runtime_scalar_cmp_masked_standalone_reduce_add generated-bundle executable boundary with script evidence extraction, focused lit coverage, direct route-entry fail-closed behavior, ssh rvv evidence, and 413/413 check-tianchenrv.
+
+### Main Changes
+
+- `scripts/rvv_generated_bundle_abi_e2e.py`: added runtime-scalar computed-mask standalone reduction emitted-C extraction and non-empty `mask_tail_policy_boundary` / `reduction_accumulation_boundary` summaries, including rhs scalar splat, compare mask, inactive zeroing, scalar seed/result layout, runtime AVL/VL, and artifact ABI order.
+- `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add-dry-run.test`: added selected-boundary dry-run coverage for provider route facts, operand binding, mask/reduction evidence, generated ABI, and harness coverage.
+- `test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add-fail-closed.test`: added fail-closed coverage for the deprecated direct pre-realized route-entry shortcut.
+- Trellis PRD recorded completion evidence and production-owner conclusion: C++ production path unchanged; the missing boundary was evidence/test coverage.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: close runtime scalar masked standalone reduction boundary` |
+
+### Evidence
+
+- [OK] selected-boundary dry-run for `runtime_scalar_cmp_masked_standalone_reduce_add`: `route_entry_realization=false`, `pre_realized_body_consumed=true`, ABI order `cmp_lhs,rhs_scalar,src,acc,out,n`, provider mirror `provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated`, and non-empty mask/reduction boundaries.
+- [OK] direct pre-realized route-entry fail-closed probe for `runtime_scalar_cmp_masked_standalone_reduce_add` with selected-boundary-only diagnostic.
+- [OK] real `ssh rvv` generated-bundle compile/run for counts `0,1,16,23,257`, thresholds `-37,91`, seeds `-11,17`, mixed signed payloads, inactive nonzero exclusion, scalar seed/result behavior, and tail preservation.
+- [OK] non-regression dry-runs for `runtime_scalar_cmp_masked_store`, `runtime_scalar_cmp_masked_load_store`, and `runtime_scalar_cmp_masked_macc_add`.
+- [OK] manual FileCheck replay for both new lit tests.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] `git diff --check`.
+- [OK] bounded added-line authority scan: exact intrinsic spellings appear only in emitted-C verification/test evidence; no descriptor/source-front-door/direct-C/source-export/legacy `tcrv_rvv.i32_` executable authority was added.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 413/413 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

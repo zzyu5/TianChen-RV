@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV-first authority and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary standalone reduction facts, provider consumption, target mirrors, and fail-closed route-entry behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI-role boundaries and diagnostic mirror constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built lowerable route and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused generated-bundle, direct route-entry, and ssh rvv evidence standards."}

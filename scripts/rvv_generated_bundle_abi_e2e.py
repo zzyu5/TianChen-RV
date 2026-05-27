@@ -7596,6 +7596,58 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = reduction_accumulation_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.scalar_splat_intrinsic,
+            expectation.compare_intrinsic,
+            expectation.select_intrinsic,
+            "__riscv_vredsum_vs_i32m1_i32m1",
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ runtime scalar computed-mask standalone reduction vector C type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ runtime scalar computed-mask standalone reduction mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ runtime scalar computed-mask standalone reduction intrinsic spelling",
+            )
+        reduction_accumulation_boundary = (
+            extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
+                text, expectation
+            )
+        )
+        mask_tail_policy_boundary = {
+            "compare_mask": reduction_accumulation_boundary["compare_mask"],
+            "compare_producer": "tcrv_rvv.compare",
+            "compare_predicate_kind": expectation.compare_predicate_kind,
+            "runtime_scalar_operand": "rhs_scalar",
+            "runtime_scalar_realization_op": "tcrv_rvv.splat",
+            "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+            "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+            "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+            "inactive_lane_contract": COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING,
+            "masked_source_vector": reduction_accumulation_boundary[
+                "masked_source_vector"
+            ],
+            "runtime_avl_vl_control": reduction_accumulation_boundary[
+                "runtime_avl_vl_control"
+            ],
+        }
+        runtime_avl_vl_boundary = reduction_accumulation_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -7984,6 +8036,195 @@ def extract_standalone_reduction_emitc_boundary(
         "seed_store_initializes_empty_count_result": True,
         "loop_accumulator_reads_previous_scalar_result": True,
         "reduction_uses_loaded_source": True,
+        "reduction_uses_loop_vl": True,
+        "store_uses_reduction_result": True,
+    }
+
+
+def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    code = re.sub(r"^[ \t]*//[^\n]*(?:\n|$)", "", text, flags=re.MULTILINE)
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    mask_c_type = re.escape(expectation.rvv_mask_c_type)
+    signature = require_regex(
+        code,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {element_c_type}\s*\*\s*(?P<cmp_lhs>v[0-9]+), "
+        rf"{element_c_type}\s*(?P<rhs_scalar>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<src>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<acc>v[0-9]+), "
+        rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ runtime scalar standalone reduction ABI parameters",
+    )
+    cmp_lhs = signature.group("cmp_lhs")
+    rhs_scalar = signature.group("rhs_scalar")
+    src = signature.group("src")
+    acc = signature.group("acc")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        code,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    initial_seed = require_regex(
+        code,
+        rf"const {element_c_type} (?P<seed_scalar>v[0-9]+) = {acc}\[0\];\s*"
+        rf"{vector_c_type} (?P<seed_vector>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\((?P=seed_scalar), "
+        rf"{STANDALONE_REDUCE_STORE_VL}\);\s*"
+        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"\({out}, (?P=seed_vector), {STANDALONE_REDUCE_STORE_VL}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction initial seed",
+    )
+    seed_scalar = initial_seed.group("seed_scalar")
+    seed_vector = initial_seed.group("seed_vector")
+    loop = require_regex(
+        code,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ runtime scalar standalone reduction runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        code,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    cmp_lhs_load = require_regex(
+        code,
+        rf"const {element_c_type}\* (?P<cmp_lhs_ptr>v[0-9]+) = "
+        rf"{cmp_lhs} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<cmp_lhs_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=cmp_lhs_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction compare lhs load",
+    )
+    cmp_lhs_vec = cmp_lhs_load.group("cmp_lhs_vec")
+    scalar_splat = require_regex(
+        code,
+        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.scalar_splat_intrinsic)}"
+        rf"\({rhs_scalar}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction scalar splat",
+    )
+    rhs_vec = scalar_splat.group("rhs_vec")
+    src_load = require_regex(
+        code,
+        rf"const {element_c_type}\* (?P<src_ptr>v[0-9]+) = "
+        rf"{src} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<src_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=src_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction source load",
+    )
+    src_vec = src_load.group("src_vec")
+    compare = require_regex(
+        code,
+        rf"{mask_c_type} (?P<compare_mask>v[0-9]+) = "
+        rf"{re.escape(expectation.compare_intrinsic)}"
+        rf"\({cmp_lhs_vec}, {rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction compare mask",
+    )
+    compare_mask = compare.group("compare_mask")
+    neutral = require_regex(
+        code,
+        rf"{vector_c_type} (?P<neutral_vec>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\(0, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction inactive neutral",
+    )
+    neutral_vec = neutral.group("neutral_vec")
+    merge = require_regex(
+        code,
+        rf"{vector_c_type} (?P<masked_source>v[0-9]+) = "
+        rf"{re.escape(expectation.select_intrinsic)}"
+        rf"\({neutral_vec}, {src_vec}, {compare_mask}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction masked source merge",
+    )
+    masked_source = merge.group("masked_source")
+    accumulator = require_regex(
+        code,
+        rf"{element_c_type} (?P<acc_scalar>v[0-9]+) = {out}\[0\];\s*"
+        rf"{vector_c_type} (?P<acc_vec>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\((?P=acc_scalar), "
+        rf"{STANDALONE_REDUCE_STORE_VL}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction accumulator splat",
+    )
+    acc_scalar = accumulator.group("acc_scalar")
+    acc_vec = accumulator.group("acc_vec")
+    reduction = require_regex(
+        code,
+        rf"{vector_c_type} (?P<result_vec>v[0-9]+) = "
+        r"__riscv_vredsum_vs_i32m1_i32m1"
+        rf"\({masked_source}, {acc_vec}, {loop_vl}\);\s*"
+        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"\({out}, (?P=result_vec), {STANDALONE_REDUCE_STORE_VL}\);",
+        "emitted RVV C/C++ runtime scalar standalone reduction intrinsic and store",
+    )
+    result_vec = reduction.group("result_vec")
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "cmp_lhs_abi_parameter": cmp_lhs,
+        "rhs_scalar_abi_parameter": rhs_scalar,
+        "src_abi_parameter": src,
+        "accumulator_seed_abi_parameter": acc,
+        "out_abi_parameter": out,
+        "cmp_lhs_pointer": cmp_lhs_load.group("cmp_lhs_ptr"),
+        "src_pointer": src_load.group("src_ptr"),
+        "cmp_lhs_vector": cmp_lhs_vec,
+        "rhs_scalar_vector": rhs_vec,
+        "source_vector": src_vec,
+        "compare_mask": compare_mask,
+        "inactive_neutral_vector": neutral_vec,
+        "masked_source_vector": masked_source,
+        "initial_seed_scalar": seed_scalar,
+        "initial_accumulator_vector": seed_vector,
+        "loop_accumulator_scalar": acc_scalar,
+        "loop_accumulator_vector": acc_vec,
+        "result_vector": result_vec,
+        "vector_c_type": expectation.rvv_vector_c_type,
+        "mask_c_type": expectation.rvv_mask_c_type,
+        "reduction_kind": "add",
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+        "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+        "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
+        "store_vl": STANDALONE_REDUCE_STORE_VL,
+        "setvl_intrinsic": expectation.setvl_intrinsic,
+        "source_load_intrinsic": expectation.unit_load_intrinsic,
+        "scalar_splat_intrinsic": expectation.scalar_splat_intrinsic,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "inactive_neutral_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "masked_source_merge_intrinsic": expectation.select_intrinsic,
+        "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "seed_store_initializes_empty_count_result": True,
+        "compare_uses_runtime_scalar_splat": True,
+        "inactive_lanes_zeroed_before_reduction": True,
+        "reduction_uses_masked_source": True,
         "reduction_uses_loop_vl": True,
         "store_uses_reduction_result": True,
     }
@@ -10815,6 +11056,42 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR runtime scalar standalone reduction",
         )
+        mask_tail_policy_boundary = {
+            "typed_compute_op": "tcrv_rvv.masked_standalone_reduce",
+            "compare_producer": "tcrv_rvv.compare",
+            "compare_predicate_kind": expectation.compare_predicate_kind,
+            "runtime_scalar_operand": "rhs_scalar",
+            "runtime_scalar_realization_op": "tcrv_rvv.splat",
+            "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+            "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+            "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+            "inactive_lane_contract": COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING,
+            "source_vector_type": expectation.rvv_vector_type,
+            "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+            "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
+        reduction_accumulation_boundary = {
+            "typed_compute_op": "tcrv_rvv.masked_standalone_reduce",
+            "reduction_kind": "add",
+            "compare_producer": "tcrv_rvv.compare",
+            "runtime_scalar_operand": "rhs_scalar",
+            "source_vector_type": expectation.rvv_vector_type,
+            "source_element_type": expectation.element_type,
+            "accumulator_element_type": expectation.element_type,
+            "result_element_type": expectation.element_type,
+            "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+            "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
+            "selected_source_abi": {
+                "cmp_lhs": "lhs-input-buffer",
+                "rhs_scalar": "rhs-scalar-value",
+                "src": "source-input-buffer",
+                "acc": "accumulator-input-buffer",
+                "out": "output-buffer",
+                "n": "runtime-element-count",
+            },
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_computed_masked_strided_store:
         require_contains(
             text,
@@ -18077,10 +18354,11 @@ def validate_runtime_scalar_compare_select_rhs_coverage(
     if any(
         expectation.is_runtime_scalar_compare_select
         or expectation.is_runtime_scalar_dual_compare_mask_and_select
+        or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         for expectation in expectations
     ) and len(rhs_scalar_values) < 2:
         raise EvidenceError(
-            "runtime scalar compare/select evidence requires at least two "
+            "runtime scalar compare/select or standalone reduction evidence requires at least two "
             "distinct RHS scalar values to cover runtime threshold behavior: "
             f"{rhs_scalar_values}"
         )
@@ -18475,46 +18753,82 @@ def mask_tail_policy_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if expectation.is_computed_mask_standalone_reduce:
+    if (
+        expectation.is_computed_mask_standalone_reduce
+        or expectation.is_runtime_scalar_computed_mask_standalone_reduce
+    ):
+        is_runtime_scalar = (
+            expectation.is_runtime_scalar_computed_mask_standalone_reduce
+        )
+        inactive_contract = (
+            COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING
+            if is_runtime_scalar
+            else computed_mask_standalone_reduce_inactive_contract(
+                expectation.kind
+            )
+        )
+        selected_mask_abi = {
+            "external_mask": False,
+            "producer": "tcrv_rvv.compare",
+            "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+            "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+            "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        }
+        if is_runtime_scalar:
+            selected_mask_abi.update(
+                {
+                    "runtime_scalar_operand": "rhs_scalar",
+                    "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                    "runtime_scalar_producer_source": (
+                        COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
+                    ),
+                }
+            )
         return {
             "source": (
-                "typed tcrv_rvv computed-mask standalone reduction body/config "
-                "-> compare-produced mask -> RVV route-family facts -> "
-                "statement plan -> emitted masked reduction input"
+                "typed tcrv_rvv runtime-scalar computed-mask standalone "
+                "reduction body/config -> runtime scalar splat compare mask "
+                "-> RVV route-family facts -> statement plan -> emitted "
+                "masked reduction input"
+                if is_runtime_scalar
+                else "typed tcrv_rvv computed-mask standalone reduction "
+                "body/config -> compare-produced mask -> RVV route-family "
+                "facts -> statement plan -> emitted masked reduction input"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv mask/reduction "
+                "provider-derived typed tcrv_rvv runtime-scalar "
+                "mask/reduction body/config/runtime facts"
+                if is_runtime_scalar
+                else "provider-derived typed tcrv_rvv mask/reduction "
                 "body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
-            "selected_mask_abi": {
-                "external_mask": False,
-                "producer": "tcrv_rvv.compare",
-                "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
-                "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
-                "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-            },
+            "selected_mask_abi": selected_mask_abi,
             "tail_policy": expected_metadata_for(expectation).get(
                 "tcrv_rvv.tail_policy"
             ),
             "mask_policy": expected_metadata_for(expectation).get(
                 "tcrv_rvv.mask_policy"
             ),
-            "inactive_lane_contract": computed_mask_standalone_reduce_inactive_contract(
-                expectation.kind
-            ),
+            "inactive_lane_contract": inactive_contract,
             "active_lane_contract": (
-                "compare-true lanes contribute source values to the scalar "
-                "standalone reduction"
+                "runtime scalar compare-true lanes contribute source values "
+                "to the scalar standalone reduction"
+                if is_runtime_scalar
+                else "compare-true lanes contribute source values to the "
+                "scalar standalone reduction"
             ),
             "all_inactive_mask_behavior": "scalar result remains the seed in out[0]",
-            "materialized_body": {
-                "typed_compute_op": materialized_checks.get("typed_compute_op"),
-                "memory_form": materialized_checks.get("memory_form"),
-                "runtime_avl_vl_boundary": materialized_checks.get(
-                    "runtime_avl_vl_boundary", {}
-                ),
-            },
+            "materialized_body": materialized_checks.get(
+                "mask_tail_policy_boundary",
+                {
+                    "typed_compute_op": materialized_checks.get("typed_compute_op"),
+                    "memory_form": materialized_checks.get("memory_form"),
+                    "runtime_avl_vl_boundary": materialized_checks.get(
+                        "runtime_avl_vl_boundary", {}
+                    ),
+                },
+            ),
             "emitted_cpp": emitted_cpp_checks.get("mask_tail_policy_boundary", {}),
             "route_metadata": mask_tail_policy_metadata_from_bundle(
                 bundle_checks, expectation
@@ -19121,27 +19435,114 @@ def reduction_accumulation_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if expectation.is_computed_mask_standalone_reduce_add:
-        return {
+    if (
+        expectation.is_computed_mask_standalone_reduce_add
+        or expectation.is_runtime_scalar_computed_mask_standalone_reduce
+    ):
+        is_runtime_scalar = (
+            expectation.is_runtime_scalar_computed_mask_standalone_reduce
+        )
+        source = (
+            "typed tcrv_rvv runtime-scalar masked standalone reduction "
+            "body/config/runtime facts -> runtime scalar splat compare mask "
+            "-> standalone and computed-mask accumulation route-family facts "
+            "-> math operand-binding facts -> RVV-owned statement plan -> "
+            "emitted masked horizontal reduction intrinsics"
+            if is_runtime_scalar
+            else "typed tcrv_rvv masked standalone reduction body/config -> "
+            "standalone and computed-mask accumulation route-family facts "
+            "-> math operand-binding facts -> RVV-owned statement plan -> "
+            "emitted masked horizontal reduction intrinsics"
+        )
+        authority = (
+            "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+            "standalone reduction body/config/runtime facts"
+            if is_runtime_scalar
+            else "provider-derived typed tcrv_rvv computed-mask standalone "
+            "reduction body/config/runtime facts"
+        )
+        selected_source_abi = {
+            "cmp_lhs": "lhs-input-buffer",
+            "src": "source-input-buffer",
+            "acc": "accumulator-input-buffer",
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        }
+        selected_source_abi["rhs_scalar" if is_runtime_scalar else "cmp_rhs"] = (
+            "rhs-scalar-value" if is_runtime_scalar else "rhs-input-buffer"
+        )
+        loop_callees = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+        ]
+        if is_runtime_scalar:
+            loop_callees.append(expectation.scalar_splat_intrinsic)
+        else:
+            loop_callees.append(expectation.unit_load_intrinsic)
+        loop_callees.extend(
+            [
+                expectation.unit_load_intrinsic,
+                expectation.compare_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                expectation.select_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vredsum_vs_i32m1_i32m1",
+                expectation.unit_store_intrinsic,
+            ]
+        )
+        statement_plan = {
+            "family": (
+                "runtime-scalar computed-mask standalone reduction"
+                if is_runtime_scalar
+                else "computed-mask standalone reduction"
+            ),
+            "pre_loop_callees": [
+                expectation.setvl_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                expectation.unit_store_intrinsic,
+            ],
+            "loop_callees": loop_callees,
+            "seed_source": "acc[0]",
+            "loop_accumulator_source": "out[0]",
+            "compare_operand_order": (
+                "cmp_lhs,rhs_scalar_splat,vl"
+                if is_runtime_scalar
+                else "cmp_lhs,cmp_rhs,vl"
+            ),
+            "mask_false_lane_source": "zero",
+            "reduction_operand_order": "masked_source,accumulator,vl",
+            "store_pointer": "out",
+            "store_vl": STANDALONE_REDUCE_STORE_VL,
+        }
+        summary = {
             "source": (
-                "typed tcrv_rvv masked standalone reduction body/config -> "
-                "standalone and computed-mask accumulation route-family facts "
-                "-> math operand-binding facts -> RVV-owned statement plan -> "
-                "emitted masked horizontal reduction intrinsics"
+                source
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv computed-mask standalone "
-                "reduction body/config/runtime facts"
+                authority
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "scalar_result_runtime_boundary": (
                 STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
             ),
-            "reduction_kind": expectation.computed_mask_standalone_reduction_kind,
+            "reduction_kind": (
+                "add"
+                if is_runtime_scalar
+                else expectation.computed_mask_standalone_reduction_kind
+            ),
             "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
             "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
             "inactive_lane_contract": computed_mask_standalone_reduce_inactive_contract(
                 expectation.kind
+            )
+            if not is_runtime_scalar
+            else COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING,
+            "active_lane_contract": (
+                "runtime scalar compare-true source lanes contribute to the "
+                "scalar add reduction"
+                if is_runtime_scalar
+                else "compare-true source lanes contribute to the scalar "
+                "standalone reduction"
             ),
             "source_type_policy": {
                 "element_type": expectation.element_type,
@@ -19150,6 +19551,7 @@ def reduction_accumulation_boundary_summary(
                 "lmul": expectation.lmul,
                 "vector_type": expectation.rvv_vector_type,
                 "vector_c_type": expectation.rvv_vector_c_type,
+                "mask_c_type": expectation.rvv_mask_c_type,
             },
             "accumulator_type_policy": {
                 "element_type": expectation.element_type,
@@ -19165,47 +19567,20 @@ def reduction_accumulation_boundary_summary(
                 "scalar_slot": "out[0]",
             },
             "reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
-            "selected_source_abi": {
-                "cmp_lhs": "lhs-input-buffer",
-                "cmp_rhs": "rhs-input-buffer",
-                "src": "source-input-buffer",
-                "acc": "accumulator-input-buffer",
-                "out": "output-buffer",
-                "n": "runtime-element-count",
-            },
-            "statement_plan": {
-                "family": "computed-mask standalone reduction",
-                "pre_loop_callees": [
-                    expectation.setvl_intrinsic,
-                    "__riscv_vmv_v_x_i32m1",
-                    expectation.unit_store_intrinsic,
-                ],
-                "loop_callees": [
-                    expectation.setvl_intrinsic,
-                    expectation.unit_load_intrinsic,
-                    expectation.unit_load_intrinsic,
-                    expectation.unit_load_intrinsic,
-                    expectation.compare_intrinsic,
-                    "__riscv_vmv_v_x_i32m1",
-                    expectation.select_intrinsic,
-                    "__riscv_vmv_v_x_i32m1",
-                    "__riscv_vredsum_vs_i32m1_i32m1",
-                    expectation.unit_store_intrinsic,
-                ],
-                "seed_source": "acc[0]",
-                "loop_accumulator_source": "out[0]",
-                "mask_false_lane_source": "operation-specific neutral value",
-                "reduction_operand_order": "masked_source,accumulator,vl",
-                "store_pointer": "out",
-                "store_vl": STANDALONE_REDUCE_STORE_VL,
-            },
-            "materialized_body": {
-                "typed_compute_op": materialized_checks.get("typed_compute_op"),
-                "memory_form": materialized_checks.get("memory_form"),
-                "runtime_avl_vl_boundary": materialized_checks.get(
-                    "runtime_avl_vl_boundary", {}
-                ),
-            },
+            "selected_source_abi": selected_source_abi,
+            "statement_plan": statement_plan,
+            "materialized_body": materialized_checks.get(
+                "reduction_accumulation_boundary",
+                {
+                    "typed_compute_op": materialized_checks.get(
+                        "typed_compute_op"
+                    ),
+                    "memory_form": materialized_checks.get("memory_form"),
+                    "runtime_avl_vl_boundary": materialized_checks.get(
+                        "runtime_avl_vl_boundary", {}
+                    ),
+                },
+            ),
             "emitted_cpp": emitted_cpp_checks.get(
                 "reduction_accumulation_boundary", {}
             ),
@@ -19230,6 +19605,18 @@ def reduction_accumulation_boundary_summary(
             "runtime_counts": runtime_counts,
             "runtime_counts_are_execution_cases_not_reduction_authority": True,
         }
+        if is_runtime_scalar:
+            summary.update(
+                {
+                    "compare_predicate_kind": expectation.compare_predicate_kind,
+                    "runtime_scalar_producer_source": (
+                        COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
+                    ),
+                    "runtime_scalar_operand": "rhs_scalar",
+                    "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                }
+            )
+        return summary
     if not expectation.is_standalone_reduce_add:
         return {}
     return {
@@ -19737,6 +20124,7 @@ def run_one_op_e2e(
         or expectation.is_runtime_scalar_computed_mask_store
         or expectation.is_runtime_scalar_computed_mask_load_store
         or expectation.is_runtime_scalar_computed_masked_macc_add
+        or expectation.is_runtime_scalar_computed_mask_standalone_reduce
     ):
         evidence["rhs_scalar_values"] = rhs_scalar_values
         if expectation.is_runtime_scalar_dual_compare_mask_and_select:
@@ -19831,6 +20219,7 @@ def run_one_op_e2e(
             expectation.is_masked_elementwise
             or expectation.is_masked_unit_store
             or expectation.is_computed_mask_standalone_reduce
+            or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         ):
             evidence["mask_tail_policy_boundary"] = (
                 mask_tail_policy_boundary_summary(
@@ -19889,6 +20278,7 @@ def run_one_op_e2e(
             )
         if expectation.is_standalone_reduce_add or (
             expectation.is_computed_mask_standalone_reduce_add
+            or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         ):
             evidence["reduction_accumulation_boundary"] = (
                 reduction_accumulation_boundary_summary(
@@ -21371,6 +21761,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_load_store/"
             "computed_masked_macc_add/"
             "runtime_scalar_cmp_masked_macc_add/"
+            "runtime_scalar_cmp_masked_standalone_reduce_add/"
             "computed_masked_segment2_load_unit_store/"
             "computed_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
@@ -21459,7 +21850,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_i32_splat_store, runtime_scalar_cmp_select, or "
             "runtime_scalar_dual_cmp_mask_and_select, or "
             "runtime_scalar_cmp_masked_store/"
-            "runtime_scalar_cmp_masked_load_store; may be "
+            "runtime_scalar_cmp_masked_load_store/"
+            "runtime_scalar_cmp_masked_macc_add/"
+            "runtime_scalar_cmp_masked_standalone_reduce_add; may be "
             "repeated to prove the same generated artifact consumes multiple "
             "runtime scalar values"
         ),

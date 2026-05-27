@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 277
+- **Total Sessions**: 279
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~479 | Active |
+| `journal-17.md` | ~569 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 279 | 2026-05-28 | Stage2 RVV runtime-scalar masked standalone reduction boundary | pending-final-session-commit | `main` |
+| 278 | 2026-05-28 | Stage2 RVV runtime-scalar cmp masked memory side-effect boundary | `7a36d25c` | `main` |
 | 277 | 2026-05-28 | Stage2 RVV runtime-scalar dual cmp mask select boundary | `this commit` | `main` |
 | 276 | 2026-05-28 | Stage2 RVV runtime scalar cmp/select boundary | `this commit` | `main` |
 | 275 | 2026-05-28 | Stage2 RVV compare/select executable artifacts | pending-final-session-commit | `main` |
