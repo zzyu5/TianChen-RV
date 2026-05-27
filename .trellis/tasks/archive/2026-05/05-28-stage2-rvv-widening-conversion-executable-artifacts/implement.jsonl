@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and RVV-first stage authority boundaries for this widening conversion task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, typed body authority, provider ownership, and conversion/SEW/LMUL constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec runtime ABI and mem_window boundaries that must not become RVV compute authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Conversion/SEW policy generated-bundle evidence and ssh rvv runtime claim requirements."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected-path metadata and route ids must remain mirrors while Stage2 uses typed tcrv_rvv body authority."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Made unsupported direct pre-realized route-entry diagnostics list the selected pre-realized op kinds, added a reusable message helper, and added a self-test guard so widening conversion fail-close diagnostics cannot regress to segment2-specific wording."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-widen-i16-to-i32-fail-closed.test", "reason": "Updated the widening conversion direct pre-realized fail-close FileCheck expectation to match the op-specific selected-boundary-only diagnostic."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-widen-i32-to-i64-fail-closed.test", "reason": "Updated the widening conversion direct pre-realized fail-close FileCheck expectation to match the op-specific selected-boundary-only diagnostic."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-cmp-select-fail-closed.test", "reason": "Kept the shared direct pre-realized selected-boundary-only diagnostic expectations consistent after the script helper became op-specific."}

@@ -3,7 +3,7 @@
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id direct-pre-realized-scalar-broadcast-add --overwrite --op-kind scalar_broadcast_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 19 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s
 
 # CHECK: rvv_generated_bundle_abi_e2e: failed
-# CHECK: --direct-pre-realized-route-entry is unsupported for current
-# CHECK: got ['scalar_broadcast_add']
+# CHECK: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): scalar_broadcast_add
+# CHECK-SAME: selected-boundary-only and must use
 # CHECK-NOT: rvv-route-entry-selected-body-realization
 # CHECK-NOT: tcrv_rvv_generated_bundle_abi_scalar_broadcast_add_ok

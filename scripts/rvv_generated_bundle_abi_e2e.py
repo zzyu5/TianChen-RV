@@ -8,11 +8,10 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
-``--direct-pre-realized-route-entry`` shortcut is unsupported for current
-pre-realized selected-body fixtures and exits before bundle generation; plain
-segment2 deinterleave/interleave also remain on the selected
-lowering-boundary producer path. The legacy ``--source-seed`` mode is
-unsupported and exits before bundle generation. The script does not
+``--direct-pre-realized-route-entry`` shortcut fails closed before bundle
+generation for selected pre-realized op kinds that are selected-boundary-only.
+The legacy ``--source-seed`` mode is unsupported and exits before bundle
+generation. The script does not
 implement compiler IR, lowering, plugin selection, emission, descriptors,
 fallback computation, or runtime glue.
 """
@@ -16781,6 +16780,18 @@ def prepare_artifact_dir(root: Path, run_id: str, overwrite: bool) -> Path:
     return artifact_dir
 
 
+def direct_pre_realized_route_entry_unsupported_message(
+    unsupported_direct: list[str],
+) -> str:
+    op_list = ", ".join(unsupported_direct)
+    return (
+        "--direct-pre-realized-route-entry is unsupported for selected "
+        f"pre-realized op kind(s): {op_list}; these fixtures are "
+        "selected-boundary-only and must use the public selected "
+        "lowering-boundary producer before target bundle export"
+    )
+
+
 def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
     op_kinds = args.op_kind or list(DEFAULT_OP_KINDS)
     if len(set(op_kinds)) != len(op_kinds):
@@ -16838,12 +16849,9 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         ]
         if unsupported_direct:
             raise EvidenceError(
-                "--direct-pre-realized-route-entry is unsupported for current "
-                "pre-realized selected-body fixtures; segment2_deinterleave_"
-                "unit_store and segment2_interleave_unit_load are "
-                "selected-boundary-only and must use the public selected "
-                "lowering-boundary producer; got "
-                f"{unsupported_direct}"
+                direct_pre_realized_route_entry_unsupported_message(
+                    unsupported_direct
+                )
             )
     return [
         replace(
@@ -19296,11 +19304,11 @@ artifact[1]:
     return bundle_dir
 
 
-def expect_self_test_failure(name: str, fn: Any) -> None:
+def expect_self_test_failure(name: str, fn: Any) -> str:
     try:
         fn()
-    except EvidenceError:
-        return
+    except EvidenceError as exc:
+        return str(exc)
     raise AssertionError(f"self-test negative case did not fail: {name}")
 
 
@@ -19341,6 +19349,28 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "unaligned byte stride", lambda: validate_strided_load_byte_strides([6])
         )
+        direct_widening_error = expect_self_test_failure(
+            "unsupported direct pre-realized widening conversion route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["widen_i16_to_i32", "widen_i32_to_i64"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "widen_i16_to_i32, widen_i32_to_i64" not in direct_widening_error
+            or "segment2_deinterleave" in direct_widening_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost op-specific "
+                "widening conversion selected-boundary detail"
+            )
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
@@ -19885,8 +19915,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "with --pre-realized-selected-body, request the deprecated direct "
-            "route-entry shortcut; current pre-realized selected-body fixtures "
-            "are selected-boundary-only, so this fails closed before target "
+            "route-entry shortcut; selected-boundary-only pre-realized op "
+            "kinds fail closed with an op-specific diagnostic before target "
             "bundle export"
         ),
     )

@@ -249,3 +249,51 @@ A duplicated concurrent full-check attempt created generated-output races and fa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 274: Stage2 RVV widening conversion executable artifacts
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV widening conversion executable artifacts
+**Branch**: `main`
+
+### Summary
+
+Closed selected-boundary generated-bundle evidence for both widening conversion fixtures on ssh rvv and kept direct route-entry fail-closed diagnostics op-specific.
+
+### Main Changes
+
+- Reconciled dirty shared direct-pre-realized diagnostic diff: retained op-specific selected-boundary-only diagnostics because widening conversion fail-closed probes depend on the shared helper.
+- Closed selected-boundary dry-run evidence for widen_i16_to_i32 and widen_i32_to_i64 with route_entry_realization=false and pre_realized_body_consumed=true.
+- Ran ssh rvv generated-bundle compile/run/correctness for both widening conversions with counts 0,1,16,23,257; both reported PASS.
+- Verified direct route-entry fail-closed probes, focused lit 25/405, RVV C++ plugin smoke, segment2/contraction non-regression dry-run, authority scan, git diff --check, and check-tianchenrv 405/405.
+- Spec update review concluded no .trellis/spec change was needed; existing conversion/SEW and selected-boundary contracts already cover this round.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] selected-boundary dry-run for `widen_i16_to_i32` and `widen_i32_to_i64`
+- [OK] direct pre-realized route-entry fail-closed probes for both widening conversion fixtures
+- [OK] `ssh rvv` generated-bundle compile/run/correctness for both widening conversion fixtures with counts `0,1,16,23,257`
+- [OK] focused lit filter: 25/405 selected tests passed
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] segment2 and contraction-family selected-body dry-run non-regression
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 405/405 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

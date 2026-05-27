@@ -2,6 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id direct-pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s
 
-# CHECK: --direct-pre-realized-route-entry is unsupported for current
-# CHECK: got ['standalone_reduce_add']
+# CHECK: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): standalone_reduce_add
+# CHECK-SAME: selected-boundary-only and must use
 # CHECK-NOT: dry_run_success
