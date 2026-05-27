@@ -49,27 +49,3 @@ module {
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.compare role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmseq_vv_i32m1_b32
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.select role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i32m1
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
-
-// -----
-
-// The route-entry bridge is family-neutral for supported statement-plan-backed
-// families: this base memory pre-realized body should realize before route
-// facts and then feed the existing base-memory statement-plan/provider path.
-
-module {
-  tcrv.exec.kernel @pre_route_strided_load_unit_store_kernel {
-    tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
-    tcrv.exec.variant @rvv_pre_route_strided_load_unit_store attributes { origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic> } {
-      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
-      tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
-    }
-  }
-}
-
-// CHECK-LABEL: emitc.func @tcrv_emitc_pre_route_strided_load_unit_store_kernel_rvv_pre_route_strided_load_unit_store
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.strided_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vlse32_v_i32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1

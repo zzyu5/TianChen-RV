@@ -827,8 +827,7 @@ bool isPreRealizedRVVElementwiseCompareSelectRouteEntryOp(
 }
 
 bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
+  return llvm::isa<tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
@@ -7908,7 +7907,7 @@ realizePreRealizedRVVRouteEntrySelectedBody(
         "segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
-        "family");
+        "family or lacks direct route-entry support");
 
   return (*owner)->realize(request, *bodyOp);
 }

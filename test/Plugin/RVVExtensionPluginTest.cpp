@@ -1710,6 +1710,7 @@ module {
         expectedProviderPlanID == "rvv-plain-macc-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
+        variantName == "rvv_pre_route_strided_load_unit_store" ||
         ((variantName == "rvv_pre_route_computed_masked_macc_add" ||
           variantName ==
               "rvv_pre_route_runtime_scalar_computed_masked_macc_add") &&
@@ -1758,7 +1759,8 @@ module {
                     "route-entry eligible"))
           return result;
         if (expectedProviderPlanID ==
-            "rvv-widening-conversion-route-family-plan.v1") {
+                "rvv-widening-conversion-route-family-plan.v1" ||
+            variantName == "rvv_pre_route_strided_load_unit_store") {
           mlir::OpBuilder directRouteEntryBuilder(module->getContext());
           llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
               tianchenrv::plugin::rvv::
@@ -1912,6 +1914,16 @@ module {
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
               llvm::Twine("selected-body producer @") + variantName +
                   " realizes source load, widening conversion, and store"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_strided_load_unit_store") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.strided_load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.move") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.load") == 0,
+              llvm::Twine("selected-body producer @") + variantName +
+                  " realizes strided source load, move, and unit store"))
         return result;
     }
     if (expectedProviderPlanID ==

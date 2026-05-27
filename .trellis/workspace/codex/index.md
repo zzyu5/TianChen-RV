@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-16.md`
-- **Total Sessions**: 267
+- **Total Sessions**: 268
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~1893 | Active |
+| `journal-16.md` | ~1940 | Active |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +44,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 268 | 2026-05-27 | Stage2 RVV strided load unit-store selected realization | pending-final-session-commit | `main` |
 | 267 | 2026-05-27 | Stage2 RVV widen i32-to-i64 selected-body realization | same commit | `main` |
 | 266 | 2026-05-27 | Stage2 RVV widen i16-to-i32 selected-body realization | pending-final-session-commit | `main` |
 | 265 | 2026-05-27 | Stage2 RVV computed-mask strided dot selected realization | pending-final-session-commit | `main` |

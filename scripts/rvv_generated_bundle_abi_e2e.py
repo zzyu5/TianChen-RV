@@ -10,6 +10,7 @@ the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning unless
 ``--direct-pre-realized-route-entry`` is set for the bounded route-entry
 artifact/ABI evidence cases. Computed-mask select, ``scalar_broadcast_add``,
+``strided_load_unit_store``,
 ``macc_add``, ``scalar_broadcast_macc_add``, ``computed_masked_macc_add``,
 ``runtime_scalar_cmp_masked_macc_add``, ``widening_macc_add``,
 ``widening_dot_reduce_add``, ``strided_input_widening_dot_reduce_add``,
@@ -1871,7 +1872,6 @@ class OpExpectation:
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
             self.is_cmp_select
-            or self.is_strided_load_unit_store
             or self.is_standalone_reduce_add
             or self.is_computed_masked_segment2_load_unit_store
             or self.is_computed_masked_segment2_store_unit_load
@@ -16854,7 +16854,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
                 "pre-realized cmp_select/cmp_select_sle, "
-                "strided_load_unit_store/standalone_reduce_add/"
+                "standalone_reduce_add/"
                 "computed_masked_segment2_load_unit_store/"
                 "computed_masked_segment2_store_unit_load/"
                 "computed_masked_segment2_update_unit_load/"
@@ -19904,8 +19904,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "with --pre-realized-selected-body, skip the public selected "
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded cmp_select/"
-            "cmp_select_sle, strided_load_unit_store, or "
-            "standalone_reduce_add/computed_masked_segment2_load_unit_store/"
+            "cmp_select_sle, standalone_reduce_add/"
+            "computed_masked_segment2_load_unit_store/"
             "computed_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"

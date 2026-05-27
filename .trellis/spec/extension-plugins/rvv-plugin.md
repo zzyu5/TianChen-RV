@@ -294,6 +294,20 @@ route-entry support with matching mask provenance, mask/tail policy, runtime
 ABI, provider facts, diagnostics, generated-bundle evidence, and real RVV
 evidence for executable claims.
 
+For `base memory movement`, route-entry eligibility is narrower than the
+realization owner family. A typed pre-realized base-memory body may belong to
+the base-memory selected-body realization owner and still be selected-boundary
+only. In particular, `strided_load_unit_store` is selected-boundary-only: it
+must be consumed through the public selected lowering-boundary producer before
+base-memory route-family facts, memory operand-binding facts, statement-plan
+facts, provider route construction, common EmitC, and target artifact export.
+The direct route-entry bridge must fail closed for
+`strided_load_unit_store` even though the same typed body is accepted by the
+base-memory realization owner. A later task may add direct route-entry support
+only by changing the owner-scoped route-entry predicate and adding matching
+provider facts, diagnostics, generated-bundle evidence, and real RVV evidence
+for executable claims.
+
 For `segment2 memory`, route-entry eligibility may be narrower than the
 realization owner family. Bounded plain `segment2_deinterleave_unit_store` and
 `segment2_interleave_unit_load` pre-realized bodies, and the bounded
@@ -569,9 +583,13 @@ The route-entry bridge may support bounded family groups such as:
 
 - plain elementwise/compare-select pre-realized bodies owned by
   `realizePreRealizedRVVElementwiseCompareSelectCluster(...)`;
-- base memory movement pre-realized bodies whose realized structure already
-  feeds RVV-owned base-memory materialization facts, memory operand-binding
-  facts, and statement plans.
+- bounded base memory movement pre-realized bodies that the owner-scoped
+  route-entry predicate explicitly declares route-entry capable and whose
+  realized structure already feeds RVV-owned base-memory materialization facts,
+  memory operand-binding facts, and statement plans. Base-memory
+  selected-boundary-only bodies, including `strided_load_unit_store`, must
+  fail closed at this bridge and use the public selected lowering-boundary
+  producer path instead.
 - standalone reduction pre-realized bodies whose realized structure already
   feeds RVV-owned standalone-reduction family plans, materialization facts,
   math operand-binding facts, and migrated statement plans.

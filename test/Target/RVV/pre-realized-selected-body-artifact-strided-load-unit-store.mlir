@@ -1,16 +1,14 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 // Pre-realized selected-body input for one bounded Stage2 strided memory
 // movement slice. The RVV plugin must realize the source byte-stride ABI operand
 // into explicit strided_load/move/unit-store typed structure before the
 // provider may construct the EmitC route.
-// The direct emission-plan runs above prove that route-entry realization carries
-// this pre-realized body through target artifact/header export without a
-// separate selected-lowering-boundary materialization pass.
+// The target artifact/header checks prove the selected-boundary materialized
+// body feeds emission planning and export; this base-memory slice is not a
+// direct route-entry fixture.
 
 module {
   tcrv.exec.kernel @pre_realized_body_strided_load_unit_store_kernel {

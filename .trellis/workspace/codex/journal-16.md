@@ -1876,3 +1876,65 @@ Demoted widen_i32_to_i64 direct pre-realized route-entry authority, kept selecte
 ### Next Steps
 
 - None - task complete
+
+
+## Session 268: Stage2 RVV strided load unit-store selected realization
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV strided load unit-store selected realization
+**Branch**: `main`
+
+### Summary
+
+Demoted strided_load_unit_store direct pre-realized route-entry authority, kept selected-boundary base-memory realization positive, added direct fail-closed generated-bundle coverage, strengthened selected-boundary evidence, recorded base-memory route-entry narrowing in spec, validated focused tests, ssh rvv counts 0,1,16,23,257 with strides 4,8,12, and check-tianchenrv 399/399.
+
+### Main Changes
+
+- Removed `TypedStridedMemoryPreRealizedBodyOp` from direct base-memory
+  route-entry eligibility while keeping `strided_load_unit_store` under the
+  RVV base-memory selected-body realization owner.
+- Updated generated-bundle direct route-entry guardrails so
+  `--direct-pre-realized-route-entry --op-kind strided_load_unit_store` fails
+  closed before route-entry materialization or bundle generation.
+- Removed the positive direct pre-realized route-entry fixture coverage for
+  `strided_load_unit_store` and added a direct fail-closed generated-bundle
+  lit fixture.
+- Strengthened selected-boundary coverage for
+  `route_entry_realization: false`, plugin-local selected-body producer
+  evidence, realized `setvl`, `with_vl`, `strided_load`, `move`, and `store`
+  structure, provider facts, memory operand-binding facts, runtime
+  `stride_bytes`, and ABI order `src,out,n,stride_bytes`.
+- Updated the RVV plugin spec to state that base-memory route-entry
+  eligibility is narrower than the base-memory selected-body realization owner
+  family, with `strided_load_unit_store` remaining selected-boundary-only.
+- Archived the Trellis task with PRD, implementation context, and quality-gate
+  records.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: demote strided load route entry` |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit for selected-boundary strided load/unit-store artifact and
+  generated-bundle dry-run coverage
+- [OK] direct pre-realized route-entry generated-bundle request fails closed
+  for `strided_load_unit_store`
+- [OK] real `ssh rvv` generated-bundle execution for counts `0,1,16,23,257`
+  with `stride_bytes=4,8,12`
+- [OK] bounded touched-file authority scan and Trellis context validation
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 399/399 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
