@@ -4899,6 +4899,34 @@ MASK_TAIL_POLICY_METADATA_KEYS = (
     "tcrv_rvv.source_memory_form",
     "tcrv_rvv.destination_memory_form",
 )
+COMPUTED_MASK_MEMORY_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.computed_mask_memory_route_family_plan",
+    "tcrv_rvv.computed_mask_memory_mask_producer_source",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.masked_memory_layout",
+    "tcrv_rvv.compare_predicate_kind",
+    "tcrv_rvv.mask_role",
+    "tcrv_rvv.mask_source",
+    "tcrv_rvv.mask_memory_form",
+    "tcrv_rvv.inactive_lane_contract",
+    "tcrv_rvv.masked_passthrough_layout",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
+)
 BASE_MEMORY_MOVEMENT_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.element_type",
@@ -7290,6 +7318,7 @@ def verify_emitted_rvv_cpp(
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
     computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
+    runtime_scalar_computed_mask_memory_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -7435,6 +7464,54 @@ def verify_emitted_rvv_cpp(
             )
         )
         runtime_avl_vl_boundary = compare_select_predicate_boundary[
+            "runtime_avl_vl_control"
+        ]
+    if (
+        expectation.is_runtime_scalar_computed_mask_store
+        or expectation.is_runtime_scalar_computed_mask_load_store
+    ):
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.scalar_splat_intrinsic,
+            expectation.compare_intrinsic,
+        ]
+        if expectation.is_runtime_scalar_computed_mask_store:
+            intrinsics.append("__riscv_vse32_v_i32m1_m")
+        else:
+            intrinsics.extend(
+                ["__riscv_vle32_v_i32m1_tumu", expectation.unit_store_intrinsic]
+            )
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ runtime scalar computed-mask memory vector C type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ runtime scalar computed-mask memory mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ runtime scalar computed-mask memory intrinsic spelling",
+            )
+        if expectation.is_runtime_scalar_computed_mask_store:
+            runtime_scalar_computed_mask_memory_boundary = (
+                extract_runtime_scalar_computed_mask_store_emitc_boundary(
+                    text, expectation
+                )
+            )
+        else:
+            runtime_scalar_computed_mask_memory_boundary = (
+                extract_runtime_scalar_computed_mask_load_store_emitc_boundary(
+                    text, expectation
+                )
+            )
+        runtime_avl_vl_boundary = runtime_scalar_computed_mask_memory_boundary[
             "runtime_avl_vl_control"
         ]
     if expectation.is_masked_elementwise:
@@ -7671,6 +7748,9 @@ def verify_emitted_rvv_cpp(
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
         "computed_masked_widening_dot_reduce_boundary": (
             computed_masked_widening_dot_reduce_boundary
+        ),
+        "runtime_scalar_computed_mask_memory_boundary": (
+            runtime_scalar_computed_mask_memory_boundary
         ),
     }
 
@@ -9041,6 +9121,281 @@ def extract_runtime_scalar_dual_cmp_mask_and_select_emitc_boundary(
     }
 
 
+def _runtime_scalar_computed_mask_memory_signature(
+    text: str, expectation: OpExpectation
+) -> dict[str, str]:
+    element_c_type = re.escape(expectation.element_c_type)
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+        rf"{element_c_type}\s*(?P<rhs_scalar>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<src>v[0-9]+), "
+        rf"{element_c_type}\s*\*\s*(?P<dst>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        f"emitted RVV C/C++ {expectation.kind} ABI parameters",
+    )
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    runtime_n = signature.group("runtime_n")
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        f"emitted RVV C/C++ {expectation.kind} full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        f"emitted RVV C/C++ {expectation.kind} runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        f"emitted RVV C/C++ {expectation.kind} loop setvl",
+    )
+    return {
+        "lhs": signature.group("lhs"),
+        "rhs_scalar": signature.group("rhs_scalar"),
+        "src": signature.group("src"),
+        "dst": signature.group("dst"),
+        "runtime_n": runtime_n,
+        "full_chunk_vl": full_chunk_vl,
+        "offset": offset,
+        "remaining_avl": remaining.group("remaining_avl"),
+        "loop_vl": remaining.group("loop_vl"),
+    }
+
+
+def extract_runtime_scalar_computed_mask_store_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    mask_c_type = re.escape(expectation.rvv_mask_c_type)
+    load_intrinsic = re.escape(expectation.unit_load_intrinsic)
+    splat_intrinsic = re.escape(expectation.scalar_splat_intrinsic)
+    compare_intrinsic = re.escape(expectation.compare_intrinsic)
+    masked_store_intrinsic = "__riscv_vse32_v_i32m1_m"
+    fields = _runtime_scalar_computed_mask_memory_signature(text, expectation)
+    lhs = fields["lhs"]
+    rhs_scalar = fields["rhs_scalar"]
+    src = fields["src"]
+    dst = fields["dst"]
+    runtime_n = fields["runtime_n"]
+    full_chunk_vl = fields["full_chunk_vl"]
+    offset = fields["offset"]
+    remaining_avl = fields["remaining_avl"]
+    loop_vl = fields["loop_vl"]
+    lhs_load = require_regex(
+        text,
+        rf"const {element_c_type}\* (?P<lhs_ptr>v[0-9]+) = "
+        rf"{lhs} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<lhs_vec>v[0-9]+) = "
+        rf"{load_intrinsic}\((?P=lhs_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask store compare lhs load",
+    )
+    lhs_vec = lhs_load.group("lhs_vec")
+    rhs_splat = require_regex(
+        text,
+        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+        rf"{splat_intrinsic}\({rhs_scalar}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask store RHS scalar splat",
+    )
+    rhs_vec = rhs_splat.group("rhs_vec")
+    src_load = require_regex(
+        text,
+        rf"const {element_c_type}\* (?P<src_ptr>v[0-9]+) = "
+        rf"{src} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<src_vec>v[0-9]+) = "
+        rf"{load_intrinsic}\((?P=src_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask store payload load",
+    )
+    src_vec = src_load.group("src_vec")
+    compare = require_regex(
+        text,
+        rf"{mask_c_type} (?P<mask>v[0-9]+) = {compare_intrinsic}"
+        rf"\({lhs_vec}, {rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask store compare producer",
+    )
+    mask = compare.group("mask")
+    store = require_regex(
+        text,
+        rf"{element_c_type}\* (?P<dst_ptr>v[0-9]+) = "
+        rf"{dst} \+ {offset};\s*"
+        rf"{re.escape(masked_store_intrinsic)}"
+        rf"\({mask}, (?P=dst_ptr), {src_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask masked store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "lhs_abi_parameter": lhs,
+        "rhs_scalar_abi_parameter": rhs_scalar,
+        "src_abi_parameter": src,
+        "dst_abi_parameter": dst,
+        "lhs_pointer": lhs_load.group("lhs_ptr"),
+        "src_pointer": src_load.group("src_ptr"),
+        "dst_pointer": store.group("dst_ptr"),
+        "lhs_vector": lhs_vec,
+        "rhs_scalar_splat_vector": rhs_vec,
+        "src_payload_vector": src_vec,
+        "predicate_mask": mask,
+        "predicate_mask_type": expectation.rvv_mask_c_type,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "compare_rhs_source": COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "rhs_scalar_splat_intrinsic": expectation.scalar_splat_intrinsic,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "masked_store_intrinsic": masked_store_intrinsic,
+        "source_payload_role": "source-input-buffer",
+        "destination_role": "output-buffer",
+        "inactive_lane_contract": MASKED_STORE_INACTIVE_LANE_CONTRACT,
+        "masked_store_operand_order": "mask,dst,src,vl",
+        "store_uses_compare_mask": True,
+        "store_payload_is_source_vector": True,
+        "store_advances_by_loop_induction": True,
+    }
+
+
+def extract_runtime_scalar_computed_mask_load_store_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    mask_c_type = re.escape(expectation.rvv_mask_c_type)
+    load_intrinsic = re.escape(expectation.unit_load_intrinsic)
+    splat_intrinsic = re.escape(expectation.scalar_splat_intrinsic)
+    compare_intrinsic = re.escape(expectation.compare_intrinsic)
+    masked_load_intrinsic = "__riscv_vle32_v_i32m1_tumu"
+    store_intrinsic = re.escape(expectation.unit_store_intrinsic)
+    fields = _runtime_scalar_computed_mask_memory_signature(text, expectation)
+    lhs = fields["lhs"]
+    rhs_scalar = fields["rhs_scalar"]
+    src = fields["src"]
+    dst = fields["dst"]
+    runtime_n = fields["runtime_n"]
+    full_chunk_vl = fields["full_chunk_vl"]
+    offset = fields["offset"]
+    remaining_avl = fields["remaining_avl"]
+    loop_vl = fields["loop_vl"]
+    lhs_load = require_regex(
+        text,
+        rf"const {element_c_type}\* (?P<lhs_ptr>v[0-9]+) = "
+        rf"{lhs} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<lhs_vec>v[0-9]+) = "
+        rf"{load_intrinsic}\((?P=lhs_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask load-store compare lhs load",
+    )
+    lhs_vec = lhs_load.group("lhs_vec")
+    rhs_splat = require_regex(
+        text,
+        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+        rf"{splat_intrinsic}\({rhs_scalar}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask load-store RHS scalar splat",
+    )
+    rhs_vec = rhs_splat.group("rhs_vec")
+    old_load = require_regex(
+        text,
+        rf"{element_c_type}\* (?P<old_ptr>v[0-9]+) = "
+        rf"{dst} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<old_vec>v[0-9]+) = "
+        rf"{load_intrinsic}\((?P=old_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask load-store old dst load",
+    )
+    old_vec = old_load.group("old_vec")
+    compare = require_regex(
+        text,
+        rf"{mask_c_type} (?P<mask>v[0-9]+) = {compare_intrinsic}"
+        rf"\({lhs_vec}, {rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask load-store compare producer",
+    )
+    mask = compare.group("mask")
+    masked_load = require_regex(
+        text,
+        rf"const {element_c_type}\* (?P<src_ptr>v[0-9]+) = "
+        rf"{src} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<loaded_vec>v[0-9]+) = "
+        rf"{re.escape(masked_load_intrinsic)}"
+        rf"\({mask}, {old_vec}, (?P=src_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask masked load",
+    )
+    loaded_vec = masked_load.group("loaded_vec")
+    store = require_regex(
+        text,
+        rf"{element_c_type}\* (?P<dst_ptr>v[0-9]+) = "
+        rf"{dst} \+ {offset};\s*"
+        rf"{store_intrinsic}\((?P=dst_ptr), {loaded_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime scalar computed-mask load-store final store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "lhs_abi_parameter": lhs,
+        "rhs_scalar_abi_parameter": rhs_scalar,
+        "src_abi_parameter": src,
+        "dst_abi_parameter": dst,
+        "lhs_pointer": lhs_load.group("lhs_ptr"),
+        "old_dst_pointer": old_load.group("old_ptr"),
+        "src_pointer": masked_load.group("src_ptr"),
+        "dst_pointer": store.group("dst_ptr"),
+        "lhs_vector": lhs_vec,
+        "rhs_scalar_splat_vector": rhs_vec,
+        "old_dst_passthrough_vector": old_vec,
+        "masked_load_result_vector": loaded_vec,
+        "predicate_mask": mask,
+        "predicate_mask_type": expectation.rvv_mask_c_type,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "compare_rhs_source": COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "rhs_scalar_splat_intrinsic": expectation.scalar_splat_intrinsic,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "masked_load_intrinsic": masked_load_intrinsic,
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "source_payload_role": "source-input-buffer",
+        "old_passthrough_role": "output-buffer",
+        "destination_role": "output-buffer",
+        "inactive_lane_contract": MASKED_MEMORY_INACTIVE_LANE_CONTRACT,
+        "masked_load_operand_order": "mask,old_passthrough,src,vl",
+        "store_operand_order": "dst,masked_load_result,vl",
+        "masked_load_uses_compare_mask": True,
+        "masked_load_passthrough_is_old_dst": True,
+        "store_uses_masked_load_result": True,
+        "store_advances_by_loop_induction": True,
+    }
+
+
 def extract_masked_unit_store_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -9368,6 +9723,16 @@ def verify_materialized_selected_body(
     if expectation.is_runtime_scalar_dual_compare_mask_and_select:
         compare_select_predicate_boundary = (
             extract_runtime_scalar_dual_cmp_mask_and_select_materialized_boundary(
+                text, expectation
+            )
+        )
+    runtime_scalar_computed_mask_memory_boundary: dict[str, Any] = {}
+    if (
+        expectation.is_runtime_scalar_computed_mask_store
+        or expectation.is_runtime_scalar_computed_mask_load_store
+    ):
+        runtime_scalar_computed_mask_memory_boundary = (
+            extract_runtime_scalar_computed_mask_memory_materialized_boundary(
                 text, expectation
             )
         )
@@ -11435,6 +11800,16 @@ def verify_materialized_selected_body(
         )
         require_not_contains(
             text,
+            "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
             "tcrv_rvv.typed_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
@@ -11552,6 +11927,9 @@ def verify_materialized_selected_body(
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
         "computed_masked_widening_dot_reduce_boundary": (
             computed_masked_widening_dot_reduce_boundary
+        ),
+        "runtime_scalar_computed_mask_memory_boundary": (
+            runtime_scalar_computed_mask_memory_boundary
         ),
     }
 
@@ -11917,6 +12295,180 @@ def extract_runtime_scalar_dual_cmp_mask_and_select_materialized_boundary(
         "secondary_compare_rhs_scalar_role": "rhs-secondary-scalar-value",
         "output_role": "output-buffer",
         "memory_form": expectation.memory_form,
+        "pre_realized_body_consumed": expectation.is_pre_realized,
+    }
+
+
+def extract_runtime_scalar_computed_mask_memory_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    if not (
+        expectation.is_runtime_scalar_computed_mask_store
+        or expectation.is_runtime_scalar_computed_mask_load_store
+    ):
+        raise EvidenceError(
+            f"{expectation.kind} has no runtime scalar computed-mask memory boundary"
+        )
+    splat_count = len(
+        re.findall(r"^\s*%[^\n]*=\s*tcrv_rvv\.splat\b", text, re.MULTILINE)
+    )
+    compare_count = len(
+        re.findall(r"^\s*%[^\n]*=\s*tcrv_rvv\.compare\b", text, re.MULTILINE)
+    )
+    if splat_count < 1:
+        raise EvidenceError(
+            f"{expectation.kind} requires a runtime scalar splat; found {splat_count}"
+        )
+    if compare_count < 1:
+        raise EvidenceError(
+            f"{expectation.kind} requires a compare mask producer; found {compare_count}"
+        )
+    require_contains(
+        text,
+        "tcrv_rvv.splat",
+        "materialized selected-body MLIR runtime scalar computed-mask memory splat",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.compare",
+        "materialized selected-body MLIR runtime scalar computed-mask memory compare",
+    )
+    require_contains(
+        text,
+        f'kind = "{expectation.compare_predicate_kind}"',
+        "materialized selected-body MLIR runtime scalar computed-mask memory predicate",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR runtime scalar computed-mask memory mask type",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR runtime scalar computed-mask memory vector type",
+    )
+    for role in (
+        "lhs-input-buffer",
+        "rhs-scalar-value",
+        "source-input-buffer",
+        "output-buffer",
+    ):
+        require_contains(
+            text,
+            f'role = "{role}"',
+            "materialized selected-body MLIR runtime scalar computed-mask memory ABI role",
+        )
+    if expectation.is_runtime_scalar_computed_mask_store:
+        require_contains(
+            text,
+            "tcrv_rvv.masked_store",
+            "materialized selected-body MLIR runtime scalar computed-mask store op",
+        )
+        require_contains(
+            text,
+            'memory_form = "masked-unit-store"',
+            "materialized selected-body MLIR runtime scalar computed-mask store memory form",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-output-on-false-lanes"',
+            "materialized selected-body MLIR runtime scalar computed-mask store inactive policy",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_load",
+            "materialized selected-body MLIR runtime scalar computed-mask store route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR runtime scalar computed-mask store route",
+        )
+        realized_memory_ops = ["tcrv_rvv.masked_store"]
+        typed_body_source = (
+            "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body"
+        )
+        inactive_lane_policy = "preserve-output-on-false-lanes"
+        inactive_lane_contract = MASKED_STORE_INACTIVE_LANE_CONTRACT
+        destination_memory_form = RUNTIME_SCALAR_CMP_MASKED_STORE_DESTINATION_MEMORY_FORM
+    else:
+        require_contains(
+            text,
+            "tcrv_rvv.masked_load",
+            "materialized selected-body MLIR runtime scalar computed-mask load op",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR runtime scalar computed-mask load-store final store",
+        )
+        require_contains(
+            text,
+            'memory_form = "masked-unit-load"',
+            "materialized selected-body MLIR runtime scalar computed-mask load memory form",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-passthrough-on-false-lanes"',
+            "materialized selected-body MLIR runtime scalar computed-mask load inactive policy",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_store",
+            "materialized selected-body MLIR runtime scalar computed-mask load-store route",
+        )
+        realized_memory_ops = ["tcrv_rvv.masked_load", "tcrv_rvv.store"]
+        typed_body_source = (
+            "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body"
+        )
+        inactive_lane_policy = "preserve-passthrough-on-false-lanes"
+        inactive_lane_contract = MASKED_MEMORY_INACTIVE_LANE_CONTRACT
+        destination_memory_form = MASKED_MEMORY_DESTINATION_MEMORY_FORM
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.select",
+        "materialized selected-body MLIR runtime scalar computed-mask memory route",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.binary",
+        "materialized selected-body MLIR runtime scalar computed-mask memory route",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.mask_load",
+        "materialized selected-body MLIR runtime scalar computed-mask memory route",
+    )
+    return {
+        "typed_body_source": typed_body_source,
+        "realized_splat_op": "tcrv_rvv.splat",
+        "realized_splat_count": splat_count,
+        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_compare_count": compare_count,
+        "realized_memory_ops": realized_memory_ops,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "compare_rhs_source": COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE,
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "compare_lhs_role": "lhs-input-buffer",
+        "compare_rhs_scalar_role": "rhs-scalar-value",
+        "source_payload_role": "source-input-buffer",
+        "destination_role": "output-buffer",
+        "old_passthrough_role": (
+            "output-buffer"
+            if expectation.is_runtime_scalar_computed_mask_load_store
+            else None
+        ),
+        "inactive_lane_policy": inactive_lane_policy,
+        "inactive_lane_contract": inactive_lane_contract,
+        "source_memory_form": RUNTIME_SCALAR_CMP_MASKED_STORE_SOURCE_MEMORY_FORM,
+        "destination_memory_form": destination_memory_form,
+        "runtime_avl_vl_control": extract_runtime_avl_vl_materialized_boundary(
+            text, expectation
+        ),
         "pre_realized_body_consumed": expectation.is_pre_realized,
     }
 
@@ -17640,6 +18192,36 @@ def mask_tail_policy_metadata_from_bundle(
     return metadata
 
 
+def computed_mask_memory_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "computed-mask memory evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in COMPUTED_MASK_MEMORY_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object computed-mask memory metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header computed-mask memory metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def base_memory_movement_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
@@ -18339,6 +18921,140 @@ def compare_select_predicate_boundary_summary(
             }
         )
     return summary
+
+
+def runtime_scalar_computed_mask_memory_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not (
+        expectation.is_runtime_scalar_computed_mask_store
+        or expectation.is_runtime_scalar_computed_mask_load_store
+    ):
+        return {}
+    is_store = expectation.is_runtime_scalar_computed_mask_store
+    if is_store:
+        memory_side_effect_kind = "masked_store"
+        selected_source_abi = {
+            "lhs": "lhs-input-buffer",
+            "rhs_scalar": "rhs-scalar-value",
+            "src": "source-input-buffer",
+            "dst": "output-buffer",
+            "n": "runtime-element-count",
+        }
+        statement_plan = {
+            "family": "runtime-scalar computed-mask memory store",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.scalar_splat_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.compare_intrinsic,
+                "__riscv_vse32_v_i32m1_m",
+            ],
+            "compare_operand_order": "lhs,rhs_scalar_splat,vl",
+            "masked_store_operand_order": "mask,dst,src,vl",
+            "source_payload": "src + loop_induction",
+            "destination_pointer": "dst + loop_induction",
+        }
+        active_lane_contract = "compare-true lanes store src payload into dst"
+        inactive_lane_contract = MASKED_STORE_INACTIVE_LANE_CONTRACT
+        tail_policy = "undisturbed"
+        mask_policy = "undisturbed"
+    else:
+        memory_side_effect_kind = "masked_load_store"
+        selected_source_abi = {
+            "lhs": "lhs-input-buffer",
+            "rhs_scalar": "rhs-scalar-value",
+            "src": "source-input-buffer",
+            "dst": "output-buffer and old-destination passthrough",
+            "n": "runtime-element-count",
+        }
+        statement_plan = {
+            "family": "runtime-scalar computed-mask memory load-store",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.scalar_splat_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.compare_intrinsic,
+                "__riscv_vle32_v_i32m1_tumu",
+                expectation.unit_store_intrinsic,
+            ],
+            "compare_operand_order": "lhs,rhs_scalar_splat,vl",
+            "masked_load_operand_order": "mask,old_dst_passthrough,src,vl",
+            "store_operand_order": "dst,masked_load_result,vl",
+            "source_payload": "src + loop_induction",
+            "old_passthrough": "dst + loop_induction",
+            "destination_pointer": "dst + loop_induction",
+        }
+        active_lane_contract = (
+            "compare-true lanes load src through masked_load then store to dst"
+        )
+        inactive_lane_contract = MASKED_MEMORY_INACTIVE_LANE_CONTRACT
+        tail_policy = expected_metadata_for(expectation).get("tcrv_rvv.tail_policy")
+        mask_policy = expected_metadata_for(expectation).get("tcrv_rvv.mask_policy")
+    return {
+        "source": (
+            "selected tcrv.exec RVV variant -> typed runtime-scalar "
+            "computed-mask tcrv_rvv memory body/config/runtime facts -> "
+            "RVV plugin-local realization -> computed-mask memory route-family "
+            "facts -> route-control provider plan -> statement plan -> "
+            "emitted memory side effect"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+            "memory body/config/runtime facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "memory_side_effect_kind": memory_side_effect_kind,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "runtime_scalar_producer_source": (
+            COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+        ),
+        "runtime_scalar_operand": "rhs_scalar",
+        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "tail_policy": tail_policy,
+        "mask_policy": mask_policy,
+        "active_lane_contract": active_lane_contract,
+        "inactive_lane_contract": inactive_lane_contract,
+        "selected_source_abi": selected_source_abi,
+        "statement_plan": statement_plan,
+        "source_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+            "mask_c_type": expectation.rvv_mask_c_type,
+        },
+        "materialized_body": materialized_checks.get(
+            "runtime_scalar_computed_mask_memory_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "runtime_scalar_computed_mask_memory_boundary", {}
+        ),
+        "route_metadata": computed_mask_memory_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "empty_count_behavior": "runtime loop skipped; destination tail sentinel preserved",
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_memory_authority": True,
+    }
 
 
 def conversion_sew_policy_boundary_summary(
@@ -19135,6 +19851,21 @@ def run_one_op_e2e(
         ):
             evidence["compare_select_predicate_boundary"] = (
                 compare_select_predicate_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
+        if (
+            expectation.is_runtime_scalar_computed_mask_store
+            or expectation.is_runtime_scalar_computed_mask_load_store
+        ):
+            evidence["runtime_scalar_computed_mask_memory_boundary"] = (
+                runtime_scalar_computed_mask_memory_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"

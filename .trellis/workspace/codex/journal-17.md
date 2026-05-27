@@ -463,3 +463,57 @@ Closed runtime_scalar_dual_cmp_mask_and_select generated-bundle/runtime ABI evid
 ### Next Steps
 
 - None - task complete
+
+
+## Session 278: Stage2 RVV runtime-scalar cmp masked memory side-effect boundary
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV runtime scalar cmp masked memory side-effect boundary
+**Branch**: `main`
+
+### Summary
+
+Closed `runtime_scalar_cmp_masked_store` and
+`runtime_scalar_cmp_masked_load_store` selected-boundary/generated-bundle/runtime
+ABI evidence with structured typed-body, provider route, emitted RVV C, harness,
+direct fail-closed, `ssh rvv` correctness, and `check-tianchenrv` 411/411.
+
+### Main Changes
+
+- Added `runtime_scalar_computed_mask_memory_boundary` evidence extraction in
+  `scripts/rvv_generated_bundle_abi_e2e.py` for materialized typed `tcrv_rvv`
+  bodies, provider metadata, emitted RVV C masked-store and masked-load-plus-
+  store structure, runtime scalar splat/compare facts, ABI order,
+  inactive-lane behavior, and runtime AVL/VL.
+- Added focused dry-run and direct fail-closed Script tests for
+  `runtime_scalar_cmp_masked_store` and
+  `runtime_scalar_cmp_masked_load_store`.
+- Kept production C++ stable; existing selected-body/provider/target path was
+  sufficient, and the round closed the missing executable evidence boundary.
+
+### Git Commits
+
+`this commit` - final round commit
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] selected-boundary dry-run for both masked memory op kinds
+- [OK] direct pre-realized route-entry fail-closed probe for both op kinds
+- [OK] new Script lit filter: 2/2 passed
+- [OK] `ssh rvv` generated-bundle compile/run/correctness for counts
+  `0,1,16,23,257` and RHS scalars `-37,91`
+- [OK] non-regression lit for `runtime_scalar_dual_cmp_mask_and_select` and
+  `runtime_scalar_cmp_select`: 4/4 passed
+- [OK] Target/RVV selected-body fixture lit for both op kinds: 2/2 passed
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 411/411 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

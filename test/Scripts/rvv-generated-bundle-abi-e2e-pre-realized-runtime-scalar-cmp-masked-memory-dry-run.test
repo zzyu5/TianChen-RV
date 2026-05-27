@@ -1,0 +1,146 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-memory --overwrite --op-kind runtime_scalar_cmp_masked_store --op-kind runtime_scalar_cmp_masked_load_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-memory/evidence.json
+# RUN: FileCheck %s --check-prefix=STORE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_store/evidence.json
+# RUN: FileCheck %s --check-prefix=LOADSTORE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_load_store/evidence.json
+# RUN: FileCheck %s --check-prefix=STORE-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_store/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_store_harness.c
+# RUN: FileCheck %s --check-prefix=LOADSTORE-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_load_store/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_load_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_store"
+# ROOT-DAG: "runtime_scalar_cmp_masked_load_store"
+# ROOT-DAG: "rhs_scalar_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# STORE-DAG: "input_mode": "pre-realized-selected-body"
+# STORE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store.mlir"
+# STORE-DAG: "prototype": "void tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *dst, size_t n);"
+# STORE-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi.v1"
+# STORE-DAG: "expected_selected_variant": "pre_realized_body_rvv_runtime_scalar_cmp_masked_store"
+# STORE-DAG: "route_entry_realization": false
+# STORE-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# STORE-DAG: "pre_realized_body_consumed": true
+# STORE-DAG: "typed_compute_op": "tcrv_rvv.masked_store"
+# STORE-DAG: "memory_form": "runtime-scalar-computed-mask-store"
+# STORE-DAG: "runtime_abi_order": "lhs,rhs_scalar,src,dst,n"
+# STORE-DAG: "runtime_scalar_computed_mask_memory_boundary": {
+# STORE-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask memory body/config/runtime facts"
+# STORE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# STORE-DAG: "memory_side_effect_kind": "masked_store"
+# STORE-DAG: "compare_predicate_kind": "sle"
+# STORE-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
+# STORE-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# STORE-DAG: "mask_role": "predicate-mask-produced-by-compare"
+# STORE-DAG: "mask_source": "compare-produced-mask-same-vl-scope"
+# STORE-DAG: "mask_memory_form": "compare-produced-mask"
+# STORE-DAG: "tail_policy": "undisturbed"
+# STORE-DAG: "mask_policy": "undisturbed"
+# STORE-DAG: "active_lane_contract": "compare-true lanes store src payload into dst"
+# STORE-DAG: "inactive_lane_contract": "masked-store-false-lanes-preserve-output-buffer"
+# STORE-DAG: "selected_source_abi": {
+# STORE-DAG: "rhs_scalar": "rhs-scalar-value"
+# STORE-DAG: "src": "source-input-buffer"
+# STORE-DAG: "dst": "output-buffer"
+# STORE-DAG: "materialized_body": {
+# STORE-DAG: "typed_body_source": "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body"
+# STORE-DAG: "realized_memory_ops": [
+# STORE-DAG: "tcrv_rvv.masked_store"
+# STORE-DAG: "emitted_cpp": {
+# STORE-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
+# STORE-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m1_b32"
+# STORE-DAG: "masked_store_intrinsic": "__riscv_vse32_v_i32m1_m"
+# STORE-DAG: "source_payload_role": "source-input-buffer"
+# STORE-DAG: "destination_role": "output-buffer"
+# STORE-DAG: "store_payload_is_source_vector": true
+# STORE-DAG: "route_metadata": {
+# STORE-DAG: "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:runtime_scalar_cmp_masked_store.v1"
+# STORE-DAG: "tcrv_rvv.computed_mask_memory_route_family_plan": "rvv-computed-mask-memory-route-family-plan.v1"
+# STORE-DAG: "tcrv_rvv.computed_mask_memory_mask_producer_source": "runtime-scalar-splat-compare-rhs"
+# STORE-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-store-plan-validated"
+# STORE-DAG: "runtime_counts_are_execution_cases_not_memory_authority": true
+# STORE-DAG: "mask_coverage_contract": "multi-lane runtime_scalar_cmp_masked_store cases require runtime scalar threshold active and inactive mask lanes"
+# STORE-DAG: "inactive_lane_contract": "compare-false lanes and tail lanes must preserve old destination sentinel values"
+# STORE-DAG: "payload_contract": "compare-true lanes store the source payload vector, not the lhs compare vector or a select fallback"
+# STORE-DAG: "status": "dry_run_success"
+
+# LOADSTORE-DAG: "input_mode": "pre-realized-selected-body"
+# LOADSTORE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store.mlir"
+# LOADSTORE-DAG: "prototype": "void tcrv_emitc_pr_rt_cmp_mload_kernel_pr_rvv_cmp_mload(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *dst, size_t n);"
+# LOADSTORE-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-load-store-callable-c-abi.v1"
+# LOADSTORE-DAG: "expected_selected_variant": "pr_rvv_cmp_mload"
+# LOADSTORE-DAG: "route_entry_realization": false
+# LOADSTORE-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# LOADSTORE-DAG: "pre_realized_body_consumed": true
+# LOADSTORE-DAG: "typed_compute_op": "tcrv_rvv.masked_load"
+# LOADSTORE-DAG: "memory_form": "runtime-scalar-computed-mask-load-store"
+# LOADSTORE-DAG: "runtime_abi_order": "lhs,rhs_scalar,src,dst,n"
+# LOADSTORE-DAG: "runtime_scalar_computed_mask_memory_boundary": {
+# LOADSTORE-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask memory body/config/runtime facts"
+# LOADSTORE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# LOADSTORE-DAG: "memory_side_effect_kind": "masked_load_store"
+# LOADSTORE-DAG: "compare_predicate_kind": "sle"
+# LOADSTORE-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
+# LOADSTORE-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# LOADSTORE-DAG: "mask_role": "predicate-mask-produced-by-compare"
+# LOADSTORE-DAG: "mask_source": "compare-produced-mask-same-vl-scope"
+# LOADSTORE-DAG: "mask_memory_form": "compare-produced-mask"
+# LOADSTORE-DAG: "active_lane_contract": "compare-true lanes load src through masked_load then store to dst"
+# LOADSTORE-DAG: "inactive_lane_contract": "masked-off-lanes-preserve-old-destination"
+# LOADSTORE-DAG: "selected_source_abi": {
+# LOADSTORE-DAG: "rhs_scalar": "rhs-scalar-value"
+# LOADSTORE-DAG: "src": "source-input-buffer"
+# LOADSTORE-DAG: "dst": "output-buffer and old-destination passthrough"
+# LOADSTORE-DAG: "materialized_body": {
+# LOADSTORE-DAG: "typed_body_source": "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body"
+# LOADSTORE-DAG: "realized_memory_ops": [
+# LOADSTORE-DAG: "tcrv_rvv.masked_load"
+# LOADSTORE-DAG: "tcrv_rvv.store"
+# LOADSTORE-DAG: "old_passthrough_role": "output-buffer"
+# LOADSTORE-DAG: "emitted_cpp": {
+# LOADSTORE-DAG: "old_dst_passthrough_vector":
+# LOADSTORE-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
+# LOADSTORE-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m1_b32"
+# LOADSTORE-DAG: "masked_load_intrinsic": "__riscv_vle32_v_i32m1_tumu"
+# LOADSTORE-DAG: "store_intrinsic": "__riscv_vse32_v_i32m1"
+# LOADSTORE-DAG: "masked_load_passthrough_is_old_dst": true
+# LOADSTORE-DAG: "store_uses_masked_load_result": true
+# LOADSTORE-DAG: "route_metadata": {
+# LOADSTORE-DAG: "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:runtime_scalar_cmp_masked_load_store.v1"
+# LOADSTORE-DAG: "tcrv_rvv.computed_mask_memory_route_family_plan": "rvv-computed-mask-memory-route-family-plan.v1"
+# LOADSTORE-DAG: "tcrv_rvv.computed_mask_memory_mask_producer_source": "runtime-scalar-splat-compare-rhs"
+# LOADSTORE-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-load-store-plan-validated"
+# LOADSTORE-DAG: "runtime_counts_are_execution_cases_not_memory_authority": true
+# LOADSTORE-DAG: "mask_coverage_contract": "multi-lane runtime_scalar_cmp_masked_load_store cases require runtime scalar threshold active and inactive masked-load lanes"
+# LOADSTORE-DAG: "inactive_lane_contract": "compare-false lanes and tail lanes must preserve old destination passthrough values"
+# LOADSTORE-DAG: "payload_contract": "compare-true lanes load the source payload through masked_load, not the lhs compare vector, masked_store, or select fallback"
+# LOADSTORE-DAG: "status": "dry_run_success"
+
+# STORE-HARNESS: tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store(lhs, rhs_scalar, src, dst, n);
+# STORE-HARNESS: (lhs[index] <= rhs_scalar ? src[index] : old_dst[index])
+# STORE-HARNESS: inactive lane did not preserve old destination
+# STORE-HARNESS: runtime_scalar_cmp_masked_store touched tail sentinel
+# STORE-HARNESS: source payload buffer mutated
+# STORE-HARNESS: runtime scalar mask coverage missing
+# STORE-HARNESS: inactive preservation coverage mismatch
+# STORE-HARNESS: payload-distinguishing coverage missing
+# STORE-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# STORE-HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+
+# LOADSTORE-HARNESS: tcrv_emitc_pr_rt_cmp_mload_kernel_pr_rvv_cmp_mload(lhs, rhs_scalar, src, dst, n);
+# LOADSTORE-HARNESS: (lhs[index] <= rhs_scalar ? src[index] : old_dst[index])
+# LOADSTORE-HARNESS: inactive lane did not preserve old destination
+# LOADSTORE-HARNESS: runtime_scalar_cmp_masked_load_store touched tail sentinel
+# LOADSTORE-HARNESS: source payload buffer mutated
+# LOADSTORE-HARNESS: runtime scalar mask coverage missing
+# LOADSTORE-HARNESS: inactive preservation coverage mismatch
+# LOADSTORE-HARNESS: payload-distinguishing coverage missing
+# LOADSTORE-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# LOADSTORE-HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
