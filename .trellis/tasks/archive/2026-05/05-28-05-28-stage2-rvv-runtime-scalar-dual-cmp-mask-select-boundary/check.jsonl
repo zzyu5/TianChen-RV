@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that implementation and evidence respect global RVV-first authority and Python/tooling boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary runtime scalar dual compare mask/select facts, provider-owned route construction, target artifact mirrors, and direct shortcut fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that runtime ABI roles stay envelope declarations and do not become compute authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral consumer of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle evidence derives compare/select and mask composition facts from provider-derived typed facts and records real runtime evidence for executable claims."}

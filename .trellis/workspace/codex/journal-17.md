@@ -69,7 +69,6 @@ real `ssh rvv` evidence, and preparing the Trellis task for archive and commit.
 
 - None - task complete
 
-
 ## Session 271: Stage2 RVV computed-masked segment2 selected realization migration
 
 **Date**: 2026-05-27
@@ -407,6 +406,55 @@ Closed runtime_scalar_cmp_select selected-boundary evidence with typed runtime s
 - [OK] RVV extension plugin and selected-lowering-boundary C++ tests
 - [OK] bounded authority scan and `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2`: 407/407 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 277: Stage2 RVV runtime-scalar dual cmp mask select boundary
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV runtime-scalar dual cmp mask select boundary
+**Branch**: `main`
+
+### Summary
+
+Closed runtime_scalar_dual_cmp_mask_and_select generated-bundle/runtime ABI evidence with dual runtime scalar splats, two compares, mask-and/select facts, direct-route fail-closed lit, ssh rvv correctness, and check-tianchenrv 409/409.
+
+### Main Changes
+
+- Tightened `scripts/rvv_generated_bundle_abi_e2e.py` evidence extraction for
+  `runtime_scalar_dual_cmp_mask_and_select`: two runtime scalar threshold ABI
+  bindings, two scalar splats, two compares, mask-and composition, true/false
+  select roles, store, runtime AVL/VL, provider metadata, artifact ABI mirrors,
+  and generated harness coverage.
+- Added dry-run lit coverage for the selected-boundary generated bundle and a
+  direct pre-realized route-entry fail-closed test for the same op.
+- Archived the Trellis task after recording PRD completion evidence.
+
+### Git Commits
+
+`this commit` - final round commit
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused lit filter: 7/7 passed
+- [OK] selected-boundary dry-run for `runtime_scalar_dual_cmp_mask_and_select`
+- [OK] direct pre-realized route-entry fail-closed dry-run
+- [OK] non-regression dry-runs for `runtime_scalar_cmp_select` and
+  compare/select selected-boundary paths
+- [OK] `ssh rvv` generated-bundle correctness for counts `0,1,16,23,257` and
+  threshold pairs `(-37,-37)`, `(-37,91)`, `(91,-37)`, `(91,91)`
+- [OK] RVV extension plugin and selected-lowering-boundary C++ tests
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 409/409 passed
 
 ### Status
 

@@ -1,0 +1,110 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-dual-cmp-mask-and-select --overwrite --op-kind runtime_scalar_dual_cmp_mask_and_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-dual-cmp-mask-and-select/evidence.json
+# RUN: FileCheck %s --check-prefix=RSD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select/rvv_generated_bundle_abi_runtime_scalar_dual_cmp_mask_and_select_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_dual_cmp_mask_and_select"
+# ROOT-DAG: "rhs_scalar_a_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "rhs_scalar_b_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# RSD-DAG: "input_mode": "pre-realized-selected-body"
+# RSD-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir"
+# RSD-DAG: "prototype": "void tcrv_emitc_pre_dual_cmp_mask_select_kernel_pre_rvv_dual_cmp_mask_select(const int32_t *cmp_lhs_a, int32_t rhs_scalar_a, const int32_t *cmp_lhs_b, int32_t rhs_scalar_b, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);"
+# RSD-DAG: "expected_function": "tcrv_emitc_pre_dual_cmp_mask_select_kernel_pre_rvv_dual_cmp_mask_select"
+# RSD-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1"
+# RSD-DAG: "expected_selected_variant": "pre_rvv_dual_cmp_mask_select"
+# RSD-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# RSD-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# RSD-DAG: "route_entry_realization": false
+# RSD-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# RSD-DAG: --tcrv-materialize-selected-lowering-boundaries
+# RSD-DAG: "pre_realized_body_consumed": true
+# RSD-DAG: "key": "rvv_emitc_lowerable_route"
+# RSD-DAG: "value": "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-emitc-route"
+# RSD-DAG: "key": "rvv_selected_body_operation"
+# RSD-DAG: "value": "runtime_scalar_dual_cmp_mask_and_select"
+# RSD-DAG: "key": "rvv_selected_body_typed_compute_op"
+# RSD-DAG: "value": "tcrv_rvv.select"
+# RSD-DAG: "typed_compute_op": "tcrv_rvv.select"
+# RSD-DAG: "memory_form": "runtime-scalar-dual-cmp-mask-and-select"
+# RSD-DAG: "runtime_abi_order": "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n"
+# RSD-DAG: "compare_select_predicate_boundary": {
+# RSD-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# RSD-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# RSD-DAG: "compare_predicate_kind": "sle"
+# RSD-DAG: "secondary_compare_predicate_kind": "sle"
+# RSD-DAG: "predicate_role": "predicate-mask-produced-by-mask-and"
+# RSD-DAG: "predicate_source": "mask-and-of-two-runtime-scalar-compare-produced-masks"
+# RSD-DAG: "predicate_memory_form": "composed-compare-produced-mask"
+# RSD-DAG: "runtime_scalar_producer_source": "dual-runtime-scalar-splat-compare-rhs-mask-and"
+# RSD-DAG: "runtime_scalar_operands": [
+# RSD-DAG: "rhs_scalar_a"
+# RSD-DAG: "rhs_scalar_b"
+# RSD-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# RSD-DAG: "runtime_scalar_values_required_minimum": 2
+# RSD-DAG: "select_layout": "select-true-value-when-mask-else-false-value"
+# RSD-DAG: "selected_value_operands": {
+# RSD-DAG: "compare_lhs_a": "cmp_lhs_a"
+# RSD-DAG: "compare_rhs_scalar_a": "rhs_scalar_a"
+# RSD-DAG: "compare_lhs_b": "cmp_lhs_b"
+# RSD-DAG: "compare_rhs_scalar_b": "rhs_scalar_b"
+# RSD-DAG: "composed_mask": "mask_a && mask_b"
+# RSD-DAG: "true_value": "true_value"
+# RSD-DAG: "false_value": "false_value"
+# RSD-DAG: "output": "out"
+# RSD-DAG: "materialized_body": {
+# RSD-DAG: "typed_body_source": "tcrv_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body"
+# RSD-DAG: "realized_splat_count": 2
+# RSD-DAG: "realized_compare_count": 2
+# RSD-DAG: "realized_mask_composition_op": "tcrv_rvv.mask_and"
+# RSD-DAG: "realized_select_op": "tcrv_rvv.select"
+# RSD-DAG: "primary_compare_rhs_scalar_role": "rhs-scalar-value"
+# RSD-DAG: "secondary_compare_rhs_scalar_role": "rhs-secondary-scalar-value"
+# RSD-DAG: "emitted_cpp": {
+# RSD-DAG: "rhs_scalar_a_abi_parameter":
+# RSD-DAG: "rhs_scalar_b_abi_parameter":
+# RSD-DAG: "primary_predicate_mask":
+# RSD-DAG: "secondary_predicate_mask":
+# RSD-DAG: "composed_predicate_mask":
+# RSD-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
+# RSD-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m1_b32"
+# RSD-DAG: "mask_and_intrinsic": "__riscv_vmand_mm_b32"
+# RSD-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i32m1"
+# RSD-DAG: "both_compares_use_loop_vl": true
+# RSD-DAG: "mask_and_uses_loop_vl": true
+# RSD-DAG: "select_uses_loop_vl": true
+# RSD-DAG: "route_metadata": {
+# RSD-DAG: "tcrv_rvv.route_operand_binding_operands": "cmp_lhs_a=abi|load|cmp|and;rhs_scalar_a=abi|splat|cmp;cmp_lhs_b=abi|load|cmp|and;rhs_scalar_b=abi|splat|cmp;true_value=abi|load|sel;false_value=abi|load|sel;out=abi|store|hdr;n=abi|setvl|loop|hdr"
+# RSD-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "dual-runtime-scalar-splat-compare-rhs-mask-and"
+# RSD-DAG: "tcrv_rvv.mask_composition": "and"
+# RSD-DAG: "tcrv_rvv.mask_source": "mask-and-of-two-runtime-scalar-compare-produced-masks"
+# RSD-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated"
+# RSD-DAG: "rhs_scalar_threshold_pairs": [
+# RSD-DAG: "rhs_scalar_a": -37
+# RSD-DAG: "rhs_scalar_b": 91
+# RSD-DAG: "mask_composition_coverage_contract": "multi-lane runtime_scalar_dual_cmp_mask_and_select cases require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
+# RSD-DAG: "tail_lane_contract": "runtime n/AVL must be honored and tail sentinel lanes must be preserved"
+# RSD-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# RSD-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_dual_cmp_mask_select_kernel_pre_rvv_dual_cmp_mask_select(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
+# HARNESS: (cmp_lhs_a[index] <= rhs_scalar_a && cmp_lhs_b[index] <= rhs_scalar_b)
+# HARNESS: touched tail sentinel
+# HARNESS: mask coverage missing
+# HARNESS: mask-and distinction missing
+# HARNESS: select payload coverage missing
+# HARNESS: const int32_t rhs_scalar_a_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: const int32_t rhs_scalar_b_values[] = {(int32_t)-37, (int32_t)91};
