@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture and RVV-first authority chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, direct route-entry, conversion dtype-policy, provider, artifact, and evidence contracts"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope authority boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and neutral common EmitC boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ and ssh rvv evidence requirements"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected typed RVV body and mirror-only metadata constraints"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned realization and route-provider registry boundary"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability and typed body authority checklist"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV plugin-local ownership checklist"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "avoid core/high-level compute drift while changing RVV route behavior"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-widen-i16-to-i32-selected-realization/prd.md", "reason": "immediate predecessor migration pattern for widening conversion direct-route demotion"}
+{"file": ".trellis/tasks/archive/2026-05/05-26-05-26-stage2-rvv-widen-i32-to-i64-dtype-runtime-artifact-boundary/prd.md", "reason": "existing widen_i32_to_i64 typed/provider/artifact/ssh evidence baseline"}

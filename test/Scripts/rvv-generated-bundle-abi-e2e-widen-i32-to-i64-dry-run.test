@@ -91,6 +91,7 @@
 # WIDEN-DAG: "conversion_uses_loaded_source": true
 # WIDEN-DAG: "conversion_uses_loop_vl": true
 # WIDEN-DAG: "store_uses_converted_result": true
+# WIDEN-DAG: "conversion_sign_extension_contract": "two signed i32 input patterns cover mixed-sign values, wide-magnitude int32 values beyond i16 range, expected i64 sign-extension, and output tail sentinel preservation"
 # WIDEN-DAG: "runtime_counts_are_execution_cases_not_conversion_authority": true
 # WIDEN-DAG: "status": "dry_run_success"
 
@@ -98,6 +99,7 @@
 # HARNESS: int64_t *out = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
 # HARNESS: tcrv_emitc_explicit_selected_body_widen_i32_to_i64_kernel_explicit_selected_body_rvv_widen_i32_to_i64(lhs, out, n);
 # HARNESS: int64_t expected = (int64_t)lhs[index];
-# HARNESS: sign_extension_checked wide_magnitude_checked tail_preserved
+# HARNESS: sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+# HARNESS: const int pattern_count = 2;
 # HARNESS: tcrv_rvv_generated_bundle_abi_widen_i32_to_i64_ok counts=0,7,16,23
 # HARNESS: PASS op=widen_i32_to_i64 counts=0,7,16,23

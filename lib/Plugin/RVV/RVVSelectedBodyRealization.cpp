@@ -1021,23 +1021,6 @@ bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
          isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm());
 }
 
-bool isPreRealizedRVVWideningConversionRouteEntryOp(mlir::Operation *op) {
-  auto body =
-      llvm::dyn_cast<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
-  if (!body)
-    return false;
-  return body.getOpKind() == "widen_i32_to_i64" &&
-         isPreRealizedWideningConversionOpKind(body.getOpKind()) &&
-         isPreRealizedWideningConversionMemoryForm(body.getMemoryForm()) &&
-         isPreRealizedWideningConversionRelation(
-             body.getConversionRelation()) &&
-         isPreRealizedWideningConversionSignature(
-             body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
-             body.getSourceLmul(), static_cast<std::int64_t>(body.getDestSew()),
-             body.getDestLmul(), body.getConversionRelation()) &&
-         tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
-}
-
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVElementwiseCompareSelectOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
@@ -1309,8 +1292,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        isPreRealizedRVVContractionRouteEntryOp,
        realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
-       isPreRealizedRVVWideningConversionRouteEntryOp,
-       realizePreRealizedRVVWideningConversionOwner},
+       nullptr, realizePreRealizedRVVWideningConversionOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
        isPreRealizedRVVBaseMemoryMovementRouteEntryOp,
        realizePreRealizedRVVBaseMemoryMovementOwner},
@@ -7922,8 +7904,8 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized plain elementwise/compare-select, base memory movement, "
-        "standalone reduction, supported contraction dot-reduction, widening "
-        "conversion, or segment2 deinterleave/"
+        "standalone reduction, supported contraction dot-reduction, or "
+        "segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");

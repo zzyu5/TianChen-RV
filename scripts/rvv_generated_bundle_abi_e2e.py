@@ -13,7 +13,8 @@ artifact/ABI evidence cases. Computed-mask select, ``scalar_broadcast_add``,
 ``macc_add``, ``scalar_broadcast_macc_add``, ``computed_masked_macc_add``,
 ``runtime_scalar_cmp_masked_macc_add``, ``widening_macc_add``,
 ``widening_dot_reduce_add``, ``strided_input_widening_dot_reduce_add``,
-``computed_masked_widening_dot_reduce_add``, ``widen_i16_to_i32``, and
+``computed_masked_widening_dot_reduce_add``, ``widen_i16_to_i32``,
+``widen_i32_to_i64``, and
 ``computed_masked_strided_input_widening_dot_reduce_add`` intentionally remain
 on the selected lowering-boundary producer path. The legacy ``--source-seed``
 mode is unsupported and exits before bundle generation. The script does not
@@ -14586,7 +14587,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 5;
   if (alloc_n == 5 && n == 0)
@@ -14601,7 +14602,23 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    lhs[index] = {expectation.lhs_initializer};
+    if (pattern == 0) {{
+      lhs[index] = {expectation.lhs_initializer};
+    }} else {{
+      lhs[index] = (int32_t)(((index % 7) == 0)
+                                 ? INT32_MIN
+                                 : ((index % 7) == 1)
+                                       ? -123456789
+                                       : ((index % 7) == 2)
+                                             ? -1
+                                             : ((index % 7) == 3)
+                                                   ? 0
+                                                   : ((index % 7) == 4)
+                                                         ? 1
+                                                         : ((index % 7) == 5)
+                                                               ? 123456789
+                                                               : INT32_MAX);
+    }}
     out[index] = {expectation.out_initializer};
   }}
 
@@ -14666,17 +14683,21 @@ static int run_case(size_t n) {{
 
   free(lhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok sign_extension_checked wide_magnitude_checked tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu pattern=%d ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked\\n",
+         n, pattern);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const int pattern_count = 2;
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (int pattern = 0; pattern < pattern_count; ++pattern) {{
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
@@ -18875,6 +18896,12 @@ def run_one_op_e2e(
             evidence["harness"]["scalar_result_contract"] = (
                 "only out[0] is written and tail/non-scalar output slots "
                 "preserve sentinels"
+            )
+        if expectation.is_widen_i32_to_i64:
+            evidence["harness"]["conversion_sign_extension_contract"] = (
+                "two signed i32 input patterns cover mixed-sign values, "
+                "wide-magnitude int32 values beyond i16 range, expected i64 "
+                "sign-extension, and output tail sentinel preservation"
             )
         if expectation.is_widen_i16_to_i32:
             evidence["harness"]["conversion_sign_extension_contract"] = (

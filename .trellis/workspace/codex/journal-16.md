@@ -1828,3 +1828,51 @@ Demoted widen_i16_to_i32 direct pre-realized route-entry authority, kept generat
 ### Next Steps
 
 - None - task complete
+
+
+## Session 267: Stage2 RVV widen i32-to-i64 selected-body realization
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV widen i32-to-i64 selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Demoted widen_i32_to_i64 direct pre-realized route-entry authority, kept selected-boundary realization positive, validated generated artifact dry-run, direct fail-closed behavior, ssh rvv evidence, and check-tianchenrv.
+
+### Main Changes
+
+- Demoted `widen_i32_to_i64` from RVV direct pre-realized route-entry eligibility by removing the widening conversion route-entry hook while keeping `TypedWideningConversionPreRealizedBodyOp` under the `widening conversion` selected-body realization owner.
+- Added C++ route-path coverage proving pre-realized `widen_i32_to_i64` is selected-boundary producer only, belongs to the widening conversion owner, and fails closed through `realizePreRealizedRVVRouteEntrySelectedBody` when used as a direct shortcut.
+- Added generated-bundle direct fail-closed lit coverage and strengthened selected-boundary dry-run checks for `route_entry_realization: false`, selected-body producer evidence, i32 source/i64 result facts, provider mirrors, ABI order `lhs,out,n`, and conversion policy evidence.
+- Expanded the `widen_i32_to_i64` generated harness to run two signed i32 patterns and verify i64 sign-extension, wide i32 magnitudes beyond the i16 range, and tail sentinel preservation.
+- Archived the Trellis task with PRD validation results. No `.trellis/spec/` update was needed because the existing RVV plugin spec already covers owner-vs-route-entry narrowing.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] selected-boundary generated-bundle dry-run for `widen_i32_to_i64`, counts `0,1,16,23,257`
+- [OK] direct route-entry generated-bundle request fails closed for `widen_i32_to_i64`
+- [OK] selected-boundary generated-bundle dry-run non-regression for `widen_i16_to_i32`
+- [OK] explicit selected-body generated-bundle dry-run for `widen_i32_to_i64`
+- [OK] real `ssh rvv` generated-bundle execution for counts `0,1,16,23,257` with two signed i32 input patterns
+- [OK] bounded touched-file authority scan
+- [OK] Trellis context validation
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 398/398 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

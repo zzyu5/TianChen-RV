@@ -1242,7 +1242,7 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
 
   const llvm::StringRef routeEntryOwners[] = {
       "elementwise/compare-select", "standalone reduction", "contraction",
-      "widening conversion", "base memory movement", "segment2 memory"};
+      "base memory movement", "segment2 memory"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1434,6 +1434,12 @@ module {
       %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body %cmp_lhs, %cmp_rhs, %src0, %src1, %dst, %n {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-load-segment2-store", op_kind = "computed_masked_segment2_store_unit_load", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source0_memory_form = "unit-stride-load", source1_memory_form = "unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_widen_i32_to_i64 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i32m1-to-i64m2", dest_lmul = "m2", dest_sew = 64 : i64, memory_form = "unit-stride-conversion", op_kind = "widen_i32_to_i64", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m1", source_sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_widen_i16_to_i32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1699,7 +1705,8 @@ module {
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
-        variantName == "rvv_pre_route_widen_i16_to_i32" ||
+        expectedProviderPlanID ==
+            "rvv-widening-conversion-route-family-plan.v1" ||
         expectedProviderPlanID == "rvv-plain-macc-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
@@ -1750,7 +1757,8 @@ module {
                     " is selected-boundary producer eligible when it is not "
                     "route-entry eligible"))
           return result;
-        if (variantName == "rvv_pre_route_widen_i16_to_i32") {
+        if (expectedProviderPlanID ==
+            "rvv-widening-conversion-route-family-plan.v1") {
           mlir::OpBuilder directRouteEntryBuilder(module->getContext());
           llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
               tianchenrv::plugin::rvv::
@@ -1760,8 +1768,10 @@ module {
                           VariantEmissionRole::DirectVariant,
                           directRouteEntryBuilder));
           if (directRouteEntry)
-            return fail("direct route-entry accepted widen_i16_to_i32 instead "
-                        "of requiring the selected-body realization producer");
+            return fail(llvm::Twine("direct route-entry accepted ") +
+                        variantName +
+                        " instead of requiring the selected-body realization "
+                        "producer");
           if (int result = expectErrorContains(
                   directRouteEntry.takeError(),
                   {"selected-body route-entry realization currently supports "
@@ -2136,6 +2146,13 @@ module {
           "rvv_pre_route_segment2_interleave_unit_load",
           "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
           "segment2 memory", "rvv-segment2-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_widen_i32_to_i64",
+          "tcrv_rvv.typed_widening_conversion_pre_realized_body",
+          "widening conversion",
+          "rvv-widening-conversion-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
