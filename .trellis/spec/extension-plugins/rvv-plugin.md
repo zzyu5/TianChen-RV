@@ -322,13 +322,15 @@ only by changing the owner-scoped route-entry predicate and adding matching
 provider facts, diagnostics, generated-bundle evidence, and real RVV evidence
 for executable claims.
 
-For `segment2 memory`, route-entry eligibility may be narrower than the
+For `segment2 memory`, route-entry eligibility is currently narrower than the
 realization owner family. Bounded plain `segment2_deinterleave_unit_store` and
-`segment2_interleave_unit_load` pre-realized bodies may be direct route-entry
-capable when their realized `segment2_load/move/move/store/store` or
-`load/load/segment2_store` bodies feed the verified segment2 family plan,
-route-control provider plan, memory operand-binding facts, and segment2
-statement-plan boundary. Bounded computed-mask
+`segment2_interleave_unit_load` pre-realized bodies belong to the segment2
+selected-body realization owner, but they are selected-boundary-only: they must
+be consumed through the public selected lowering-boundary producer before their
+realized `segment2_load/move/move/store/store` or `load/load/segment2_store`
+bodies feed the verified segment2 family plan, route-control provider plan,
+memory operand-binding facts, segment2 statement-plan boundary, provider route
+construction, common EmitC, and target artifact export. Bounded computed-mask
 `computed_masked_segment2_load_unit_store`,
 `computed_masked_segment2_store_unit_load`, and
 `computed_masked_segment2_update_unit_load` bodies belong to the segment2
@@ -337,11 +339,12 @@ be consumed through the public selected lowering-boundary producer before
 computed-mask memory facts, segment2 family facts, route-control provider facts,
 memory operand-binding facts, segment2 statement-plan facts, provider route
 construction, common EmitC, and target artifact export. The direct route-entry
-bridge must fail closed for those computed-mask segment2 bodies even when the
-same typed body can be realized by the segment2 owner. A later task may add
-direct route-entry support only by changing the owner-scoped predicate and
-adding matching mask/source, lane-role, update/passthrough, runtime ABI,
-provider, target artifact, generated-bundle, and `ssh rvv` evidence.
+bridge must fail closed for all plain and computed-mask segment2 bodies even
+when the same typed body can be realized by the segment2 owner. A later task
+may add direct route-entry support only by changing the owner-scoped predicate
+and adding matching direction, mask/source, lane-role, update/passthrough,
+runtime ABI, provider, target artifact, generated-bundle, and `ssh rvv`
+evidence.
 
 The segment2 memory realization owner must not keep all direct route-entry
 classification as a single broad predicate. It dispatches through a plugin-local
@@ -364,11 +367,9 @@ bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
     mlir::Operation *bodyOp);
 ```
 
-The active segment2 route-entry family entries are `plain segment2
-deinterleave` and `plain segment2 interleave`. The registry must select exactly
-one owner for a direct route-entry segment2 body. Computed-mask segment2 load,
-store, and update selected bodies must produce no segment2 route-entry family
-owner until a later explicit owner task reintroduces direct support with
+There are currently no active segment2 direct route-entry family entries. Plain
+and computed-mask segment2 selected bodies must produce no segment2 route-entry
+family owner until a later explicit owner task reintroduces direct support with
 matching facts and evidence. A stale `route_id`, artifact name, script option,
 or mirror metadata cannot repair a mismatched typed `op_kind`, memory form,
 segment count, mask facts, field roles, SEW/LMUL, policy, update arithmetic, or
@@ -377,14 +378,13 @@ selected-body route-entry realization and before provider/common EmitC route
 construction.
 
 Tests for segment2 route-entry owner changes must assert registry membership,
-owner order/names, hook presence, exact-one classification for plain
-deinterleave and interleave, computed-mask segment2 no-match behavior, and
-stale metadata no-match behavior. Positive route-entry tests must still prove
-the selected pre-realized body is consumed before provider facts are collected
-and that the realized typed `tcrv_rvv` body feeds the verified plain segment2
-route-family plan and segment2 statement-plan boundary. Computed-mask segment2
-tests must prove selected-boundary realization and direct route-entry
-fail-closed behavior instead.
+empty/no-match classification for plain deinterleave/interleave and
+computed-mask segment2, stale metadata no-match behavior, selected-boundary
+realization, and direct route-entry fail-closed behavior. Positive executable
+tests must prove the public selected lowering-boundary producer consumes the
+selected pre-realized body before provider facts are collected and that the
+realized typed `tcrv_rvv` body feeds the verified segment2 route-family plan
+and segment2 statement-plan boundary.
 
 ### 4. Validation & Error Matrix
 
@@ -613,16 +613,11 @@ The route-entry bridge may support bounded family groups such as:
   RVV-owned contraction family plans, materialization facts, math
   operand-binding facts, direct contraction provider plans, and direct
   contraction owner statement plans.
-- bounded plain segment2 deinterleave pre-realized bodies whose realized
-  `segment2_load/move/move/store/store` structure already feeds RVV-owned
-  segment2 family plans, route-control provider plans, memory operand-binding
-  facts, and segment2 statement plans;
-- bounded plain segment2 interleave pre-realized bodies whose realized
-  `load/load/segment2_store` structure already feeds RVV-owned segment2 family
-  plans, route-control provider plans, memory operand-binding facts, and
-  segment2 statement plans.
-
-Unlisted pre-realized families must fail closed at the route-entry bridge
+Current segment2 pre-realized bodies are not in the route-entry bridge support
+set. Plain and computed-mask segment2 bodies must fail closed at the
+route-entry bridge unless a later owner task explicitly adds direct support
+with matching facts, statement-plan, target artifact, generated-bundle, and
+`ssh rvv` evidence. Other unlisted pre-realized families must also fail closed
 unless their owning route-entry support is explicitly added with matching
 facts, statement-plan, and tests.
 
@@ -684,16 +679,19 @@ structure.
 ### 5. Good/Base/Bad Cases
 
 - Good: selected RVV variant -> pre-realized plain elementwise, route-entry
-  capable base-memory, contraction, bounded segment2 deinterleave, or bounded
-  segment2 interleave body -> route-entry realization bridge -> realized
-  `tcrv_rvv` body -> RVV-owned facts/statement plan -> provider-built route ->
-  common EmitC.
+  capable base-memory, or supported contraction body -> route-entry
+  realization bridge -> realized `tcrv_rvv` body -> RVV-owned facts/statement
+  plan -> provider-built route -> common EmitC.
 - Base: standalone-reduction and compare/select pre-realized selected bodies are
   realization-owner families but selected-boundary-only; direct route-entry must
   fail closed until an explicit later owner task adds matching support and
   evidence.
 - Base: computed-mask segment2 load/store/update pre-realized selected bodies
   are realization-owner families but selected-boundary-only; direct route-entry
+  must fail closed while the public selected lowering-boundary producer remains
+  the executable path.
+- Base: plain segment2 deinterleave/interleave pre-realized selected bodies are
+  realization-owner families but selected-boundary-only; direct route-entry
   must fail closed while the public selected lowering-boundary producer remains
   the executable path.
 - Base: explicit already-realized selected body -> route-entry helper returns
@@ -708,17 +706,17 @@ structure.
 
 - C++ tests showing production emission/provider route entries realize at
   least one plain elementwise pre-realized body, one route-entry capable
-  base-memory pre-realized body, one contraction pre-realized body, one bounded
-  segment2 deinterleave pre-realized body, and one bounded segment2 interleave
-  pre-realized body before route facts are collected.
+  base-memory pre-realized body, and one supported contraction pre-realized
+  body before route facts are collected.
 - C++ or lit tests showing selected-boundary-only realization-owner families,
-  including standalone reduction, compare/select, and computed-mask segment2
-  load/store/update, still realize through the public selected lowering-boundary
-  producer and fail closed when requested as direct route-entry shortcuts.
+  including standalone reduction, compare/select, plain segment2
+  deinterleave/interleave, and computed-mask segment2 load/store/update, still
+  realize through the public selected lowering-boundary producer and fail closed
+  when requested as direct route-entry shortcuts.
 - C++ fail-closed coverage for an unsupported route-entry family or incomplete
   realization dependency.
-- Representative lit/FileCheck coverage proving direct pre-realized route
-  materialization works without first running
+- Representative lit/FileCheck coverage proving active direct pre-realized
+  route materialization works without first running
   `--tcrv-materialize-selected-lowering-boundaries`.
 - Regression coverage showing explicit already-realized selected-body
   artifacts and explicit selected-boundary materialization still pass.

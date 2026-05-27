@@ -7,19 +7,12 @@ emission plans, exports the generated target artifact bundle, checks the
 bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
-lowering-boundary materialization pass before emission planning unless
-``--direct-pre-realized-route-entry`` is set for the bounded route-entry
-artifact/ABI evidence cases. ``cmp_select``, ``cmp_select_sle``,
-computed-mask select, ``scalar_broadcast_add``, ``strided_load_unit_store``,
-``standalone_reduce_add``, ``macc_add``, ``scalar_broadcast_macc_add``,
-``computed_masked_macc_add``, ``runtime_scalar_cmp_masked_macc_add``,
-``widening_macc_add``, ``widening_dot_reduce_add``,
-``strided_input_widening_dot_reduce_add``,
-``computed_masked_widening_dot_reduce_add``, ``widen_i16_to_i32``,
-``widen_i32_to_i64``, and
-``computed_masked_strided_input_widening_dot_reduce_add`` intentionally remain
-on the selected lowering-boundary producer path. The legacy ``--source-seed``
-mode is unsupported and exits before bundle generation. The script does not
+lowering-boundary materialization pass before emission planning. The
+``--direct-pre-realized-route-entry`` shortcut is unsupported for current
+pre-realized selected-body fixtures and exits before bundle generation; plain
+segment2 deinterleave/interleave also remain on the selected
+lowering-boundary producer path. The legacy ``--source-seed`` mode is
+unsupported and exits before bundle generation. The script does not
 implement compiler IR, lowering, plugin selection, emission, descriptors,
 fallback computation, or runtime glue.
 """
@@ -1871,10 +1864,7 @@ class OpExpectation:
 
     @property
     def supports_direct_pre_realized_route_entry(self) -> bool:
-        return self.is_pre_realized and (
-            self.is_segment2_deinterleave_unit_store
-            or self.is_segment2_interleave_unit_load
-        )
+        return False
 
     @property
     def is_plain_elementwise_arithmetic(self) -> bool:
@@ -16848,10 +16838,12 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         ]
         if unsupported_direct:
             raise EvidenceError(
-                "--direct-pre-realized-route-entry is bounded to "
-                "pre-realized segment2_deinterleave_unit_store/"
-                "segment2_interleave_unit_load "
-                f"fixtures; got {unsupported_direct}"
+                "--direct-pre-realized-route-entry is unsupported for current "
+                "pre-realized selected-body fixtures; segment2_deinterleave_"
+                "unit_store and segment2_interleave_unit_load are "
+                "selected-boundary-only and must use the public selected "
+                "lowering-boundary producer; got "
+                f"{unsupported_direct}"
             )
     return [
         replace(
@@ -19892,12 +19884,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--direct-pre-realized-route-entry",
         action="store_true",
         help=(
-            "with --pre-realized-selected-body, skip the public selected "
-            "lowering-boundary materializer and require the RVV production "
-            "emission-plan route-entry bridge to realize bounded "
-            "segment2_deinterleave_unit_store/"
-            "segment2_interleave_unit_load "
-            "fixtures before target bundle export"
+            "with --pre-realized-selected-body, request the deprecated direct "
+            "route-entry shortcut; current pre-realized selected-body fixtures "
+            "are selected-boundary-only, so this fails closed before target "
+            "bundle export"
         ),
     )
     parser.add_argument(

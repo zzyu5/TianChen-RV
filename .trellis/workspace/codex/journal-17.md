@@ -125,3 +125,60 @@ Demoted computed-masked segment2 load/store/update direct route-entry shortcuts,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 272: Stage2 RVV plain segment2 selected realization closure
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV plain segment2 selected realization closure
+**Branch**: `main`
+
+### Summary
+
+Demoted plain segment2 direct pre-realized route-entry support, kept selected-boundary provider/artifact path, updated tests/spec, and verified ssh rvv counts 0,1,16,17,257 plus check-tianchenrv 405/405.
+
+### Main Changes
+
+- `RVVSelectedBodyRealization.cpp`: removed active segment2 direct
+  route-entry family entries and made the `segment2 memory` realization owner
+  selected-boundary-only.
+- `rvv_generated_bundle_abi_e2e.py`: made
+  `--direct-pre-realized-route-entry` fail closed for current pre-realized
+  selected-body fixtures, including the plain segment2 pair.
+- `RVVExtensionPluginTest.cpp` and script tests: updated direct-fail,
+  selected-boundary, registry, and `route_entry_realization: false` coverage
+  for plain segment2 and adjacent selected-boundary-only families.
+- Specs/task notes: recorded that plain segment2 deinterleave/interleave are
+  selected-boundary-only unless a future explicit owner task reintroduces
+  direct route-entry support with matching facts and evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: demote plain segment2 route entries` |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-runs for
+  `segment2_deinterleave_unit_store` and `segment2_interleave_unit_load` with
+  `route_entry_realization: false`
+- [OK] direct pre-realized route-entry fail-closed probes for both plain
+  segment2 ops
+- [OK] computed-mask segment2 selected-boundary dry-run non-regression
+- [OK] real `ssh rvv` generated-bundle execution for both plain segment2 ops,
+  counts `0,1,16,17,257`
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 405/405 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no descriptor/source/metadata/common-EmitC/legacy authority is reintroduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-boundary realization, segment2 provider planning, statement-plan, artifact, and fail-closed coverage."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route and neutral common EmitC boundaries remain intact."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Verify target artifact and lowering/runtime checklist items affected by the generated-bundle path."}
+{"file": ".trellis/workspace/codex/journal-17.md", "reason": "Verify computed-mask segment2 non-regression against the previous completed task baseline."}

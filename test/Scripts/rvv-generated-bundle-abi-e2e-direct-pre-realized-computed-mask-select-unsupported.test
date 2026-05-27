@@ -3,6 +3,6 @@
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id direct-pre-realized-computed-mask-select --overwrite --op-kind computed_mask_select --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s
 
 # CHECK: rvv_generated_bundle_abi_e2e: failed
-# CHECK: --direct-pre-realized-route-entry is bounded to
+# CHECK: --direct-pre-realized-route-entry is unsupported for current
 # CHECK: got ['computed_mask_select']
 # CHECK-NOT: tcrv_rvv_generated_bundle_abi_computed_mask_select_ok

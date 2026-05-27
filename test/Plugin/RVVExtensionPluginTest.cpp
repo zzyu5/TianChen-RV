@@ -1242,8 +1242,7 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
 
   const llvm::StringRef routeEntryOwners[] = {"elementwise/compare-select",
                                               "contraction",
-                                              "base memory movement",
-                                              "segment2 memory"};
+                                              "base memory movement"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1570,59 +1569,46 @@ module {
       segment2RouteEntryOwners =
           getRVVSelectedBodySegment2RouteEntryFamilyOwners();
   if (int result = expect(
-          segment2RouteEntryOwners.size() == 2,
-          "segment2 route-entry family owner registry has exactly two active "
-          "family entries"))
+          segment2RouteEntryOwners.empty(),
+          "segment2 route-entry family owner registry has no active direct "
+          "route-entry family entries"))
     return result;
-  const llvm::StringRef expectedSegment2RouteEntryOwnerNames[] = {
-      "plain segment2 deinterleave", "plain segment2 interleave"};
-  for (std::size_t i = 0; i < segment2RouteEntryOwners.size(); ++i) {
-    if (int result = expect(
-            segment2RouteEntryOwners[i].familyName ==
-                    expectedSegment2RouteEntryOwnerNames[i] &&
-                segment2RouteEntryOwners[i].isConsumer != nullptr,
-            "segment2 route-entry family owner registry preserves explicit "
-            "family ownership order and hooks"))
-      return result;
-  }
 
-  auto expectSegment2RouteEntryFamily =
-      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
-          llvm::StringRef expectedFamilyName) -> int {
+  auto expectNoSegment2RouteEntryFamily =
+      [&](llvm::StringRef variantName,
+          llvm::StringRef preRealizedOpName) -> int {
     VariantOp variant = findVariant(kernel, variantName);
     mlir::Operation *preRealized =
         findFirstNestedOp(variant, preRealizedOpName);
     if (int result = expect(preRealized != nullptr,
-                            llvm::Twine("found segment2 route-entry body @") +
+                            llvm::Twine("found segment2 selected-boundary-only "
+                                        "body @") +
                                 variantName))
       return result;
     llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *> owner =
         getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
             preRealized, "segment2 route-entry family registry test");
-    if (!owner)
-      return fail(llvm::Twine("segment2 route-entry family owner lookup for @") +
-                  variantName + ": " + llvm::toString(owner.takeError()));
-    if (int result = expect(
-            (*owner)->familyName == expectedFamilyName,
-            llvm::Twine("segment2 route-entry body @") + variantName +
-                " is dispatched through the expected family owner"))
+    if (owner)
+      return fail(llvm::Twine("segment2 route-entry family owner accepted @") +
+                  variantName +
+                  " instead of requiring selected-boundary realization");
+    if (int result = expectErrorContains(
+            owner.takeError(),
+            {"has no segment2 route-entry family owner"}))
       return result;
     return expect(
-        isRVVSelectedBodySegment2RouteEntryFamilyConsumer(preRealized),
-        llvm::Twine("segment2 route-entry family consumer predicate is "
-                    "registry-backed for @") +
+        !isRVVSelectedBodySegment2RouteEntryFamilyConsumer(preRealized),
+        llvm::Twine("segment2 route-entry family consumer predicate rejects @") +
             variantName);
   };
 
-  if (int result = expectSegment2RouteEntryFamily(
+  if (int result = expectNoSegment2RouteEntryFamily(
           "rvv_pre_route_segment2_deinterleave_unit_store",
-          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
-          "plain segment2 deinterleave"))
+          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body"))
     return result;
-  if (int result = expectSegment2RouteEntryFamily(
+  if (int result = expectNoSegment2RouteEntryFamily(
           "rvv_pre_route_segment2_interleave_unit_load",
-          "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
-          "plain segment2 interleave"))
+          "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -1699,6 +1685,8 @@ module {
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
         variantName == "rvv_pre_route_strided_load_unit_store" ||
+        variantName == "rvv_pre_route_segment2_deinterleave_unit_store" ||
+        variantName == "rvv_pre_route_segment2_interleave_unit_load" ||
         variantName ==
             "rvv_pre_route_computed_masked_segment2_load_unit_store" ||
         variantName ==
@@ -1759,6 +1747,8 @@ module {
             expectedProviderPlanID ==
                 "rvv-standalone-reduction-route-family-plan.v1" ||
             variantName == "rvv_pre_route_strided_load_unit_store" ||
+            variantName == "rvv_pre_route_segment2_deinterleave_unit_store" ||
+            variantName == "rvv_pre_route_segment2_interleave_unit_load" ||
             variantName ==
                 "rvv_pre_route_computed_masked_segment2_load_unit_store" ||
             variantName ==
@@ -1782,7 +1772,7 @@ module {
                   directRouteEntry.takeError(),
                   {"selected-body route-entry realization currently supports "
                    "only",
-                   "selected body belongs to another RVV realization family"}))
+                   "selected-boundary-only bodies"}))
             return result;
         }
         mlir::OpBuilder producerBuilder(module->getContext());
@@ -1985,7 +1975,7 @@ module {
                     countNestedOps(variant, "tcrv_rvv.store") == 2 &&
                     countNestedOps(variant, "tcrv_rvv.load") == 0 &&
                     countNestedOps(variant, "tcrv_rvv.segment2_store") == 0,
-                llvm::Twine("direct route-entry @") + variantName +
+                llvm::Twine("selected-body producer @") + variantName +
                     " realizes segment2 load, field moves, and field "
                     "stores"))
           return result;
@@ -1998,7 +1988,7 @@ module {
                     countNestedOps(variant, "tcrv_rvv.store") == 2 &&
                     countNestedOps(variant, "tcrv_rvv.segment2_load") == 0 &&
                     countNestedOps(variant, "tcrv_rvv.segment2_store") == 0,
-                llvm::Twine("direct route-entry @") + variantName +
+                llvm::Twine("selected-body producer @") + variantName +
                     " realizes compare loads, passthrough field loads, "
                     "masked segment2 load, and field stores"))
           return result;
@@ -2014,7 +2004,7 @@ module {
                     countNestedOps(variant, "tcrv_rvv.segment2_store") == 0 &&
                     countNestedOps(variant,
                                    "tcrv_rvv.masked_segment2_load") == 0,
-                llvm::Twine("direct route-entry @") + variantName +
+                llvm::Twine("selected-body producer @") + variantName +
                     " realizes compare loads, source field loads, optional "
                     "field update arithmetic, and masked segment2 store"))
           return result;
@@ -2023,7 +2013,7 @@ module {
                 countNestedOps(variant, "tcrv_rvv.load") == 2 &&
                     countNestedOps(variant, "tcrv_rvv.segment2_store") == 1 &&
                     countNestedOps(variant, "tcrv_rvv.segment2_load") == 0,
-                llvm::Twine("direct route-entry @") + variantName +
+                llvm::Twine("selected-body producer @") + variantName +
                     " realizes field0/field1 loads and segment2 store"))
           return result;
       }
@@ -2267,7 +2257,7 @@ module {
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
             {"selected-body route-entry realization currently supports only",
-             "selected body belongs to another RVV realization family"}))
+             "selected-boundary-only bodies"}))
       return result;
   }
 
@@ -2407,11 +2397,15 @@ module {
   }
   if (int result = expect(segment2MemoryOwner != nullptr &&
                               segment2MemoryOwner->realize != nullptr &&
-                              segment2MemoryOwner->isRouteEntryConsumer !=
+                              segment2MemoryOwner->isRouteEntryConsumer ==
                                   nullptr,
-                          "found segment2 memory selected-body owner with "
-                          "plain route-entry predicate"))
+                          "found segment2 memory selected-body owner without "
+                          "direct route-entry predicate"))
     return result;
+  auto segment2DirectRouteEntryRejects = [&](mlir::Operation *op) {
+    return segment2MemoryOwner->isRouteEntryConsumer == nullptr ||
+           !segment2MemoryOwner->isRouteEntryConsumer(op);
+  };
   VariantOp negativeComputedMaskSegment2LoadVariant = findVariant(
       kernel,
       "rvv_pre_route_owner_negative_computed_masked_segment2_load_unit_store");
@@ -2426,7 +2420,7 @@ module {
                           "body for owner-local negative tests"))
     return result;
   if (int result = expect(
-          !segment2MemoryOwner->isRouteEntryConsumer(
+          segment2DirectRouteEntryRejects(
               negativeComputedMaskSegment2LoadBody.getOperation()),
           "computed-mask segment2 load fixture is selected-boundary-only "
           "even though the segment2 memory owner can realize it"))
@@ -2532,7 +2526,7 @@ module {
                           "body for owner-local negative tests"))
     return result;
   if (int result = expect(
-          !segment2MemoryOwner->isRouteEntryConsumer(
+          segment2DirectRouteEntryRejects(
               negativeComputedMaskSegment2StoreBody.getOperation()),
           "computed-mask segment2 store fixture is selected-boundary-only "
           "even though the segment2 memory owner can realize it"))
@@ -2643,7 +2637,7 @@ module {
   negativeComputedMaskSegment2StoreBody->setAttr(
       "arithmetic_kind", attrBuilder.getStringAttr("add"));
   if (int result = expect(
-          !segment2MemoryOwner->isRouteEntryConsumer(
+          segment2DirectRouteEntryRejects(
               negativeComputedMaskSegment2StoreBody.getOperation()),
           "computed-mask segment2 update remains selected-boundary-only after "
           "arithmetic_kind add is structural in the typed body"))
@@ -2672,7 +2666,7 @@ module {
   negativeComputedMaskSegment2StoreBody->setAttr(
       "op_kind", attrBuilder.getStringAttr("metadata-store-route"));
   if (int result = expect(
-          !segment2MemoryOwner->isRouteEntryConsumer(
+          segment2DirectRouteEntryRejects(
               negativeComputedMaskSegment2StoreBody.getOperation()) &&
               !tianchenrv::plugin::rvv::
                   variantContainsPreRealizedRVVRouteEntrySelectedBody(
@@ -2701,7 +2695,7 @@ module {
                   capabilities, VariantEmissionRole::DirectVariant),
               staleSegment2StoreRoute),
           {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
+           "selected-boundary-only bodies"}))
     return result;
   negativeComputedMaskSegment2StoreBody->setAttr(
       "op_kind",
@@ -2822,7 +2816,7 @@ module {
     if (int result = expectErrorContains(
             plainMAccRouteEntry.takeError(),
             {"selected-body route-entry realization currently supports only",
-             "selected body belongs to another RVV realization family"}))
+             "selected-boundary-only bodies"}))
       return result;
   }
 
@@ -2848,7 +2842,7 @@ module {
     if (int result = expectErrorContains(
             scalarBroadcastMAccRouteEntry.takeError(),
             {"selected-body route-entry realization currently supports only",
-             "selected body belongs to another RVV realization family"}))
+             "selected-boundary-only bodies"}))
       return result;
   }
 
@@ -2898,7 +2892,7 @@ module {
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
             {"selected-body route-entry realization currently supports only",
-             "selected body belongs to another RVV realization family"}))
+             "selected-boundary-only bodies"}))
       return result;
   }
   auto expectComputedMaskMAccOwnerError =
@@ -3015,7 +3009,7 @@ module {
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
             {"selected-body route-entry realization currently supports only",
-             "selected body belongs to another RVV realization family"}))
+             "selected-boundary-only bodies"}))
       return result;
   }
   auto expectRuntimeScalarComputedMaskMAccOwnerError =
@@ -3177,7 +3171,7 @@ module {
                                      VariantEmissionRole::DirectVariant),
               reducePlan),
           {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
+           "selected-boundary-only bodies"}))
     return result;
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute reduceRoute;
   return expectErrorContains(
@@ -3186,7 +3180,7 @@ module {
                                        VariantEmissionRole::DirectVariant),
           reduceRoute),
       {"selected-body route-entry realization currently supports only",
-       "selected body belongs to another RVV realization family"});
+       "selected-boundary-only bodies"});
 }
 
 int runPreRealizedContractionRouteEntryOwnerTest(
@@ -3352,7 +3346,7 @@ module {
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
             {"selected-body route-entry realization currently supports only",
-             "selected body belongs to another RVV realization family"}))
+             "selected-boundary-only bodies"}))
       return result;
 
     mlir::OpBuilder selectedBuilder(module->getContext());
@@ -3536,7 +3530,7 @@ module {
   if (int result = expectErrorContains(
           directWideningMAccRouteEntry.takeError(),
           {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
+           "selected-boundary-only bodies"}))
     return result;
 
   mlir::OpBuilder selectedWideningMAccBuilder(module->getContext());
@@ -3664,7 +3658,7 @@ module {
   if (int result = expectErrorContains(
           directWideningDotRouteEntry.takeError(),
           {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
+           "selected-boundary-only bodies"}))
     return result;
 
   mlir::OpBuilder selectedWideningDotBuilder(module->getContext());
@@ -3803,7 +3797,7 @@ module {
   if (int result = expectErrorContains(
           directStridedWideningDotRouteEntry.takeError(),
           {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
+           "selected-boundary-only bodies"}))
     return result;
 
   mlir::OpBuilder selectedStridedWideningDotBuilder(module->getContext());
@@ -3968,7 +3962,7 @@ module {
   if (int result = expectErrorContains(
           directMaskedWideningDotRouteEntry.takeError(),
           {"selected-body route-entry realization currently supports only",
-           "selected body belongs to another RVV realization family"}))
+           "selected-boundary-only bodies"}))
     return result;
 
   mlir::OpBuilder selectedMaskedWideningDotBuilder(module->getContext());

@@ -3,10 +3,10 @@
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.cmp.artifacts --run-id direct-pre-realized-cmp-select --overwrite --op-kind cmp_select --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=CMP
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.sle.artifacts --run-id direct-pre-realized-cmp-select-sle --overwrite --op-kind cmp_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=SLE
 
-# CMP: --direct-pre-realized-route-entry is bounded to
+# CMP: --direct-pre-realized-route-entry is unsupported for current
 # CMP: got ['cmp_select']
 # CMP-NOT: dry_run_success
 
-# SLE: --direct-pre-realized-route-entry is bounded to
+# SLE: --direct-pre-realized-route-entry is unsupported for current
 # SLE: got ['cmp_select_sle']
 # SLE-NOT: dry_run_success

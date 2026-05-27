@@ -22,6 +22,7 @@
 # SEGMENT-DAG: "expected_selected_variant": "pre_realized_body_rvv_segment2_deinterleave_unit_store"
 # SEGMENT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # SEGMENT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SEGMENT-DAG: "route_entry_realization": false
 # SEGMENT-DAG: --tcrv-materialize-selected-lowering-boundaries
 # SEGMENT-DAG: "pre_realized_body_consumed": true
 # SEGMENT-DAG: "key": "rvv_emitc_lowerable_route"

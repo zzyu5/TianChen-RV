@@ -824,37 +824,9 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
 }
 
-bool isPreRealizedRVVPlainSegment2DeinterleaveRouteEntryOp(
-    mlir::Operation *op) {
-  if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(op))
-    return isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
-               body.getOpKind()) &&
-           isPreRealizedSegment2DeinterleaveMemoryMovementMemoryForm(
-               body.getMemoryForm());
-  return false;
-}
-
-bool isPreRealizedRVVPlainSegment2InterleaveRouteEntryOp(mlir::Operation *op) {
-  auto body =
-      llvm::dyn_cast<tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
-          op);
-  if (!body)
-    return false;
-  return isPreRealizedSegment2InterleaveMemoryMovementOpKind(
-             body.getOpKind()) &&
-         isPreRealizedSegment2InterleaveMemoryMovementMemoryForm(
-             body.getMemoryForm());
-}
-
 llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
 getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry() {
-  static const RVVSelectedBodySegment2RouteEntryFamilyOwner owners[] = {
-      {"plain segment2 deinterleave",
-       isPreRealizedRVVPlainSegment2DeinterleaveRouteEntryOp},
-      {"plain segment2 interleave",
-       isPreRealizedRVVPlainSegment2InterleaveRouteEntryOp}};
-  return owners;
+  return {};
 }
 
 llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
@@ -898,10 +870,6 @@ getUniqueRVVSelectedBodySegment2RouteEntryFamilyOwner(
         bodyOp->getName().getStringRef() + "': " + owners);
   }
   return matches.front();
-}
-
-bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
-  return isRVVSelectedBodySegment2RouteEntryFamilyConsumer(op);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
@@ -1182,8 +1150,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
        nullptr, realizePreRealizedRVVComputedMaskMemoryOwner},
       {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp,
-       isPreRealizedRVVSegment2MemoryRouteEntryOp,
-       realizePreRealizedRVVSegment2MemoryOwner}};
+       nullptr, realizePreRealizedRVVSegment2MemoryOwner}};
   return owners;
 }
 
@@ -7787,10 +7754,10 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise route-entry, base memory movement, "
-        "supported contraction dot-reduction, or segment2 deinterleave/"
-        "interleave/computed-mask load/store memory "
-        "tcrv_rvv bodies; selected body belongs to another RVV realization "
-        "family or lacks direct route-entry support");
+        "or supported contraction dot-reduction tcrv_rvv bodies; "
+        "selected-boundary-only bodies, including segment2 memory, must use "
+        "the public selected lowering-boundary producer before provider route "
+        "construction");
 
   return (*owner)->realize(request, *bodyOp);
 }
