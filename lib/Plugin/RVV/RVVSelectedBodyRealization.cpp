@@ -1025,11 +1025,8 @@ bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
 }
 
 bool isPreRealizedRVVComputedMaskMAccRouteEntryOp(mlir::Operation *op) {
-  if (auto body =
-          llvm::dyn_cast<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(
-              op))
-    return isPreRealizedComputedMaskMAccOpKind(body.getOpKind()) &&
-           isPreRealizedComputedMaskMAccMemoryForm(body.getMemoryForm());
+  if (llvm::isa<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op))
+    return false;
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(op))
     return isPreRealizedRuntimeScalarComputedMaskMAccOpKind(

@@ -1275,3 +1275,69 @@ Demoted scalar_broadcast_add direct pre-realized route-entry authority, kept sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 260: Stage2 RVV computed-mask MAcc selected-boundary migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV MAcc selected-body realization production migration
+**Branch**: `main`
+
+### Summary
+
+Demoted `computed_masked_macc_add` direct pre-realized route-entry authority,
+kept the selected lowering-boundary producer path positive, and proved the
+generated artifact path through realized typed `tcrv_rvv` MAcc facts, provider
+route facts, target ABI validation, generated RVV C, and real `ssh rvv`
+correctness.
+
+### Main Changes
+
+- Updated RVV selected-body route-entry eligibility so vector
+  `computed_masked_macc_add` is no longer accepted as a direct pre-realized
+  route-entry body, while the adjacent runtime-scalar computed-mask MAcc
+  route-entry family remains eligible.
+- Updated generated-bundle tooling so
+  `--direct-pre-realized-route-entry --op-kind computed_masked_macc_add`
+  fails closed before route-entry materialization or bundle generation.
+- Updated RVV plugin C++ coverage so
+  `rvv_pre_route_computed_masked_macc_add` is treated as a selected-boundary
+  producer consumer of the computed-mask accumulation route-family plan.
+- Replaced the positive direct route-entry script test with a fail-closed
+  script test, and strengthened selected-boundary dry-run evidence to require
+  `route_entry_realization = false`.
+
+### Git Commits
+
+(Commit created after this journal entry.)
+
+### Testing
+
+- [OK] Trellis context validation
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] selected-boundary `computed_masked_macc_add` generated-bundle dry-run,
+  counts `0,1,16,23,257`
+- [OK] direct pre-realized route-entry `computed_masked_macc_add` fails closed
+  before bundle generation
+- [OK] focused lit non-regression filter for selected-body producer,
+  scalar-broadcast, computed-mask MAcc, and adjacent runtime-scalar MAcc paths:
+  22/22
+- [OK] real `ssh rvv` generated-bundle run for
+  `computed_masked_macc_add`, counts `0,1,16,23,257`, preserving inactive
+  accumulator and tail lanes
+- [OK] bounded touched-file authority scan over this diff found no new added
+  descriptor/source-front-door/route-id/artifact-name/script/common-EmitC/
+  exact-intrinsic/direct-entry-only/legacy-i32 authority claim
+- [OK] `git diff --check`
+- [OK] final single-instance `check-tianchenrv`: 391/391
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

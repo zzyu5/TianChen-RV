@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global architecture and authority checklist for review"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV computed-mask MAcc selected-body realization and provider contract for review"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains ABI/runtime envelope only"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify common EmitC remains neutral route materialization"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-macc-selected-realization/prd.md", "reason": "task acceptance criteria for final check"}

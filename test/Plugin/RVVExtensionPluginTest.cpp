@@ -1691,7 +1691,10 @@ module {
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
         expectedProviderPlanID ==
-            "rvv-runtime-scalar-splat-store-route-family-plan.v1";
+            "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
+        (variantName == "rvv_pre_route_computed_masked_macc_add" &&
+         expectedProviderPlanID ==
+             "rvv-computed-mask-accumulation-route-family-plan.v1");
     const bool routeEntryEligible = (*owner)->isRouteEntryConsumer != nullptr &&
                                     (*owner)->isRouteEntryConsumer(preRealized);
     if (expectsSelectedBoundaryProducer) {
@@ -1819,7 +1822,7 @@ module {
                   countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.masked_macc") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
-              llvm::Twine("direct route-entry @") + variantName +
+              llvm::Twine("selected-body realization @") + variantName +
                   " realizes runtime-scalar-aware "
                   "compare/load/splat/masked_macc/store structure"))
         return result;
@@ -2715,8 +2718,8 @@ module {
                               computedMaskMAccOwner->realize != nullptr &&
                               computedMaskMAccOwner->isRouteEntryConsumer !=
                                   nullptr,
-                          "found computed-mask MAcc owner-local direct "
-                          "route-entry realization hook"))
+                          "found computed-mask MAcc owner-local realization "
+                          "hook with route-entry predicate"))
     return result;
   VariantOp negativeComputedMaskMAccVariant = findVariant(
       kernel, "rvv_pre_route_owner_negative_computed_masked_macc_add");
@@ -2730,11 +2733,28 @@ module {
                           "owner-local negative tests"))
     return result;
   if (int result = expect(
-          computedMaskMAccOwner->isRouteEntryConsumer(
+          !computedMaskMAccOwner->isRouteEntryConsumer(
               negativeComputedMaskMAccBody.getOperation()),
-          "computed-mask MAcc negative fixture is route-entry eligible before "
-          "targeted fact mutation"))
+          "computed_masked_macc_add fixture is not direct route-entry "
+          "eligible and must use the selected-body realization producer"))
     return result;
+  {
+    mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
+        tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+            VariantLoweringBoundaryRequest(
+                negativeComputedMaskMAccVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, directRouteEntryBuilder));
+    if (directRouteEntry)
+      return fail("direct route-entry accepted computed_masked_macc_add "
+                  "instead of requiring the selected-body realization "
+                  "producer");
+    if (int result = expectErrorContains(
+            directRouteEntry.takeError(),
+            {"selected-body route-entry realization currently supports only",
+             "selected body belongs to another RVV realization family"}))
+      return result;
+  }
   auto expectComputedMaskMAccOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());

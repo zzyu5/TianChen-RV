@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture, stage order, and authority boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, computed-mask MAcc, route provider, route-control, statement-plan, and authority rules"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope boundary and non-compute authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and neutral common EmitC materialization contract"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-macc-selected-realization/prd.md", "reason": "bounded task requirements and acceptance criteria"}
