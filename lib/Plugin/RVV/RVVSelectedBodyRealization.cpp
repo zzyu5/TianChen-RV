@@ -1002,15 +1002,6 @@ bool isPreRealizedRVVSegment2MemoryRouteEntryOp(mlir::Operation *op) {
   return isRVVSelectedBodySegment2RouteEntryFamilyConsumer(op);
 }
 
-bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
-  auto body =
-      llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(op);
-  if (!body)
-    return false;
-  return isPreRealizedStandaloneReduceOpKind(body.getOpKind()) &&
-         isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm());
-}
-
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVElementwiseCompareSelectOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
@@ -1272,7 +1263,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"reduction", isPreRealizedRVVReductionOwnerOp, nullptr,
        realizePreRealizedRVVReductionOwner},
       {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
-       isPreRealizedRVVStandaloneReductionRouteEntryOp,
+       nullptr,
        realizePreRealizedRVVStandaloneReductionOwner},
       {"MAcc", isPreRealizedRVVMAccOwnerOp, nullptr,
        realizePreRealizedRVVMAccOwner},
@@ -7894,8 +7885,7 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized elementwise route-entry, base memory movement, "
-        "standalone reduction, supported contraction dot-reduction, or "
-        "segment2 deinterleave/"
+        "supported contraction dot-reduction, or segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family or lacks direct route-entry support");
@@ -7927,8 +7917,8 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
       isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp))
     return makeRVVPluginError(
         "pre-realized RVV owner-local branch helper does not own "
-        "elementwise/compare-select or route-entry-capable standalone "
-        "reduction, MAcc, or base memory movement families");
+        "elementwise/compare-select, standalone reduction, MAcc, or base "
+        "memory movement families");
 
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(

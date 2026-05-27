@@ -285,14 +285,28 @@ ABI strings, descriptors, scripts, common EmitC, source-front-door markers, or
 legacy i32 helper names.
 
 For `elementwise/compare-select`, route-entry eligibility is narrower than the
-realization owner family. Plain compare-select bodies may be route-entry
-capable when their realized compare/select structure feeds the verified
-plain compare-select provider plan. Computed-mask select bodies are owned by
-the same selected-body realization family, but they must use the explicit
-selected lowering-boundary producer path unless a later owner task adds direct
-route-entry support with matching mask provenance, mask/tail policy, runtime
-ABI, provider facts, diagnostics, generated-bundle evidence, and real RVV
-evidence for executable claims.
+realization owner family. Plain elementwise bodies may be route-entry capable
+when their realized arithmetic structure feeds the verified elementwise provider
+plan. Plain compare-select and computed-mask select bodies are owned by the same
+selected-body realization family, but they must use the explicit selected
+lowering-boundary producer path unless a later owner task adds direct
+route-entry support with matching predicate/mask provenance, mask/tail policy,
+runtime ABI, provider facts, diagnostics, generated-bundle evidence, and real
+RVV evidence for executable claims.
+
+For `standalone reduction`, route-entry eligibility is narrower than the
+realization owner family. Bounded `standalone_reduce_add` belongs to the
+standalone-reduction selected-body realization owner, but it is
+selected-boundary-only: it must be consumed through the public selected
+lowering-boundary producer before standalone-reduction route-family facts, math
+operand-binding facts, route-control provider facts, migrated statement-plan
+facts, provider route construction, common EmitC, and target artifact export.
+The direct route-entry bridge must fail closed for `standalone_reduce_add` even
+though the same typed body is accepted by the standalone-reduction realization
+owner. A later task may add direct route-entry support only by changing the
+owner-scoped route-entry predicate and adding matching provider facts,
+diagnostics, generated-bundle evidence, and real RVV evidence for executable
+claims.
 
 For `base memory movement`, route-entry eligibility is narrower than the
 realization owner family. A typed pre-realized base-memory body may belong to
@@ -581,8 +595,10 @@ semantic realization fallback.
 
 The route-entry bridge may support bounded family groups such as:
 
-- plain elementwise/compare-select pre-realized bodies owned by
-  `realizePreRealizedRVVElementwiseCompareSelectCluster(...)`;
+- plain elementwise pre-realized bodies owned by
+  `realizePreRealizedRVVElementwiseCompareSelectCluster(...)`. Plain
+  compare-select bodies remain selected-boundary-only unless a later owner task
+  explicitly adds direct route-entry support.
 - bounded base memory movement pre-realized bodies that the owner-scoped
   route-entry predicate explicitly declares route-entry capable and whose
   realized structure already feeds RVV-owned base-memory materialization facts,
@@ -590,9 +606,6 @@ The route-entry bridge may support bounded family groups such as:
   selected-boundary-only bodies, including `strided_load_unit_store`, must
   fail closed at this bridge and use the public selected lowering-boundary
   producer path instead.
-- standalone reduction pre-realized bodies whose realized structure already
-  feeds RVV-owned standalone-reduction family plans, materialization facts,
-  math operand-binding facts, and migrated statement plans.
 - contraction pre-realized bodies whose realized structure already feeds
   RVV-owned contraction family plans, materialization facts, math
   operand-binding facts, direct contraction provider plans, and direct
@@ -677,12 +690,16 @@ structure.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: selected RVV variant -> pre-realized plain compare/select, base-memory,
-  standalone-reduction, contraction, bounded segment2 deinterleave, or bounded
+- Good: selected RVV variant -> pre-realized plain elementwise, route-entry
+  capable base-memory, contraction, bounded segment2 deinterleave, bounded
   segment2 interleave, bounded computed-mask segment2 load/unit-store body, or
-  bounded computed-mask segment2 store/unit-load body -> route-entry
-  realization bridge -> realized `tcrv_rvv` body -> RVV-owned facts/statement
-  plan -> provider-built route -> common EmitC.
+  bounded computed-mask segment2 store/unit-load body -> route-entry realization
+  bridge -> realized `tcrv_rvv` body -> RVV-owned facts/statement plan ->
+  provider-built route -> common EmitC.
+- Base: standalone-reduction and compare/select pre-realized selected bodies are
+  realization-owner families but selected-boundary-only; direct route-entry must
+  fail closed until an explicit later owner task adds matching support and
+  evidence.
 - Base: explicit already-realized selected body -> route-entry helper returns
   the unique `with_vl` boundary and preserves existing route behavior.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
@@ -694,11 +711,15 @@ structure.
 ### 6. Tests Required
 
 - C++ tests showing production emission/provider route entries realize at
-  least one plain compare/select pre-realized body, one base-memory pre-realized
-  body, one standalone-reduction pre-realized body, one contraction
-  pre-realized body, one bounded segment2 deinterleave pre-realized body, one
-  bounded segment2 interleave pre-realized body, and one bounded computed-mask
-  segment2 load/unit-store pre-realized body before route facts are collected.
+  least one plain elementwise pre-realized body, one route-entry capable
+  base-memory pre-realized body, one contraction pre-realized body, one bounded
+  segment2 deinterleave pre-realized body, one bounded segment2 interleave
+  pre-realized body, and one bounded computed-mask segment2 load/unit-store
+  pre-realized body before route facts are collected.
+- C++ or lit tests showing selected-boundary-only realization-owner families,
+  including standalone reduction and compare/select, still realize through the
+  public selected lowering-boundary producer and fail closed when requested as
+  direct route-entry shortcuts.
 - C++ fail-closed coverage for an unsupported route-entry family or incomplete
   realization dependency.
 - Representative lit/FileCheck coverage proving direct pre-realized route

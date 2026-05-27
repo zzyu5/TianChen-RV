@@ -1240,9 +1240,10 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
       return result;
   }
 
-  const llvm::StringRef routeEntryOwners[] = {
-      "elementwise/compare-select", "standalone reduction", "contraction",
-      "base memory movement", "segment2 memory"};
+  const llvm::StringRef routeEntryOwners[] = {"elementwise/compare-select",
+                                              "contraction",
+                                              "base memory movement",
+                                              "segment2 memory"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1704,6 +1705,8 @@ module {
         expectedProviderPlanID ==
             "rvv-computed-mask-select-route-family-plan.v1" ||
         expectedProviderPlanID ==
+            "rvv-standalone-reduction-route-family-plan.v1" ||
+        expectedProviderPlanID ==
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
@@ -1764,6 +1767,8 @@ module {
                 "rvv-widening-conversion-route-family-plan.v1" ||
             expectedProviderPlanID ==
                 "rvv-plain-compare-select-route-family-plan.v1" ||
+            expectedProviderPlanID ==
+                "rvv-standalone-reduction-route-family-plan.v1" ||
             variantName == "rvv_pre_route_strided_load_unit_store") {
           mlir::OpBuilder directRouteEntryBuilder(module->getContext());
           llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
@@ -1958,7 +1963,7 @@ module {
               countNestedOps(variant, "tcrv_rvv.load") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.standalone_reduce") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
-              llvm::Twine("direct route-entry @") + variantName +
+              llvm::Twine("selected-body producer @") + variantName +
                   " realizes source load, standalone reduction, and scalar "
                   "result store"))
         return result;

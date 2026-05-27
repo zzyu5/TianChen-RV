@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "global RVV-first authority chain, Stage1/Stage2 gates, and descriptor/source-front-door red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owners, standalone reduction family facts, route-entry bridge constraints, provider facts, artifact mirrors, and fail-closed diagnostics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundaries for selected RVV variants"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and neutral common EmitC responsibilities"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-local selected-body realization and route-provider registry authority"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected typed body, realization, and route-provider pipeline contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ tests, generated-bundle evidence, and ssh rvv correctness requirements"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "ensure standalone reduction demotion stays RVV plugin-local and does not move semantics into common/core"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "ensure typed body/config/runtime facts constrain route support without metadata-derived dtype or route authority"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "ensure reduction compute remains in tcrv_rvv selected body, not tcrv.exec or common EmitC"}

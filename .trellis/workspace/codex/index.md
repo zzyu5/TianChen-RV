@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-16.md`
-- **Total Sessions**: 269
+- **Active File**: `journal-17.md`
+- **Total Sessions**: 270
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~1976 | Active |
+| `journal-17.md` | ~67 | Active |
+| `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 270 | 2026-05-27 | Stage2 RVV standalone reduce selected realization migration | pending-final-session-commit | `main` |
 | 269 | 2026-05-27 | Stage2 RVV cmp_select selected realization migration | pending-final-session-commit | `main` |
 | 268 | 2026-05-27 | Stage2 RVV strided load unit-store selected realization | pending-final-session-commit | `main` |
 | 267 | 2026-05-27 | Stage2 RVV widen i32-to-i64 selected-body realization | same commit | `main` |

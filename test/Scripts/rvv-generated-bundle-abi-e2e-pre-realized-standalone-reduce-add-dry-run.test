@@ -1,15 +1,14 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-standalone-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="--tcrv-materialize-selected-lowering-boundaries" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
 
 # ROOT-DAG: "input_mode": "pre-realized-selected-body"
-# ROOT-DAG: "pre_realized_route_entry_mode": "direct"
 # ROOT-DAG: "standalone_reduce_add"
 # ROOT-DAG: "pre_realized_selected_body": true
 # ROOT-DAG: "ssh_evidence": false
@@ -22,8 +21,10 @@
 # REDUCE-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1"
 # REDUCE-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_add"
 # REDUCE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
-# REDUCE-DAG: "materializer": "rvv-route-entry-selected-body-realization"
-# REDUCE-DAG: "route_entry_realization": true
+# REDUCE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# REDUCE-DAG: "route_entry_realization": false
+# REDUCE-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# REDUCE-DAG: --tcrv-materialize-selected-lowering-boundaries
 # REDUCE-DAG: "pre_realized_body_consumed": true
 # REDUCE-DAG: "key": "rvv_emitc_lowerable_route"
 # REDUCE-DAG: "value": "rvv-generic-standalone-reduce-add-emitc-route"
@@ -90,5 +91,5 @@
 # HARNESS: acc[0] = seed;
 # HARNESS: tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add(lhs, acc, out, n);
 # HARNESS: tail_preserved
-# HARNESS: const size_t counts[] = {0, 7, 16, 23, 257};
+# HARNESS: const size_t counts[] = {0, 1, 7, 16, 23, 257};
 # HARNESS: seeds=-11,17

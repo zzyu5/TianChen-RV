@@ -594,7 +594,8 @@ pre-realized body.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: pre-realized compare/select or base-memory route-entry fixture ->
+- Good: pre-realized direct route-entry fixture, such as a bounded segment2
+  route-entry case ->
   direct emission-plan route-entry realization -> generated bundle -> ABI
   harness, with optional `ssh rvv` run evidence.
 - Base: pre-realized families outside the bounded direct route-entry set keep

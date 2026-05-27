@@ -11,9 +11,10 @@ lowering-boundary materialization pass before emission planning unless
 ``--direct-pre-realized-route-entry`` is set for the bounded route-entry
 artifact/ABI evidence cases. ``cmp_select``, ``cmp_select_sle``,
 computed-mask select, ``scalar_broadcast_add``, ``strided_load_unit_store``,
-``macc_add``, ``scalar_broadcast_macc_add``, ``computed_masked_macc_add``,
-``runtime_scalar_cmp_masked_macc_add``, ``widening_macc_add``,
-``widening_dot_reduce_add``, ``strided_input_widening_dot_reduce_add``,
+``standalone_reduce_add``, ``macc_add``, ``scalar_broadcast_macc_add``,
+``computed_masked_macc_add``, ``runtime_scalar_cmp_masked_macc_add``,
+``widening_macc_add``, ``widening_dot_reduce_add``,
+``strided_input_widening_dot_reduce_add``,
 ``computed_masked_widening_dot_reduce_add``, ``widen_i16_to_i32``,
 ``widen_i32_to_i64``, and
 ``computed_masked_strided_input_widening_dot_reduce_add`` intentionally remain
@@ -1871,8 +1872,7 @@ class OpExpectation:
     @property
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
-            self.is_standalone_reduce_add
-            or self.is_computed_masked_segment2_load_unit_store
+            self.is_computed_masked_segment2_load_unit_store
             or self.is_computed_masked_segment2_store_unit_load
             or self.is_computed_masked_segment2_update_unit_load
             or self.is_segment2_deinterleave_unit_store
@@ -16852,8 +16852,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         if unsupported_direct:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
-                "pre-realized standalone_reduce_add/"
-                "computed_masked_segment2_load_unit_store/"
+                "pre-realized computed_masked_segment2_load_unit_store/"
                 "computed_masked_segment2_store_unit_load/"
                 "computed_masked_segment2_update_unit_load/"
                 "segment2_deinterleave_unit_store/"
@@ -19902,7 +19901,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "with --pre-realized-selected-body, skip the public selected "
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded "
-            "standalone_reduce_add/"
             "computed_masked_segment2_load_unit_store/"
             "computed_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
