@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global authority and Stage1/Stage2 acceptance boundary for final verification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-boundary realization, direct route-entry demotion, provider route facts, artifact mirror constraints"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify runtime ABI roles remain envelope-only and do not become compute authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC consumes provider-built route and does not choose RVV semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, direct route-entry fail-closed evidence, generated-bundle dry-run, ssh rvv evidence"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/profile facts are constraints, not dtype or route authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review implementation remains RVV plugin-local and provider-owned"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review no high-level compute or core/common semantic invention"}

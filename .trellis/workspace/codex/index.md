@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-16.md`
-- **Total Sessions**: 263
+- **Total Sessions**: 264
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~1643 | Active |
+| `journal-16.md` | ~1717 | Active |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +44,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 264 | 2026-05-27 | Stage2 RVV computed-mask widening dot-reduce selected-body realization migration | same-commit | `main` |
 | 263 | 2026-05-27 | Stage2 RVV strided widening dot selected realization | pending-final-commit | `main` |
 | 262 | 2026-05-27 | Stage2 RVV non-widening MAcc selected-body realization closure | pending-final-commit | `main` |
 | 261 | 2026-05-27 | Stage2 RVV runtime-scalar MAcc selected-boundary migration | `0d286005` | `main` |

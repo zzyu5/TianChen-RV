@@ -3238,10 +3238,6 @@ module {
   };
 
   const ContractionRouteEntryCase cases[] = {
-      {"rvv_pre_route_masked_widening_dot",
-       "tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body",
-       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd, true,
-       false, "tcrv_rvv.masked_widening_dot_reduce"},
       {"rvv_pre_route_masked_strided_widening_dot",
        "tcrv_rvv.typed_computed_mask_strided_input_widening_dot_reduce_"
        "pre_realized_body",
@@ -3828,6 +3824,176 @@ module {
                       ->contractionComputeLeaf,
           "selected-boundary strided_input_widening_dot_reduce_add reaches "
           "stride-aware math binding and direct contraction provider facts "
+          "before route construction"))
+    return result;
+
+  VariantOp maskedWideningDotVariant =
+      findVariant(kernel, "rvv_pre_route_masked_widening_dot");
+  if (int result = expect(
+          variantContainsPreRealizedRVVSelectedBody(maskedWideningDotVariant) &&
+              !variantContainsPreRealizedRVVRouteEntrySelectedBody(
+                  maskedWideningDotVariant),
+          "computed_masked_widening_dot_reduce_add remains a contraction "
+          "selected-body realization consumer but is no longer direct "
+          "route-entry eligible"))
+    return result;
+  mlir::Operation *maskedWideningDotBody = findFirstNestedOp(
+      maskedWideningDotVariant,
+      "tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body");
+  if (int result = expect(
+          maskedWideningDotBody != nullptr,
+          "found pre-realized computed_masked_widening_dot_reduce_add body "
+          "for demotion test"))
+    return result;
+  auto maskedWideningDotOwner = getRVVSelectedBodyRealizationOwnerForBody(
+      maskedWideningDotBody,
+      "computed-mask widening dot-reduce direct route-entry demotion test");
+  if (!maskedWideningDotOwner)
+    return fail("computed-mask widening dot-reduce owner lookup: " +
+                llvm::toString(maskedWideningDotOwner.takeError()));
+  if (int result = expect(
+          (*maskedWideningDotOwner)->familyName == "contraction" &&
+              (*maskedWideningDotOwner)->isRouteEntryConsumer != nullptr &&
+              !(*maskedWideningDotOwner)
+                   ->isRouteEntryConsumer(maskedWideningDotBody),
+          "computed_masked_widening_dot_reduce_add dispatches through the "
+          "contraction realization owner without direct route-entry authority"))
+    return result;
+
+  mlir::OpBuilder directMaskedWideningDotBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      directMaskedWideningDotRouteEntry =
+          tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+              VariantLoweringBoundaryRequest(
+                  maskedWideningDotVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  directMaskedWideningDotBuilder));
+  if (directMaskedWideningDotRouteEntry)
+    return fail("direct route-entry accepted "
+                "computed_masked_widening_dot_reduce_add instead of requiring "
+                "selected lowering-boundary realization");
+  if (int result = expectErrorContains(
+          directMaskedWideningDotRouteEntry.takeError(),
+          {"selected-body route-entry realization currently supports only",
+           "selected body belongs to another RVV realization family"}))
+    return result;
+
+  mlir::OpBuilder selectedMaskedWideningDotBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      realizedMaskedWideningDot =
+          contractionOwner->realize(
+              VariantLoweringBoundaryRequest(
+                  maskedWideningDotVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  selectedMaskedWideningDotBuilder),
+              maskedWideningDotBody);
+  if (!realizedMaskedWideningDot)
+    return fail("selected-boundary computed_masked_widening_dot_reduce_add "
+                "realization failed: " +
+                llvm::toString(realizedMaskedWideningDot.takeError()));
+  if (int result = expect(
+          countNestedOps(maskedWideningDotVariant,
+                         "tcrv_rvv.typed_computed_mask_widening_dot_reduce_"
+                         "pre_realized_body") == 0 &&
+              countNestedOps(maskedWideningDotVariant, "tcrv_rvv.setvl") ==
+                  1 &&
+              countNestedOps(maskedWideningDotVariant, "tcrv_rvv.with_vl") ==
+                  1 &&
+              countNestedOps(maskedWideningDotVariant, "tcrv_rvv.load") == 4 &&
+              countNestedOps(maskedWideningDotVariant, "tcrv_rvv.compare") ==
+                  1 &&
+              countNestedOps(maskedWideningDotVariant,
+                             "tcrv_rvv.masked_widening_dot_reduce") == 1 &&
+              countNestedOps(maskedWideningDotVariant, "tcrv_rvv.store") == 1,
+          "selected-boundary computed_masked_widening_dot_reduce_add consumes "
+          "shorthand into typed setvl/with_vl/compare-loads/dot-loads/"
+          "compare/masked_widening_dot_reduce/store IR"))
+    return result;
+
+  auto maskedWideningDotAnalysis = analyzeRVVSelectedBodyRoute(
+      VariantEmitCLowerableRequest(maskedWideningDotVariant, kernel,
+                                   capabilities,
+                                   VariantEmissionRole::DirectVariant));
+  if (!maskedWideningDotAnalysis)
+    return fail("analyze realized selected-boundary "
+                "computed_masked_widening_dot_reduce_add: " +
+                llvm::toString(maskedWideningDotAnalysis.takeError()));
+  if (int result = expect(
+          maskedWideningDotAnalysis->description.operation ==
+              RVVSelectedBodyOperationKind::
+                  ComputedMaskWideningDotReduceAdd &&
+              maskedWideningDotAnalysis->description.memoryForm ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                      ComputedMaskUnitStrideWideningDotReduce &&
+              maskedWideningDotAnalysis->contractionRouteFamilyPlan &&
+              maskedWideningDotAnalysis->contractionRouteFamilyPlan
+                  ->usesDotReduction &&
+              maskedWideningDotAnalysis->contractionRouteFamilyPlan
+                  ->usesComputedMask &&
+              !maskedWideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesStridedInputs &&
+              !maskedWideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesWideningMAcc &&
+              maskedWideningDotAnalysis->description
+                      .contractionRouteFamilyPlanID ==
+                  "rvv-contraction-route-family-plan.v1",
+          "selected-boundary computed_masked_widening_dot_reduce_add carries "
+          "computed-mask dot-reduction contraction family facts to route "
+          "analysis"))
+    return result;
+  auto maskedWideningDotMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *maskedWideningDotAnalysis,
+          "selected-boundary computed-mask widening dot-reduce demotion test");
+  if (!maskedWideningDotMaterializationFacts)
+    return fail("computed-mask widening dot-reduce materialization facts: " +
+                llvm::toString(
+                    maskedWideningDotMaterializationFacts.takeError()));
+  auto maskedWideningDotMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *maskedWideningDotAnalysis,
+          "selected-boundary computed-mask widening dot-reduce demotion test");
+  if (!maskedWideningDotMathFacts)
+    return fail("computed-mask widening dot-reduce math operand-binding facts: " +
+                llvm::toString(maskedWideningDotMathFacts.takeError()));
+  auto maskedWideningDotDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          *maskedWideningDotAnalysis,
+          *maskedWideningDotMaterializationFacts, *maskedWideningDotMathFacts,
+          "selected-boundary computed-mask widening dot-reduce demotion test");
+  if (!maskedWideningDotDirectProviderPlan)
+    return fail("computed-mask widening dot-reduce direct contraction "
+                "provider plan: " +
+                llvm::toString(
+                    maskedWideningDotDirectProviderPlan.takeError()));
+  if (int result = expect(
+          maskedWideningDotMathFacts
+              ->bindsComputedMaskWideningDotReduction &&
+              maskedWideningDotDirectProviderPlan
+                  ->plansDirectContractionRoute &&
+              maskedWideningDotDirectProviderPlan->plansDotReduction &&
+              maskedWideningDotDirectProviderPlan->plansComputedMask &&
+              !maskedWideningDotDirectProviderPlan->plansStridedInput &&
+              !maskedWideningDotDirectProviderPlan->plansWideningMAcc &&
+              maskedWideningDotDirectProviderPlan->lhsABI &&
+              maskedWideningDotDirectProviderPlan->rhsABI &&
+              maskedWideningDotDirectProviderPlan->dotLHSABI &&
+              maskedWideningDotDirectProviderPlan->dotRHSABI &&
+              maskedWideningDotDirectProviderPlan->accumulatorABI &&
+              maskedWideningDotDirectProviderPlan->outABI &&
+              maskedWideningDotDirectProviderPlan->runtimeElementCountABI &&
+              maskedWideningDotDirectProviderPlan->compareLeaf ==
+                  maskedWideningDotMaterializationFacts->compareLeaf &&
+              maskedWideningDotDirectProviderPlan->maskedWideningProductLeaf ==
+                  maskedWideningDotMaterializationFacts
+                      ->maskedWideningProductLeaf &&
+              maskedWideningDotDirectProviderPlan->maskedMergeLeaf ==
+                  maskedWideningDotMaterializationFacts->maskedMergeLeaf &&
+              maskedWideningDotDirectProviderPlan->contractionComputeLeaf ==
+                  maskedWideningDotMaterializationFacts
+                      ->contractionComputeLeaf,
+          "selected-boundary computed_masked_widening_dot_reduce_add reaches "
+          "mask-aware math binding and direct contraction provider facts "
           "before route construction"))
     return result;
 

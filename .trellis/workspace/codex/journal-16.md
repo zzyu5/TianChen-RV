@@ -1678,3 +1678,40 @@ Demoted direct pre-realized route-entry support for strided_input_widening_dot_r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 264: Stage2 RVV computed-mask widening dot-reduce selected-body realization migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV computed-mask widening dot-reduce selected-body realization migration
+**Branch**: `main`
+
+### Summary
+
+Demoted non-strided computed-mask widening dot-reduce direct route-entry authority and kept generated artifacts on the RVV selected lowering-boundary realization path.
+
+### Main Changes
+
+- Demoted `TypedComputedMaskWideningDotReducePreRealizedBodyOp` from the RVV contraction direct route-entry predicate while keeping it under the contraction selected-body realization owner.
+- Removed `computed_masked_widening_dot_reduce_add` from generated-bundle direct route-entry support and added a fail-closed lit fixture for the rejected shortcut.
+- Strengthened RVV plugin coverage for selected-boundary realization, typed compare/dot loads, computed mask use, masked widening dot-reduce, route analysis, math binding, materialization facts, and provider planning.
+- Verified selected-boundary generated-bundle dry-run with `route_entry_realization: false`, direct shortcut fail-closed behavior, adjacent contraction non-regression, remaining strided computed-mask direct route-entry non-regression, real `ssh rvv` counts `0,1,16,23,257`, authority scan, `git diff --check`, and `check-tianchenrv 396/396`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
