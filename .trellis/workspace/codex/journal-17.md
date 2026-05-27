@@ -661,3 +661,36 @@ Completed typed masked elementwise route-family derivation for masked_i64_add an
 ### Next Steps
 
 - None - task complete
+
+
+## Session 282: Stage2 RVV typed compare-select route derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed compare-select route derivation
+**Branch**: `main`
+
+### Summary
+
+Derived bounded i64 m1 and i32 m2 compare/select route facts from typed tcrv_rvv body/config/runtime facts; added generated-bundle and ssh rvv evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

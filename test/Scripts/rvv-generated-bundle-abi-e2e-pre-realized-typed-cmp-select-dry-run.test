@@ -1,0 +1,71 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-typed-cmp-select --overwrite --op-kind cmp_select_i64 --op-kind cmp_select_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-typed-cmp-select/evidence.json
+# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-cmp-select/cmp_select_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-cmp-select/cmp_select_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=I64CPP < %t.artifacts/pre-realized-typed-cmp-select/cmp_select_i64/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=M2CPP < %t.artifacts/pre-realized-typed-cmp-select/cmp_select_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=I64HARNESS < %t.artifacts/pre-realized-typed-cmp-select/cmp_select_i64/rvv_generated_bundle_abi_cmp_select_i64_harness.c
+# RUN: FileCheck %s --check-prefix=M2HARNESS < %t.artifacts/pre-realized-typed-cmp-select/cmp_select_lmul_m2/rvv_generated_bundle_abi_cmp_select_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "cmp_select_i64"
+# ROOT-DAG: "cmp_select_lmul_m2"
+# ROOT-DAG: "compare_select_predicate_boundary"
+# ROOT: "status": "dry_run_success"
+
+# I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-i64.mlir"
+# I64-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
+# I64-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select_i64"
+# I64-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# I64-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# I64-DAG: "compare_predicate_kind": "slt"
+# I64-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# I64-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# I64-DAG: "predicate_mask_type": "vbool64_t"
+# I64-DAG: "vector_c_type": "vint64m1_t"
+# I64-DAG: "compare_intrinsic": "__riscv_vmslt_vv_i64m1_b64"
+# I64-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i64m1"
+# I64-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# I64-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
+# I64-DAG: "status": "dry_run_success"
+
+# M2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-lmul-m2.mlir"
+# M2-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
+# M2-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select_lmul_m2"
+# M2-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# M2-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# M2-DAG: "compare_predicate_kind": "sle"
+# M2-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# M2-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# M2-DAG: "predicate_mask_type": "vbool16_t"
+# M2-DAG: "vector_c_type": "vint32m2_t"
+# M2-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m2_b16"
+# M2-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i32m2"
+# M2-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# M2-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
+# M2-DAG: "status": "dry_run_success"
+
+# I64CPP: vint64m1_t
+# I64CPP: vbool64_t
+# I64CPP: __riscv_vmslt_vv_i64m1_b64
+# I64CPP: __riscv_vmerge_vvm_i64m1
+
+# M2CPP: vint32m2_t
+# M2CPP: vbool16_t
+# M2CPP: __riscv_vmsle_vv_i32m2_b16
+# M2CPP: __riscv_vmerge_vvm_i32m2
+
+# I64HARNESS: int64_t expected =
+# I64HARNESS: (lhs[index] < rhs[index] ? lhs[index] : rhs[index])
+# I64HARNESS: cmp_select_i64 predicate coverage missing
+# I64HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+
+# M2HARNESS: int32_t expected =
+# M2HARNESS: (lhs[index] <= rhs[index] ? lhs[index] : rhs[index])
+# M2HARNESS: cmp_select_lmul_m2 predicate coverage missing
+# M2HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};

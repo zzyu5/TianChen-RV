@@ -61,6 +61,8 @@ SCALAR_BROADCAST_OP_KINDS = (
 )
 OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "cmp_select",
+    "cmp_select_i64",
+    "cmp_select_lmul_m2",
     "cmp_select_sle",
     "computed_mask_select",
     "computed_mask_select_sle",
@@ -1811,6 +1813,8 @@ class OpExpectation:
             return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
             return EXPECTED_I64_RUNTIME_PARAMETERS
+        if self.is_cmp_select and self.element_c_type == "int64_t":
+            return EXPECTED_I64_RUNTIME_PARAMETERS
         if self.is_masked_elementwise and self.element_c_type == "int64_t":
             return EXPECTED_I64_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
@@ -1821,7 +1825,7 @@ class OpExpectation:
             return masked_elementwise_base_kind(self.kind)
         if self.is_i64_add or self.is_lmul_m2_add:
             return "add"
-        if self.kind == "cmp_select_sle":
+        if self.kind in {"cmp_select_sle", "cmp_select_i64", "cmp_select_lmul_m2"}:
             return "cmp_select"
         if self.kind == "computed_mask_select_sle":
             return "computed_mask_select"
@@ -1933,7 +1937,12 @@ class OpExpectation:
 
     @property
     def is_cmp_select(self) -> bool:
-        return self.kind in {"cmp_select", "cmp_select_sle"}
+        return self.kind in {
+            "cmp_select",
+            "cmp_select_i64",
+            "cmp_select_lmul_m2",
+            "cmp_select_sle",
+        }
 
     @property
     def is_computed_mask_select(self) -> bool:
@@ -3415,6 +3424,50 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmp_select_sle",
         function_name="tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle",
+    ),
+    "cmp_select_i64": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
+        kind="cmp_select_i64",
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-i64.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_cmp_select_i64",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_cmp_select_i64_kernel_"
+            "pre_realized_body_rvv_cmp_select_i64"
+        ),
+        lhs_initializer=(
+            "(int64_t)(((index % 4) == 0) "
+            "? -9000000000LL : (int64_t)(5000000000LL + (int64_t)index))"
+        ),
+        rhs_initializer=(
+            "(int64_t)(((index % 4) == 0) "
+            "? 7000000000LL : (int64_t)(-4000000000LL - (int64_t)index))"
+        ),
+        expected_expression="(lhs[index] < rhs[index] ? lhs[index] : rhs[index])",
+        compare_predicate_kind="slt",
+        out_initializer=I64_OUT_SENTINEL,
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
+    "cmp_select_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select_sle"],
+        kind="cmp_select_lmul_m2",
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-lmul-m2.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_cmp_select_lmul_m2",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_cmp_select_lmul_m2_kernel_"
+            "pre_realized_body_rvv_cmp_select_lmul_m2"
+        ),
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "computed_mask_select": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
@@ -17826,6 +17879,12 @@ int main(void) {{
 }}
 """.lstrip()
     if expectation.is_cmp_select:
+        value_printf_format = (
+            "%lld" if expectation.element_c_type == "int64_t" else "%d"
+        )
+        value_printf_cast = (
+            "(long long)" if expectation.element_c_type == "int64_t" else ""
+        )
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -17864,11 +17923,13 @@ static int run_case(size_t n) {{
     else
       ++predicate_false_lanes;
 
-    int32_t expected = {expectation.expected_expression};
+    {expectation.element_c_type} expected = {expectation.expected_expression};
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d predicate=%d\\n",
-              n, index, out[index], expected, lhs[index], rhs[index], predicate);
+              "{expectation.kind} mismatch n=%zu index=%zu got={value_printf_format} expected={value_printf_format} lhs={value_printf_format} rhs={value_printf_format} predicate=%d\\n",
+              n, index, {value_printf_cast}out[index],
+              {value_printf_cast}expected, {value_printf_cast}lhs[index],
+              {value_printf_cast}rhs[index], predicate);
       free(lhs);
       free(rhs);
       free(out);

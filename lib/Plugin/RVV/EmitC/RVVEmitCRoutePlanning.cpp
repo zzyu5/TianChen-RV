@@ -3687,11 +3687,29 @@ getRVVSelectedBodySignedLessThanCompareIntrinsic(llvm::StringRef lmul) {
              : "__riscv_vmslt_vv_i32m1_b32";
 }
 
+llvm::StringRef getRVVSelectedBodySignedLessThanCompareIntrinsic(
+    const RVVSelectedBodyConfigProfile &config) {
+  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vmslt_vv_i64m2_b32"
+               : "__riscv_vmslt_vv_i64m1_b64";
+  return getRVVSelectedBodySignedLessThanCompareIntrinsic(config.lmul);
+}
+
 llvm::StringRef
 getRVVSelectedBodySignedLessEqualCompareIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmsle_vv_i32m2_b16"
              : "__riscv_vmsle_vv_i32m1_b32";
+}
+
+llvm::StringRef getRVVSelectedBodySignedLessEqualCompareIntrinsic(
+    const RVVSelectedBodyConfigProfile &config) {
+  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vmsle_vv_i64m2_b32"
+               : "__riscv_vmsle_vv_i64m1_b64";
+  return getRVVSelectedBodySignedLessEqualCompareIntrinsic(config.lmul);
 }
 
 llvm::StringRef
@@ -3703,6 +3721,17 @@ getRVVSelectedBodyCompareIntrinsic(llvm::StringRef predicateKind,
     return getRVVSelectedBodySignedLessThanCompareIntrinsic(lmul);
   if (predicateKind == "sle")
     return getRVVSelectedBodySignedLessEqualCompareIntrinsic(lmul);
+  return {};
+}
+
+llvm::StringRef getRVVSelectedBodyCompareIntrinsic(
+    llvm::StringRef predicateKind, const RVVSelectedBodyConfigProfile &config) {
+  if (predicateKind == "eq")
+    return getRVVSelectedBodyEqualCompareIntrinsic(config);
+  if (predicateKind == "slt")
+    return getRVVSelectedBodySignedLessThanCompareIntrinsic(config);
+  if (predicateKind == "sle")
+    return getRVVSelectedBodySignedLessEqualCompareIntrinsic(config);
   return {};
 }
 
@@ -10688,7 +10717,12 @@ deriveRVVSelectedBodyTargetLeafProfile(
         operationProfile.isMaskedArithmetic &&
         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
         configProfile.lmul == tcrv::rvv::getRVVLMULM1();
-    if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic)
+    const bool supportsPlainI64CompareSelect =
+        description.operation == RVVSelectedBodyOperationKind::CmpSelect &&
+        description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic &&
+        !supportsPlainI64CompareSelect)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
@@ -10727,14 +10761,13 @@ deriveRVVSelectedBodyTargetLeafProfile(
                                        RuntimeScalarDualCompareMaskAndSelect))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     llvm::StringRef compareIntrinsic = getRVVSelectedBodyCompareIntrinsic(
-        description.comparePredicateKind, configProfile.lmul);
+        description.comparePredicateKind, configProfile);
     if (compareIntrinsic.empty())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     llvm::StringRef secondaryCompareIntrinsic =
         isRuntimeScalarDualCompareMaskAndSelect
             ? getRVVSelectedBodyCompareIntrinsic(
-                  description.secondaryComparePredicateKind,
-                  configProfile.lmul)
+                  description.secondaryComparePredicateKind, configProfile)
             : llvm::StringRef();
     llvm::StringRef maskAndIntrinsic =
         isRuntimeScalarDualCompareMaskAndSelect
@@ -10744,7 +10777,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
         (secondaryCompareIntrinsic.empty() || maskAndIntrinsic.empty()))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
-        getRVVSelectedBodySelectIntrinsic(configProfile.lmul),
+        getRVVSelectedBodySelectIntrinsic(configProfile),
         compareIntrinsic, "", (isRuntimeScalarCompareSelect ||
                                isRuntimeScalarDualCompareMaskAndSelect)
                                   ? configProfile.rhsBroadcastIntrinsic

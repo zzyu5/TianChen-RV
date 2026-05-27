@@ -730,6 +730,15 @@ bool isSupportedTypedCompareSelectPreRealizedSelectLayout(
   return layout == "select-lhs-when-mask-else-rhs";
 }
 
+bool isSupportedTypedCompareSelectPreRealizedConfig(std::int64_t sew,
+                                                    llvm::StringRef lmul) {
+  if (isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  if (sew == getRVVFirstSliceSEWBits() && lmul == getRVVLMULM2())
+    return true;
+  return isRVVSelectedBodyI64M1Config(sew, lmul);
+}
+
 bool isSupportedTypedComputedMaskSelectPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "computed_mask_select";
@@ -3350,11 +3359,11 @@ mlir::LogicalResult TypedCompareSelectPreRealizedBodyOp::verify() {
               "\"select-lhs-when-mask-else-rhs\" for the bounded selected-body "
               "compare/select realization hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedCompareSelectPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
-           << "requires bounded pre-realized compare/select config to be SEW32 "
-              "LMUL m1";
+           << "requires bounded pre-realized compare/select config to be "
+              "SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
