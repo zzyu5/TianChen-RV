@@ -1679,30 +1679,87 @@ module {
                    llvm::Twine("pre-realized @") + variantName +
                        " is owned by the expected realization family"))
       return result;
-    if (int result = expect(
-            (*owner)->isRouteEntryConsumer != nullptr &&
-                (*owner)->isRouteEntryConsumer(preRealized),
-            llvm::Twine("pre-realized @") + variantName +
-                " is route-entry eligible through its owner registry entry"))
+    const bool expectsSelectedBoundaryProducer =
+        expectedProviderPlanID ==
+        "rvv-computed-mask-select-route-family-plan.v1";
+    const bool routeEntryEligible = (*owner)->isRouteEntryConsumer != nullptr &&
+                                    (*owner)->isRouteEntryConsumer(preRealized);
+    if (expectsSelectedBoundaryProducer) {
+      if (int result = expect(
+              !routeEntryEligible,
+              llvm::Twine("pre-realized @") + variantName +
+                  " is consumed by the selected-body realization producer "
+                  "rather than the route-entry shortcut"))
+        return result;
+    } else if (int result = expect(
+                   routeEntryEligible,
+                   llvm::Twine("pre-realized @") + variantName +
+                       " is route-entry eligible through its owner registry "
+                       "entry")) {
       return result;
+    }
 
     if (buildRouteBeforePlan) {
-      tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-      if (int result = expectSuccess(
-              registry.buildVariantEmitCLowerableRoute(
-                  VariantEmitCLowerableRequest(
-                      variant, kernel, capabilities,
-                      VariantEmissionRole::DirectVariant),
-                  route),
-              llvm::Twine("provider route entry realizes pre-realized @") +
-                  variantName))
-        return result;
-      if (int result =
-              expect(route.getForLoops().size() == 1,
-                     llvm::Twine("provider route entry emits one "
-                                 "statement-plan loop for @") +
-                         variantName))
-        return result;
+      if (routeEntryEligible) {
+        tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+        if (int result = expectSuccess(
+                registry.buildVariantEmitCLowerableRoute(
+                    VariantEmitCLowerableRequest(
+                        variant, kernel, capabilities,
+                        VariantEmissionRole::DirectVariant),
+                    route),
+                llvm::Twine("provider route entry realizes pre-realized @") +
+                    variantName))
+          return result;
+        if (int result =
+                expect(route.getForLoops().size() == 1,
+                       llvm::Twine("provider route entry emits one "
+                                   "statement-plan loop for @") +
+                           variantName))
+          return result;
+      } else {
+        if (int result = expect(
+                expectsSelectedBoundaryProducer,
+                llvm::Twine("pre-realized @") + variantName +
+                    " is selected-boundary producer eligible when it is not "
+                    "route-entry eligible"))
+          return result;
+        mlir::OpBuilder producerBuilder(module->getContext());
+        VariantLoweringBoundaryResult boundaryResult;
+        if (int result = expectSuccess(
+                registry.materializeSelectedLoweringBoundary(
+                    VariantLoweringBoundaryRequest(
+                        variant, kernel, capabilities,
+                        VariantEmissionRole::DirectVariant, producerBuilder),
+                    boundaryResult),
+                llvm::Twine("selected-body realization producer consumes "
+                            "pre-realized @") +
+                    variantName))
+          return result;
+        if (int result = expect(
+                boundaryResult.isMaterialized(),
+                llvm::Twine("selected-body realization producer materializes "
+                            "a typed RVV boundary for @") +
+                    variantName))
+          return result;
+        tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+        if (int result = expectSuccess(
+                tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                    VariantEmitCLowerableRequest(
+                        variant, kernel, capabilities,
+                        VariantEmissionRole::DirectVariant),
+                    route),
+                llvm::Twine("provider consumes producer-realized typed body "
+                            "for @") +
+                    variantName))
+          return result;
+        if (int result = expect(
+                route.getForLoops().size() == 1,
+                llvm::Twine("provider emits one statement-plan loop for "
+                            "producer-realized @") +
+                    variantName))
+          return result;
+      }
     }
 
     VariantEmissionPlan plan;
@@ -1764,7 +1821,7 @@ module {
                   countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.select") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
-              llvm::Twine("direct route-entry @") + variantName +
+              llvm::Twine("selected-body producer @") + variantName +
                   " realizes compare/value loads, select, and store"))
         return result;
     }
@@ -2130,10 +2187,11 @@ module {
                           "owner-local negative tests"))
     return result;
   if (int result = expect(
-          elementwiseCompareSelectOwner->isRouteEntryConsumer(
-              negativeComputedMaskSelectBody.getOperation()),
-          "computed-mask select fixture is route-entry eligible through the "
-          "explicit compare/select owner predicate before targeted mutation"))
+          elementwiseCompareSelectOwner->isRouteEntryConsumer == nullptr ||
+              !elementwiseCompareSelectOwner->isRouteEntryConsumer(
+                  negativeComputedMaskSelectBody.getOperation()),
+          "computed-mask select fixture is selected-body producer-only before "
+          "targeted mutation"))
     return result;
   auto expectComputedMaskSelectOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {

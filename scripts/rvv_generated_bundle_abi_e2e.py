@@ -9,8 +9,9 @@ consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning unless
 ``--direct-pre-realized-route-entry`` is set for the bounded route-entry
-artifact/ABI evidence cases. The legacy ``--source-seed`` mode is unsupported
-and exits before bundle generation.
+artifact/ABI evidence cases. Computed-mask select intentionally remains on the
+selected lowering-boundary producer path. The legacy ``--source-seed`` mode is
+unsupported and exits before bundle generation.
 The script does not implement compiler IR, lowering, plugin selection,
 emission, descriptors, fallback computation, or runtime glue.
 """
@@ -1864,7 +1865,6 @@ class OpExpectation:
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
             self.is_cmp_select
-            or self.is_computed_mask_select
             or self.is_scalar_broadcast_add
             or self.is_strided_load_unit_store
             or self.is_standalone_reduce_add
@@ -16560,6 +16560,9 @@ def generate_bundle(
         else:
             result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
             result["route_entry_realization"] = False
+            result["selected_body_realization_producer"] = (
+                "rvv-plugin-local-selected-body-realization-owner-registry"
+            )
             result["realization_boundary"] = (
                 "public selected lowering-boundary materialization consumed the "
                 "pre-realized typed tcrv_rvv body before provider route "
@@ -16775,7 +16778,6 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
                 "pre-realized cmp_select/cmp_select_sle, "
-                "computed_mask_select/computed_mask_select_sle, and "
                 "strided_load_unit_store/standalone_reduce_add/"
                 "macc_add/scalar_broadcast_macc_add/"
                 "computed_masked_macc_add/"
@@ -19817,8 +19819,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "with --pre-realized-selected-body, skip the public selected "
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded cmp_select/"
-            "cmp_select_sle, computed_mask_select/computed_mask_select_sle, "
-            "strided_load_unit_store, or "
+            "cmp_select_sle, strided_load_unit_store, or "
             "standalone_reduce_add/macc_add/scalar_broadcast_macc_add/"
             "computed_masked_macc_add/"
             "runtime_scalar_cmp_masked_macc_add/"

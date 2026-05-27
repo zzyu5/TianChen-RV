@@ -1113,3 +1113,56 @@ Added RVV plugin-local mask/tail policy route-family owner for computed-mask sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 257: Stage2 RVV selected-body realization producer
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV selected-body realization producer
+**Branch**: `main`
+
+### Summary
+
+Moved the representative computed-mask select generated-bundle consumer off the
+direct pre-realized route-entry shortcut and onto the RVV plugin-local
+selected-body realization producer path. The realized typed `tcrv_rvv`
+compare/select/store body is then consumed by the existing computed-mask select
+provider route family and neutral EmitC/export path.
+
+### Main Changes
+
+- Demoted computed-mask select from route-entry eligibility in the selected-body
+  realization owner registry while retaining owner-local realization.
+- Updated C++ production-route tests to assert computed-mask select is
+  selected-boundary producer-only and still feeds the existing provider plan.
+- Updated generated-bundle evidence to record the selected-body realization
+  producer and replaced the old direct computed-mask select shortcut test with
+  a fail-closed unsupported-direct test.
+- Recorded the route-entry narrowing rule in the RVV plugin spec.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] focused generated-bundle dry-run for pre-realized `computed_mask_select`
+  counts `0,7,16,23,257`
+- [OK] direct pre-realized route-entry request for `computed_mask_select` fails
+  closed
+- [OK] `tianchenrv-rvv-extension-plugin-test`
+- [OK] `ssh rvv` generated-bundle run for `computed_mask_select` counts
+  `0,7,16,23,257`
+- [OK] single-instance `check-tianchenrv`: 390/390
+- [OK] `git diff --check` and added-line authority scan
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

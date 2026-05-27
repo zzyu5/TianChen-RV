@@ -284,6 +284,16 @@ derive realization or route support from route ids, artifact names, test names,
 ABI strings, descriptors, scripts, common EmitC, source-front-door markers, or
 legacy i32 helper names.
 
+For `elementwise/compare-select`, route-entry eligibility is narrower than the
+realization owner family. Plain compare-select bodies may be route-entry
+capable when their realized compare/select structure feeds the verified
+plain compare-select provider plan. Computed-mask select bodies are owned by
+the same selected-body realization family, but they must use the explicit
+selected lowering-boundary producer path unless a later owner task adds direct
+route-entry support with matching mask provenance, mask/tail policy, runtime
+ABI, provider facts, diagnostics, generated-bundle evidence, and real RVV
+evidence for executable claims.
+
 For `segment2 memory`, route-entry eligibility may be narrower than the
 realization owner family. Bounded plain `segment2_deinterleave_unit_store` and
 `segment2_interleave_unit_load` pre-realized bodies, and the bounded
@@ -557,7 +567,7 @@ semantic realization fallback.
 
 The route-entry bridge may support bounded family groups such as:
 
-- elementwise/compare-select pre-realized bodies owned by
+- plain elementwise/compare-select pre-realized bodies owned by
   `realizePreRealizedRVVElementwiseCompareSelectCluster(...)`;
 - base memory movement pre-realized bodies whose realized structure already
   feeds RVV-owned base-memory materialization facts, memory operand-binding
@@ -649,7 +659,7 @@ structure.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: selected RVV variant -> pre-realized compare/select, base-memory,
+- Good: selected RVV variant -> pre-realized plain compare/select, base-memory,
   standalone-reduction, contraction, bounded segment2 deinterleave, or bounded
   segment2 interleave, bounded computed-mask segment2 load/unit-store body, or
   bounded computed-mask segment2 store/unit-load body -> route-entry
@@ -666,7 +676,7 @@ structure.
 ### 6. Tests Required
 
 - C++ tests showing production emission/provider route entries realize at
-  least one compare/select pre-realized body, one base-memory pre-realized
+  least one plain compare/select pre-realized body, one base-memory pre-realized
   body, one standalone-reduction pre-realized body, one contraction
   pre-realized body, one bounded segment2 deinterleave pre-realized body, one
   bounded segment2 interleave pre-realized body, and one bounded computed-mask

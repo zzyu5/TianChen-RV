@@ -795,9 +795,6 @@ bool isPreRealizedRVVCompareSelectRouteEntryOp(mlir::Operation *op) {
   if (auto body =
           llvm::dyn_cast<tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(op))
     return isPreRealizedCompareSelectOpKind(body.getOpKind());
-  if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp>(op))
-    return isPreRealizedComputedMaskSelectOpKind(body.getOpKind());
   return false;
 }
 
@@ -7938,7 +7935,7 @@ realizePreRealizedRVVRouteEntrySelectedBody(
       !(*owner)->isRouteEntryConsumer(*bodyOp))
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
-        "pre-realized elementwise/compare-select, base memory movement, "
+        "pre-realized plain elementwise/compare-select, base memory movement, "
         "standalone reduction, plain/scalar-broadcast macc, computed-mask "
         "macc, contraction, widening conversion, or segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
