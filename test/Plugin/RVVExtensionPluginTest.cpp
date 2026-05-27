@@ -3228,10 +3228,6 @@ module {
   };
 
   const ContractionRouteEntryCase cases[] = {
-      {"rvv_pre_route_widening_dot",
-       "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body",
-       RVVSelectedBodyOperationKind::WideningDotReduceAdd, false, false,
-       "tcrv_rvv.widening_dot_reduce"},
       {"rvv_pre_route_masked_widening_dot",
        "tcrv_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body",
        RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd, true,
@@ -3522,6 +3518,141 @@ module {
               wideningMAccDirectProviderPlan->contractionComputeLeaf ==
                   wideningMAccMaterializationFacts->contractionComputeLeaf,
           "selected-boundary widening_macc_add reaches math binding and "
+          "direct contraction provider facts before route construction"))
+    return result;
+
+  VariantOp wideningDotVariant =
+      findVariant(kernel, "rvv_pre_route_widening_dot");
+  if (int result = expect(
+          variantContainsPreRealizedRVVSelectedBody(wideningDotVariant) &&
+              !variantContainsPreRealizedRVVRouteEntrySelectedBody(
+                  wideningDotVariant),
+          "widening_dot_reduce_add remains a contraction selected-body "
+          "realization consumer but is no longer direct route-entry eligible"))
+    return result;
+  mlir::Operation *wideningDotBody = findFirstNestedOp(
+      wideningDotVariant,
+      "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body");
+  if (int result = expect(
+          wideningDotBody != nullptr,
+          "found pre-realized widening_dot_reduce_add body for demotion test"))
+    return result;
+  auto wideningDotOwner = getRVVSelectedBodyRealizationOwnerForBody(
+      wideningDotBody,
+      "widening dot-reduce direct route-entry demotion test");
+  if (!wideningDotOwner)
+    return fail("widening dot-reduce owner lookup: " +
+                llvm::toString(wideningDotOwner.takeError()));
+  if (int result = expect(
+          (*wideningDotOwner)->familyName == "contraction" &&
+              (*wideningDotOwner)->isRouteEntryConsumer != nullptr &&
+              !(*wideningDotOwner)->isRouteEntryConsumer(wideningDotBody),
+          "widening_dot_reduce_add dispatches through the contraction "
+          "realization owner without direct route-entry authority"))
+    return result;
+
+  mlir::OpBuilder directWideningDotBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      directWideningDotRouteEntry =
+          tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+              VariantLoweringBoundaryRequest(
+                  wideningDotVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  directWideningDotBuilder));
+  if (directWideningDotRouteEntry)
+    return fail("direct route-entry accepted widening_dot_reduce_add instead "
+                "of requiring selected lowering-boundary realization");
+  if (int result = expectErrorContains(
+          directWideningDotRouteEntry.takeError(),
+          {"selected-body route-entry realization currently supports only",
+           "selected body belongs to another RVV realization family"}))
+    return result;
+
+  mlir::OpBuilder selectedWideningDotBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realizedWideningDot =
+      contractionOwner->realize(
+          VariantLoweringBoundaryRequest(
+              wideningDotVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant,
+              selectedWideningDotBuilder),
+          wideningDotBody);
+  if (!realizedWideningDot)
+    return fail("selected-boundary widening_dot_reduce_add realization "
+                "failed: " +
+                llvm::toString(realizedWideningDot.takeError()));
+  if (int result = expect(
+          countNestedOps(wideningDotVariant,
+                         "tcrv_rvv.typed_widening_dot_reduce_"
+                         "pre_realized_body") == 0 &&
+              countNestedOps(wideningDotVariant, "tcrv_rvv.setvl") == 1 &&
+              countNestedOps(wideningDotVariant, "tcrv_rvv.with_vl") == 1 &&
+              countNestedOps(wideningDotVariant, "tcrv_rvv.load") == 2 &&
+              countNestedOps(wideningDotVariant,
+                             "tcrv_rvv.widening_dot_reduce") == 1 &&
+              countNestedOps(wideningDotVariant, "tcrv_rvv.store") == 1,
+          "selected-boundary widening_dot_reduce_add consumes shorthand into "
+          "typed setvl/with_vl/load/load/widening_dot_reduce/store IR"))
+    return result;
+
+  auto wideningDotAnalysis = analyzeRVVSelectedBodyRoute(
+      VariantEmitCLowerableRequest(wideningDotVariant, kernel, capabilities,
+                                   VariantEmissionRole::DirectVariant));
+  if (!wideningDotAnalysis)
+    return fail("analyze realized selected-boundary widening_dot_reduce_add: " +
+                llvm::toString(wideningDotAnalysis.takeError()));
+  if (int result = expect(
+          wideningDotAnalysis->description.operation ==
+              RVVSelectedBodyOperationKind::WideningDotReduceAdd &&
+              wideningDotAnalysis->contractionRouteFamilyPlan &&
+              wideningDotAnalysis->contractionRouteFamilyPlan
+                  ->usesDotReduction &&
+              !wideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesWideningMAcc &&
+              !wideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesComputedMask &&
+              !wideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesStridedInputs &&
+              wideningDotAnalysis->description.contractionRouteFamilyPlanID ==
+                  "rvv-contraction-route-family-plan.v1",
+          "selected-boundary widening_dot_reduce_add carries dot-reduction "
+          "contraction family facts to route analysis"))
+    return result;
+  auto wideningDotMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *wideningDotAnalysis,
+          "selected-boundary widening dot-reduce demotion test");
+  if (!wideningDotMaterializationFacts)
+    return fail("widening dot-reduce materialization facts: " +
+                llvm::toString(wideningDotMaterializationFacts.takeError()));
+  auto wideningDotMathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *wideningDotAnalysis,
+      "selected-boundary widening dot-reduce demotion test");
+  if (!wideningDotMathFacts)
+    return fail("widening dot-reduce math operand-binding facts: " +
+                llvm::toString(wideningDotMathFacts.takeError()));
+  auto wideningDotDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          *wideningDotAnalysis, *wideningDotMaterializationFacts,
+          *wideningDotMathFacts,
+          "selected-boundary widening dot-reduce demotion test");
+  if (!wideningDotDirectProviderPlan)
+    return fail("widening dot-reduce direct contraction provider plan: " +
+                llvm::toString(wideningDotDirectProviderPlan.takeError()));
+  if (int result = expect(
+          wideningDotMathFacts->bindsWideningDotReduction &&
+              wideningDotDirectProviderPlan->plansDirectContractionRoute &&
+              wideningDotDirectProviderPlan->plansDotReduction &&
+              !wideningDotDirectProviderPlan->plansWideningMAcc &&
+              !wideningDotDirectProviderPlan->plansComputedMask &&
+              !wideningDotDirectProviderPlan->plansStridedInput &&
+              wideningDotDirectProviderPlan->lhsABI &&
+              wideningDotDirectProviderPlan->rhsABI &&
+              wideningDotDirectProviderPlan->accumulatorABI &&
+              wideningDotDirectProviderPlan->outABI &&
+              wideningDotDirectProviderPlan->runtimeElementCountABI &&
+              wideningDotDirectProviderPlan->contractionComputeLeaf ==
+                  wideningDotMaterializationFacts->contractionComputeLeaf,
+          "selected-boundary widening_dot_reduce_add reaches math binding and "
           "direct contraction provider facts before route construction"))
     return result;
 

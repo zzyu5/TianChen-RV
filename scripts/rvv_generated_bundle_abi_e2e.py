@@ -11,7 +11,8 @@ lowering-boundary materialization pass before emission planning unless
 ``--direct-pre-realized-route-entry`` is set for the bounded route-entry
 artifact/ABI evidence cases. Computed-mask select, ``scalar_broadcast_add``,
 ``macc_add``, ``scalar_broadcast_macc_add``, ``computed_masked_macc_add``,
-and ``runtime_scalar_cmp_masked_macc_add``
+``runtime_scalar_cmp_masked_macc_add``, ``widening_macc_add``, and
+``widening_dot_reduce_add``
 intentionally remain on the selected lowering-boundary producer path. The
 legacy ``--source-seed`` mode is
 unsupported and exits before bundle generation.
@@ -1876,7 +1877,6 @@ class OpExpectation:
             or self.is_segment2_deinterleave_unit_store
             or self.is_segment2_interleave_unit_load
             or self.is_widen_i16_to_i32
-            or self.is_widening_dot_reduce_add
             or self.is_strided_input_widening_dot_reduce_add
             or self.is_computed_masked_widening_dot_reduce_add
             or self.is_computed_masked_strided_input_widening_dot_reduce_add
@@ -16781,7 +16781,8 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "computed_masked_segment2_update_unit_load/"
                 "segment2_deinterleave_unit_store/"
                 "segment2_interleave_unit_load/"
-                "widen_i16_to_i32/widening dot-reduction contraction "
+                "widen_i16_to_i32/strided or computed-mask widening "
+                "dot-reduction contraction "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -19820,7 +19821,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/widen_i16_to_i32/"
-            "widening dot-reduction contraction "
+            "strided or computed-mask widening dot-reduction contraction "
             "fixtures before target bundle export"
         ),
     )

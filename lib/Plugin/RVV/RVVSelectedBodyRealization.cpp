@@ -1168,7 +1168,8 @@ bool isPreRealizedRVVContractionOwnerOp(mlir::Operation *op) {
 }
 
 bool isPreRealizedRVVContractionRouteEntryOp(mlir::Operation *op) {
-  if (llvm::isa<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp>(op))
+  if (llvm::isa<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
+                tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp>(op))
     return false;
   return isPreRealizedRVVContractionOwnerOp(op);
 }

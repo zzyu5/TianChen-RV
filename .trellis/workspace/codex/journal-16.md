@@ -1441,7 +1441,7 @@ execution.
 
 | Hash | Message |
 |------|---------|
-| `pending-final-commit` | (see git log) |
+| `e73aa1a7` | rvv: demote non widening macc route entry |
 
 ### Testing
 
@@ -1506,7 +1506,7 @@ validation, generated RVV C, and real `ssh rvv` correctness evidence.
 
 | Hash | Message |
 |------|---------|
-| `pending-final-commit` | (see git log) |
+| `81733bb2` | rvv: demote widening macc route entry |
 
 ### Testing
 
@@ -1532,6 +1532,74 @@ validation, generated RVV C, and real `ssh rvv` correctness evidence.
 - [OK] `git diff --check`
 - [OK] Trellis task validation
 - [OK] `cmake --build build --target check-tianchenrv -j2`: 393/393
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 264: Stage2 RVV widening dot-reduce selected-body realization migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV widening dot-reduce selected-body realization migration
+**Branch**: `main`
+
+### Summary
+
+Demoted `widening_dot_reduce_add` direct pre-realized route-entry authority
+while preserving the production generated artifact path through RVV
+plugin-local selected-body realization, realized typed widening dot-reduce
+facts, the existing direct contraction provider path, neutral EmitC
+materialization, target ABI validation, generated RVV C, and real `ssh rvv`
+correctness evidence.
+
+### Main Changes
+
+- Split the RVV `contraction` direct route-entry predicate so
+  `widening_dot_reduce_add` remains a selected-body realization consumer but
+  is no longer a direct route-entry consumer.
+- Updated generated-bundle tooling so
+  `--direct-pre-realized-route-entry --op-kind widening_dot_reduce_add` fails
+  closed before route-entry materialization or bundle generation.
+- Added C++ coverage proving direct route-entry rejection and
+  selected-boundary realization into typed `setvl` / `with_vl` / i16 source
+  loads / `widening_dot_reduce` / i32 scalar store IR.
+- Added script lit coverage for direct route-entry fail-closed behavior and
+  strengthened selected-boundary evidence checks with
+  `route_entry_realization: false`.
+- Archived the Trellis task after PRD validation, `ssh rvv` evidence,
+  authority scan, and full `check-tianchenrv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Direct route-entry fail-closed probe for
+  `--direct-pre-realized-route-entry --op-kind widening_dot_reduce_add`
+- [OK] Selected-boundary generated-bundle dry-run for
+  `widening_dot_reduce_add`, counts `0,1,16,23,257`, with
+  `route_entry_realization: false` and selected-body producer evidence
+- [OK] Real `ssh rvv` generated-bundle run for `widening_dot_reduce_add`,
+  counts `0,1,16,23,257`, with signed horizontal dot products, i32 seed
+  accumulation, scalar output, and tail preservation
+- [OK] Bounded production-file authority scan found no remaining plain
+  `widening_dot_reduce_add` direct support predicate or script allowlist entry
+- [OK] `git diff --check`
+- [OK] Trellis task validation
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 394/394
 
 ### Status
 

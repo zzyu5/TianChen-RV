@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and Stage2 authority compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization, route-entry demotion, provider facts, and mirror-only artifact boundaries."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec does not own RVV compute/dtype/route semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence, lit/C++ coverage, and ssh rvv runtime claim requirements."}
