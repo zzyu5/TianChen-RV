@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Global authority and Stage1/Stage2 acceptance boundary for final verification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-boundary realization, direct route-entry demotion, provider route facts, artifact mirror constraints"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify runtime ABI roles remain envelope-only and do not become compute authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC consumes provider-built route and does not choose RVV semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, direct route-entry fail-closed evidence, generated-bundle dry-run, ssh rvv evidence"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/profile facts are constraints, not dtype or route authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review implementation remains RVV plugin-local and provider-owned"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review no high-level compute or core/common semantic invention"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-computed-mask-widening-dot-reduce-selected-realization-migration/prd.md", "reason": "Verify this round follows the adjacent completed migration without reintroducing direct route-entry authority"}
+{"command": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py", "result": "pass"}
+{"command": "cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2", "result": "pass"}
+{"command": "./build/bin/tianchenrv-rvv-extension-plugin-test", "result": "pass: RVV extension plugin smoke test passed"}
+{"command": "cd build/test && python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='explicit-computed-masked-strided-input-widening-dot-reduce-add|pre-realized-computed-masked-strided-input-widening-dot-reduce-add|direct-pre-realized-computed-masked-strided-input-widening-dot-reduce-add'", "result": "pass: 3/3"}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_masked_strided_input_widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 ...", "result": "pass: selected lowering-boundary materializer with route_entry_realization false"}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --op-kind computed_masked_strided_input_widening_dot_reduce_add ...", "result": "expected fail-closed: direct route-entry allowlist rejects this op before materialization"}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --ssh-target rvv --op-kind computed_masked_strided_input_widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 ...", "result": "pass: ssh rvv counts 0,1,16,23,257 with stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2"}
+{"command": "bounded authority scan over lib include scripts test and task PRD", "result": "pass: this op is no longer direct route-entry eligible; remaining direct hits are fail-closed task/test text or unrelated bounded fixtures"}
+{"command": "git diff --check", "result": "pass"}
+{"command": "cmake --build build --target check-tianchenrv -j2", "result": "pass: 397/397"}

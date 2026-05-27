@@ -12,12 +12,13 @@ lowering-boundary materialization pass before emission planning unless
 artifact/ABI evidence cases. Computed-mask select, ``scalar_broadcast_add``,
 ``macc_add``, ``scalar_broadcast_macc_add``, ``computed_masked_macc_add``,
 ``runtime_scalar_cmp_masked_macc_add``, ``widening_macc_add``,
-``widening_dot_reduce_add``, ``strided_input_widening_dot_reduce_add``, and
-``computed_masked_widening_dot_reduce_add`` intentionally remain on the
-selected lowering-boundary producer path. The legacy ``--source-seed`` mode is
-unsupported and exits before bundle generation.
-The script does not implement compiler IR, lowering, plugin selection,
-emission, descriptors, fallback computation, or runtime glue.
+``widening_dot_reduce_add``, ``strided_input_widening_dot_reduce_add``,
+``computed_masked_widening_dot_reduce_add``, and
+``computed_masked_strided_input_widening_dot_reduce_add`` intentionally remain
+on the selected lowering-boundary producer path. The legacy ``--source-seed``
+mode is unsupported and exits before bundle generation. The script does not
+implement compiler IR, lowering, plugin selection, emission, descriptors,
+fallback computation, or runtime glue.
 """
 
 from __future__ import annotations
@@ -1877,7 +1878,6 @@ class OpExpectation:
             or self.is_segment2_deinterleave_unit_store
             or self.is_segment2_interleave_unit_load
             or self.is_widen_i16_to_i32
-            or self.is_computed_masked_strided_input_widening_dot_reduce_add
         )
 
     @property
@@ -14788,10 +14788,9 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
+                    int pattern) {{
   /* expected: {expectation.expected_expression} */
-  const size_t lhs_stride = 2;
-  const size_t rhs_stride = 3;
   size_t cmp_alloc = n + 5;
   size_t lhs_alloc = n * lhs_stride + 8;
   size_t rhs_alloc = n * rhs_stride + 8;
@@ -14818,17 +14817,37 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < cmp_alloc; ++index) {{
-    cmp_lhs[index] = {expectation.lhs_initializer};
-    cmp_rhs[index] = {expectation.rhs_initializer};
+    if (pattern == 0) {{
+      cmp_lhs[index] = {expectation.lhs_initializer};
+      cmp_rhs[index] = {expectation.rhs_initializer};
+    }} else {{
+      int active = ((index % 5) == 1 || (index % 5) == 2);
+      cmp_lhs[index] = active ? -(int32_t)(20 + (int32_t)index)
+                              : (int32_t)(200 + (int32_t)index);
+      cmp_rhs[index] = active ? (int32_t)(40 + (int32_t)index)
+                              : (int32_t)(10 + (int32_t)index);
+    }}
   }}
-  for (size_t index = 0; index < lhs_alloc; ++index)
-    lhs[index] = (int16_t)(((index % 4) < 2)
-                               ? -((int)(index % 59) + 3)
-                               : ((int)(index % 59) + 6));
-  for (size_t index = 0; index < rhs_alloc; ++index)
-    rhs[index] = (int16_t)(((index % 5) == 0)
-                               ? -((int)(index % 43) + 4)
-                               : ((int)(index % 43) + 9));
+  for (size_t index = 0; index < lhs_alloc; ++index) {{
+    if (pattern == 0)
+      lhs[index] = (int16_t)(((index % 4) < 2)
+                                 ? -((int)(index % 59) + 3)
+                                 : ((int)(index % 59) + 6));
+    else
+      lhs[index] = (int16_t)(((index % 2) == 0)
+                                 ? -((int)(index % 67) + 5)
+                                 : ((int)(index % 67) + 8));
+  }}
+  for (size_t index = 0; index < rhs_alloc; ++index) {{
+    if (pattern == 0)
+      rhs[index] = (int16_t)(((index % 5) == 0)
+                                 ? -((int)(index % 43) + 4)
+                                 : ((int)(index % 43) + 9));
+    else
+      rhs[index] = (int16_t)(((index % 3) == 0)
+                                 ? -((int)(index % 53) + 7)
+                                 : ((int)(index % 53) + 11));
+  }}
   for (size_t index = 0; index < out_alloc; ++index) {{
     acc[index] = {expectation.source_initializer};
     out[index] = {expectation.out_initializer};
@@ -14872,8 +14891,9 @@ static int run_case(size_t n) {{
 
   if (out[0] != expected) {{
     fprintf(stderr,
-            "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d lhs_stride=%zu rhs_stride=%zu active=%zu inactive=%zu active_pos=%zu active_neg=%zu inactive_nonzero=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu\\n",
+            "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d lhs_stride=%zu rhs_stride=%zu pattern=%d active=%zu inactive=%zu active_pos=%zu active_neg=%zu inactive_nonzero=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu\\n",
             n, out[0], expected, acc[0], lhs_stride, rhs_stride,
+            pattern,
             active_lanes, inactive_lanes, active_positive_products,
             active_negative_products, inactive_nonzero_products,
             lhs_skipped_nonzero, rhs_skipped_nonzero);
@@ -14908,8 +14928,9 @@ static int run_case(size_t n) {{
                 lhs_skipped_nonzero == 0 || rhs_skipped_nonzero == 0 ||
                 acc[0] == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu active=%zu inactive=%zu active_pos=%zu active_neg=%zu inactive_nonzero=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
-            n, active_lanes, inactive_lanes, active_positive_products,
+            "{expectation.kind} coverage missing n=%zu lhs_stride=%zu rhs_stride=%zu pattern=%d active=%zu inactive=%zu active_pos=%zu active_neg=%zu inactive_nonzero=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
+            n, lhs_stride, rhs_stride, pattern,
+            active_lanes, inactive_lanes, active_positive_products,
             active_negative_products, inactive_nonzero_products,
             lhs_skipped_nonzero, rhs_skipped_nonzero, acc[0]);
     free(cmp_lhs);
@@ -14927,20 +14948,31 @@ static int run_case(size_t n) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu ok compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=%zu,%zu mask_pattern=%d input_pattern=%d skipped_source_elements_ignored scalar_output tail_preserved\\n",
+         n, lhs_stride, rhs_stride, pattern, pattern);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
-  for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+  const struct {{
+    size_t lhs_stride;
+    size_t rhs_stride;
+    int pattern;
+  }} cases[] = {{ {{2, 3, 0}}, {{3, 2, 1}} }};
+  const size_t case_count = sizeof(cases) / sizeof(cases[0]);
+  for (size_t case_index = 0; case_index < case_count; ++case_index) {{
+    for (size_t index = 0; index < count_count; ++index) {{
+      int status = run_case(counts[index], cases[case_index].lhs_stride,
+                            cases[case_index].rhs_stride,
+                            cases[case_index].pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} lhs_stride=2 rhs_stride=3\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} lhs_stride=2 rhs_stride=3\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2\\n");
   return 0;
 }}
 """.lstrip()
@@ -16779,8 +16811,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "computed_masked_segment2_update_unit_load/"
                 "segment2_deinterleave_unit_store/"
                 "segment2_interleave_unit_load/"
-                "widen_i16_to_i32/"
-                "computed_masked_strided_input_widening_dot_reduce_add "
+                "widen_i16_to_i32 "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -19818,8 +19849,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"
-            "segment2_interleave_unit_load/widen_i16_to_i32/"
-            "computed-mask widening dot-reduction contraction "
+            "segment2_interleave_unit_load/widen_i16_to_i32 "
             "fixtures before target bundle export"
         ),
     )

@@ -66,7 +66,6 @@ Closed direct route-entry computed_masked_strided_input_widening_dot_reduce_add 
 
 - None - task complete
 
-
 ## Session 250: Stage2 RVV route-family artifact ABI consumer owner
 
 **Date**: 2026-05-26
@@ -1707,6 +1706,63 @@ Demoted non-strided computed-mask widening dot-reduce direct route-entry authori
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 265: Stage2 RVV computed-mask strided dot selected realization
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV computed-mask strided dot selected realization
+**Branch**: `main`
+
+### Summary
+
+Demoted computed_masked_strided_input_widening_dot_reduce_add direct pre-realized route-entry authority, kept selected-boundary RVV realization positive, added generated-bundle fail-closed and ssh rvv evidence.
+
+### Main Changes
+
+- Demoted `TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp`
+  from direct pre-realized route-entry eligibility while keeping it under the
+  RVV contraction selected-body realization owner.
+- Removed `computed_masked_strided_input_widening_dot_reduce_add` from
+  generated-bundle direct route-entry support and added a fail-closed direct
+  shortcut lit fixture.
+- Strengthened the selected-boundary path evidence for realized compare mask,
+  strided i16 dot inputs, runtime `lhs_stride/rhs_stride`, i32 seed/result,
+  widening dot-reduction relation, provider route facts, neutral EmitC, and
+  artifact ABI order.
+- Expanded the generated harness for this op to run two runtime stride pairs,
+  two computed-mask patterns, and two signed i16 input patterns through the
+  same generated artifact.
+- Archived the Trellis task with implementation/check records and PRD
+  validation results.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: demote computed mask strided dot route entry` |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit for explicit/pre-realized/direct-fail computed-mask strided
+  dot tests: 3/3
+- [OK] selected-boundary generated-bundle dry-run with
+  `route_entry_realization: false`
+- [OK] direct route-entry dry-run fails closed for this op
+- [OK] `ssh rvv` generated-bundle execution, counts `0,1,16,23,257`,
+  `stride_pairs=2:3,3:2`, `mask_patterns=2`, `input_patterns=2`
+- [OK] authority scan, `git diff --check`, and `check-tianchenrv 397/397`
 
 ### Status
 

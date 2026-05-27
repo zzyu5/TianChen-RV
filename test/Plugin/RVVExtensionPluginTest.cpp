@@ -3249,10 +3249,11 @@ module {
     VariantOp variant = findVariant(kernel, routeCase.variantName);
     if (int result = expect(
             variantContainsPreRealizedRVVSelectedBody(variant) &&
-                variantContainsPreRealizedRVVRouteEntrySelectedBody(variant),
+                !variantContainsPreRealizedRVVRouteEntrySelectedBody(variant),
             llvm::Twine("pre-realized contraction @") +
                 routeCase.variantName +
-                " is route-entry eligible through the owner registry"))
+                " remains a selected-body realization consumer but is no "
+                "longer direct route-entry eligible"))
       return result;
 
     mlir::Operation *preRealized =
@@ -3270,11 +3271,67 @@ module {
                   llvm::toString(owner.takeError()));
     if (int result = expect(
             (*owner)->familyName == "contraction" &&
-                (*owner)->isRouteEntryConsumer &&
-                (*owner)->isRouteEntryConsumer(preRealized),
+                (*owner)->isRouteEntryConsumer != nullptr &&
+                !(*owner)->isRouteEntryConsumer(preRealized),
             llvm::Twine("pre-realized contraction @") +
                 routeCase.variantName +
-                " dispatches through the contraction realization owner"))
+                " dispatches through the contraction realization owner "
+                "without direct route-entry authority"))
+      return result;
+
+    mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
+        tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+            VariantLoweringBoundaryRequest(
+                variant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, directRouteEntryBuilder));
+    if (directRouteEntry)
+      return fail("direct route-entry accepted " +
+                  routeCase.variantName.str() +
+                  " instead of requiring selected lowering-boundary "
+                  "realization");
+    if (int result = expectErrorContains(
+            directRouteEntry.takeError(),
+            {"selected-body route-entry realization currently supports only",
+             "selected body belongs to another RVV realization family"}))
+      return result;
+
+    mlir::OpBuilder selectedBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realized =
+        (*owner)->realize(
+            VariantLoweringBoundaryRequest(
+                variant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, selectedBuilder),
+            preRealized);
+    if (!realized)
+      return fail(llvm::Twine("selected-boundary realization failed for @") +
+                  routeCase.variantName + ": " +
+                  llvm::toString(realized.takeError()));
+
+    if (int result = expect(
+            countNestedOps(variant, routeCase.preRealizedOpName) == 0 &&
+                countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
+                countNestedOps(variant, routeCase.realizedComputeOpName) == 1 &&
+                countNestedOps(variant, "tcrv_rvv.store") == 1,
+            llvm::Twine("selected-boundary contraction @") +
+                routeCase.variantName +
+                " consumes shorthand into typed setvl/with_vl/compute/store "
+                "IR"))
+      return result;
+    if (int result = expect(
+            countNestedOps(variant, "tcrv_rvv.compare") ==
+                (routeCase.computedMask ? 1U : 0U),
+            llvm::Twine("selected-boundary contraction @") +
+                routeCase.variantName +
+                " carries expected compare-produced mask structure"))
+      return result;
+    if (int result = expect(
+            countNestedOps(variant, "tcrv_rvv.strided_load") ==
+                (routeCase.stridedInput ? 2U : 0U),
+            llvm::Twine("selected-boundary contraction @") +
+                routeCase.variantName +
+                " carries expected strided payload load structure"))
       return result;
 
     tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
@@ -3284,35 +3341,9 @@ module {
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant),
                 route),
-            llvm::Twine("route-entry realizes and builds direct contraction "
-                        "route for @") +
+            llvm::Twine("selected-boundary realizes and builds direct "
+                        "contraction provider route for @") +
                 routeCase.variantName))
-      return result;
-
-    if (int result = expect(
-            countNestedOps(variant, routeCase.preRealizedOpName) == 0 &&
-                countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
-                countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
-                countNestedOps(variant, routeCase.realizedComputeOpName) == 1 &&
-                countNestedOps(variant, "tcrv_rvv.store") == 1,
-            llvm::Twine("route-entry contraction @") +
-                routeCase.variantName +
-                " consumes shorthand into typed setvl/with_vl/compute/store "
-                "IR"))
-      return result;
-    if (int result = expect(
-            countNestedOps(variant, "tcrv_rvv.compare") ==
-                (routeCase.computedMask ? 1U : 0U),
-            llvm::Twine("route-entry contraction @") +
-                routeCase.variantName +
-                " carries expected compare-produced mask structure"))
-      return result;
-    if (int result = expect(
-            countNestedOps(variant, "tcrv_rvv.strided_load") ==
-                (routeCase.stridedInput ? 2U : 0U),
-            llvm::Twine("route-entry contraction @") +
-                routeCase.variantName +
-                " carries expected strided payload load structure"))
       return result;
 
     VariantEmissionPlan emissionPlan;
@@ -3321,11 +3352,13 @@ module {
                 VariantEmissionRequest(variant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
                 emissionPlan),
-            llvm::Twine("emission plan consumes realized contraction @") +
+            llvm::Twine("emission plan consumes selected-boundary realized "
+                        "contraction @") +
                 routeCase.variantName))
       return result;
     if (int result = expect(emissionPlan.isSupported(),
-                            llvm::Twine("realized contraction @") +
+                            llvm::Twine("selected-boundary realized "
+                                        "contraction @") +
                                 routeCase.variantName +
                                 " is provider-supported after realization"))
       return result;
@@ -3382,7 +3415,8 @@ module {
                     materializationFacts->contractionComputeLeaf,
             llvm::Twine("pre-realized contraction @") +
                 routeCase.variantName +
-                " reaches the direct contraction provider plan before "
+                " reaches the direct contraction provider plan after "
+                "selected-boundary realization and before "
                 "statement construction"))
       return result;
   }

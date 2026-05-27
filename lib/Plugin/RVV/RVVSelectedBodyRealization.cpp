@@ -1172,7 +1172,9 @@ bool isPreRealizedRVVContractionRouteEntryOp(mlir::Operation *op) {
                 tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
                 tcrv::rvv::
                     TypedStridedInputWideningDotReducePreRealizedBodyOp,
-                tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp>(
+                tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
+                tcrv::rvv::
+                    TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
           op))
     return false;
   return isPreRealizedRVVContractionOwnerOp(op);
