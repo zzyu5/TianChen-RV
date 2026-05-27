@@ -1,8 +1,14 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id direct-pre-realized-computed-mask-select --overwrite --op-kind computed_mask_select --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s
+# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.cms.artifacts --run-id direct-pre-realized-computed-mask-select --overwrite --op-kind computed_mask_select --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=CMS
+# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.sle.artifacts --run-id direct-pre-realized-computed-mask-select-sle --overwrite --op-kind computed_mask_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=SLE
 
-# CHECK: rvv_generated_bundle_abi_e2e: failed
-# CHECK: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): computed_mask_select
-# CHECK-SAME: selected-boundary-only and must use
-# CHECK-NOT: tcrv_rvv_generated_bundle_abi_computed_mask_select_ok
+# CMS: rvv_generated_bundle_abi_e2e: failed
+# CMS: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): computed_mask_select
+# CMS-SAME: selected-boundary-only and must use
+# CMS-NOT: tcrv_rvv_generated_bundle_abi_computed_mask_select_ok
+
+# SLE: rvv_generated_bundle_abi_e2e: failed
+# SLE: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): computed_mask_select_sle
+# SLE-SAME: selected-boundary-only and must use
+# SLE-NOT: tcrv_rvv_generated_bundle_abi_computed_mask_select_sle_ok

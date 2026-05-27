@@ -297,3 +297,70 @@ Closed selected-boundary generated-bundle evidence for both widening conversion 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 275: Stage2 RVV compare/select executable artifacts
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV compare/select executable artifacts
+**Branch**: `main`
+
+### Summary
+
+Closed selected-boundary generated-bundle evidence for RVV compare/select and computed-mask select fixtures on ssh rvv; extended dry-run/direct-fail lit coverage for computed-mask signed-less-equal cases.
+
+### Main Changes
+
+- Created and archived the Trellis task for Stage2 RVV compare/select executable artifact closure.
+- Extended computed-mask select generated-bundle dry-run coverage to include `computed_mask_select_sle`, `runtime-count 1`, `compare_select_predicate_boundary`, provider-derived predicate facts, selected-boundary materialization, ABI/header/object facts, and harness evidence.
+- Extended direct pre-realized route-entry fail-closed coverage for `computed_mask_select_sle` while keeping compare/select selected-boundary-only.
+- No production C++ or script change was required; the existing selected-boundary compiler path produced the executable artifacts honestly.
+
+### Evidence
+
+- Selected-boundary dry-run: `cmp_select`, `cmp_select_sle`, `computed_mask_select`, and `computed_mask_select_sle` with `route_entry_realization=false` and `pre_realized_body_consumed=true`.
+- Direct route-entry negative probe failed closed with the selected-boundary-only diagnostic.
+- `ssh rvv` generated-bundle compile/run/correctness passed for all four compare/select fixtures with counts `0,1,16,23,257`, covering true/false lanes, signed compare behavior, and computed-mask tail preservation.
+- Widening conversion executable artifact non-regression passed for `widen_i16_to_i32` and `widen_i32_to_i64` on `ssh rvv` with counts `0,1,16,23,257`.
+
+### Checks
+
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- Focused lit filter for compare/select generated-bundle and direct-route probes: 4/4 passed.
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `git diff --check`
+- `cmake --build build --target check-tianchenrv -j2`: 405/405 passed.
+
+### Notes
+
+A spec update was not needed. Existing RVV plugin, EmitC route, and MLIR testing contracts already cover selected-boundary compare/select predicate boundaries, direct route-entry fail-closed behavior, artifact ABI facts, and mirror-only evidence roles.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused lit filter for compare/select generated-bundle and direct-route probes: 4/4 passed
+- [OK] RVV extension plugin build and smoke test
+- [OK] selected-boundary dry-run for compare/select and computed-mask select fixtures
+- [OK] direct pre-realized route-entry fail-closed probes for compare/select fixtures
+- [OK] `ssh rvv` generated-bundle execution for `cmp_select`, `cmp_select_sle`, `computed_mask_select`, and `computed_mask_select_sle` with counts `0,1,16,23,257`
+- [OK] widening conversion executable artifact non-regression on `ssh rvv`
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 405/405 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

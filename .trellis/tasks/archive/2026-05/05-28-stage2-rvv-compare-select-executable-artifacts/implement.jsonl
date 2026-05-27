@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV Stage1/Stage2 authority gates"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, compare/select provider route facts, target artifact authority, and fail-closed rules"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target emission and runtime evidence boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned selected-body realization and route provider interfaces"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence, compare/select predicate boundary, direct route-entry checks, and ssh rvv evidence rules"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant selection metadata and mirror-only route authority constraints"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first review checklist for route and emission decisions"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality checklist for RVV provider and common EmitC boundaries"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary checklist for typed RVV body authority"}

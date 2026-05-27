@@ -1,15 +1,19 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-select --overwrite --op-kind computed_mask_select --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-select --overwrite --op-kind computed_mask_select --op-kind computed_mask_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-computed-mask-select/evidence.json
 # RUN: FileCheck %s --check-prefix=CMS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-select/computed_mask_select/evidence.json
+# RUN: FileCheck %s --check-prefix=SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-select/computed_mask_select_sle/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-select/computed_mask_select/rvv_generated_bundle_abi_computed_mask_select_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-select/computed_mask_select_sle/rvv_generated_bundle_abi_computed_mask_select_sle_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
 
 # ROOT: "input_mode": "pre-realized-selected-body"
 # ROOT: "computed_mask_select"
+# ROOT: "computed_mask_select_sle"
+# ROOT: "compare_select_predicate_boundary"
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
@@ -34,9 +38,67 @@
 # CMS-DAG: "value": "tcrv_rvv.select"
 # CMS-DAG: "typed_compute_op": "tcrv_rvv.select"
 # CMS-DAG: "memory_form": "computed-mask-vector-select"
+# CMS-DAG: "compare_select_predicate_boundary": {
+# CMS-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# CMS-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# CMS-DAG: "compare_predicate_kind": "slt"
+# CMS-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# CMS-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# CMS-DAG: "predicate_memory_form": "compare-produced-mask"
+# CMS-DAG: "select_layout": "select-true-value-when-mask-else-false-value"
+# CMS-DAG: "selected_value_operands": {
+# CMS-DAG: "compare_lhs": "cmp_lhs"
+# CMS-DAG: "compare_rhs": "cmp_rhs"
+# CMS-DAG: "true_value": "true_value"
+# CMS-DAG: "false_value": "false_value"
+# CMS-DAG: "output": "out"
+# CMS-DAG: "__riscv_vmslt_vv_i32m1_b32"
+# CMS-DAG: "__riscv_vmerge_vvm_i32m1"
 # CMS-DAG: "select_coverage_contract": "multi-lane computed_mask_select cases require compare-produced true and false select lanes"
 # CMS-DAG: "tail_lane_contract": "runtime n must be honored and tail sentinel lanes must be preserved"
+# CMS-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # CMS-DAG: "status": "dry_run_success"
+
+# SLE-DAG: "input_mode": "pre-realized-selected-body"
+# SLE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-sle.mlir"
+# SLE-DAG: "prototype": "void tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);"
+# SLE-DAG: "expected_function": "tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle"
+# SLE-DAG: "expected_runtime_abi_name": "rvv-generic-computed-mask-select-callable-c-abi.v1"
+# SLE-DAG: "expected_selected_variant": "pre_realized_body_rvv_computed_mask_select_sle"
+# SLE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SLE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SLE-DAG: "route_entry_realization": false
+# SLE-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# SLE-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SLE-DAG: "pre_realized_body_consumed": true
+# SLE-DAG: "key": "rvv_emitc_lowerable_route"
+# SLE-DAG: "value": "rvv-generic-computed-mask-select-emitc-route"
+# SLE-DAG: "key": "rvv_selected_body_operation"
+# SLE-DAG: "value": "computed_mask_select"
+# SLE-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SLE-DAG: "value": "tcrv_rvv.select"
+# SLE-DAG: "typed_compute_op": "tcrv_rvv.select"
+# SLE-DAG: "memory_form": "computed-mask-vector-select"
+# SLE-DAG: "compare_select_predicate_boundary": {
+# SLE-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# SLE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# SLE-DAG: "compare_predicate_kind": "sle"
+# SLE-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# SLE-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# SLE-DAG: "predicate_memory_form": "compare-produced-mask"
+# SLE-DAG: "select_layout": "select-true-value-when-mask-else-false-value"
+# SLE-DAG: "selected_value_operands": {
+# SLE-DAG: "compare_lhs": "cmp_lhs"
+# SLE-DAG: "compare_rhs": "cmp_rhs"
+# SLE-DAG: "true_value": "true_value"
+# SLE-DAG: "false_value": "false_value"
+# SLE-DAG: "output": "out"
+# SLE-DAG: "__riscv_vmsle_vv_i32m1_b32"
+# SLE-DAG: "__riscv_vmerge_vvm_i32m1"
+# SLE-DAG: "select_coverage_contract": "multi-lane computed_mask_select cases require compare-produced true and false select lanes"
+# SLE-DAG: "tail_lane_contract": "runtime n must be honored and tail sentinel lanes must be preserved"
+# SLE-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# SLE-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_pre_realized_body_computed_mask_select_kernel_pre_realized_body_rvv_computed_mask_select(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
 # HARNESS: (cmp_lhs[index] < cmp_rhs[index] ? true_value[index] : false_value[index])
@@ -44,4 +106,12 @@
 # HARNESS: computed_mask_select select coverage missing
 # HARNESS: select_true_lanes
 # HARNESS: select_false_lanes
-# HARNESS: const size_t counts[] = {0, 7, 16, 23, 257};
+# HARNESS: const size_t counts[] = {0, 1, 7, 16, 23, 257};
+
+# HARNESS-SLE: tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
+# HARNESS-SLE: (cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])
+# HARNESS-SLE: touched tail sentinel
+# HARNESS-SLE: computed_mask_select_sle select coverage missing
+# HARNESS-SLE: select_true_lanes
+# HARNESS-SLE: select_false_lanes
+# HARNESS-SLE: const size_t counts[] = {0, 1, 7, 16, 23, 257};

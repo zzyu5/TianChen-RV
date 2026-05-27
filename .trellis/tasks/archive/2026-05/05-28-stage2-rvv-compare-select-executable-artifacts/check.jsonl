@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary compare/select route facts, direct route-entry fail-closed behavior, and target artifact authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider-built route facts remain authoritative"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check dry-run, executable generated-bundle, direct route-entry, and ssh rvv evidence requirements"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin-local realization/provider ownership and no core extension-specific drift"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV-specific logic stays plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or metadata authority is introduced"}
