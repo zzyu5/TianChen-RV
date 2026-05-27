@@ -1242,8 +1242,8 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
 
   const llvm::StringRef routeEntryOwners[] = {
       "elementwise/compare-select", "standalone reduction", "MAcc",
-      "computed-mask MAcc", "contraction", "widening conversion",
-      "base memory movement", "segment2 memory"};
+      "contraction", "widening conversion", "base memory movement",
+      "segment2 memory"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
     bool expectedRouteEntry = false;
     for (llvm::StringRef routeEntryOwner : routeEntryOwners)
@@ -1692,7 +1692,9 @@ module {
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
-        (variantName == "rvv_pre_route_computed_masked_macc_add" &&
+        ((variantName == "rvv_pre_route_computed_masked_macc_add" ||
+          variantName ==
+              "rvv_pre_route_runtime_scalar_computed_masked_macc_add") &&
          expectedProviderPlanID ==
              "rvv-computed-mask-accumulation-route-family-plan.v1");
     const bool routeEntryEligible = (*owner)->isRouteEntryConsumer != nullptr &&
@@ -2716,10 +2718,10 @@ module {
   }
   if (int result = expect(computedMaskMAccOwner != nullptr &&
                               computedMaskMAccOwner->realize != nullptr &&
-                              computedMaskMAccOwner->isRouteEntryConsumer !=
+                              computedMaskMAccOwner->isRouteEntryConsumer ==
                                   nullptr,
                           "found computed-mask MAcc owner-local realization "
-                          "hook with route-entry predicate"))
+                          "hook without direct route-entry predicate"))
     return result;
   VariantOp negativeComputedMaskMAccVariant = findVariant(
       kernel, "rvv_pre_route_owner_negative_computed_masked_macc_add");
@@ -2733,8 +2735,9 @@ module {
                           "owner-local negative tests"))
     return result;
   if (int result = expect(
-          !computedMaskMAccOwner->isRouteEntryConsumer(
-              negativeComputedMaskMAccBody.getOperation()),
+          computedMaskMAccOwner->isRouteEntryConsumer == nullptr ||
+              !computedMaskMAccOwner->isRouteEntryConsumer(
+                  negativeComputedMaskMAccBody.getOperation()),
           "computed_masked_macc_add fixture is not direct route-entry "
           "eligible and must use the selected-body realization producer"))
     return result;
@@ -2848,12 +2851,30 @@ module {
           "owner-local negative tests"))
     return result;
   if (int result = expect(
-          computedMaskMAccOwner->isRouteEntryConsumer(
-              negativeRuntimeScalarComputedMaskMAccBody.getOperation()),
+          computedMaskMAccOwner->isRouteEntryConsumer == nullptr ||
+              !computedMaskMAccOwner->isRouteEntryConsumer(
+                  negativeRuntimeScalarComputedMaskMAccBody.getOperation()),
           "runtime-scalar computed-mask MAcc negative fixture is route-entry "
-          "eligible through the computed-mask MAcc owner predicate before "
-          "targeted fact mutation"))
+          "ineligible and must use the selected-body realization producer"))
     return result;
+  {
+    mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
+        tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+            VariantLoweringBoundaryRequest(
+                negativeRuntimeScalarComputedMaskMAccVariant, kernel,
+                capabilities, VariantEmissionRole::DirectVariant,
+                directRouteEntryBuilder));
+    if (directRouteEntry)
+      return fail("direct route-entry accepted "
+                  "runtime_scalar_cmp_masked_macc_add instead of requiring "
+                  "the selected-body realization producer");
+    if (int result = expectErrorContains(
+            directRouteEntry.takeError(),
+            {"selected-body route-entry realization currently supports only",
+             "selected body belongs to another RVV realization family"}))
+      return result;
+  }
   auto expectRuntimeScalarComputedMaskMAccOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());

@@ -1341,3 +1341,70 @@ correctness.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 261: Stage2 RVV runtime-scalar MAcc selected-boundary migration
+
+**Date**: 2026-05-27
+**Task**: Expand Stage2 RVV runtime-scalar MAcc selected-body realization migration
+**Branch**: `main`
+
+### Summary
+
+Demoted the remaining `runtime_scalar_cmp_masked_macc_add` direct
+pre-realized route-entry shortcut and kept the generated artifact path behind
+the RVV plugin-local selected-body realization producer. The selected path now
+flows through realized typed `tcrv_rvv.masked_macc` facts, the existing
+computed-mask accumulation provider, neutral EmitC materialization, target ABI
+validation, generated RVV C, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Removed computed-mask MAcc direct route-entry ownership from
+  `RVVSelectedBodyRealization.cpp`.
+- Updated plugin coverage so both computed-mask MAcc selected-boundary
+  consumers are producer-path consumers and runtime-scalar direct route-entry
+  realization fails closed.
+- Updated generated-bundle tooling so
+  `--direct-pre-realized-route-entry --op-kind
+  runtime_scalar_cmp_masked_macc_add` is rejected before route-entry
+  materialization.
+- Replaced the positive direct route-entry script test with fail-closed
+  coverage for the runtime-scalar MAcc consumer.
+
+### Git Commits
+
+(Commit created after this journal entry.)
+
+### Testing
+
+- [OK] Trellis task validation
+- [OK] direct route-entry script fail-closed probe for
+  `runtime_scalar_cmp_masked_macc_add`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test` after self-repairing
+  the owner-scoped route-entry eligibility expectation
+- [OK] selected-boundary generated-bundle dry-run for
+  `runtime_scalar_cmp_masked_macc_add`, counts `0,1,16,23,257`, RHS scalars
+  `-37,91`
+- [OK] selected-boundary generated-bundle dry-run non-regression for
+  `computed_masked_macc_add`
+- [OK] real `ssh rvv` generated-bundle run for
+  `runtime_scalar_cmp_masked_macc_add`, counts `0,1,16,23,257`, RHS scalars
+  `-37,91`
+- [OK] bounded touched-file authority scan found no new positive
+  runtime-scalar MAcc direct-entry-only, fixture-only, route-id, artifact-name,
+  script-derived, common-EmitC-derived, exact-intrinsic-derived,
+  descriptor-derived, source-front-door, ABI-string-derived, central ad hoc, or
+  legacy-i32 authority claim
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 391/391
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

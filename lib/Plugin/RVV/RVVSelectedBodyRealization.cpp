@@ -1024,18 +1024,6 @@ bool isPreRealizedRVVMAccRouteEntryOp(mlir::Operation *op) {
          body.getMemoryForm() == "vector-rhs-load";
 }
 
-bool isPreRealizedRVVComputedMaskMAccRouteEntryOp(mlir::Operation *op) {
-  if (llvm::isa<tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op))
-    return false;
-  if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(op))
-    return isPreRealizedRuntimeScalarComputedMaskMAccOpKind(
-               body.getOpKind()) &&
-           isPreRealizedRuntimeScalarComputedMaskMAccMemoryForm(
-               body.getMemoryForm());
-  return false;
-}
-
 bool isPreRealizedRVVStandaloneReductionRouteEntryOp(mlir::Operation *op) {
   auto body =
       llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(op);
@@ -1314,8 +1302,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"MAcc", isPreRealizedRVVMAccOwnerOp, isPreRealizedRVVMAccRouteEntryOp,
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp,
-       isPreRealizedRVVComputedMaskMAccRouteEntryOp,
-       realizePreRealizedRVVComputedMaskMAccOwner},
+       nullptr, realizePreRealizedRVVComputedMaskMAccOwner},
       {"contraction", isPreRealizedRVVContractionOwnerOp,
        isPreRealizedRVVContractionOwnerOp,
        realizePreRealizedRVVContractionOwner},
@@ -7933,8 +7920,8 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized plain elementwise/compare-select, base memory movement, "
-        "standalone reduction, plain/scalar-broadcast macc, computed-mask "
-        "macc, contraction, widening conversion, or segment2 deinterleave/"
+        "standalone reduction, plain/scalar-broadcast macc, contraction, "
+        "widening conversion, or segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");
