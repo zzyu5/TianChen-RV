@@ -1167,6 +1167,12 @@ bool isPreRealizedRVVContractionOwnerOp(mlir::Operation *op) {
           TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(op);
 }
 
+bool isPreRealizedRVVContractionRouteEntryOp(mlir::Operation *op) {
+  if (llvm::isa<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp>(op))
+    return false;
+  return isPreRealizedRVVContractionOwnerOp(op);
+}
+
 bool isPreRealizedRVVWideningConversionOwnerOp(mlir::Operation *op) {
   return llvm::isa<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
 }
@@ -1292,7 +1298,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp,
        nullptr, realizePreRealizedRVVComputedMaskMAccOwner},
       {"contraction", isPreRealizedRVVContractionOwnerOp,
-       isPreRealizedRVVContractionOwnerOp,
+       isPreRealizedRVVContractionRouteEntryOp,
        realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
        isPreRealizedRVVWideningConversionRouteEntryOp,
@@ -7908,8 +7914,8 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
         "pre-realized plain elementwise/compare-select, base memory movement, "
-        "standalone reduction, plain/scalar-broadcast macc, contraction, "
-        "widening conversion, or segment2 deinterleave/"
+        "standalone reduction, supported contraction dot-reduction, widening "
+        "conversion, or segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
         "tcrv_rvv bodies; selected body belongs to another RVV realization "
         "family");

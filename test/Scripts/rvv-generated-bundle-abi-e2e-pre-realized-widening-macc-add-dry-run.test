@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-macc-add --overwrite --op-kind widening_macc_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-macc-add/evidence.json
-# RUN: FileCheck %s --check-prefix=WMACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-macc-add/widening_macc_add/evidence.json
+# RUN: FileCheck %s --check-prefix=WMACC --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-macc-add/widening_macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-macc-add/widening_macc_add/rvv_generated_bundle_abi_widening_macc_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -23,6 +23,7 @@
 # WMACC-DAG: "expected_selected_variant": "pre_realized_body_rvv_widening_macc_add"
 # WMACC-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # WMACC-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# WMACC-DAG: "route_entry_realization": false
 # WMACC-DAG: --tcrv-materialize-selected-lowering-boundaries
 # WMACC-DAG: "pre_realized_body_consumed": true
 # WMACC-DAG: "key": "rvv_emitc_lowerable_route"

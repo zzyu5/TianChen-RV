@@ -3149,6 +3149,14 @@ int runPreRealizedContractionRouteEntryOwnerTest(
 module {
   tcrv.exec.kernel @rvv_pre_realized_contraction_route_entry_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_route_widening_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_macc_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, macc_relation = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1", memory_form = "unit-stride-widening-macc", op_kind = "signed_widening_macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-widening-multiply-accumulate-result-to-output-buffer", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -3388,6 +3396,133 @@ module {
                      contractionOwner->realize != nullptr &&
                      contractionOwner->isRouteEntryConsumer != nullptr,
                  "found route-entry-capable contraction realization owner"))
+    return result;
+
+  VariantOp wideningMAccVariant =
+      findVariant(kernel, "rvv_pre_route_widening_macc");
+  if (int result = expect(
+          variantContainsPreRealizedRVVSelectedBody(wideningMAccVariant) &&
+              !variantContainsPreRealizedRVVRouteEntrySelectedBody(
+                  wideningMAccVariant),
+          "widening_macc_add remains a contraction selected-body realization "
+          "consumer but is no longer direct route-entry eligible"))
+    return result;
+  mlir::Operation *wideningMAccBody = findFirstNestedOp(
+      wideningMAccVariant,
+      "tcrv_rvv.typed_widening_macc_pre_realized_body");
+  if (int result =
+          expect(wideningMAccBody != nullptr,
+                 "found pre-realized widening_macc_add body for demotion test"))
+    return result;
+  auto wideningMAccOwner = getRVVSelectedBodyRealizationOwnerForBody(
+      wideningMAccBody, "widening MAcc direct route-entry demotion test");
+  if (!wideningMAccOwner)
+    return fail("widening MAcc owner lookup: " +
+                llvm::toString(wideningMAccOwner.takeError()));
+  if (int result = expect(
+          (*wideningMAccOwner)->familyName == "contraction" &&
+              (*wideningMAccOwner)->isRouteEntryConsumer != nullptr &&
+              !(*wideningMAccOwner)->isRouteEntryConsumer(wideningMAccBody),
+          "widening_macc_add dispatches through the contraction realization "
+          "owner without direct route-entry authority"))
+    return result;
+
+  mlir::OpBuilder directWideningMAccBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      directWideningMAccRouteEntry =
+          tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+              VariantLoweringBoundaryRequest(
+                  wideningMAccVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  directWideningMAccBuilder));
+  if (directWideningMAccRouteEntry)
+    return fail("direct route-entry accepted widening_macc_add instead of "
+                "requiring selected lowering-boundary realization");
+  if (int result = expectErrorContains(
+          directWideningMAccRouteEntry.takeError(),
+          {"selected-body route-entry realization currently supports only",
+           "selected body belongs to another RVV realization family"}))
+    return result;
+
+  mlir::OpBuilder selectedWideningMAccBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realizedWideningMAcc =
+      contractionOwner->realize(
+          VariantLoweringBoundaryRequest(
+              wideningMAccVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant,
+              selectedWideningMAccBuilder),
+          wideningMAccBody);
+  if (!realizedWideningMAcc)
+    return fail("selected-boundary widening_macc_add realization failed: " +
+                llvm::toString(realizedWideningMAcc.takeError()));
+  if (int result = expect(
+          countNestedOps(wideningMAccVariant,
+                         "tcrv_rvv.typed_widening_macc_pre_realized_body") ==
+                  0 &&
+              countNestedOps(wideningMAccVariant, "tcrv_rvv.setvl") == 1 &&
+              countNestedOps(wideningMAccVariant, "tcrv_rvv.with_vl") == 1 &&
+              countNestedOps(wideningMAccVariant, "tcrv_rvv.load") == 3 &&
+              countNestedOps(wideningMAccVariant, "tcrv_rvv.widening_macc") ==
+                  1 &&
+              countNestedOps(wideningMAccVariant, "tcrv_rvv.store") == 1,
+          "selected-boundary widening_macc_add consumes shorthand into typed "
+          "setvl/with_vl/load/load/acc-load/widening_macc/store IR"))
+    return result;
+
+  auto wideningMAccAnalysis = analyzeRVVSelectedBodyRoute(
+      VariantEmitCLowerableRequest(wideningMAccVariant, kernel, capabilities,
+                                   VariantEmissionRole::DirectVariant));
+  if (!wideningMAccAnalysis)
+    return fail("analyze realized selected-boundary widening_macc_add: " +
+                llvm::toString(wideningMAccAnalysis.takeError()));
+  if (int result = expect(
+          wideningMAccAnalysis->description.operation ==
+              RVVSelectedBodyOperationKind::WideningMAccAdd &&
+              wideningMAccAnalysis->contractionRouteFamilyPlan &&
+              wideningMAccAnalysis->contractionRouteFamilyPlan
+                  ->usesWideningMAcc &&
+              !wideningMAccAnalysis->contractionRouteFamilyPlan
+                   ->usesDotReduction &&
+              wideningMAccAnalysis->description.contractionRouteFamilyPlanID ==
+                  "rvv-contraction-route-family-plan.v1",
+          "selected-boundary widening_macc_add carries widening MAcc "
+          "contraction family facts to route analysis"))
+    return result;
+  auto wideningMAccMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *wideningMAccAnalysis,
+          "selected-boundary widening MAcc demotion test");
+  if (!wideningMAccMaterializationFacts)
+    return fail("widening MAcc materialization facts: " +
+                llvm::toString(wideningMAccMaterializationFacts.takeError()));
+  auto wideningMAccMathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *wideningMAccAnalysis,
+      "selected-boundary widening MAcc demotion test");
+  if (!wideningMAccMathFacts)
+    return fail("widening MAcc math operand-binding facts: " +
+                llvm::toString(wideningMAccMathFacts.takeError()));
+  auto wideningMAccDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          *wideningMAccAnalysis, *wideningMAccMaterializationFacts,
+          *wideningMAccMathFacts,
+          "selected-boundary widening MAcc demotion test");
+  if (!wideningMAccDirectProviderPlan)
+    return fail("widening MAcc direct contraction provider plan: " +
+                llvm::toString(wideningMAccDirectProviderPlan.takeError()));
+  if (int result = expect(
+          wideningMAccMathFacts->bindsWideningMAcc &&
+              wideningMAccDirectProviderPlan->plansDirectContractionRoute &&
+              wideningMAccDirectProviderPlan->plansWideningMAcc &&
+              !wideningMAccDirectProviderPlan->plansDotReduction &&
+              wideningMAccDirectProviderPlan->lhsABI &&
+              wideningMAccDirectProviderPlan->rhsABI &&
+              wideningMAccDirectProviderPlan->accumulatorABI &&
+              wideningMAccDirectProviderPlan->outABI &&
+              wideningMAccDirectProviderPlan->runtimeElementCountABI &&
+              wideningMAccDirectProviderPlan->contractionComputeLeaf ==
+                  wideningMAccMaterializationFacts->contractionComputeLeaf,
+          "selected-boundary widening_macc_add reaches math binding and "
+          "direct contraction provider facts before route construction"))
     return result;
 
   VariantOp negativeVariant =

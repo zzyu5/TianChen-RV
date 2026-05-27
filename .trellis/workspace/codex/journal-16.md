@@ -1469,3 +1469,74 @@ execution.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 263: Stage2 RVV widening MAcc selected-body realization migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV widening MAcc selected-body realization migration
+**Branch**: `main`
+
+### Summary
+
+Demoted `widening_macc_add` direct pre-realized route-entry authority while
+preserving the production generated artifact path through RVV plugin-local
+selected-body realization, realized typed widening MAcc facts, the existing
+contraction provider path, neutral EmitC materialization, target ABI
+validation, generated RVV C, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Split the RVV `contraction` owner registry so `widening_macc_add` remains a
+  selected-body realization consumer but is no longer a direct route-entry
+  consumer.
+- Updated generated-bundle tooling so
+  `--direct-pre-realized-route-entry --op-kind widening_macc_add` fails closed
+  before route-entry materialization or bundle generation.
+- Added C++ coverage proving direct route-entry rejection and selected-boundary
+  realization into typed `setvl` / `with_vl` / i16 source loads / i32
+  accumulator load / `widening_macc` / i32 store IR.
+- Added script lit coverage for direct route-entry fail-closed behavior and
+  strengthened selected-boundary evidence checks with
+  `route_entry_realization: false`.
+- Archived the Trellis task after PRD validation, `ssh rvv` evidence, authority
+  scan, and full `check-tianchenrv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Lit filter `widening-macc-add`: 5/5 passed.
+- [OK] Direct route-entry fail-closed probe for
+  `--direct-pre-realized-route-entry --op-kind widening_macc_add`.
+- [OK] Selected-boundary dry-run for `widening_macc_add`, counts
+  `0,1,16,23,257`, with `route_entry_realization: false` and selected-body
+  producer evidence.
+- [OK] Real `ssh rvv` generated-bundle run for `widening_macc_add`, counts
+  `0,1,16,23,257`, with signed i16 products, i32 accumulation, and tail
+  preservation.
+- [OK] Bounded touched-file authority scan found no new positive
+  direct-route-entry-only, pre-realized-fixture-only, route-id, artifact-name,
+  script-derived, metadata-derived, descriptor-derived, source-front-door,
+  ABI-string, common-EmitC, exact-intrinsic, central ad hoc, or legacy-i32
+  authority claim.
+- [OK] `git diff --check`
+- [OK] Trellis task validation
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 393/393
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

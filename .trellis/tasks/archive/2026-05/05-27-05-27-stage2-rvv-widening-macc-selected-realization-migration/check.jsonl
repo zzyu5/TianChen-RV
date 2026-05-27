@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "check global RVV authority chain, stage order, and no descriptor/source-front-door authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check selected-body realization, route-entry bridge, contraction provider owner, diagnostics, and mirror metadata compliance"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "check ABI role and mirror-only diagnostic boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check provider-built route and neutral common EmitC boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused tests and ssh rvv evidence match route/runtime claims"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-widening-macc-selected-realization-migration/prd.md", "reason": "task-specific requirements, acceptance criteria, and validation plan"}

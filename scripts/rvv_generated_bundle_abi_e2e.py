@@ -1876,7 +1876,6 @@ class OpExpectation:
             or self.is_segment2_deinterleave_unit_store
             or self.is_segment2_interleave_unit_load
             or self.is_widen_i16_to_i32
-            or self.is_widening_macc_add
             or self.is_widening_dot_reduce_add
             or self.is_strided_input_widening_dot_reduce_add
             or self.is_computed_masked_widening_dot_reduce_add
@@ -16782,7 +16781,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "computed_masked_segment2_update_unit_load/"
                 "segment2_deinterleave_unit_store/"
                 "segment2_interleave_unit_load/"
-                "widen_i16_to_i32/contraction "
+                "widen_i16_to_i32/widening dot-reduction contraction "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -19820,7 +19819,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"
-            "segment2_interleave_unit_load/widen_i16_to_i32/contraction "
+            "segment2_interleave_unit_load/widen_i16_to_i32/"
+            "widening dot-reduction contraction "
             "fixtures before target bundle export"
         ),
     )
