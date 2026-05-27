@@ -1,15 +1,18 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-cmp-select --overwrite --op-kind cmp_select --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-cmp-select --overwrite --op-kind cmp_select --op-kind cmp_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-cmp-select/evidence.json
 # RUN: FileCheck %s --check-prefix=CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-cmp-select/cmp_select/evidence.json
-# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-cmp-select/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c
+# RUN: FileCheck %s --check-prefix=SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-cmp-select/cmp_select_sle/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS-CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-cmp-select/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-SLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-cmp-select/cmp_select_sle/rvv_generated_bundle_abi_cmp_select_sle_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
 
 # ROOT: "input_mode": "pre-realized-selected-body"
 # ROOT: "cmp_select"
+# ROOT: "cmp_select_sle"
 # ROOT: "compare_select_predicate_boundary"
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
@@ -23,6 +26,7 @@
 # CMP-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select"
 # CMP-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # CMP-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# CMP-DAG: "route_entry_realization": false
 # CMP-DAG: --tcrv-materialize-selected-lowering-boundaries
 # CMP-DAG: "pre_realized_body_consumed": true
 # CMP-DAG: "key": "rvv_emitc_lowerable_route"
@@ -56,9 +60,58 @@
 # CMP-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
 # CMP-DAG: "status": "dry_run_success"
 
-# HARNESS: tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(lhs, rhs, out, n);
-# HARNESS: predicate_true_lanes
-# HARNESS: predicate_false_lanes
-# HARNESS: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
-# HARNESS: cmp_select predicate coverage missing
-# HARNESS: const size_t counts[] = {7, 16, 23};
+# SLE-DAG: "input_mode": "pre-realized-selected-body"
+# SLE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-sle.mlir"
+# SLE-DAG: "prototype": "void tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# SLE-DAG: "expected_function": "tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle"
+# SLE-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
+# SLE-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmp_select_sle"
+# SLE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SLE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SLE-DAG: "route_entry_realization": false
+# SLE-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SLE-DAG: "pre_realized_body_consumed": true
+# SLE-DAG: "key": "rvv_emitc_lowerable_route"
+# SLE-DAG: "value": "rvv-generic-cmp-select-emitc-route"
+# SLE-DAG: "key": "rvv_selected_body_operation"
+# SLE-DAG: "value": "cmp_select"
+# SLE-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SLE-DAG: "value": "tcrv_rvv.select"
+# SLE-DAG: "typed_compute_op": "tcrv_rvv.select"
+# SLE-DAG: "memory_form": "vector-rhs-load"
+# SLE-DAG: "vector_c_type": "vint32m1_t"
+# SLE-DAG: "__riscv_vmsle_vv_i32m1_b32"
+# SLE-DAG: "__riscv_vmerge_vvm_i32m1"
+# SLE-DAG: "compare_select_predicate_boundary": {
+# SLE-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# SLE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# SLE-DAG: "compare_predicate_kind": "sle"
+# SLE-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# SLE-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# SLE-DAG: "predicate_memory_form": "compare-produced-mask"
+# SLE-DAG: "select_layout": "select-lhs-when-mask-else-rhs"
+# SLE-DAG: "selected_value_operands": {
+# SLE-DAG: "true_value": "lhs"
+# SLE-DAG: "false_value": "rhs"
+# SLE-DAG: "output": "out"
+# SLE-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m1_b32"
+# SLE-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i32m1"
+# SLE-DAG: "select_true_vector"
+# SLE-DAG: "select_false_vector"
+# SLE-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# SLE-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
+# SLE-DAG: "status": "dry_run_success"
+
+# HARNESS-CMP: tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(lhs, rhs, out, n);
+# HARNESS-CMP: predicate_true_lanes
+# HARNESS-CMP: predicate_false_lanes
+# HARNESS-CMP: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
+# HARNESS-CMP: cmp_select predicate coverage missing
+# HARNESS-CMP: const size_t counts[] = {0, 1, 7, 16, 23, 257};
+
+# HARNESS-SLE: tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(lhs, rhs, out, n);
+# HARNESS-SLE: predicate_true_lanes
+# HARNESS-SLE: predicate_false_lanes
+# HARNESS-SLE: (lhs[index] <= rhs[index] ? lhs[index] : rhs[index])
+# HARNESS-SLE: cmp_select_sle predicate coverage missing
+# HARNESS-SLE: const size_t counts[] = {0, 1, 7, 16, 23, 257};

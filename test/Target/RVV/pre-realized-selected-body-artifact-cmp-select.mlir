@@ -1,15 +1,13 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 // Pre-realized compare/select selected-body input. The RVV plugin must consume
 // explicit predicate and select-layout facts into generic tcrv_rvv compare and
 // select structure before the provider/common EmitC/target path can consume it.
-// The direct emission-plan runs above prove the production route-entry bridge
-// performs that realization before target artifact/header export without a
-// separate selected-lowering-boundary materialization pass.
+// Generated artifact and header export must run the selected lowering-boundary
+// producer before emission planning; direct pre-realized route-entry authority
+// for plain compare/select is fail-closed in the generated-bundle tests.
 
 module {
   tcrv.exec.kernel @pre_realized_body_cmp_select_kernel {

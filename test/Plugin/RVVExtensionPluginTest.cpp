@@ -1700,6 +1700,8 @@ module {
       return result;
     const bool expectsSelectedBoundaryProducer =
         expectedProviderPlanID ==
+            "rvv-plain-compare-select-route-family-plan.v1" ||
+        expectedProviderPlanID ==
             "rvv-computed-mask-select-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
@@ -1760,6 +1762,8 @@ module {
           return result;
         if (expectedProviderPlanID ==
                 "rvv-widening-conversion-route-family-plan.v1" ||
+            expectedProviderPlanID ==
+                "rvv-plain-compare-select-route-family-plan.v1" ||
             variantName == "rvv_pre_route_strided_load_unit_store") {
           mlir::OpBuilder directRouteEntryBuilder(module->getContext());
           llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
@@ -1881,6 +1885,17 @@ module {
               llvm::Twine("selected-body realization @") + variantName +
                   " realizes runtime-scalar-aware "
                   "compare/load/splat/masked_macc/store structure"))
+        return result;
+    }
+    if (expectedProviderPlanID ==
+        "rvv-plain-compare-select-route-family-plan.v1") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1,
+              llvm::Twine("selected-body producer @") + variantName +
+                  " realizes lhs/rhs loads, compare, select, and store"))
         return result;
     }
     if (expectedProviderPlanID ==
@@ -2104,7 +2119,7 @@ module {
           "tcrv_rvv.typed_compare_select_pre_realized_body",
           "elementwise/compare-select",
           "rvv-plain-compare-select-route-family-plan.v1",
-          /*buildRouteBeforePlan=*/false))
+          /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
           "rvv_pre_route_computed_mask_select",

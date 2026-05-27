@@ -1938,3 +1938,39 @@ Demoted strided_load_unit_store direct pre-realized route-entry authority, kept 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 269: Stage2 RVV cmp_select selected realization migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV cmp_select selected realization migration
+**Branch**: `main`
+
+### Summary
+
+Migrated plain cmp_select/cmp_select_sle generated-bundle authority behind RVV selected-body realization and fail-closed direct pre-realized route-entry shortcuts.
+
+### Main Changes
+
+- Demoted plain cmp_select/cmp_select_sle from direct pre-realized route-entry support while preserving selected-body realization.
+- Added selected-boundary conversion/target/script coverage and direct fail-closed generated-bundle coverage.
+- Verified py_compile, script self-test, focused lit, RVV plugin smoke, ssh rvv counts 0/1/7/16/23/257 for cmp_select and cmp_select_sle, authority scans, git diff --check, task validation, and check-tianchenrv 400/400.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

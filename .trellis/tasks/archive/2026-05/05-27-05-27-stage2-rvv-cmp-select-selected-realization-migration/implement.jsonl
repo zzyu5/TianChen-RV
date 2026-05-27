@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global RVV-first authority chain and Stage2 selected-body realization boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, compare/select realization, direct route-entry demotion, provider facts, artifact mirror constraints"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope only; mem_window and runtime_param are not compute authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and neutral common EmitC/export boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "compare/select generated-bundle evidence and ssh rvv runtime evidence requirements"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability and route decisions must not derive RVV dtype/config/route from metadata"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "selected-body realization and provider mapping must stay RVV plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "avoid moving compare/select compute into tcrv.exec, common EmitC, or high-level frontend scope"}

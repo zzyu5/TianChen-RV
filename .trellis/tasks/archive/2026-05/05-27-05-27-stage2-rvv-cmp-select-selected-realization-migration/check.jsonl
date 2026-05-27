@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "final verification of global invariants and RVV-first authority chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "quality gate for selected-body realization, route-entry demotion, provider facts, artifact mirrors, and ssh rvv evidence"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains ABI/runtime envelope only"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify common EmitC/export neutrality and provider-built route authority"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused lit/C++ and runtime evidence quality"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "verify no capability/profile metadata is route authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "verify RVV-specific realization/provider work stays plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "verify no high-level or core compute boundary drift"}

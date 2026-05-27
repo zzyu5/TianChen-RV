@@ -791,13 +791,6 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(
       op);
 }
 
-bool isPreRealizedRVVCompareSelectRouteEntryOp(mlir::Operation *op) {
-  if (auto body =
-          llvm::dyn_cast<tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(op))
-    return isPreRealizedCompareSelectOpKind(body.getOpKind());
-  return false;
-}
-
 bool isPreRealizedRVVTypedBinaryRouteEntryOp(mlir::Operation *op) {
   auto body = llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(op);
   if (!body)
@@ -814,8 +807,6 @@ bool isPreRealizedRVVTypedBinaryRouteEntryOp(mlir::Operation *op) {
 
 bool isPreRealizedRVVElementwiseCompareSelectRouteEntryOp(
     mlir::Operation *op) {
-  if (isPreRealizedRVVCompareSelectRouteEntryOp(op))
-    return true;
   if (isPreRealizedRVVTypedBinaryRouteEntryOp(op))
     return true;
   return llvm::isa<tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
@@ -7902,7 +7893,7 @@ realizePreRealizedRVVRouteEntrySelectedBody(
       !(*owner)->isRouteEntryConsumer(*bodyOp))
     return makeRVVPluginError(
         "selected-body route-entry realization currently supports only "
-        "pre-realized plain elementwise/compare-select, base memory movement, "
+        "pre-realized elementwise route-entry, base memory movement, "
         "standalone reduction, supported contraction dot-reduction, or "
         "segment2 deinterleave/"
         "interleave/computed-mask load/store memory "
