@@ -942,6 +942,59 @@ getRVVSelectedBodyRouteControlProviderOwners();
 bool isRVVSelectedBodyRouteControlProviderConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
+struct RVVSelectedBodyMaskTailPolicyProviderPlan {
+  const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
+  const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
+      nullptr;
+  const RVVSelectedBodyRouteControlProviderPlan *routeControlPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
+      *computedMaskSelectPlan = nullptr;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = nullptr;
+
+  bool plansMaskTailPolicy = false;
+  bool controlsComputedMaskSelect = false;
+  bool controlsComputedMaskMemory = false;
+
+  llvm::StringRef familyPlanIDMirror;
+  llvm::StringRef ownerNameMirror;
+  llvm::StringRef maskProducerSourceMirror;
+  llvm::StringRef maskRoleMirror;
+  llvm::StringRef maskSourceMirror;
+  llvm::StringRef maskMemoryFormMirror;
+  llvm::StringRef tailPolicyMirror;
+  llvm::StringRef maskPolicyMirror;
+  llvm::StringRef inactiveLaneContractMirror;
+  llvm::StringRef maskedPassthroughLayoutMirror;
+  llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef routeOperandBindingPlanIDMirror;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef selectedProviderMirror;
+  llvm::StringRef selectedLegalityMirror;
+};
+
+struct RVVSelectedBodyMaskTailPolicyProviderOwner {
+  using ConsumerPredicate =
+      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
+  using ProviderPlanBuilder = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &,
+      const RVVSelectedBodyRouteMaterializationFacts &,
+      const RVVSelectedBodyRouteControlProviderPlan &,
+      const RVVRouteOperandBindingPlan &,
+      RVVSelectedBodyMaskTailPolicyProviderPlan &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanBuilder buildProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyMaskTailPolicyProviderOwner>
+getRVVSelectedBodyMaskTailPolicyProviderOwners();
+
+bool isRVVSelectedBodyMaskTailPolicyProviderConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
 
@@ -1063,6 +1116,7 @@ struct RVVSelectedBodyCompareSelectRouteStatementPlan {
   bool plansComputedMaskSelect = false;
   bool plansRuntimeScalarComputedMaskSelect = false;
   bool plansRuntimeScalarDualCompareMaskAndSelect = false;
+  RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;
@@ -1171,6 +1225,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   bool plansComputedMaskStridedLoadUnitStore = false;
   bool plansComputedMaskIndexedGatherLoadUnitStore = false;
   bool plansComputedMaskIndexedScatterStoreUnitLoad = false;
+  RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;
@@ -1643,6 +1698,13 @@ getRVVSelectedBodyRouteControlProviderPlan(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyMaskTailPolicyProviderPlan>
+getRVVSelectedBodyMaskTailPolicyProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyRouteControlProviderPlan &routeControlPlan,
+    const RVVRouteOperandBindingPlan &bindingPlan, llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
 getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(

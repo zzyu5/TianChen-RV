@@ -65,6 +65,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|materialized-masked-load-base|masked-load-source-call;dst=output-buffer:dst:abi-mirror|old-dst-load|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_memory_route_family_plan", value = "rvv-computed-mask-memory-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_memory_mask_producer_source", value = "vector-compare-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_tail_policy_route_family_plan", value = "rvv-mask-tail-policy-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_tail_policy_owner", value = "computed-mask memory mask/tail policy"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-computed-mask-unit-load-store-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-unit-load-store-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
@@ -96,6 +98,8 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|materialized-masked-load-base|masked-load-source-call;dst=output-buffer:dst:abi-mirror|old-dst-load|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: tianchenrv.rvv.computed_mask_memory_route_family_plan: rvv-computed-mask-memory-route-family-plan.v1
 // HEADER: tianchenrv.rvv.computed_mask_memory_mask_producer_source: vector-compare-rhs-load
+// HEADER: tianchenrv.rvv.mask_tail_policy_route_family_plan: rvv-mask-tail-policy-route-family-plan.v1
+// HEADER: tianchenrv.rvv.mask_tail_policy_owner: computed-mask memory mask/tail policy
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-load-store
 // HEADER: void tcrv_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n);

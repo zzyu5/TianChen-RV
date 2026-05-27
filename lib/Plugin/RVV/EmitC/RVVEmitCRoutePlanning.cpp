@@ -2204,6 +2204,12 @@ constexpr llvm::StringLiteral kRVVComputedMaskSelectRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectCTypeMappingSummary(
     "vl:size_t,compare:true_false:signed-e32m1,mask:b32,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVMaskTailPolicyRouteFamilyPlanID(
+    "rvv-mask-tail-policy-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSelectMaskTailPolicyOwner(
+    "computed-mask select mask/tail policy");
+constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskTailPolicyOwner(
+    "computed-mask memory mask/tail policy");
 constexpr llvm::StringLiteral kRVVComputedMaskMemoryRouteFamilyPlanID(
     "rvv-computed-mask-memory-route-family-plan.v1");
 constexpr llvm::StringLiteral
@@ -7668,6 +7674,9 @@ void applyRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
                                                description);
   description.computedMaskSelectRouteFamilyPlanID = plan.familyPlanID;
   description.computedMaskSelectMaskProducerSource = plan.maskProducerSource;
+  description.maskTailPolicyRouteFamilyPlanID =
+      kRVVMaskTailPolicyRouteFamilyPlanID;
+  description.maskTailPolicyOwner = kRVVComputedMaskSelectMaskTailPolicyOwner;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -8962,6 +8971,12 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                                                description);
   description.computedMaskMemoryRouteFamilyPlanID = plan.familyPlanID;
   description.computedMaskMemoryMaskProducerSource = plan.maskProducerSource;
+  if (!plan.usesSegment2Load && !plan.usesSegment2Store &&
+      !plan.usesSegment2Update) {
+    description.maskTailPolicyRouteFamilyPlanID =
+        kRVVMaskTailPolicyRouteFamilyPlanID;
+    description.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
+  }
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -25475,6 +25490,365 @@ getRVVSelectedBodyRouteControlProviderPlan(
   return plan;
 }
 
+static bool isRVVSelectedBodyComputedMaskSelectMaskTailPolicyConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyComputedMaskSelectRouteControlConsumer(description);
+}
+
+static bool isRVVSelectedBodyComputedMaskMemoryMaskTailPolicyConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(description);
+}
+
+static llvm::Error buildComputedMaskSelectMaskTailPolicyProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyRouteControlProviderPlan &routeControlPlan,
+    const RVVRouteOperandBindingPlan &bindingPlan,
+    RVVSelectedBodyMaskTailPolicyProviderPlan &plan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.computedMaskSelectPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires the verified "
+        "computed-mask select route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.computedMaskSelectRouteFamilyPlan ||
+      materializationFacts.computedMaskSelectPlan !=
+          &*analysis.computedMaskSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires computed-mask select "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &computedPlan =
+      *materializationFacts.computedMaskSelectPlan;
+  if (!routeControlPlan.plansRouteControl ||
+      !routeControlPlan.controlsComputedMaskSelect ||
+      routeControlPlan.runtimeControlPlan != &computedPlan.runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires the RVV-owned "
+        "computed-mask select route-control provider plan before provider "
+        "route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (&bindingPlan != &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires operand-binding facts from "
+        "the same selected route analysis before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (llvm::Error error =
+          verifyRVVRouteOperandBindingClosure(bindingPlan, description,
+                                              context))
+    return error;
+
+  if (description.maskTailPolicyRouteFamilyPlanID !=
+          kRVVMaskTailPolicyRouteFamilyPlanID ||
+      description.maskTailPolicyOwner !=
+          kRVVComputedMaskSelectMaskTailPolicyOwner)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires provider-built "
+        "computed-mask select mask/tail owner fields before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (computedPlan.familyPlanID != description.computedMaskSelectRouteFamilyPlanID ||
+      computedPlan.maskProducerSource !=
+          description.computedMaskSelectMaskProducerSource ||
+      computedPlan.maskRole != description.maskRole ||
+      computedPlan.maskSource != description.maskSource ||
+      computedPlan.maskMemoryForm != description.maskMemoryForm ||
+      computedPlan.selectLayout != description.selectLayout ||
+      computedPlan.providerSupportedMirror !=
+          description.providerSupportedMirror ||
+      computedPlan.runtimeABIOrder != description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires mask producer, mask form, "
+        "select layout, provider support, and ABI order from the verified "
+        "computed-mask select route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (routeControlPlan.tailPolicyMirror != description.tailPolicy ||
+      routeControlPlan.maskPolicyMirror != description.maskPolicy ||
+      routeControlPlan.runtimeABIOrderMirror != description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires tail policy, mask policy, "
+        "and VL/AVL ABI order from the RVV route-control owner before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (routeControlPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires route-control facts from "
+        "the same typed body/config and selected target capability facts "
+        "before provider route construction");
+  if (materializationFacts.maskTypeName != computedPlan.maskTypeName ||
+      materializationFacts.maskCType != computedPlan.maskCType ||
+      materializationFacts.setVLLeaf != computedPlan.setVLIntrinsic ||
+      materializationFacts.vectorLoadLeaf !=
+          computedPlan.vectorLoadIntrinsic ||
+      materializationFacts.compareLeaf != computedPlan.compareIntrinsic ||
+      materializationFacts.elementwiseComputeLeaf !=
+          computedPlan.selectIntrinsic ||
+      materializationFacts.storeLeaf != computedPlan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires mask type, C type, and "
+        "statement leaf facts to mirror the verified computed-mask select "
+        "family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  plan.typedConfigFacts = &analysis.typedConfigFacts;
+  plan.selectedTargetCapabilityFacts = &analysis.selectedTargetCapabilityFacts;
+  plan.routeControlPlan = &routeControlPlan;
+  plan.bindingPlan = &bindingPlan;
+  plan.computedMaskSelectPlan = &computedPlan;
+  plan.plansMaskTailPolicy = true;
+  plan.controlsComputedMaskSelect = true;
+  plan.familyPlanIDMirror = kRVVMaskTailPolicyRouteFamilyPlanID;
+  plan.ownerNameMirror = kRVVComputedMaskSelectMaskTailPolicyOwner;
+  plan.maskProducerSourceMirror = computedPlan.maskProducerSource;
+  plan.maskRoleMirror = computedPlan.maskRole;
+  plan.maskSourceMirror = computedPlan.maskSource;
+  plan.maskMemoryFormMirror = computedPlan.maskMemoryForm;
+  plan.tailPolicyMirror = routeControlPlan.tailPolicyMirror;
+  plan.maskPolicyMirror = routeControlPlan.maskPolicyMirror;
+  plan.inactiveLaneContractMirror = computedPlan.selectLayout;
+  plan.maskedPassthroughLayoutMirror = computedPlan.selectLayout;
+  plan.runtimeABIOrderMirror = computedPlan.runtimeABIOrder;
+  plan.routeOperandBindingPlanIDMirror = bindingPlan.planID;
+  plan.providerSupportedMirror = computedPlan.providerSupportedMirror;
+  plan.selectedProviderMirror = routeControlPlan.selectedProviderMirror;
+  plan.selectedLegalityMirror = routeControlPlan.selectedLegalityMirror;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildComputedMaskMemoryMaskTailPolicyProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyRouteControlProviderPlan &routeControlPlan,
+    const RVVRouteOperandBindingPlan &bindingPlan,
+    RVVSelectedBodyMaskTailPolicyProviderPlan &plan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.computedMaskMemoryPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires the verified "
+        "computed-mask memory route-family plan before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+      materializationFacts.computedMaskMemoryPlan !=
+          &*analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires computed-mask memory "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+      *materializationFacts.computedMaskMemoryPlan;
+  if (!routeControlPlan.plansRouteControl ||
+      !routeControlPlan.controlsComputedMaskMemory ||
+      routeControlPlan.runtimeControlPlan != &computedPlan.runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires the RVV-owned "
+        "computed-mask memory route-control provider plan before provider "
+        "route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (&bindingPlan != &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires operand-binding facts from "
+        "the same selected route analysis before provider route construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (llvm::Error error =
+          verifyRVVRouteOperandBindingClosure(bindingPlan, description,
+                                              context))
+    return error;
+
+  if (description.maskTailPolicyRouteFamilyPlanID !=
+          kRVVMaskTailPolicyRouteFamilyPlanID ||
+      description.maskTailPolicyOwner !=
+          kRVVComputedMaskMemoryMaskTailPolicyOwner)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires provider-built "
+        "computed-mask memory mask/tail owner fields before provider route "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (computedPlan.familyPlanID != description.computedMaskMemoryRouteFamilyPlanID ||
+      computedPlan.maskProducerSource !=
+          description.computedMaskMemoryMaskProducerSource ||
+      computedPlan.maskRole != description.maskRole ||
+      computedPlan.maskSource != description.maskSource ||
+      computedPlan.maskMemoryForm != description.maskMemoryForm ||
+      computedPlan.inactiveLaneContract !=
+          description.inactiveLaneContract ||
+      computedPlan.maskedPassthroughLayout !=
+          description.maskedPassthroughLayout ||
+      computedPlan.providerSupportedMirror !=
+          description.providerSupportedMirror ||
+      computedPlan.runtimeABIOrder != description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires mask producer, mask form, "
+        "inactive-lane contract, passthrough layout, provider support, and "
+        "ABI order from the verified computed-mask memory route-family plan "
+        "before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (routeControlPlan.tailPolicyMirror != description.tailPolicy ||
+      routeControlPlan.maskPolicyMirror != description.maskPolicy ||
+      routeControlPlan.runtimeABIOrderMirror != description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires tail policy, mask policy, "
+        "and VL/AVL ABI order from the RVV route-control owner before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (routeControlPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires route-control facts from "
+        "the same typed body/config and selected target capability facts "
+        "before provider route construction");
+  if (materializationFacts.maskTypeName != computedPlan.maskTypeName ||
+      materializationFacts.maskCType != computedPlan.maskCType ||
+      materializationFacts.setVLLeaf != computedPlan.setVLIntrinsic ||
+      materializationFacts.vectorLoadLeaf !=
+          computedPlan.vectorLoadIntrinsic ||
+      materializationFacts.compareLeaf != computedPlan.compareIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan requires mask type, C type, and "
+        "statement leaf facts to mirror the verified computed-mask memory "
+        "family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  plan.typedConfigFacts = &analysis.typedConfigFacts;
+  plan.selectedTargetCapabilityFacts = &analysis.selectedTargetCapabilityFacts;
+  plan.routeControlPlan = &routeControlPlan;
+  plan.bindingPlan = &bindingPlan;
+  plan.computedMaskMemoryPlan = &computedPlan;
+  plan.plansMaskTailPolicy = true;
+  plan.controlsComputedMaskMemory = true;
+  plan.familyPlanIDMirror = kRVVMaskTailPolicyRouteFamilyPlanID;
+  plan.ownerNameMirror = kRVVComputedMaskMemoryMaskTailPolicyOwner;
+  plan.maskProducerSourceMirror = computedPlan.maskProducerSource;
+  plan.maskRoleMirror = computedPlan.maskRole;
+  plan.maskSourceMirror = computedPlan.maskSource;
+  plan.maskMemoryFormMirror = computedPlan.maskMemoryForm;
+  plan.tailPolicyMirror = routeControlPlan.tailPolicyMirror;
+  plan.maskPolicyMirror = routeControlPlan.maskPolicyMirror;
+  plan.inactiveLaneContractMirror = computedPlan.inactiveLaneContract;
+  plan.maskedPassthroughLayoutMirror = computedPlan.maskedPassthroughLayout;
+  plan.runtimeABIOrderMirror = computedPlan.runtimeABIOrder;
+  plan.routeOperandBindingPlanIDMirror = bindingPlan.planID;
+  plan.providerSupportedMirror = computedPlan.providerSupportedMirror;
+  plan.selectedProviderMirror = routeControlPlan.selectedProviderMirror;
+  plan.selectedLegalityMirror = routeControlPlan.selectedLegalityMirror;
+  return llvm::Error::success();
+}
+
+llvm::ArrayRef<RVVSelectedBodyMaskTailPolicyProviderOwner>
+getRVVSelectedBodyMaskTailPolicyProviderOwners() {
+  static const RVVSelectedBodyMaskTailPolicyProviderOwner owners[] = {
+      {"computed-mask select",
+       isRVVSelectedBodyComputedMaskSelectMaskTailPolicyConsumer,
+       buildComputedMaskSelectMaskTailPolicyProviderPlan},
+      {"computed-mask memory",
+       isRVVSelectedBodyComputedMaskMemoryMaskTailPolicyConsumer,
+       buildComputedMaskMemoryMaskTailPolicyProviderPlan},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyMaskTailPolicyProviderConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  for (const RVVSelectedBodyMaskTailPolicyProviderOwner &owner :
+       getRVVSelectedBodyMaskTailPolicyProviderOwners())
+    if (owner.isConsumer && owner.isConsumer(description))
+      return true;
+  return false;
+}
+
+llvm::Expected<RVVSelectedBodyMaskTailPolicyProviderPlan>
+getRVVSelectedBodyMaskTailPolicyProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyRouteControlProviderPlan &routeControlPlan,
+    const RVVRouteOperandBindingPlan &bindingPlan, llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyMaskTailPolicyProviderPlan plan;
+  const RVVSelectedBodyMaskTailPolicyProviderOwner *selectedOwner = nullptr;
+  for (const RVVSelectedBodyMaskTailPolicyProviderOwner &owner :
+       getRVVSelectedBodyMaskTailPolicyProviderOwners()) {
+    if (!owner.isConsumer || !owner.buildProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete mask/tail policy provider owner "
+          "registry entry");
+    if (!owner.isConsumer(description))
+      continue;
+    if (selectedOwner)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " mask/tail policy provider plan matched multiple owner registry "
+          "entries for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) +
+          "': '" + selectedOwner->familyName + "' and '" +
+          owner.familyName + "'");
+    selectedOwner = &owner;
+  }
+
+  if (!selectedOwner)
+    return plan;
+
+  if (llvm::Error error = selectedOwner->buildProviderPlan(
+          analysis, materializationFacts, routeControlPlan, bindingPlan, plan,
+          context))
+    return std::move(error);
+
+  if (!plan.plansMaskTailPolicy)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider owner did not construct a provider plan "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (plan.typedConfigFacts != &analysis.typedConfigFacts ||
+      plan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      plan.routeControlPlan != &routeControlPlan ||
+      plan.bindingPlan != &bindingPlan ||
+      plan.routeOperandBindingPlanIDMirror !=
+          analysis.routeOperandBindingPlan.planID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " mask/tail policy provider plan must remain bound to the selected "
+        "typed body/config, target capability, route-control, and "
+        "operand-binding facts before provider route construction");
+  return plan;
+}
+
 static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   switch (description.operation) {
@@ -31823,6 +32197,25 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
           "route-control provider plan before route statement construction "
           "for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    llvm::Expected<RVVSelectedBodyMaskTailPolicyProviderPlan>
+        maskTailPolicyPlan = getRVVSelectedBodyMaskTailPolicyProviderPlan(
+            analysis, materializationFacts, *routeControlPlan,
+            analysis.routeOperandBindingPlan, context);
+    if (!maskTailPolicyPlan)
+      return maskTailPolicyPlan.takeError();
+    if (!maskTailPolicyPlan->plansMaskTailPolicy ||
+        !maskTailPolicyPlan->controlsComputedMaskSelect ||
+        maskTailPolicyPlan->computedMaskSelectPlan !=
+            materializationFacts.computedMaskSelectPlan ||
+        maskTailPolicyPlan->routeControlPlan != &*routeControlPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask select statement plan requires the RVV-owned "
+          "mask/tail policy provider plan before route statement "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    plan.maskTailPolicyPlan = *maskTailPolicyPlan;
+    plan.maskTailPolicyPlan.routeControlPlan = nullptr;
   }
 
   const support::RuntimeABIParameter *lhsABI =
@@ -33888,6 +34281,25 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
         "route-control provider plan before route statement construction for "
         "operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  llvm::Expected<RVVSelectedBodyMaskTailPolicyProviderPlan>
+      maskTailPolicyPlan = getRVVSelectedBodyMaskTailPolicyProviderPlan(
+          analysis, materializationFacts, *routeControlPlan,
+          *memoryOperandBindingFacts.bindingPlan, context);
+  if (!maskTailPolicyPlan)
+    return maskTailPolicyPlan.takeError();
+  if (!maskTailPolicyPlan->plansMaskTailPolicy ||
+      !maskTailPolicyPlan->controlsComputedMaskMemory ||
+      maskTailPolicyPlan->computedMaskMemoryPlan != &computedPlan ||
+      maskTailPolicyPlan->routeControlPlan != &*routeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory statement plan requires the RVV-owned "
+        "mask/tail policy provider plan before route statement construction "
+        "for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  plan.maskTailPolicyPlan = *maskTailPolicyPlan;
+  plan.maskTailPolicyPlan.routeControlPlan = nullptr;
 
   const support::RuntimeABIParameter *compareLhsABI =
       memoryOperandBindingFacts.compareLhsABI;
@@ -36768,6 +37180,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isComputedMaskMemoryRouteFamilyRoute =
       isRVVSelectedBodyComputedMaskMemoryRouteOperation(
           operationProfile.operation);
+  const bool isNonSegmentComputedMaskMemoryRouteFamilyRoute =
+      isComputedMaskMemoryRouteFamilyRoute &&
+      !operationProfile.isSegmentedMemoryMovement;
   const bool isBaseMemoryMovementRouteFamilyRoute =
       isRVVSelectedBodyBaseMemoryMovementRouteOperation(
           operationProfile.operation);
@@ -37953,6 +38368,16 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "select layout", description.selectLayout,
             "select-true-value-when-mask-else-false-value"))
       return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask/tail policy route family plan",
+            description.maskTailPolicyRouteFamilyPlanID,
+            kRVVMaskTailPolicyRouteFamilyPlanID))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask/tail policy owner",
+            description.maskTailPolicyOwner,
+            kRVVComputedMaskSelectMaskTailPolicyOwner))
+      return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask select route family plan",
@@ -37978,6 +38403,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.computedMaskMemoryMaskProducerSource,
             getComputedMaskMemoryProducerSource(operationProfile.operation)))
       return error;
+    if (isNonSegmentComputedMaskMemoryRouteFamilyRoute) {
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "mask/tail policy route family plan",
+              description.maskTailPolicyRouteFamilyPlanID,
+              kRVVMaskTailPolicyRouteFamilyPlanID))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "mask/tail policy owner",
+              description.maskTailPolicyOwner,
+              kRVVComputedMaskMemoryMaskTailPolicyOwner))
+        return error;
+    }
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask memory route family plan",
@@ -37986,6 +38423,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask memory mask producer source",
             description.computedMaskMemoryMaskProducerSource, ""))
+      return error;
+  }
+  if (!isRuntimeScalarComputedMaskSelectRoute &&
+      !isNonSegmentComputedMaskMemoryRouteFamilyRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask/tail policy route family plan",
+            description.maskTailPolicyRouteFamilyPlanID, ""))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "mask/tail policy owner",
+                                         description.maskTailPolicyOwner, ""))
       return error;
   }
   if (isSegment2MemoryRouteFamilyRoute) {
@@ -40066,6 +40514,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.computedMaskMemoryRouteFamilyPlanID});
     metadata.push_back({"tcrv_rvv.computed_mask_memory_mask_producer_source",
                         description.computedMaskMemoryMaskProducerSource});
+  }
+  if (!description.maskTailPolicyRouteFamilyPlanID.empty()) {
+    metadata.push_back({"tcrv_rvv.mask_tail_policy_route_family_plan",
+                        description.maskTailPolicyRouteFamilyPlanID});
+    metadata.push_back({"tcrv_rvv.mask_tail_policy_owner",
+                        description.maskTailPolicyOwner});
   }
   if (!description.segment2MemoryRouteFamilyPlanID.empty())
     metadata.push_back({"tcrv_rvv.segment2_memory_route_family_plan",

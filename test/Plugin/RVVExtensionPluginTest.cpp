@@ -6087,6 +6087,126 @@ int runRouteControlProviderOwnerRegistryTest() {
        "add"});
 }
 
+int runMaskTailPolicyProviderOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteControlProviderPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMaskTailPolicyProviderOwners;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMaskTailPolicyProviderPlan;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyMaskTailPolicyProviderConsumer;
+
+  auto makeDescription = [](RVVSelectedBodyOperationKind operation,
+                            RVVSelectedBodyMemoryForm memoryForm) {
+    RVVSelectedBodyEmitCRouteDescription description;
+    description.operation = operation;
+    description.memoryForm = memoryForm;
+    return description;
+  };
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyMaskTailPolicyProviderOwner>
+      owners = getRVVSelectedBodyMaskTailPolicyProviderOwners();
+  if (int result =
+          expect(owners.size() == 2,
+                 "mask/tail policy provider owner registry has exactly two "
+                 "active route-family entries"))
+    return result;
+
+  const llvm::StringRef expectedNames[] = {"computed-mask select",
+                                           "computed-mask memory"};
+  for (std::size_t i = 0; i < owners.size(); ++i) {
+    if (int result =
+            expect(owners[i].familyName == expectedNames[i],
+                   "mask/tail policy provider owner registry preserves "
+                   "explicit family ownership order"))
+      return result;
+    if (int result = expect(owners[i].isConsumer != nullptr &&
+                                owners[i].buildProviderPlan != nullptr,
+                            "mask/tail policy provider owner entries carry "
+                            "consumer and provider-plan hooks"))
+      return result;
+  }
+
+  struct MaskTailCase {
+    RVVSelectedBodyOperationKind operation;
+    RVVSelectedBodyMemoryForm memoryForm;
+    llvm::StringRef ownerName;
+  };
+  const MaskTailCase adoptedCases[] = {
+      {RVVSelectedBodyOperationKind::ComputedMaskSelect,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "computed-mask select"},
+      {RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore,
+       "computed-mask memory"}};
+  for (const MaskTailCase &routeCase : adoptedCases) {
+    RVVSelectedBodyEmitCRouteDescription description =
+        makeDescription(routeCase.operation, routeCase.memoryForm);
+    std::size_t matchCount = 0;
+    bool namedOwnerMatched = false;
+    for (const auto &owner : owners) {
+      if (!owner.isConsumer(description))
+        continue;
+      ++matchCount;
+      namedOwnerMatched |= owner.familyName == routeCase.ownerName;
+    }
+    if (int result = expect(
+            matchCount == 1 && namedOwnerMatched,
+            "mask/tail policy provider owner registry classifies each "
+            "adopted family exactly once"))
+      return result;
+    if (int result = expect(
+            isRVVSelectedBodyMaskTailPolicyProviderConsumer(description),
+            "mask/tail policy provider consumer predicate is registry backed"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
+  nonConsumerAnalysis.description = makeDescription(
+      RVVSelectedBodyOperationKind::CmpSelect,
+      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
+  RVVSelectedBodyRouteControlProviderPlan emptyRouteControlPlan;
+  RVVRouteOperandBindingPlan emptyBindingPlan;
+  auto emptyMaskTailPlan = getRVVSelectedBodyMaskTailPolicyProviderPlan(
+      nonConsumerAnalysis, emptyMaterializationFacts, emptyRouteControlPlan,
+      emptyBindingPlan, "mask/tail policy provider owner registry unit test");
+  if (!emptyMaskTailPlan)
+    return fail("non-consumer mask/tail policy plan unexpectedly failed: " +
+                llvm::toString(emptyMaskTailPlan.takeError()));
+  if (int result = expect(!emptyMaskTailPlan->plansMaskTailPolicy &&
+                              emptyMaskTailPlan->routeControlPlan == nullptr,
+                          "non-consumer routes receive an empty mask/tail "
+                          "policy provider plan"))
+    return result;
+  if (int result =
+          expect(!isRVVSelectedBodyMaskTailPolicyProviderConsumer(
+                     nonConsumerAnalysis.description),
+                 "plain compare-select remains outside the mask/tail policy "
+                 "provider owner registry"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingComputedSelectPlan;
+  missingComputedSelectPlan.description = makeDescription(
+      RVVSelectedBodyOperationKind::ComputedMaskSelect,
+      RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  return expectErrorContains(
+      getRVVSelectedBodyMaskTailPolicyProviderPlan(
+          missingComputedSelectPlan, emptyMaterializationFacts,
+          emptyRouteControlPlan, emptyBindingPlan,
+          "mask/tail policy provider owner registry unit test")
+          .takeError(),
+      {"requires the verified computed-mask select route-family plan",
+       "computed_mask_select"});
+}
+
 int runMigratedRouteStatementPlanOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
@@ -8352,6 +8472,31 @@ module {
                     indexedScatter,
             "statement plan exposes the expected computed-mask memory "
             "sub-family flags"))
+      return result;
+    if (int result = expect(
+            statementPlan->maskTailPolicyPlan.plansMaskTailPolicy &&
+                statementPlan->maskTailPolicyPlan.controlsComputedMaskMemory &&
+                statementPlan->maskTailPolicyPlan.computedMaskMemoryPlan ==
+                    materializationFacts->computedMaskMemoryPlan &&
+                statementPlan->maskTailPolicyPlan.routeControlPlan ==
+                    nullptr &&
+                statementPlan->maskTailPolicyPlan.bindingPlan ==
+                    &analysis.routeOperandBindingPlan &&
+                statementPlan->maskTailPolicyPlan.familyPlanIDMirror ==
+                    "rvv-mask-tail-policy-route-family-plan.v1" &&
+                statementPlan->maskTailPolicyPlan.ownerNameMirror ==
+                    "computed-mask memory mask/tail policy" &&
+                statementPlan->maskTailPolicyPlan.tailPolicyMirror ==
+                    analysis.description.tailPolicy &&
+                statementPlan->maskTailPolicyPlan.maskPolicyMirror ==
+                    analysis.description.maskPolicy &&
+                statementPlan->maskTailPolicyPlan.inactiveLaneContractMirror ==
+                    analysis.description.inactiveLaneContract &&
+                statementPlan->maskTailPolicyPlan
+                        .maskedPassthroughLayoutMirror ==
+                    analysis.description.maskedPassthroughLayout,
+            "computed-mask memory statement plan consumes the RVV-owned "
+            "mask/tail policy provider plan"))
       return result;
     if (int result = expect(
             statementPlan->preLoopSteps.size() == 1 &&
@@ -11635,6 +11780,40 @@ module {
             "statement plan exposes the expected compare/select sub-family "
             "flags"))
       return result;
+    if (computedMask || runtimeScalar) {
+      if (int result = expect(
+              statementPlan->maskTailPolicyPlan.plansMaskTailPolicy &&
+                  statementPlan->maskTailPolicyPlan
+                      .controlsComputedMaskSelect &&
+                  statementPlan->maskTailPolicyPlan.computedMaskSelectPlan ==
+                      materializationFacts->computedMaskSelectPlan &&
+                  statementPlan->maskTailPolicyPlan.routeControlPlan ==
+                      nullptr &&
+                  statementPlan->maskTailPolicyPlan.bindingPlan ==
+                      &analysis->routeOperandBindingPlan &&
+                  statementPlan->maskTailPolicyPlan.familyPlanIDMirror ==
+                      "rvv-mask-tail-policy-route-family-plan.v1" &&
+                  statementPlan->maskTailPolicyPlan.ownerNameMirror ==
+                      "computed-mask select mask/tail policy" &&
+                  statementPlan->maskTailPolicyPlan.tailPolicyMirror ==
+                      analysis->description.tailPolicy &&
+                  statementPlan->maskTailPolicyPlan.maskPolicyMirror ==
+                      analysis->description.maskPolicy &&
+                  statementPlan->maskTailPolicyPlan.maskProducerSourceMirror ==
+                      analysis->description
+                          .computedMaskSelectMaskProducerSource &&
+                  statementPlan->maskTailPolicyPlan
+                          .inactiveLaneContractMirror ==
+                      analysis->description.selectLayout,
+              "computed-mask select statement plan consumes the RVV-owned "
+              "mask/tail policy provider plan"))
+        return result;
+    } else if (int result = expect(
+                   !statementPlan->maskTailPolicyPlan.plansMaskTailPolicy,
+                   "plain compare-select statement plan does not claim a "
+                   "mask/tail policy provider plan")) {
+      return result;
+    }
     if (int result = expect(
             statementPlan->preLoopSteps.size() == 1 &&
                 statementPlan->preLoopSteps.front().callee ==
@@ -18438,6 +18617,8 @@ int main() {
   if (int result = runTopLevelRouteFamilyProviderOwnerRegistryTest())
     return result;
   if (int result = runRouteControlProviderOwnerRegistryTest())
+    return result;
+  if (int result = runMaskTailPolicyProviderOwnerRegistryTest())
     return result;
   if (int result = runMigratedRouteStatementPlanOwnerRegistryTest())
     return result;

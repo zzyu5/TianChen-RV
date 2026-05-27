@@ -51,6 +51,13 @@ llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+constexpr llvm::StringLiteral kRVVMaskTailPolicyRouteFamilyPlanID(
+    "rvv-mask-tail-policy-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSelectMaskTailPolicyOwner(
+    "computed-mask select mask/tail policy");
+constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskTailPolicyOwner(
+    "computed-mask memory mask/tail policy");
+
 const plugin::rvv::RVVConstructionManifest &getRVVManifest() {
   return plugin::rvv::getRVVConstructionManifest();
 }
@@ -479,6 +486,28 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "compare/select mask target artifact consumer requires "
         "provider-derived inactive-lane and masked-passthrough layout facts "
         "before artifact export");
+  if (isRVVComputedMaskSelectRouteFamilyOperation(description.operation) ||
+      isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+          description.operation)) {
+    llvm::StringRef expectedOwner =
+        isRVVComputedMaskSelectRouteFamilyOperation(description.operation)
+            ? llvm::StringRef(kRVVComputedMaskSelectMaskTailPolicyOwner)
+            : llvm::StringRef(kRVVComputedMaskMemoryMaskTailPolicyOwner);
+    if (description.maskTailPolicyRouteFamilyPlanID !=
+            kRVVMaskTailPolicyRouteFamilyPlanID ||
+        description.maskTailPolicyOwner != expectedOwner)
+      return makeRVVTargetRouteError(
+          llvm::Twine("compare/select mask target artifact consumer requires "
+                      "provider-derived mask/tail policy owner '") +
+          expectedOwner + "' and route-family plan '" +
+          kRVVMaskTailPolicyRouteFamilyPlanID + "' before artifact export");
+  } else if (!description.maskTailPolicyRouteFamilyPlanID.empty() ||
+             !description.maskTailPolicyOwner.empty()) {
+    return makeRVVTargetRouteError(
+        "compare/select mask target artifact consumer rejects mask/tail policy "
+        "mirrors for routes that are not computed-mask select or "
+        "compare-produced computed-mask memory");
+  }
 
   if (llvm::Error error =
           validateRVVCompareSelectMaskRouteHeaders(route, description))
@@ -1991,6 +2020,14 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
               candidate, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
               "selected typed RVV computed-mask memory route-family plan"))
         return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+              "selected typed RVV mask/tail policy route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_tail_policy_owner", "",
+              "selected typed RVV mask/tail policy owner"))
+        return error;
     } else if (isRVVComputedMaskSelectRouteFamilyOperation(
                    description.operation)) {
       if (llvm::Error error = requireCandidateMetadataMirror(
@@ -2012,6 +2049,16 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
               candidate, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
               "selected typed RVV computed-mask memory route-family plan"))
         return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_tail_policy_route_family_plan",
+              description.maskTailPolicyRouteFamilyPlanID,
+              "selected typed RVV mask/tail policy route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_tail_policy_owner",
+              description.maskTailPolicyOwner,
+              "selected typed RVV mask/tail policy owner"))
+        return error;
     } else if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
                    description.operation)) {
       if (llvm::Error error = requireCandidateMetadataMirror(
@@ -2032,6 +2079,16 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
       if (llvm::Error error = requireCandidateMetadataMirror(
               candidate, "tcrv_rvv.computed_mask_select_route_family_plan", "",
               "selected typed RVV computed-mask select route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_tail_policy_route_family_plan",
+              description.maskTailPolicyRouteFamilyPlanID,
+              "selected typed RVV mask/tail policy route-family plan"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.mask_tail_policy_owner",
+              description.maskTailPolicyOwner,
+              "selected typed RVV mask/tail policy owner"))
         return error;
     }
     if (llvm::Error error = requireCandidateMetadataMirror(
@@ -3156,6 +3213,11 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"mask_memory_form", "tcrv_rvv.mask_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_route_family_plan",
+       "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_owner", "tcrv_rvv.mask_tail_policy_owner", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"secondary_compare_predicate_kind",
        "tcrv_rvv.secondary_compare_predicate_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
@@ -3272,6 +3334,11 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"computed_mask_memory_mask_producer_source",
        "tcrv_rvv.computed_mask_memory_mask_producer_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_route_family_plan",
+       "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_owner", "tcrv_rvv.mask_tail_policy_owner", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"base_memory_movement_route_family_plan",
        "tcrv_rvv.base_memory_movement_route_family_plan", "",

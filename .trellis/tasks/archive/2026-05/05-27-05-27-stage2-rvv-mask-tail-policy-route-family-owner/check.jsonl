@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stage and authority invariants against changed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec ABI/runtime envelope remains non-compute authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check mask/tail owner consumption, provider facts, fail-closed diagnostics, mirror-only metadata, target artifact validation, and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route versus common EmitC materialization responsibilities."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused test/evidence sufficiency for generated-bundle, ssh rvv runtime evidence, and mask/tail policy claims."}
+{"file": ".trellis/tasks/05-27-05-27-stage2-rvv-mask-tail-policy-route-family-owner/prd.md", "reason": "Check implementation and validation satisfy this task's module-level acceptance criteria."}

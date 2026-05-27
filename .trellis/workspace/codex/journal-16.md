@@ -1080,3 +1080,36 @@ Removed stale untracked classroom XOR task residue after proving it was unrelate
 ### Next Steps
 
 - None - task complete
+
+
+## Session 256: Stage2 RVV mask/tail policy route-family owner
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV mask/tail policy route-family owner
+**Branch**: `main`
+
+### Summary
+
+Added RVV plugin-local mask/tail policy route-family owner for computed-mask select and computed-mask memory, propagated provider-built facts into target artifact ABI metadata, validated focused plugin/lit/generated-bundle/ssh rvv evidence, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
