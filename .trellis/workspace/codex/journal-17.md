@@ -562,3 +562,42 @@ Closed runtime_scalar_cmp_masked_standalone_reduce_add generated-bundle executab
 ### Next Steps
 
 - None - task complete
+
+
+## Session 280: Stage2 RVV typed dtype LMUL elementwise route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed dtype LMUL elementwise route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed RVV elementwise route-family derivation from typed dtype/SEW/LMUL facts; i64_add and lmul_m2_add dry-run and ssh rvv evidence passed; check-tianchenrv 413/413 passed.
+
+### Main Changes
+
+Implemented provider-owned typed elementwise route-family derivation for non-i32m1 witnesses. Route planning/provider now carry and verify element type, signed C type, SEW, LMUL, policy, config contract, runtime n/AVL, ABI roles, header/type mapping, provider-supported mirrors, and artifact mirror metadata from typed tcrv_rvv body/config/capability/runtime facts.
+
+Validated with check-tianchenrv 413/413, generated-bundle dry-run for i64_add and lmul_m2_add counts 0,1,16,23,257, ssh rvv compile/run/correctness for both witnesses, git diff --check, and bounded authority scan. Self-repaired FileCheck ordering, strided ABI validator over-narrowing, and duplicate check artifact collisions by rerunning a single clean check.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: derive typed elementwise route facts` |
+
+### Testing
+
+- [OK] `ninja -C build check-tianchenrv`: 413/413 passed.
+- [OK] generated-bundle dry-run for `i64_add` and `lmul_m2_add`, counts `0,1,16,23,257`.
+- [OK] `ssh rvv` compile/run/correctness for `i64_add` and `lmul_m2_add`, counts `0,1,16,23,257`.
+- [OK] `git diff --check` and bounded authority scan.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

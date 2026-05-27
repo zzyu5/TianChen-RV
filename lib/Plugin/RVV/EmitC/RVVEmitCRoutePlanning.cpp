@@ -4405,6 +4405,44 @@ llvm::Error validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "elementwise arithmetic route-family plan requires matching typed "
         "body memory form");
+  if (plan.typedConfigFactsID.empty() || plan.elementTypeName.empty() ||
+      plan.elementCType.empty() || plan.elementBitWidth == 0 ||
+      plan.sew == 0 || plan.lmul.empty() || plan.tailPolicy.empty() ||
+      plan.maskPolicy.empty() || plan.configContractID.empty())
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires provider-derived "
+        "typed config facts for element type, signed C type, SEW, LMUL, "
+        "policy, and config contract");
+  if (plan.elementBitWidth != plan.sew)
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires element bit width "
+        "to mirror provider-derived SEW");
+  llvm::StringRef expectedElementType;
+  if (plan.sew == tcrv::rvv::getRVVSEW16Bits())
+    expectedElementType = "i16";
+  else if (plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    expectedElementType = "i32";
+  else if (plan.sew == tcrv::rvv::getRVVSEW64Bits())
+    expectedElementType = "i64";
+  else
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("elementwise arithmetic route-family plan requires a "
+                    "supported integer element type for SEW ") +
+        llvm::Twine(plan.sew));
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "element type", plan.elementTypeName,
+              expectedElementType))
+    return error;
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul ||
+      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      plan.configContractID != plan.runtimeControlPlan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires typed config "
+        "SEW/LMUL/policy/contract facts to mirror runtime AVL/VL control "
+        "facts");
   if (llvm::Error error =
           requireRVVSelectedBodyElementwiseArithmeticPlanField(
               plan, "runtime control plan",
@@ -4683,6 +4721,19 @@ deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
   plan.usesMaskedArithmetic = isMasked;
   plan.usesStridedInputs = isStrided;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  if (!analysis.typedConfigFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires typed RVV config "
+        "facts before deriving dtype/SEW/LMUL route facts");
+  plan.typedConfigFactsID = analysis.typedConfigFacts.factsID;
+  plan.elementTypeName = analysis.typedConfigFacts.elementTypeName;
+  plan.elementCType = configProfile.scalarCType;
+  plan.elementBitWidth = analysis.typedConfigFacts.elementBitWidth;
+  plan.sew = analysis.typedConfigFacts.sew;
+  plan.lmul = analysis.typedConfigFacts.lmul;
+  plan.tailPolicy = analysis.typedConfigFacts.tailPolicy;
+  plan.maskPolicy = analysis.typedConfigFacts.maskPolicy;
+  plan.configContractID = analysis.typedConfigFacts.configContractID;
   plan.familyPlanID = kRVVElementwiseArithmeticRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = getElementwiseArithmeticTargetLeafProfile(operation);
@@ -4758,6 +4809,12 @@ void applyRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
                                                description);
+  description.elementTypeName = plan.elementTypeName;
+  description.sew = plan.sew;
+  description.lmul = plan.lmul;
+  description.tailPolicy = plan.tailPolicy;
+  description.maskPolicy = plan.maskPolicy;
+  description.configContractID = plan.configContractID;
   description.elementwiseArithmeticRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
@@ -21424,6 +21481,50 @@ verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
   if (llvm::Error error =
           validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(plan))
     return error;
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      analysis.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic provider requires typed config facts before "
+        "provider materialization");
+  if (plan.typedConfigFactsID != typedFacts.factsID ||
+      plan.elementTypeName != typedFacts.elementTypeName ||
+      plan.elementBitWidth != typedFacts.elementBitWidth ||
+      plan.sew != typedFacts.sew || plan.lmul != typedFacts.lmul ||
+      plan.tailPolicy != typedFacts.tailPolicy ||
+      plan.maskPolicy != typedFacts.maskPolicy ||
+      plan.configContractID != typedFacts.configContractID ||
+      plan.vlCType != typedFacts.vlCType ||
+      plan.vectorTypeName != typedFacts.vectorTypeName ||
+      plan.vectorCType != typedFacts.vectorCType ||
+      plan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      plan.vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+      plan.storeIntrinsic != typedFacts.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family typed config snapshot must "
+        "mirror selected typed RVV body/config facts before provider "
+        "materialization");
+  if (!plan.maskTypeName.empty() && plan.maskTypeName != typedFacts.maskTypeName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " masked elementwise arithmetic route-family mask type must mirror "
+        "selected typed RVV body/config facts before provider "
+        "materialization");
+  if (!plan.maskCType.empty() && plan.maskCType != typedFacts.maskCType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " masked elementwise arithmetic route-family mask C type must mirror "
+        "selected typed RVV body/config facts before provider "
+        "materialization");
+  if ((plan.elementTypeName == "i32" && plan.elementCType != "int32_t") ||
+      (plan.elementTypeName == "i64" && plan.elementCType != "int64_t") ||
+      (plan.elementTypeName == "i16" && plan.elementCType != "int16_t"))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family signed C type must be derived "
+        "from the typed RVV element type before provider materialization");
   if (plan.operation != operation)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -21435,6 +21536,17 @@ verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " elementwise arithmetic route-family plan mirror must match the "
         "validated family plan");
+  if (analysis.description.elementTypeName != plan.elementTypeName ||
+      analysis.description.sew != plan.sew ||
+      analysis.description.lmul != plan.lmul ||
+      analysis.description.tailPolicy != plan.tailPolicy ||
+      analysis.description.maskPolicy != plan.maskPolicy ||
+      analysis.description.configContractID != plan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family dtype/SEW/LMUL/policy/config "
+        "mirrors must be populated from the validated typed family plan "
+        "before provider materialization");
   if (analysis.description.memoryForm != plan.memoryForm ||
       analysis.description.sew != plan.runtimeControlPlan.sew ||
       analysis.description.lmul != plan.runtimeControlPlan.lmul ||

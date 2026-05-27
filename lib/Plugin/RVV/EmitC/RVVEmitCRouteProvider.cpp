@@ -211,6 +211,80 @@ bool runtimeABIParameterEquals(const support::RuntimeABIParameter &lhs,
          lhs.role == rhs.role && lhs.ownership == rhs.ownership;
 }
 
+llvm::Error verifyElementwiseArithmeticMaterializationFactsBeforeRouteBuild(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    llvm::StringRef context) {
+  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan *plan =
+      materializationFacts.elementwiseArithmeticPlan;
+  if (!plan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route construction requires typed config "
+        "facts before creating TCRVEmitCLowerableRoute");
+
+  if (plan->typedConfigFactsID != typedFacts.factsID ||
+      plan->elementTypeName != typedFacts.elementTypeName ||
+      plan->elementBitWidth != typedFacts.elementBitWidth ||
+      plan->sew != typedFacts.sew || plan->lmul != typedFacts.lmul ||
+      plan->tailPolicy != typedFacts.tailPolicy ||
+      plan->maskPolicy != typedFacts.maskPolicy ||
+      plan->configContractID != typedFacts.configContractID ||
+      plan->vlCType != typedFacts.vlCType ||
+      plan->vectorTypeName != typedFacts.vectorTypeName ||
+      plan->vectorCType != typedFacts.vectorCType ||
+      plan->setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      plan->vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+      plan->storeIntrinsic != typedFacts.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route construction requires "
+        "materialization facts to mirror the selected typed RVV "
+        "body/config before creating TCRVEmitCLowerableRoute");
+
+  if (description.elementTypeName != plan->elementTypeName ||
+      description.sew != plan->sew || description.lmul != plan->lmul ||
+      description.tailPolicy != plan->tailPolicy ||
+      description.maskPolicy != plan->maskPolicy ||
+      description.configContractID != plan->configContractID ||
+      description.vlCType != plan->vlCType ||
+      description.vectorTypeName != plan->vectorTypeName ||
+      description.vectorCType != plan->vectorCType ||
+      description.setVLIntrinsic != plan->setVLIntrinsic ||
+      description.vectorLoadIntrinsic != plan->vectorLoadIntrinsic ||
+      description.intrinsic != plan->arithmeticIntrinsic ||
+      description.storeIntrinsic != plan->storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route construction requires route "
+        "description mirrors to come from the validated typed family plan "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (!plan->maskTypeName.empty() &&
+      (description.maskTypeName != plan->maskTypeName ||
+       description.maskCType != plan->maskCType))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " masked elementwise arithmetic route construction requires mask "
+        "type mirrors to come from the validated typed family plan before "
+        "creating TCRVEmitCLowerableRoute");
+  if (!plan->stridedLoadIntrinsic.empty() &&
+      (description.stridedLoadIntrinsic != plan->stridedLoadIntrinsic ||
+       description.stridedStoreIntrinsic != plan->stridedStoreIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " strided elementwise arithmetic route construction requires "
+        "strided memory leaves to come from the validated typed family plan "
+        "before creating TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 llvm::Error addSegment2RouteHeadersFromProviderPlan(
     conversion::emitc::TCRVEmitCLowerableRoute &route,
     const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
@@ -361,6 +435,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return materializationFactsOrError.takeError();
   const RVVSelectedBodyRouteMaterializationFacts &materializationFacts =
       *materializationFactsOrError;
+  if (llvm::Error error =
+          verifyElementwiseArithmeticMaterializationFactsBeforeRouteBuild(
+              description, materializationFacts,
+              "selected RVV EmitC route construction"))
+    return error;
   llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
       elementwiseSelectOperandBindingFactsOrError =
           getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(

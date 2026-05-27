@@ -49,10 +49,25 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.binary"}
 // PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.element_type", value = "i32"}
 // PLAN-SAME: {key = "tcrv_rvv.sew", value = "32"}
 // PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m2"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"}
+// PLAN-SAME: {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"}
+// PLAN-SAME: {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_avl_abi_parameter", value = "n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
+// PLAN-SAME: {key = "tcrv_rvv.elementwise_arithmetic_route_family_plan", value = "rvv-elementwise-arithmetic-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.emitc_loop", value = "emitc.for"}
+// PLAN-SAME: {key = "tcrv_rvv.remaining_avl", value = "n-offset"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew32-lmul-m2"}
+// PLAN-SAME: {key = "tcrv_rvv.multi_vl", value = "supported"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
@@ -66,6 +81,17 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.rvv.element_type: i32
 // HEADER: tianchenrv.rvv.lmul: m2
+// HEADER: tianchenrv.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
+// HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.runtime_avl_abi_parameter: n
+// HEADER: tianchenrv.rvv.remaining_avl: n-offset
 // HEADER: tianchenrv.rvv.bounded_slice: multi-vl-selected-body-sew32-lmul-m2
+// HEADER: tianchenrv.rvv.multi_vl: supported
+// HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
+// HEADER: tianchenrv.rvv.elementwise_arithmetic_route_family_plan: rvv-elementwise-arithmetic-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector
 // HEADER: void tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
