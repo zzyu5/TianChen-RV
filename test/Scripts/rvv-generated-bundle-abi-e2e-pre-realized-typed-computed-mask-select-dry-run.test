@@ -1,0 +1,115 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-typed-computed-mask-select --overwrite --op-kind computed_mask_select_i64 --op-kind computed_mask_select_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-typed-computed-mask-select/evidence.json
+# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-computed-mask-select/computed_mask_select_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-computed-mask-select/computed_mask_select_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=I64CPP < %t.artifacts/pre-realized-typed-computed-mask-select/computed_mask_select_i64/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=M2CPP < %t.artifacts/pre-realized-typed-computed-mask-select/computed_mask_select_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=I64HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-typed-computed-mask-select/computed_mask_select_i64/rvv_generated_bundle_abi_computed_mask_select_i64_harness.c
+# RUN: FileCheck %s --check-prefix=M2HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-typed-computed-mask-select/computed_mask_select_lmul_m2/rvv_generated_bundle_abi_computed_mask_select_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "computed_mask_select_i64"
+# ROOT-DAG: "computed_mask_select_lmul_m2"
+# ROOT-DAG: "compare_select_predicate_boundary"
+# ROOT: "status": "dry_run_success"
+
+# I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-i64.mlir"
+# I64-DAG: "prototype": "void tcrv_emitc_pre_realized_body_computed_mask_select_i64_kernel_pre_realized_body_rvv_computed_mask_select_i64(const int64_t *cmp_lhs, const int64_t *cmp_rhs, const int64_t *true_value, const int64_t *false_value, int64_t *out, size_t n);"
+# I64-DAG: "expected_runtime_abi_name": "rvv-generic-computed-mask-select-callable-c-abi.v1"
+# I64-DAG: "expected_selected_variant": "pre_realized_body_rvv_computed_mask_select_i64"
+# I64-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# I64-DAG: "route_entry_realization": false
+# I64-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# I64-DAG: "pre_realized_body_consumed": true
+# I64-DAG: "element_type": "i64"
+# I64-DAG: "sew": "64"
+# I64-DAG: "lmul": "m1"
+# I64-DAG: "config_contract": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
+# I64-DAG: "key": "tcrv_rvv.bounded_slice"
+# I64-DAG: "value": "multi-vl-selected-body-sew64-lmul-m1"
+# I64-DAG: "key": "rvv_selected_body_operation"
+# I64-DAG: "value": "computed_mask_select"
+# I64-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# I64-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# I64-DAG: "compare_predicate_kind": "slt"
+# I64-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# I64-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# I64-DAG: "predicate_mask_type": "vbool64_t"
+# I64-DAG: "vector_c_type": "vint64m1_t"
+# I64-DAG: "compare_intrinsic": "__riscv_vmslt_vv_i64m1_b64"
+# I64-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i64m1"
+# I64-DAG: "store_intrinsic": "__riscv_vse64_v_i64m1"
+# I64-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-computed-mask-select-leaf-profile.v1"
+# I64-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector"
+# I64-DAG: "tcrv_rvv.computed_mask_select_route_family_plan": "rvv-computed-mask-select-route-family-plan.v1"
+# I64-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "vector-compare-rhs-load"
+# I64-DAG: "select_coverage_contract": "multi-lane computed_mask_select cases require compare-produced true and false select lanes"
+# I64-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# I64-DAG: "status": "dry_run_success"
+
+# M2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-lmul-m2.mlir"
+# M2-DAG: "prototype": "void tcrv_emitc_pre_realized_body_computed_mask_select_lmul_m2_kernel_pre_realized_body_rvv_computed_mask_select_lmul_m2(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);"
+# M2-DAG: "expected_runtime_abi_name": "rvv-generic-computed-mask-select-callable-c-abi.v1"
+# M2-DAG: "expected_selected_variant": "pre_realized_body_rvv_computed_mask_select_lmul_m2"
+# M2-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# M2-DAG: "route_entry_realization": false
+# M2-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# M2-DAG: "pre_realized_body_consumed": true
+# M2-DAG: "element_type": "i32"
+# M2-DAG: "sew": "32"
+# M2-DAG: "lmul": "m2"
+# M2-DAG: "config_contract": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# M2-DAG: "key": "tcrv_rvv.bounded_slice"
+# M2-DAG: "value": "multi-vl-selected-body-sew32-lmul-m2"
+# M2-DAG: "key": "rvv_selected_body_operation"
+# M2-DAG: "value": "computed_mask_select"
+# M2-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# M2-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# M2-DAG: "compare_predicate_kind": "sle"
+# M2-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# M2-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# M2-DAG: "predicate_mask_type": "vbool16_t"
+# M2-DAG: "vector_c_type": "vint32m2_t"
+# M2-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m2_b16"
+# M2-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i32m2"
+# M2-DAG: "store_intrinsic": "__riscv_vse32_v_i32m2"
+# M2-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-computed-mask-select-leaf-profile.v1"
+# M2-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector"
+# M2-DAG: "tcrv_rvv.computed_mask_select_route_family_plan": "rvv-computed-mask-select-route-family-plan.v1"
+# M2-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "vector-compare-rhs-load"
+# M2-DAG: "select_coverage_contract": "multi-lane computed_mask_select cases require compare-produced true and false select lanes"
+# M2-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# M2-DAG: "status": "dry_run_success"
+
+# I64CPP: __riscv_vsetvl_e64m1
+# I64CPP: __riscv_vle64_v_i64m1
+# I64CPP: vint64m1_t
+# I64CPP: __riscv_vmslt_vv_i64m1_b64
+# I64CPP: vbool64_t
+# I64CPP: __riscv_vmerge_vvm_i64m1
+# I64CPP: __riscv_vse64_v_i64m1
+
+# M2CPP: __riscv_vsetvl_e32m2
+# M2CPP: __riscv_vle32_v_i32m2
+# M2CPP: vint32m2_t
+# M2CPP: __riscv_vmsle_vv_i32m2_b16
+# M2CPP: vbool16_t
+# M2CPP: __riscv_vmerge_vvm_i32m2
+# M2CPP: __riscv_vse32_v_i32m2
+
+# I64HARNESS: tcrv_emitc_pre_realized_body_computed_mask_select_i64_kernel_pre_realized_body_rvv_computed_mask_select_i64(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
+# I64HARNESS: int64_t expected =
+# I64HARNESS: (cmp_lhs[index] < cmp_rhs[index] ? true_value[index] : false_value[index])
+# I64HARNESS: computed_mask_select_i64 select coverage missing
+# I64HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+
+# M2HARNESS: tcrv_emitc_pre_realized_body_computed_mask_select_lmul_m2_kernel_pre_realized_body_rvv_computed_mask_select_lmul_m2(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
+# M2HARNESS: int32_t expected =
+# M2HARNESS: (cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])
+# M2HARNESS: computed_mask_select_lmul_m2 select coverage missing
+# M2HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};

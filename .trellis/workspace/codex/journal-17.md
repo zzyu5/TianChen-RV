@@ -694,3 +694,41 @@ Derived bounded i64 m1 and i32 m2 compare/select route facts from typed tcrv_rvv
 ### Next Steps
 
 - None - task complete
+
+
+## Session 283: Stage2 RVV typed computed-mask select route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed computed-mask select route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed bounded typed computed-mask select route-family derivation for i64 m1 and i32 m2, with selected-boundary realization, provider-derived typed route facts, generated-bundle evidence, ssh rvv runtime correctness, task archive, and final quality gates.
+
+### Main Changes
+
+- Extended computed-mask select verifier/realization/provider planning so typed SEW64 LMUL m1 and SEW32 LMUL m2 variants are ordinary provider-derived route-family instances, while unsupported i64 m2 fails closed.
+- Added typed pre-realized target fixtures, generated-bundle dry-run coverage, direct pre-realized route-entry negative coverage, and typed harness/runtime ABI evidence for computed_mask_select_i64 and computed_mask_select_lmul_m2.
+- Verified direct route-entry remains selected-boundary-only for typed computed-mask select; artifact fields stay mirror-only after provider route construction.
+- Spec-update judgment: no `.trellis/spec/**` edit needed because existing RVV plugin, EmitC route, and testing specs already encode the durable contract; this task instantiates bounded witnesses rather than adding a new long-term rule.
+- Checks: py_compile; script self-test; typed generated-bundle dry-run; expected direct-route-entry fail-closed probes; non-regression dry-run after self-repair from a concurrent artifact collision; ssh rvv counts 0,1,16,23,257 for both typed witnesses; git diff --check; task validate; check-tianchenrv 422/422; bounded authority scan.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

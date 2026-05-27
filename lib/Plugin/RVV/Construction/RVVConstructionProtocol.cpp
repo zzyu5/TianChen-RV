@@ -4387,6 +4387,35 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           tcrv::rvv::getRVVSelectedBodyI64RuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, i64Parameters);
+    } else if (route->operationMnemonic == "computed_mask_select") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          computedMaskSelectI64Parameters;
+      computedMaskSelectI64Parameters.push_back(
+          support::makeTargetExportABIParameter(
+              "cmp_lhs", "const int64_t *",
+              support::RuntimeABIParameterRole::LHSInputBuffer));
+      computedMaskSelectI64Parameters.push_back(
+          support::makeTargetExportABIParameter(
+              "cmp_rhs", "const int64_t *",
+              support::RuntimeABIParameterRole::RHSInputBuffer));
+      computedMaskSelectI64Parameters.push_back(
+          support::makeTargetExportABIParameter(
+              "true_value", "const int64_t *",
+              support::RuntimeABIParameterRole::TrueValueInputBuffer));
+      computedMaskSelectI64Parameters.push_back(
+          support::makeTargetExportABIParameter(
+              "false_value", "const int64_t *",
+              support::RuntimeABIParameterRole::FalseValueInputBuffer));
+      computedMaskSelectI64Parameters.push_back(
+          support::makeTargetExportABIParameter(
+              "out", "int64_t *",
+              support::RuntimeABIParameterRole::OutputBuffer));
+      computedMaskSelectI64Parameters.push_back(
+          support::makeTargetExportABIParameter(
+              tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName(), "size_t",
+              support::RuntimeABIParameterRole::RuntimeElementCount));
+      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
+          facts.runtimeABIParameters, computedMaskSelectI64Parameters);
     }
     if (!acceptsTypedI64Parameters)
       return makeRVVConstructionError(

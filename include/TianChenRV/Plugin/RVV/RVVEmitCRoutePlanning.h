@@ -569,6 +569,15 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   bool usesRuntimeScalarProducer = false;
   bool usesDualCompareMaskAnd = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  llvm::StringRef elementCType;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;
   llvm::StringRef runtimeABIOrder;
@@ -585,6 +594,8 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef secondaryComparePredicateKind;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef secondaryCompareIntrinsic;
   llvm::StringRef maskAndIntrinsic;

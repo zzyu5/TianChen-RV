@@ -941,26 +941,36 @@ getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
-getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters() {
+buildRVVSelectedBodyComputedMaskSelectRuntimeABIParameters(
+    llvm::StringRef elementCType) {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  std::string constElementPointer =
+      (llvm::Twine("const ") + elementCType + " *").str();
+  std::string mutableElementPointer = (llvm::Twine(elementCType) + " *").str();
   parameters.push_back(support::makeTargetExportABIParameter(
-      "cmp_lhs", "const int32_t *",
+      "cmp_lhs", constElementPointer,
       support::RuntimeABIParameterRole::LHSInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "cmp_rhs", "const int32_t *",
+      "cmp_rhs", constElementPointer,
       support::RuntimeABIParameterRole::RHSInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "true_value", "const int32_t *",
+      "true_value", constElementPointer,
       support::RuntimeABIParameterRole::TrueValueInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "false_value", "const int32_t *",
+      "false_value", constElementPointer,
       support::RuntimeABIParameterRole::FalseValueInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+      "out", mutableElementPointer,
+      support::RuntimeABIParameterRole::OutputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
       kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
       support::RuntimeABIParameterRole::RuntimeElementCount));
   return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters() {
+  return buildRVVSelectedBodyComputedMaskSelectRuntimeABIParameters("int32_t");
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
@@ -1264,6 +1274,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, computedMaskSelect))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 6> computedMaskSelectI64 =
+      buildRVVSelectedBodyComputedMaskSelectRuntimeABIParameters("int64_t");
+  if (support::runtimeABIParametersEqual(parameters, computedMaskSelectI64))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 6>
       runtimeScalarCompareSelect =
           getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
@@ -1465,7 +1480,7 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "masked-gather-load to unit-store route with compare producer; or "
       "cmp_lhs, cmp_rhs, "
       "true_value, false_value, out, n "
-      "for the bounded int32_t computed-mask select route with compare "
+      "for the bounded typed int32_t/int64_t computed-mask select route with compare "
       "producer; or lhs, rhs_scalar, true_value, false_value, out, n "
       "for the bounded int32_t runtime scalar compare/select route; or "
       "rhs_scalar, out, n for the bounded runtime int32_t scalar splat-store "

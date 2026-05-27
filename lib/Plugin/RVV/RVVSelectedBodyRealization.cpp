@@ -138,6 +138,16 @@ bool isPreRealizedComputedMaskSelectLayout(llvm::StringRef layout) {
   return layout == "select-true-value-when-mask-else-false-value";
 }
 
+bool isPreRealizedComputedMaskSelectConfig(std::int64_t sew,
+                                           llvm::StringRef lmul) {
+  if (tcrv::rvv::isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return true;
+  return tcrv::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
+}
+
 bool isPreRealizedRuntimeScalarCompareSelectOpKind(llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_select";
 }
@@ -1618,12 +1628,11 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSelectBody(
         "pre-realized RVV selected computed-mask select body currently "
         "supports only select_layout "
         "'select-true-value-when-mask-else-false-value'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  if (!isPreRealizedComputedMaskSelectConfig(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask select body requires SEW32 "
-        "LMUL m1 data/mask config");
+        "LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 data/mask config");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask select body requires tail "

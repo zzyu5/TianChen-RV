@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 282
+- **Total Sessions**: 283
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~696 | Active |
+| `journal-17.md` | ~734 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 283 | 2026-05-28 | Stage2 RVV typed computed-mask select route-family derivation | pending-final-session-commit | `main` |
 | 282 | 2026-05-28 | Stage2 RVV typed compare-select route derivation | pending-final-session-commit | `main` |
 | 281 | 2026-05-28 | Stage2 RVV typed masked elementwise route-family derivation | pending-final-session-commit | `main` |
 | 280 | 2026-05-28 | Stage2 RVV typed dtype LMUL elementwise route-family derivation | - | `main` |

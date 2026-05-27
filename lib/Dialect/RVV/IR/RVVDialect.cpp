@@ -759,6 +759,15 @@ bool isSupportedTypedComputedMaskSelectPreRealizedSelectLayout(
   return layout == "select-true-value-when-mask-else-false-value";
 }
 
+bool isSupportedTypedComputedMaskSelectPreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  if (sew == getRVVFirstSliceSEWBits() && lmul == getRVVLMULM2())
+    return true;
+  return isRVVSelectedBodyI64M1Config(sew, lmul);
+}
+
 bool isSupportedTypedRuntimeScalarCompareSelectPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_select";
@@ -3455,11 +3464,11 @@ mlir::LogicalResult TypedComputedMaskSelectPreRealizedBodyOp::verify() {
               "\"select-true-value-when-mask-else-false-value\" for the "
               "bounded selected-body computed-mask select hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedComputedMaskSelectPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
            << "requires bounded pre-realized computed-mask select data config "
-              "to be SEW32 LMUL m1";
+              "to be SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "

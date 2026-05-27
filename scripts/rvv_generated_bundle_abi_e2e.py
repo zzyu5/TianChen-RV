@@ -65,6 +65,8 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "cmp_select_lmul_m2",
     "cmp_select_sle",
     "computed_mask_select",
+    "computed_mask_select_i64",
+    "computed_mask_select_lmul_m2",
     "computed_mask_select_sle",
     "runtime_scalar_cmp_select",
     "runtime_scalar_dual_cmp_mask_and_select",
@@ -675,6 +677,18 @@ COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN = (
     "rvv-computed-mask-select-route-family-plan.v1"
+)
+COMPUTED_MASK_SELECT_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-computed-mask-select-leaf-profile.v1"
+)
+COMPUTED_MASK_SELECT_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-computed-mask-select-plan-validated"
+)
+COMPUTED_MASK_SELECT_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+COMPUTED_MASK_SELECT_C_TYPE_MAPPING = (
+    "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector"
 )
 COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE = "vector-compare-rhs-load"
 COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE = (
@@ -1565,9 +1579,11 @@ class OpExpectation:
             )
         if self.is_computed_mask_select:
             return (
-                f"void {self.function_name}(const int32_t *cmp_lhs, "
-                "const int32_t *cmp_rhs, const int32_t *true_value, "
-                "const int32_t *false_value, int32_t *out, size_t n);"
+                f"void {self.function_name}(const {self.element_c_type} *cmp_lhs, "
+                f"const {self.element_c_type} *cmp_rhs, "
+                f"const {self.element_c_type} *true_value, "
+                f"const {self.element_c_type} *false_value, "
+                f"{self.element_c_type} *out, size_t n);"
             )
         if self.is_runtime_scalar_compare_select:
             return (
@@ -1753,7 +1769,7 @@ class OpExpectation:
         if self.is_computed_masked_unit_load_store:
             return EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS
         if self.is_computed_mask_select:
-            return EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS
+            return computed_mask_select_runtime_parameters(self.element_c_type)
         if self.is_runtime_scalar_compare_select:
             return EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_dual_compare_mask_and_select:
@@ -1827,7 +1843,11 @@ class OpExpectation:
             return "add"
         if self.kind in {"cmp_select_sle", "cmp_select_i64", "cmp_select_lmul_m2"}:
             return "cmp_select"
-        if self.kind == "computed_mask_select_sle":
+        if self.kind in {
+            "computed_mask_select_i64",
+            "computed_mask_select_lmul_m2",
+            "computed_mask_select_sle",
+        }:
             return "computed_mask_select"
         return self.kind
 
@@ -1946,7 +1966,12 @@ class OpExpectation:
 
     @property
     def is_computed_mask_select(self) -> bool:
-        return self.kind in {"computed_mask_select", "computed_mask_select_sle"}
+        return self.kind in {
+            "computed_mask_select",
+            "computed_mask_select_i64",
+            "computed_mask_select_lmul_m2",
+            "computed_mask_select_sle",
+        }
 
     @property
     def is_runtime_scalar_compare_select(self) -> bool:
@@ -3527,6 +3552,86 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="sle",
     ),
+    "computed_mask_select_i64": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_mask_select_sle"],
+        kind="computed_mask_select_i64",
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-i64.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_mask_select_i64",
+        external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_computed_mask_select_i64_kernel_"
+            "pre_realized_body_rvv_computed_mask_select_i64"
+        ),
+        emitc_route="rvv-generic-computed-mask-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="computed-mask-vector-select",
+        lhs_initializer=(
+            "(int64_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int64_t)(-9000000000LL - (int64_t)index) "
+            ": (int64_t)(7000000000LL + (int64_t)index))"
+        ),
+        rhs_initializer=(
+            "(int64_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int64_t)(-8000000000LL + (int64_t)index) "
+            ": (int64_t)(5000000000LL - (int64_t)index))"
+        ),
+        true_value_initializer=(
+            "(int64_t)(11000000000LL + (int64_t)(index * 17))"
+        ),
+        false_value_initializer=(
+            "(int64_t)(-12000000000LL - (int64_t)(index * 19))"
+        ),
+        expected_expression=(
+            "(cmp_lhs[index] < cmp_rhs[index] ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="slt",
+        out_initializer=I64_OUT_SENTINEL,
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
+    "computed_mask_select_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_mask_select_sle"],
+        kind="computed_mask_select_lmul_m2",
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-lmul-m2.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_mask_select_lmul_m2",
+        external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_computed_mask_select_lmul_m2_kernel_"
+            "pre_realized_body_rvv_computed_mask_select_lmul_m2"
+        ),
+        emitc_route="rvv-generic-computed-mask-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="computed-mask-vector-select",
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? 10 : "
+            "((index % 5) == 1) ? 9 : "
+            "((index % 5) == 2) ? 14 : "
+            "((index % 5) == 3) ? -3 : -9)"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? 10 : "
+            "((index % 5) == 1) ? 12 : "
+            "((index % 5) == 2) ? 11 : "
+            "((index % 5) == 3) ? -3 : -12)"
+        ),
+        true_value_initializer="(int32_t)(3100 + (int32_t)(index * 17))",
+        false_value_initializer="(int32_t)(-4300 - (int32_t)(index * 19))",
+        expected_expression=(
+            "(cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="sle",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
+    ),
     "runtime_scalar_cmp_select": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_select"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-select.mlir"),
@@ -4450,6 +4555,49 @@ EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS = (
         "ownership": "target-export-abi-owned",
     },
 )
+
+
+def computed_mask_select_runtime_parameters(
+    element_c_type: str,
+) -> tuple[dict[str, str], ...]:
+    return (
+        {
+            "c_name": "cmp_lhs",
+            "c_type": f"const {element_c_type} *",
+            "role": "lhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "cmp_rhs",
+            "c_type": f"const {element_c_type} *",
+            "role": "rhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "true_value",
+            "c_type": f"const {element_c_type} *",
+            "role": "true-value-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "false_value",
+            "c_type": f"const {element_c_type} *",
+            "role": "false-value-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "out",
+            "c_type": f"{element_c_type} *",
+            "role": "output-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "n",
+            "c_type": "size_t",
+            "role": "runtime-element-count",
+            "ownership": "target-export-abi-owned",
+        },
+    )
 EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
     {
@@ -6414,6 +6562,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.computed_mask_select_mask_producer_source": (
                     COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    COMPUTED_MASK_SELECT_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    COMPUTED_MASK_SELECT_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    COMPUTED_MASK_SELECT_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    COMPUTED_MASK_SELECT_C_TYPE_MAPPING
                 ),
             }
         )
@@ -17766,6 +17926,12 @@ int main(void) {{
 }}
 """.lstrip()
     if expectation.is_computed_mask_select:
+        value_printf_format = (
+            "%lld" if expectation.element_c_type == "int64_t" else "%d"
+        )
+        value_printf_cast = (
+            "(long long)" if expectation.element_c_type == "int64_t" else ""
+        )
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -17778,11 +17944,11 @@ static int run_case(size_t n) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t out_alloc_n = alloc_n + 8;
-  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *true_value = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *false_value = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
+  {expectation.element_c_type} *cmp_lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *cmp_rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *true_value = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *false_value = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * out_alloc_n);
   if (!cmp_lhs || !cmp_rhs || !true_value || !false_value || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(cmp_lhs);
@@ -17801,7 +17967,7 @@ static int run_case(size_t n) {{
     out[index] = {expectation.out_initializer};
   }}
   for (size_t index = alloc_n; index < out_alloc_n; ++index)
-    out[index] = {OUT_SENTINEL};
+    out[index] = {expectation.out_initializer};
 
   {expectation.function_name}(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
 
@@ -17814,12 +17980,15 @@ static int run_case(size_t n) {{
     else
       ++false_lanes;
 
-    int32_t expected = {expectation.expected_expression};
+    {expectation.element_c_type} expected = {expectation.expected_expression};
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d cmp_lhs=%d cmp_rhs=%d true=%d false=%d predicate=%d\\n",
-              n, index, out[index], expected, cmp_lhs[index], cmp_rhs[index],
-              true_value[index], false_value[index], predicate);
+              "{expectation.kind} mismatch n=%zu index=%zu got={value_printf_format} expected={value_printf_format} cmp_lhs={value_printf_format} cmp_rhs={value_printf_format} true={value_printf_format} false={value_printf_format} predicate=%d\\n",
+              n, index, {value_printf_cast}out[index],
+              {value_printf_cast}expected, {value_printf_cast}cmp_lhs[index],
+              {value_printf_cast}cmp_rhs[index],
+              {value_printf_cast}true_value[index],
+              {value_printf_cast}false_value[index], predicate);
       free(cmp_lhs);
       free(cmp_rhs);
       free(true_value);
@@ -17830,10 +17999,11 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = n; index < out_alloc_n; ++index) {{
-    if (out[index] != {OUT_SENTINEL}) {{
+    if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, out[index], {OUT_SENTINEL});
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got={value_printf_format} sentinel={value_printf_format}\\n",
+              n, index, {value_printf_cast}out[index],
+              {value_printf_cast}{expectation.out_initializer});
       free(cmp_lhs);
       free(cmp_rhs);
       free(true_value);
@@ -21930,6 +22100,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_strided_load_unit_store/"
             "computed_masked_indexed_gather_load_unit_store/"
             "computed_masked_indexed_scatter_store_unit_load/"
+            "computed_mask_select_i64/computed_mask_select_lmul_m2/"
             "runtime_scalar_cmp_masked_store/"
             "runtime_scalar_cmp_masked_load_store/"
             "computed_masked_macc_add/"

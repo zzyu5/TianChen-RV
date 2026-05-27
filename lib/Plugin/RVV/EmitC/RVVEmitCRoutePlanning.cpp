@@ -2197,13 +2197,13 @@ constexpr llvm::StringLiteral
     kRVVComputedMaskSelectDualRuntimeScalarProducerSource(
         "dual-runtime-scalar-splat-compare-rhs-mask-and");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectTargetLeafProfile(
-    "rvv-v1-e32m1-computed-mask-select-leaf-profile.v1");
+    "rvv-v1-typed-computed-mask-select-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectProviderSupportedMirror(
     "provider_supported_mirror:rvv-computed-mask-select-plan-validated");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectCTypeMappingSummary(
-    "vl:size_t,compare:true_false:signed-e32m1,mask:b32,result:signed-e32m1");
+    "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector");
 constexpr llvm::StringLiteral kRVVMaskTailPolicyRouteFamilyPlanID(
     "rvv-mask-tail-policy-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectMaskTailPolicyOwner(
@@ -7288,6 +7288,30 @@ bool usesDualCompareMaskAndSelect(RVVSelectedBodyOperationKind op) {
          RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
 }
 
+bool isSupportedTypedComputedMaskSelectRouteConfig(std::int64_t sew,
+                                                   llvm::StringRef lmul) {
+  if (tcrv::rvv::isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return true;
+  return tcrv::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
+}
+
+bool isE32M1ComputedMaskSelectRouteConfig(std::int64_t sew,
+                                          llvm::StringRef lmul) {
+  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         lmul == tcrv::rvv::getRVVLMULM1();
+}
+
+llvm::StringRef getComputedMaskSelectElementTypeForSEW(std::int64_t sew) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return "i32";
+  if (sew == tcrv::rvv::getRVVSEW64Bits())
+    return "i64";
+  return {};
+}
+
 llvm::StringRef getComputedMaskSelectRuntimeABIOrder(
     RVVSelectedBodyOperationKind op) {
   if (usesVectorCompareComputedMaskSelectProducer(op))
@@ -7415,6 +7439,50 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask select route-family plan requires the matching select "
         "memory form");
+  if (plan.typedConfigFactsID.empty() || plan.elementTypeName.empty() ||
+      plan.elementCType.empty() || plan.elementBitWidth == 0 ||
+      plan.sew == 0 || plan.lmul.empty() || plan.tailPolicy.empty() ||
+      plan.maskPolicy.empty() || plan.configContractID.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires provider-derived "
+        "typed config facts for element type, signed C type, SEW, LMUL, "
+        "policy, and config contract");
+  if (plan.elementBitWidth != plan.sew)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires element bit width "
+        "to mirror provider-derived SEW");
+  llvm::StringRef expectedElementType =
+      getComputedMaskSelectElementTypeForSEW(plan.sew);
+  if (expectedElementType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("computed-mask select route-family plan requires a "
+                    "supported integer element type for SEW ") +
+        llvm::Twine(plan.sew));
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskSelectPlanField(
+              plan, "element type", plan.elementTypeName,
+              expectedElementType))
+    return error;
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul ||
+      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      plan.configContractID != plan.runtimeControlPlan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires typed config "
+        "SEW/LMUL/policy/contract facts to mirror runtime AVL/VL control "
+        "facts");
+  if (isVectorProducer) {
+    if (!isSupportedTypedComputedMaskSelectRouteConfig(plan.sew, plan.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask select route-family plan supports only bounded "
+          "vector computed-mask select configs SEW32 LMUL m1, SEW32 LMUL m2, "
+          "or SEW64 LMUL m1");
+  } else if (!isE32M1ComputedMaskSelectRouteConfig(plan.sew, plan.lmul)) {
+    return makeRVVEmitCRouteProviderError(
+        "runtime-scalar computed-mask select route-family plan remains "
+        "bounded to SEW32 LMUL m1 typed config");
+  }
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskSelectPlanField(
               plan, "runtime control plan",
@@ -7474,54 +7542,36 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskSelectPlanField(
               plan, "VL C type", plan.vlCType, "size_t"))
     return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "vector type", plan.vectorTypeName,
-              "!tcrv_rvv.vector<i32, \"m1\">"))
-    return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
-    return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "mask type", plan.maskTypeName,
-              "!tcrv_rvv.mask<i32, \"m1\">"))
-    return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "mask C type", plan.maskCType, "vbool32_t"))
-    return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "setvl leaf", plan.setVLIntrinsic,
-              "__riscv_vsetvl_e32m1"))
-    return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-              "__riscv_vle32_v_i32m1"))
-    return error;
+  if (plan.vectorTypeName.empty() || plan.vectorCType.empty() ||
+      plan.maskTypeName.empty() || plan.maskCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires typed vector and "
+        "mask type/C type facts");
+  if (plan.setVLIntrinsic.empty() || plan.vectorLoadIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires provider-derived "
+        "setvl and vector-load leaves");
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskSelectPlanField(
               plan, "RHS scalar splat leaf",
               plan.rhsScalarSplatIntrinsic,
               isVectorProducer ? "" : "__riscv_vmv_v_x_i32m1"))
     return error;
+  if ((isVectorProducer && plan.comparePredicateKind != "slt" &&
+       plan.comparePredicateKind != "sle") ||
+      (!isVectorProducer && plan.comparePredicateKind != "sle"))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires vector predicates "
+        "slt or sle and runtime-scalar predicate kind sle from typed "
+        "tcrv_rvv.compare");
+  if (plan.compareIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires a provider-derived "
+        "compare leaf");
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, isDual ? "compare A leaf" : "compare leaf",
-              plan.compareIntrinsic,
-              isVectorProducer
-                  ? getRVVSelectedBodyCompareIntrinsic(
-                        plan.operation == RVVSelectedBodyOperationKind::
-                                              ComputedMaskSelect
-                            ? plan.compareIntrinsic == "__riscv_vmslt_vv_i32m1_b32"
-                                  ? "slt"
-                                  : "sle"
-                            : "sle",
-                        tcrv::rvv::getRVVLMULM1())
-                  : "__riscv_vmsle_vv_i32m1_b32"))
+              plan, "compare B predicate", plan.secondaryComparePredicateKind,
+              isDual ? "sle" : ""))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskSelectPlanField(
@@ -7533,16 +7583,10 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
               plan, "mask-and leaf", plan.maskAndIntrinsic,
               isDual ? "__riscv_vmand_mm_b32" : ""))
     return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "select leaf", plan.selectIntrinsic,
-              "__riscv_vmerge_vvm_i32m1"))
-    return error;
-  if (llvm::Error error =
-          requireRVVSelectedBodyComputedMaskSelectPlanField(
-              plan, "store leaf", plan.storeIntrinsic,
-              "__riscv_vse32_v_i32m1"))
-    return error;
+  if (plan.selectIntrinsic.empty() || plan.storeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires provider-derived "
+        "select and store leaves");
   const RVVSelectedBodyOperationProfile &operationProfile =
       getRVVSelectedBodyOperationProfile(plan.operation);
   if (llvm::Error error =
@@ -7659,11 +7703,19 @@ deriveRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask select route-family plan requires vector predicates "
         "'slt' or 'sle' and runtime-scalar predicate_kind 'sle'");
-  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+  if (isVectorProducer) {
+    if (!isSupportedTypedComputedMaskSelectRouteConfig(configProfile.sew,
+                                                       configProfile.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask select route-family plan supports only bounded "
+          "vector computed-mask select configs SEW32 LMUL m1, SEW32 LMUL m2, "
+          "or SEW64 LMUL m1");
+  } else if (!isE32M1ComputedMaskSelectRouteConfig(configProfile.sew,
+                                                   configProfile.lmul)) {
     return makeRVVEmitCRouteProviderError(
-        "computed-mask select route-family plan currently "
-        "requires SEW32 LMUL m1 typed config");
+        "runtime-scalar computed-mask select route-family plan remains "
+        "bounded to SEW32 LMUL m1 typed config");
+  }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       analysis.slice.rhsABI.role !=
@@ -7709,6 +7761,19 @@ deriveRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   plan.usesRuntimeScalarProducer = isRuntimeScalarProducer;
   plan.usesDualCompareMaskAnd = isDual;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  if (!analysis.typedConfigFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask select route-family plan requires typed RVV config "
+        "facts before deriving dtype/SEW/LMUL route facts");
+  plan.typedConfigFactsID = analysis.typedConfigFacts.factsID;
+  plan.elementTypeName = analysis.typedConfigFacts.elementTypeName;
+  plan.elementCType = configProfile.scalarCType;
+  plan.elementBitWidth = analysis.typedConfigFacts.elementBitWidth;
+  plan.sew = analysis.typedConfigFacts.sew;
+  plan.lmul = analysis.typedConfigFacts.lmul;
+  plan.tailPolicy = analysis.typedConfigFacts.tailPolicy;
+  plan.maskPolicy = analysis.typedConfigFacts.maskPolicy;
+  plan.configContractID = analysis.typedConfigFacts.configContractID;
   plan.familyPlanID = kRVVComputedMaskSelectRouteFamilyPlanID;
   plan.maskProducerSource =
       getComputedMaskSelectMaskProducerSource(plan.operation);
@@ -7734,6 +7799,9 @@ deriveRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
   plan.rhsScalarSplatIntrinsic =
       isRuntimeScalarProducer ? targetLeaves.rhsBroadcastIntrinsic : "";
+  plan.comparePredicateKind = analysis.slice.compareOp.getKind();
+  plan.secondaryComparePredicateKind =
+      isDual ? analysis.slice.secondaryCompareOp.getKind() : "";
   plan.compareIntrinsic = targetLeaves.compareIntrinsic;
   if (isDual) {
     plan.secondaryCompareIntrinsic = targetLeaves.compareIntrinsic;
@@ -7801,6 +7869,8 @@ void applyRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   description.setVLIntrinsic = plan.setVLIntrinsic;
   description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
   description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
+  description.comparePredicateKind = plan.comparePredicateKind;
+  description.secondaryComparePredicateKind = plan.secondaryComparePredicateKind;
   description.compareIntrinsic = plan.compareIntrinsic;
   description.secondaryCompareIntrinsic = plan.secondaryCompareIntrinsic;
   description.maskAndIntrinsic = plan.maskAndIntrinsic;
@@ -10721,8 +10791,15 @@ deriveRVVSelectedBodyTargetLeafProfile(
         description.operation == RVVSelectedBodyOperationKind::CmpSelect &&
         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
         configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    const bool supportsComputedMaskI64CompareSelect =
+        description.operation ==
+            RVVSelectedBodyOperationKind::ComputedMaskSelect &&
+        description.memoryForm ==
+            RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
     if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic &&
-        !supportsPlainI64CompareSelect)
+        !supportsPlainI64CompareSelect &&
+        !supportsComputedMaskI64CompareSelect)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
@@ -22284,6 +22361,9 @@ llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
       analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
       analysis.description.rhsBroadcastIntrinsic !=
           plan.rhsScalarSplatIntrinsic ||
+      analysis.description.comparePredicateKind != plan.comparePredicateKind ||
+      analysis.description.secondaryComparePredicateKind !=
+          plan.secondaryComparePredicateKind ||
       analysis.description.compareIntrinsic != plan.compareIntrinsic ||
       analysis.description.secondaryCompareIntrinsic !=
           plan.secondaryCompareIntrinsic ||

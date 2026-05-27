@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project boundary, source-of-truth order, RVV-first authority chain, and Stage1/Stage2 sequencing constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned computed-mask select selected-body realization, typed SEW/LMUL/config authority, route provider construction, route-control/mask-tail/statement-plan facts, fail-closed diagnostics, mirror metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundary; mem_window/runtime_param must not define RVV compute, dtype, config, or route identity."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality contract for provider-derived route facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle compare/select predicate evidence, mirror-only metadata, and ssh rvv requirements for runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-typed-compare-select-route-family-derivation/prd.md", "reason": "Adjacent completed typed compare/select derivation and evidence pattern to reuse without expanding plain compare/select."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-computed-mask-select-route-control-provider-plan/prd.md", "reason": "Existing computed-mask select route-control provider plan and fail-closed dependency contract."}
