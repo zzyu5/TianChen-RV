@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundary, RVV-first authority chain, and Stage2 selected-body realization order."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, scalar-broadcast elementwise route ownership, direct route-entry boundaries, mirror-only metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window/runtime_param ABI role boundaries and selected-path metadata mirror rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership, common EmitC neutrality, target artifact authority, and legacy/direct shortcut rejection rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-stage2-rvv-selected-body-realization-producer/prd.md", "reason": "Prior selected-body producer proof and computed_mask_select producer-boundary acceptance pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-runtime-memory-realization/prd.md", "reason": "Prior runtime_i32_splat_store producer-boundary evidence and direct route-entry demotion pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-stage2-rvv-scalar-broadcast-elementwise-route-entry-owner/prd.md", "reason": "Stale direct route-entry scalar_broadcast_add proof to demote under this redirect."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-runtime-scalar-broadcast-add-executable-slice/prd.md", "reason": "Earlier selected-boundary scalar_broadcast_add producer path and ssh rvv evidence baseline."}

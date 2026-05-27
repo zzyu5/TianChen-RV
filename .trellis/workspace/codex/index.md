@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-16.md`
-- **Total Sessions**: 258
+- **Total Sessions**: 259
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-16.md` | ~1206 | Active |
+| `journal-16.md` | ~1249 | Active |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
@@ -44,6 +44,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 259 | 2026-05-27 | Stage2 RVV scalar broadcast selected-boundary migration | - | `main` |
 | 258 | 2026-05-27 | Stage2 RVV runtime memory selected-body realization | pending-final-session-commit | `main` |
 | 257 | 2026-05-27 | Stage2 RVV selected-body realization producer | `4997baa5` | `main` |
 | 256 | 2026-05-27 | Stage2 RVV mask/tail policy route-family owner | pending-final-session-commit | `main` |

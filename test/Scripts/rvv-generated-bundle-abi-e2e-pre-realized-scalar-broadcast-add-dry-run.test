@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-scalar-broadcast-add --overwrite --op-kind scalar_broadcast_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-scalar-broadcast-add/evidence.json
-# RUN: FileCheck %s --check-prefix=SCALAR --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/evidence.json
+# RUN: FileCheck %s --check-prefix=SCALAR --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/rvv_generated_bundle_abi_scalar_broadcast_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -26,6 +26,8 @@
 # SCALAR-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # SCALAR-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
 # SCALAR-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SCALAR-DAG: "route_entry_realization": false
+# SCALAR-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
 # SCALAR-DAG: "pre_realized_body_consumed": true
 # SCALAR-DAG: "key": "rvv_emitc_lowerable_route"
 # SCALAR-DAG: "value": "rvv-generic-scalar-broadcast-add-emitc-route"

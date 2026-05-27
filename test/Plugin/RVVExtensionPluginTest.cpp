@@ -1689,6 +1689,8 @@ module {
         expectedProviderPlanID ==
             "rvv-computed-mask-select-route-family-plan.v1" ||
         expectedProviderPlanID ==
+            "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
+        expectedProviderPlanID ==
             "rvv-runtime-scalar-splat-store-route-family-plan.v1";
     const bool routeEntryEligible = (*owner)->isRouteEntryConsumer != nullptr &&
                                     (*owner)->isRouteEntryConsumer(preRealized);
@@ -1862,7 +1864,7 @@ module {
                   countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.binary") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
-              llvm::Twine("direct route-entry @") + variantName +
+              llvm::Twine("selected-body producer @") + variantName +
                   " realizes lhs load, RHS scalar splat, binary, and store"))
         return result;
     }
@@ -2156,12 +2158,28 @@ module {
                           "owner-local negative tests"))
     return result;
   if (int result = expect(
-          elementwiseCompareSelectOwner->isRouteEntryConsumer(
+          !elementwiseCompareSelectOwner->isRouteEntryConsumer(
               negativeScalarBroadcastBody.getOperation()),
-          "scalar_broadcast_add fixture is route-entry eligible through the "
-          "elementwise/compare-select owner predicate before targeted "
-          "mutation"))
+          "scalar_broadcast_add fixture is not route-entry eligible and must "
+          "use the selected-body realization producer"))
     return result;
+  {
+    mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
+        tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+            VariantLoweringBoundaryRequest(
+                negativeScalarBroadcastVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, directRouteEntryBuilder));
+    if (directRouteEntry)
+      return fail("direct route-entry accepted scalar_broadcast_add instead "
+                  "of requiring the selected-body realization producer");
+    if (int result = expectErrorContains(
+            directRouteEntry.takeError(),
+            {"selected-body route-entry realization currently supports only",
+             "selected body belongs to another RVV realization family"}))
+      return result;
+  }
+
   auto expectScalarBroadcastOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());

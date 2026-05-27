@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation remains within TianChen-RV RVV-first authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, scalar-broadcast provider facts, route-entry demotion, fail-closed diagnostics, and mirror-only metadata compliance."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime role binding and selected-path metadata are not treated as compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route ownership, common EmitC neutrality, and target artifact export authority."}
+{"file": ".trellis/tasks/05-27-05-27-stage2-rvv-scalar-broadcast-selected-realization-migration/prd.md", "reason": "Verify implementation and evidence satisfy this task's bounded acceptance criteria."}

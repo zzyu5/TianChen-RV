@@ -1216,3 +1216,62 @@ Proved runtime_i32_splat_store through the RVV plugin-local selected-body realiz
 ### Next Steps
 
 - None - task complete
+
+
+## Session 259: Stage2 RVV scalar broadcast selected-boundary migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV scalar broadcast selected-boundary migration
+**Branch**: `main`
+
+### Summary
+
+Demoted scalar_broadcast_add direct pre-realized route-entry authority, kept selected lowering-boundary producer path positive, added fail-closed and selected-boundary evidence, ran ssh rvv and check-tianchenrv.
+
+### Main Changes
+
+- Demoted `scalar_broadcast_add` from direct pre-realized route-entry
+  eligibility while keeping the public selected lowering-boundary producer path
+  positive.
+- Updated generated-bundle tooling so
+  `--direct-pre-realized-route-entry --op-kind scalar_broadcast_add` fails
+  closed before bundle generation.
+- Updated RVV plugin C++ coverage to prove `scalar_broadcast_add` is
+  selected-boundary producer eligible, not route-entry eligible, and that the
+  realized body still reaches the scalar-broadcast elementwise provider plan.
+- Replaced the positive direct route-entry script test with a fail-closed
+  script test, and strengthened selected-boundary evidence to require
+  `route_entry_realization = false`.
+
+### Git Commits
+
+(Commit created after this journal entry.)
+
+### Testing
+
+- [OK] Trellis context validation
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] selected-boundary `scalar_broadcast_add` generated-bundle dry-run,
+  counts `0,1,16,17,257`, RHS scalars `-37,19`
+- [OK] direct pre-realized route-entry `scalar_broadcast_add` fails closed
+  before bundle generation
+- [OK] focused lit filters:
+  `pre-realized-scalar-broadcast-add|direct-pre-realized-scalar-broadcast-add`
+  passed 2/2, and `scalar-broadcast-add` passed 6/6
+- [OK] selected-body producer non-regression dry-run for
+  `computed_mask_select` and `runtime_i32_splat_store`
+- [OK] real `ssh rvv` generated-bundle run for `scalar_broadcast_add`,
+  counts `0,1,16,17,257`, RHS scalars `-37,19`
+- [OK] authority scan and `git diff --check`
+- [OK] final single-instance `check-tianchenrv`: 391/391
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

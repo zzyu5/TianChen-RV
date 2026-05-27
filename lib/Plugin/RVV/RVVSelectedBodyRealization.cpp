@@ -804,7 +804,7 @@ bool isPreRealizedRVVTypedBinaryRouteEntryOp(mlir::Operation *op) {
     return false;
 
   if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm()))
-    return isSupportedPreRealizedArithmeticOpKind(body.getOpKind());
+    return false;
   if (isPreRealizedStridedMemoryForm(body.getMemoryForm()))
     return body.getOpKind() == "add";
   if (isPreRealizedUnitStrideMemoryForm(body.getMemoryForm()))
