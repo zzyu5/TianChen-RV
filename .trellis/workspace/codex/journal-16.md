@@ -433,7 +433,17 @@ Strengthened standalone_reduce_add route-family ABI validation, direct route-ent
 
 ### Main Changes
 
-(Add details)
+- Created a bounded repair task for the stray classroom task residue and
+  archived it after cleanup.
+- Verified the stray classroom task was Codex-created, `in_progress`, and
+  targeted a separate classroom worktree/branch rather than the main serial RVV
+  loop.
+- Removed only the untracked classroom task directory:
+  `.trellis/tasks/05-27-classroom-bitwise-xor-slice-workflow/`.
+- Left `.trellis/.current-task` absent and active task list empty after
+  archiving the repair task.
+- Did not change RVV production/compiler code, generated artifacts, experiments,
+  or tests.
 
 ### Git Commits
 
@@ -443,7 +453,13 @@ Strengthened standalone_reduce_add route-family ABI validation, direct route-ent
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-27-trellis-control-plane-stray-classroom-task-repair`
+- [OK] `git diff --check`
+- [OK] `test ! -e .trellis/tasks/05-27-classroom-bitwise-xor-slice-workflow && echo gone`
+- [OK] `python3 ./.trellis/scripts/task.py list --status in_progress`
+  returned no active tasks after archive.
+- [OK] `git status --short -- ':!.trellis/tasks/**'` showed no non-task
+  changes before journal/archive commit.
 
 ### Status
 
@@ -1013,6 +1029,39 @@ Migrated runtime scalar splat-store behind the RVV runtime AVL/VL control owner,
 
 - None - task complete
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 255: Trellis control-plane stray classroom task repair
+
+**Date**: 2026-05-27
+**Task**: Trellis control-plane stray classroom task repair
+**Branch**: `main`
+
+### Summary
+
+Removed stale untracked classroom XOR task residue after proving it was unrelated to the main serial RVV loop; archived the bounded repair task and left no active Trellis task.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

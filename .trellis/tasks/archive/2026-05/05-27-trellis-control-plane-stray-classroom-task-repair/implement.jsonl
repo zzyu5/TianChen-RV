@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundaries and source-of-truth rules; this cleanup must not change compiler or RVV behavior."}
