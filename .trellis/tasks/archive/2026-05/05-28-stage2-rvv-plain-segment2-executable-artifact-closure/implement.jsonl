@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 boundary, and mirror/evidence rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Selected-body realization owner registry, segment2 selected-boundary-only rule, route/provider/statement-plan contracts, artifact ABI contract, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope authority and prohibition on core compute/route semantics."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for provider-built EmitC routes and executable artifact evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and TCRVEmitCLowerableRoute ownership constraints."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required MLIR/C++/script and ssh rvv evidence expectations."}

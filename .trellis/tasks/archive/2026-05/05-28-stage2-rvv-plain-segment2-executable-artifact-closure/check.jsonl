@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work against RVV-first Stage2 authority and evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify segment2 selected-boundary-only execution, route/provider/statement-plan facts, artifact ABI validation, and direct fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Verify target artifact and lowering/runtime checklist items affected by generated-bundle execution."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC consumes provider-built routes without RVV semantic inference."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused tests, ssh rvv evidence, and legacy i32/source-front-door avoidance."}

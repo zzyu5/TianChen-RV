@@ -182,3 +182,70 @@ Demoted plain segment2 direct pre-realized route-entry support, kept selected-bo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 273: Stage2 RVV plain segment2 executable artifact closure
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV plain segment2 executable artifact closure
+**Branch**: `main`
+
+### Summary
+
+Revalidated selected-boundary plain segment2 generated-bundle executable artifacts on ssh rvv; no production repair needed.
+
+### Main Changes
+
+Created and completed the Trellis validation-closure task for Stage2 RVV plain segment2 selected-boundary executable artifacts. Current HEAD already satisfied the production path; no source code repair was needed.
+
+### Main Evidence
+
+- Dry-run selected-boundary evidence for `segment2_deinterleave_unit_store` and `segment2_interleave_unit_load` under `artifacts/tmp/stage2_plain_segment2_executable_closure/selected-boundary-dry-run`.
+- Both dry-runs reported `route_entry_realization: false`, `pre_realized_body_consumed: true`, and selected-boundary materialization through `tcrv-materialize-selected-lowering-boundaries`.
+- Direct pre-realized route-entry probes for both plain segment2 ops failed closed with the selected-boundary-only diagnostic.
+- Non-dry-run generated-bundle evidence under `artifacts/tmp/stage2_plain_segment2_executable_closure/ssh-rvv-executable` compiled and ran on `ssh rvv` for both ops with counts `0,1,16,17,257`.
+- Harness output passed field-order-distinguishing and tail-preservation checks for both deinterleave and interleave.
+
+### Checks
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- Focused lit filter for two plain segment2 dry-run tests, two direct fail-closed tests, and two pre-realized selected-body artifact tests: 6/6 passed.
+- Computed-mask segment2 selected-boundary dry-run non-regression passed.
+- `git diff --check`
+- `cmake --build build --target check-tianchenrv -j2`: 405/405 passed after cleaning duplicate-run output races.
+
+### Notes
+
+A duplicated concurrent full-check attempt created generated-output races and false failures. After both duplicate jobs exited, generated lit `Output` directories were cleaned and a single full check passed 405/405. No `.trellis/spec/` update was needed because the relevant segment2 selected-boundary, artifact ABI, and mirror-authority contracts were already present.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] selected-boundary dry-run for both plain segment2 ops with counts `0,1,16,17,257`
+- [OK] direct pre-realized route-entry fail-closed probes for both plain segment2 ops
+- [OK] non-dry-run generated-bundle execution on `ssh rvv` for both plain segment2 ops with counts `0,1,16,17,257`
+- [OK] computed-mask segment2 selected-boundary dry-run non-regression
+- [OK] focused lit filter for the two dry-run tests, two direct fail-closed tests, and two pre-realized selected-body artifact tests: 6/6 passed
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 405/405 passed after cleaning duplicate-run output races
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
