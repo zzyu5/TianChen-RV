@@ -63,43 +63,22 @@ test/Target/RVV/
 4. verifier negative case 必须覆盖至少一个“会误导 route authority”的错误，例如 dtype/LMUL 不匹配、ABI role 缺失、mask 来源不合法、immediate 超界、unsupported policy。
 5. runtime proof 可选；如果 PR 声明运行正确性，必须附 QEMU 或等价 RVV 环境命令和输出。
 
-## 难度与分配审查
+## 分配与工作量口径
 
-这 25 个 slice 都是真实 compiler contribution，不是只补 FileCheck 的练习。为了让 25 个人工作量相对平衡，分配时按下面规则处理：
+这 25 个 slice 都按完整 compiler contribution 设计，适合随机分配。每个题都应该做到同一条主线：
 
-- A 类：适合作为大多数学生的两周任务。基础要求完成后，再选一个进阶或 QEMU proof 做区分。
-- B 类：需要更多 provider / ABI / verifier 设计，适合能力较强或两人 review 更密的学生。
-- C 类：真实可做，但工具链、语义或主线交叉风险更高。只建议分给能先写清边界的学生。
+```text
+typed RVV IR
+  -> verifier / legality
+  -> RVV provider route
+  -> EmitC / RVV C++ evidence
+  -> negative test
+  -> 可选 QEMU proof 或进阶项
+```
 
-| # | Slice | 建议难度 | 平衡说明 |
-|---|---|---|---|
-| 1 | Compress Store | B | 语义清楚但需要 mask、dense write、可选 lane-count ABI。 |
-| 2 | Slide Down | A | 典型 movement slice，offset verifier 和 QEMU 输入容易区分。 |
-| 3 | Slide Up | A | 可复用 slide-down surface，但要处理 fill/overlap/policy。 |
-| 4 | Register Gather | B | 和 memory indexed load 区分明确，index vector verifier 有工作量。 |
-| 5 | Mask Logical Completion | B | 需要接入现有 mask composition，避免重复 mask_and。 |
-| 6 | Mask Population And First-Set Queries | B | 有 scalar result ABI，适合训练 boundary 设计。 |
-| 7 | Unsigned Compare And Select | A | signed/unsigned 差异容易构造测试，边界清楚。 |
-| 8 | Signed Predicate Completion | A | 重点是 predicate canonicalization 和 operand-swap 测试。 |
-| 9 | Integer Min/Max | A | generic binary 扩展，和 xor 示例同类但有 signedness。 |
-| 10 | Bitwise Logical Arithmetic | A | xor 已完成作参考；and/or 足够小但需要完整链路。 |
-| 11 | Shift Operations | B | VV/VX/VI amount form 需要建模，进阶空间足。 |
-| 12 | Vector-Scalar VX Arithmetic | B | 触及 operand form 和 runtime scalar binding，不能退化成 broadcast helper。 |
-| 13 | Immediate VI Arithmetic | B | immediate range/signedness verifier 是主要工作量。 |
-| 14 | Reverse Subtract And Negation | A | 小而有效，测试能暴露 operand-order bug。 |
-| 15 | Widening Add/Subtract | B | 要避开已有 widening conversion/MAcc/dot-reduce，边界需写清。 |
-| 16 | Widening Multiply | B | 和 widening dot/reduction 区分明显，signedness relation 有工作量。 |
-| 17 | Narrowing Conversion | C | rounding/saturation/policy 设计较难，适合强学生。 |
-| 18 | F32 Elementwise Arithmetic | C | dtype/C type/floating intrinsic 链路较大，基础要求应限制在 add/mul。 |
-| 19 | F32 FMA | C | ternary/FMA surface 和 intrinsic family 复杂，适合作为挑战题。 |
-| 20 | Floating Compare And Select | C | NaN/ordered policy 容易出歧义，需严格限定。 |
-| 21 | Saturating Add/Subtract | B | fixed-point 语义明确，QEMU 输入能很好地区分正确性。 |
-| 22 | Multiply-High Family | B | 高位乘法测试有区分度，signedness relation 明确。 |
-| 23 | Whole-Register Load/Store | C | toolchain intrinsic 支持和 group count 风险较高，先做 FileCheck。 |
-| 24 | Fault-Only-First Load | C | runtime 行为可能受 QEMU/内存异常语义影响，QEMU proof 只作为进阶。 |
-| 25 | Indexed EEW Variants | B | 扩展已有 indexed surface，重点是 EEW/LMUL legality。 |
+基础要求是最低交付线，不是满分线。进阶要求、QEMU proof、边界更完整的 negative tests、以及更清楚的 harness 输入输出，用来体现完成质量和区分度。
 
-整体上，A 类约 8 个、B 类约 11 个、C 类约 6 个。真实分配时可以让基础较弱的学生做 A 类并要求 QEMU proof，让强学生做 B/C 类但严格限制边界。不要把 C 类扩成 runtime 框架或前端工程。
+分配后不要主动换题或合并题目。如果发现自己的 slice 会撞到 `segment2` route-family、source-front-door、common EmitC RVV semantic branch 或大 runtime 框架，先报告边界问题，不要自行扩题。
 
 ## 测试用例收集格式
 
@@ -598,40 +577,13 @@ test/Target/RVV/
 
 进阶要求：添加 ordered / unordered indexed memory policy。
 
-## 优先级建议
+## 不进入本轮题库的方向
 
-第一批更适合学生并且不撞主线 loop：
-
-```text
-1 compress
-2 slide-down
-3 slide-up
-4 register-gather
-6 mask-query
-10 bitwise
-11 shift
-13 immediate
-14 reverse-subtract
-17 narrowing
-21 saturating
-22 multiply-high
-23 whole-register
-24 fault-only-first
-25 indexed-EEW
-```
-
-需要和教师确认边界后再分配：
-
-```text
-5 mask logical completion
-7/8 predicate completion
-12 VX arithmetic
-15/16 widening add/sub/mul
-18/19/20 floating family
-```
-
-暂不分配：
+本轮 25 个题目之外，不要主动扩展到下面方向：
 
 ```text
 segment3 / segment4 / segmentN generic route-family
+source-front-door / source-artifact positive route
+Toy / Template / TensorExtLite / Offload
+common EmitC RVV semantic branch
 ```
