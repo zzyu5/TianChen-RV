@@ -1,0 +1,21 @@
+{"file": ".trellis/spec/index.md", "reason": "global RVV-first authority chain, Stage1/Stage2 gates, and descriptor/source-front-door red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owners, segment2 computed-mask memory family, route-entry bridge constraints, provider facts, artifact mirrors, and fail-closed diagnostics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundaries for selected RVV variants"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and neutral common EmitC responsibilities"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-local selected-body realization and route-provider registry authority"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected typed body, realization, and route-provider pipeline contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ tests, generated-bundle evidence, and ssh rvv correctness requirements"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "ensure computed-masked segment2 migration stays RVV plugin-local and does not move semantics into common/core"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "ensure typed body/config/runtime facts constrain route support without metadata-derived dtype or route authority"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "ensure segment2 memory compute remains in tcrv_rvv selected body, not tcrv.exec or common EmitC"}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "removed computed-masked segment2 load/store/update from the direct segment2 route-entry family owner registry while keeping segment2 selected-body realization ownership"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "removed segment2 provider-plan dependence on selected-body route-entry family owners so selected-boundary computed-mask segment2 provider plans use typed route-family facts"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "bounded direct pre-realized route-entry mode to plain segment2 fixtures and made migrated computed-mask segment2 direct shortcut requests fail closed"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "updated owner registry and selected-boundary tests for computed-masked segment2 direct demotion and provider consumption"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-load-dry-run.test", "reason": "converted direct computed-mask segment2 load route-entry dry-run into fail-closed coverage"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-store-dry-run.test", "reason": "converted direct computed-mask segment2 store route-entry dry-run into fail-closed coverage"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-update-dry-run.test", "reason": "converted direct computed-mask segment2 update route-entry dry-run into fail-closed coverage"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-load-dry-run.test", "reason": "strengthened selected-boundary computed-mask segment2 load dry-run evidence for route_entry_realization false and ssh-like counts"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-store-dry-run.test", "reason": "added selected-boundary computed-mask segment2 store dry-run evidence"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-update-dry-run.test", "reason": "added selected-boundary computed-mask segment2 update dry-run evidence"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "recorded durable selected-boundary-only rule for computed-masked segment2 load/store/update direct route-entry demotion"}

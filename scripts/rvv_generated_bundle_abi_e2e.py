@@ -1872,10 +1872,7 @@ class OpExpectation:
     @property
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
-            self.is_computed_masked_segment2_load_unit_store
-            or self.is_computed_masked_segment2_store_unit_load
-            or self.is_computed_masked_segment2_update_unit_load
-            or self.is_segment2_deinterleave_unit_store
+            self.is_segment2_deinterleave_unit_store
             or self.is_segment2_interleave_unit_load
         )
 
@@ -16852,10 +16849,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         if unsupported_direct:
             raise EvidenceError(
                 "--direct-pre-realized-route-entry is bounded to "
-                "pre-realized computed_masked_segment2_load_unit_store/"
-                "computed_masked_segment2_store_unit_load/"
-                "computed_masked_segment2_update_unit_load/"
-                "segment2_deinterleave_unit_store/"
+                "pre-realized segment2_deinterleave_unit_store/"
                 "segment2_interleave_unit_load "
                 f"fixtures; got {unsupported_direct}"
             )
@@ -19901,9 +19895,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "with --pre-realized-selected-body, skip the public selected "
             "lowering-boundary materializer and require the RVV production "
             "emission-plan route-entry bridge to realize bounded "
-            "computed_masked_segment2_load_unit_store/"
-            "computed_masked_segment2_store_unit_load/"
-            "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load "
             "fixtures before target bundle export"

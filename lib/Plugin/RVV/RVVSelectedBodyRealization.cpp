@@ -824,98 +824,6 @@ bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
 }
 
-bool isPreRealizedRVVComputedMaskSegment2LoadRouteEntryOp(
-    mlir::Operation *op) {
-  if (auto body = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(op))
-    return isPreRealizedComputedMaskSegment2LoadOpKind(body.getOpKind()) &&
-           isPreRealizedComputedMaskSegment2LoadMemoryForm(
-               body.getMemoryForm()) &&
-           isPreRealizedComputedMaskMemoryMovementPredicateKind(
-               body.getPredicateKind()) &&
-           static_cast<std::int64_t>(body.getSegmentCount()) == 2 &&
-           isPreRealizedSegment2DeinterleaveField0Role(
-               body.getField0Role()) &&
-           isPreRealizedSegment2DeinterleaveField1Role(
-               body.getField1Role()) &&
-           body.getField0Role() != body.getField1Role() &&
-           isPreRealizedSegment2DeinterleaveSourceMemoryForm(
-               body.getSourceMemoryForm()) &&
-           isPreRealizedSegment2DeinterleaveDestinationMemoryForm(
-               body.getDestinationMemoryForm()) &&
-           isPreRealizedComputedMaskMemoryMovementMaskRole(
-               body.getMaskRole()) &&
-           isPreRealizedComputedMaskMemoryMovementMaskSource(
-               body.getMaskSource()) &&
-           isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
-               body.getMaskMemoryForm()) &&
-           body.getInactiveLanePolicy() ==
-               "preserve-passthrough-on-false-lanes" &&
-           static_cast<std::int64_t>(body.getSew()) ==
-               tcrv::rvv::getRVVFirstSliceSEWBits() &&
-           body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
-           tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
-  return false;
-}
-
-bool hasPreRealizedRVVComputedMaskSegment2StoreLikeRouteEntryFacts(
-    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
-  return isPreRealizedComputedMaskSegment2StoreMemoryForm(
-             body.getMemoryForm()) &&
-         isPreRealizedComputedMaskMemoryMovementPredicateKind(
-             body.getPredicateKind()) &&
-         static_cast<std::int64_t>(body.getSegmentCount()) == 2 &&
-         isPreRealizedSegment2InterleaveField0Role(body.getField0Role()) &&
-         isPreRealizedSegment2InterleaveField1Role(body.getField1Role()) &&
-         body.getField0Role() != body.getField1Role() &&
-         isPreRealizedSegment2InterleaveSourceMemoryForm(
-             body.getSource0MemoryForm()) &&
-         isPreRealizedSegment2InterleaveSourceMemoryForm(
-             body.getSource1MemoryForm()) &&
-         isPreRealizedSegment2InterleaveDestinationMemoryForm(
-             body.getDestinationMemoryForm()) &&
-         isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()) &&
-         isPreRealizedComputedMaskMemoryMovementMaskSource(
-             body.getMaskSource()) &&
-         isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
-             body.getMaskMemoryForm()) &&
-         body.getInactiveLanePolicy() == "preserve-output-on-false-lanes" &&
-         static_cast<std::int64_t>(body.getSew()) ==
-             tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         body.getLmul() == tcrv::rvv::getRVVLMULM1() &&
-         tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy());
-}
-
-bool isPreRealizedRVVComputedMaskSegment2StoreRouteEntryOp(
-    mlir::Operation *op) {
-  auto body =
-      llvm::dyn_cast<tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
-          op);
-  if (!body)
-    return false;
-  if (!isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()) ||
-      isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind()))
-    return false;
-  if (body->getAttrOfType<mlir::StringAttr>("arithmetic_kind"))
-    return false;
-  return hasPreRealizedRVVComputedMaskSegment2StoreLikeRouteEntryFacts(body);
-}
-
-bool isPreRealizedRVVComputedMaskSegment2UpdateRouteEntryOp(
-    mlir::Operation *op) {
-  auto body =
-      llvm::dyn_cast<tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
-          op);
-  if (!body ||
-      !isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind()))
-    return false;
-  auto arithmeticKind =
-      body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
-  if (!arithmeticKind || arithmeticKind.getValue() != "add")
-    return false;
-  return hasPreRealizedRVVComputedMaskSegment2StoreLikeRouteEntryFacts(body);
-}
-
 bool isPreRealizedRVVPlainSegment2DeinterleaveRouteEntryOp(
     mlir::Operation *op) {
   if (auto body = llvm::dyn_cast<
@@ -942,12 +850,6 @@ bool isPreRealizedRVVPlainSegment2InterleaveRouteEntryOp(mlir::Operation *op) {
 llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
 getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry() {
   static const RVVSelectedBodySegment2RouteEntryFamilyOwner owners[] = {
-      {"computed-mask segment2 load",
-       isPreRealizedRVVComputedMaskSegment2LoadRouteEntryOp},
-      {"computed-mask segment2 store",
-       isPreRealizedRVVComputedMaskSegment2StoreRouteEntryOp},
-      {"computed-mask segment2 update",
-       isPreRealizedRVVComputedMaskSegment2UpdateRouteEntryOp},
       {"plain segment2 deinterleave",
        isPreRealizedRVVPlainSegment2DeinterleaveRouteEntryOp},
       {"plain segment2 interleave",

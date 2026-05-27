@@ -29825,36 +29825,6 @@ bool isRVVSelectedBodyPlainSegment2InterleaveRouteFamilyPlanningConsumer(
              RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
 }
 
-llvm::Error requireRVVSegment2PlanningOwnerBackedBySelectedBodyFamily(
-    llvm::StringRef familyName,
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef context) {
-  unsigned matches = 0;
-  bool hasConsumerPredicate = false;
-  for (const RVVSelectedBodySegment2RouteEntryFamilyOwner &owner :
-       getRVVSelectedBodySegment2RouteEntryFamilyOwners()) {
-    if (owner.familyName != familyName)
-      continue;
-    ++matches;
-    hasConsumerPredicate |= static_cast<bool>(owner.isConsumer);
-  }
-  if (matches == 1 && hasConsumerPredicate)
-    return llvm::Error::success();
-  if (matches == 0)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " segment2 route-family planning owner '" + familyName +
-        "' is not backed by a selected-body route-entry family owner before "
-        "provider route construction for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) +
-      " segment2 route-family planning owner '" + familyName +
-      "' is backed by an invalid selected-body route-entry family owner "
-      "registry state before provider route construction for operation '" +
-      stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-}
-
 llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
@@ -29878,11 +29848,6 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
         "construction");
 
   plan.vlTypeName = "!tcrv_rvv.vl";
-
-  if (llvm::Error error =
-          requireRVVSegment2PlanningOwnerBackedBySelectedBodyFamily(
-              familyName, description, context))
-    return error;
 
   const bool isPlainDeinterleave =
       expectedOperation ==

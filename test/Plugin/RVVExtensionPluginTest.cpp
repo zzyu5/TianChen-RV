@@ -1570,14 +1570,12 @@ module {
       segment2RouteEntryOwners =
           getRVVSelectedBodySegment2RouteEntryFamilyOwners();
   if (int result = expect(
-          segment2RouteEntryOwners.size() == 5,
-          "segment2 route-entry family owner registry has exactly five active "
+          segment2RouteEntryOwners.size() == 2,
+          "segment2 route-entry family owner registry has exactly two active "
           "family entries"))
     return result;
   const llvm::StringRef expectedSegment2RouteEntryOwnerNames[] = {
-      "computed-mask segment2 load", "computed-mask segment2 store",
-      "computed-mask segment2 update", "plain segment2 deinterleave",
-      "plain segment2 interleave"};
+      "plain segment2 deinterleave", "plain segment2 interleave"};
   for (std::size_t i = 0; i < segment2RouteEntryOwners.size(); ++i) {
     if (int result = expect(
             segment2RouteEntryOwners[i].familyName ==
@@ -1616,21 +1614,6 @@ module {
             variantName);
   };
 
-  if (int result = expectSegment2RouteEntryFamily(
-          "rvv_pre_route_computed_masked_segment2_load_unit_store",
-          "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body",
-          "computed-mask segment2 load"))
-    return result;
-  if (int result = expectSegment2RouteEntryFamily(
-          "rvv_pre_route_computed_masked_segment2_store_unit_load",
-          "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body",
-          "computed-mask segment2 store"))
-    return result;
-  if (int result = expectSegment2RouteEntryFamily(
-          "rvv_pre_route_computed_masked_segment2_update_unit_load",
-          "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body",
-          "computed-mask segment2 update"))
-    return result;
   if (int result = expectSegment2RouteEntryFamily(
           "rvv_pre_route_segment2_deinterleave_unit_store",
           "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
@@ -1716,6 +1699,12 @@ module {
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
         variantName == "rvv_pre_route_strided_load_unit_store" ||
+        variantName ==
+            "rvv_pre_route_computed_masked_segment2_load_unit_store" ||
+        variantName ==
+            "rvv_pre_route_computed_masked_segment2_store_unit_load" ||
+        variantName ==
+            "rvv_pre_route_computed_masked_segment2_update_unit_load" ||
         ((variantName == "rvv_pre_route_computed_masked_macc_add" ||
           variantName ==
               "rvv_pre_route_runtime_scalar_computed_masked_macc_add") &&
@@ -1769,7 +1758,13 @@ module {
                 "rvv-plain-compare-select-route-family-plan.v1" ||
             expectedProviderPlanID ==
                 "rvv-standalone-reduction-route-family-plan.v1" ||
-            variantName == "rvv_pre_route_strided_load_unit_store") {
+            variantName == "rvv_pre_route_strided_load_unit_store" ||
+            variantName ==
+                "rvv_pre_route_computed_masked_segment2_load_unit_store" ||
+            variantName ==
+                "rvv_pre_route_computed_masked_segment2_store_unit_load" ||
+            variantName ==
+                "rvv_pre_route_computed_masked_segment2_update_unit_load") {
           mlir::OpBuilder directRouteEntryBuilder(module->getContext());
           llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
               tianchenrv::plugin::rvv::
@@ -2414,8 +2409,8 @@ module {
                               segment2MemoryOwner->realize != nullptr &&
                               segment2MemoryOwner->isRouteEntryConsumer !=
                                   nullptr,
-                          "found segment2 memory owner-local direct "
-                          "route-entry realization hook"))
+                          "found segment2 memory selected-body owner with "
+                          "plain route-entry predicate"))
     return result;
   VariantOp negativeComputedMaskSegment2LoadVariant = findVariant(
       kernel,
@@ -2431,11 +2426,10 @@ module {
                           "body for owner-local negative tests"))
     return result;
   if (int result = expect(
-          segment2MemoryOwner->isRouteEntryConsumer(
+          !segment2MemoryOwner->isRouteEntryConsumer(
               negativeComputedMaskSegment2LoadBody.getOperation()),
-          "computed-mask segment2 load fixture is route-entry eligible "
-          "through the segment2 memory owner predicate before targeted "
-          "mutation"))
+          "computed-mask segment2 load fixture is selected-boundary-only "
+          "even though the segment2 memory owner can realize it"))
     return result;
   auto expectComputedMaskSegment2LoadOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
@@ -2538,11 +2532,10 @@ module {
                           "body for owner-local negative tests"))
     return result;
   if (int result = expect(
-          segment2MemoryOwner->isRouteEntryConsumer(
+          !segment2MemoryOwner->isRouteEntryConsumer(
               negativeComputedMaskSegment2StoreBody.getOperation()),
-          "computed-mask segment2 store fixture is route-entry eligible "
-          "through the segment2 memory owner predicate before targeted "
-          "mutation"))
+          "computed-mask segment2 store fixture is selected-boundary-only "
+          "even though the segment2 memory owner can realize it"))
     return result;
   auto expectComputedMaskSegment2StoreOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
@@ -2650,26 +2643,23 @@ module {
   negativeComputedMaskSegment2StoreBody->setAttr(
       "arithmetic_kind", attrBuilder.getStringAttr("add"));
   if (int result = expect(
-          segment2MemoryOwner->isRouteEntryConsumer(
+          !segment2MemoryOwner->isRouteEntryConsumer(
               negativeComputedMaskSegment2StoreBody.getOperation()),
-          "computed-mask segment2 update fixture is route-entry eligible only "
-          "after arithmetic_kind add is structural in the typed body"))
+          "computed-mask segment2 update remains selected-boundary-only after "
+          "arithmetic_kind add is structural in the typed body"))
     return result;
-  llvm::Expected<const tianchenrv::plugin::rvv::
-                     RVVSelectedBodySegment2RouteEntryFamilyOwner *>
-      updateFamilyOwner =
-          tianchenrv::plugin::rvv::
-              getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
-                  negativeComputedMaskSegment2StoreBody.getOperation(),
-                  "computed-mask segment2 update route-entry owner test");
-  if (!updateFamilyOwner)
-    return fail("computed-mask segment2 update route-entry owner lookup "
-                "failed: " +
-                llvm::toString(updateFamilyOwner.takeError()));
-  if (int result = expect(
-          (*updateFamilyOwner)->familyName == "computed-mask segment2 update",
-          "computed-mask segment2 update dispatches through its route-entry "
-          "family owner, not the adjacent store owner"))
+  auto updateFamilyOwner =
+      tianchenrv::plugin::rvv::
+          getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
+              negativeComputedMaskSegment2StoreBody.getOperation(),
+              "computed-mask segment2 update route-entry owner test");
+  if (updateFamilyOwner)
+    return fail("computed-mask segment2 update unexpectedly selected a "
+                "direct route-entry family owner");
+  if (int result = expectErrorContains(
+          updateFamilyOwner.takeError(),
+          {"computed-mask segment2 update route-entry owner test",
+           "has no segment2 route-entry family owner"}))
     return result;
   negativeComputedMaskSegment2StoreBody->removeAttr("arithmetic_kind");
   negativeComputedMaskSegment2StoreBody->setAttr(

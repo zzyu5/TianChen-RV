@@ -68,3 +68,60 @@ real `ssh rvv` evidence, and preparing the Trellis task for archive and commit.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 271: Stage2 RVV computed-masked segment2 selected realization migration
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV computed-masked segment2 selected realization migration
+**Branch**: `main`
+
+### Summary
+
+Demoted computed-masked segment2 load/store/update direct route-entry shortcuts, preserved selected-boundary realization, verified focused C++/lit, ssh rvv evidence, authority scan, and check-tianchenrv 403/403.
+
+### Main Changes
+
+- `RVVSelectedBodyRealization.cpp`: removed computed-masked segment2
+  load/store/update from the direct segment2 route-entry family registry while
+  preserving the segment2 memory selected-body realization owner.
+- `RVVEmitCRoutePlanning.cpp`: removed provider planning dependence on
+  selected-body route-entry family owners so computed-mask segment2 selected
+  routes are backed by typed route-family/materialization/runtime facts.
+- `rvv_generated_bundle_abi_e2e.py`: bounded direct pre-realized route-entry
+  mode to plain segment2 deinterleave/interleave fixtures and made migrated
+  computed-mask segment2 direct requests fail closed.
+- `RVVExtensionPluginTest.cpp` and script tests: updated registry expectations,
+  selected-boundary producer coverage, direct fail-closed diagnostics, and
+  `route_entry_realization: false` generated-bundle evidence.
+- Specs/task notes: recorded computed-masked segment2 load/store/update as
+  selected-boundary-only for direct route-entry purposes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: demote computed mask segment2 route entries` |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit from `build/test` for three computed-mask segment2
+  direct-fail tests and three selected-boundary dry-run tests: 6/6 passed
+- [OK] real `ssh rvv` generated-bundle execution for
+  `computed_masked_segment2_load_unit_store`,
+  `computed_masked_segment2_store_unit_load`, and
+  `computed_masked_segment2_update_unit_load` counts `0,1,16,17,23,257`
+- [OK] bounded touched-file authority scan and `git diff --check`
+- [OK] Trellis context validation
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 403/403 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

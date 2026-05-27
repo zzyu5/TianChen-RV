@@ -1,0 +1,57 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-segment2-store --overwrite --op-kind computed_masked_segment2_store_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-mask-segment2-store/evidence.json
+# RUN: FileCheck %s --check-prefix=CMSEG --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-segment2-store/computed_masked_segment2_store_unit_load/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-segment2-store/computed_masked_segment2_store_unit_load/rvv_generated_bundle_abi_computed_masked_segment2_store_unit_load_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "computed_masked_segment2_store_unit_load"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# CMSEG-DAG: "input_mode": "pre-realized-selected-body"
+# CMSEG-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-store.mlir"
+# CMSEG-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-segment2-store-unit-load-callable-c-abi.v1"
+# CMSEG-DAG: "expected_selected_variant": "pre_realized_body_rvv_cmseg_store"
+# CMSEG-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# CMSEG-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# CMSEG-DAG: "route_entry_realization": false
+# CMSEG-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# CMSEG-DAG: --tcrv-materialize-selected-lowering-boundaries
+# CMSEG-DAG: "pre_realized_body_consumed": true
+# CMSEG-DAG: "typed_compute_op": "tcrv_rvv.masked_segment2_store"
+# CMSEG-DAG: "memory_form": "computed-mask-unit-load-segment2-store"
+# CMSEG-DAG: "key": "rvv_emitc_lowerable_route"
+# CMSEG-DAG: "value": "rvv-generic-computed-masked-segment2-store-unit-load-emitc-route"
+# CMSEG-DAG: "key": "rvv_selected_body_operation"
+# CMSEG-DAG: "value": "computed_masked_segment2_store_unit_load"
+# CMSEG-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# CMSEG-DAG: "value": "cmp_lhs,cmp_rhs,src0,src1,dst,n"
+# CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1"
+# CMSEG-DAG: "key": "tcrv_rvv.segment_memory_layout"
+# CMSEG-DAG: "value": "unit-stride-compare-field-payloads-segment2-masked-destination-runtime-abi"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_source"
+# CMSEG-DAG: "value": "compare-produced-mask-same-vl-scope"
+# CMSEG-DAG: "key": "tcrv_rvv.segment_store_intrinsic"
+# CMSEG-DAG: "value": "__riscv_vsseg2e32_v_i32m1x2_m"
+# CMSEG-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# CMSEG-DAG: "value": "provider_supported_mirror:rvv-computed-mask-segment2-store-plan-validated"
+# CMSEG-DAG: "mask_coverage_contract": "multi-lane computed_masked_segment2_store_unit_load cases require compare-produced active and inactive mask lanes"
+# CMSEG-DAG: "inactive_lane_contract": "compare-false lanes must preserve both old interleaved destination field slots"
+# CMSEG-DAG: "field_order_contract": "active lanes store distinguishable field0/field1 payload vectors into even/odd interleaved destination slots while source buffers and tail slots preserve sentinels"
+# CMSEG-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_cmseg_store_kernel_pre_realized_body_rvv_cmseg_store(cmp_lhs, cmp_rhs, src0, src1, dst, n);
+# HARNESS: int32_t expected0 = active ? src0[index] : old_dst[2 * index];
+# HARNESS: int32_t expected1 = active ? src1[index] : old_dst[2 * index + 1];
+# HARNESS: inactive lane failed to preserve interleaved destination
+# HARNESS: computed_mask segment2_store
+# HARNESS: field_distinguishing_lanes
+# HARNESS: source_preserved tail_preserved
+# HARNESS: PASS op=computed_masked_segment2_store_unit_load counts=0,1,7,16,23,257
