@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-strided-input-widening-dot-reduce-add --overwrite --op-kind strided_input_widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=SDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=SDOT --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -23,6 +23,7 @@
 # SDOT-DAG: "expected_selected_variant": "rvv_strided_input_dot"
 # SDOT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # SDOT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SDOT-DAG: "route_entry_realization": false
 # SDOT-DAG: --tcrv-materialize-selected-lowering-boundaries
 # SDOT-DAG: "pre_realized_body_consumed": true
 # SDOT-DAG: "key": "rvv_emitc_lowerable_route"

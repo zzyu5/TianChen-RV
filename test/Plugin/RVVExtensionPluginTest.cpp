@@ -3165,6 +3165,16 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_widening_dot_reduce_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", memory_form = "unit-stride-widening-dot-reduce", op_kind = "signed_widening_dot_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_strided_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
+      tcrv_rvv.typed_strided_input_widening_dot_reduce_pre_realized_body %lhs, %rhs, %acc, %out, %n, %lhs_stride, %rhs_stride {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", memory_form = "strided-input-widening-dot-reduce", op_kind = "signed_widening_dot_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64, stride_unit = "element"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_masked_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -3654,6 +3664,171 @@ module {
                   wideningDotMaterializationFacts->contractionComputeLeaf,
           "selected-boundary widening_dot_reduce_add reaches math binding and "
           "direct contraction provider facts before route construction"))
+    return result;
+
+  VariantOp stridedWideningDotVariant =
+      findVariant(kernel, "rvv_pre_route_strided_widening_dot");
+  if (int result = expect(
+          variantContainsPreRealizedRVVSelectedBody(stridedWideningDotVariant) &&
+              !variantContainsPreRealizedRVVRouteEntrySelectedBody(
+                  stridedWideningDotVariant),
+          "strided_input_widening_dot_reduce_add remains a contraction "
+          "selected-body realization consumer but is no longer direct "
+          "route-entry eligible"))
+    return result;
+  mlir::Operation *stridedWideningDotBody = findFirstNestedOp(
+      stridedWideningDotVariant,
+      "tcrv_rvv.typed_strided_input_widening_dot_reduce_pre_realized_body");
+  if (int result =
+          expect(stridedWideningDotBody != nullptr,
+                 "found pre-realized strided_input_widening_dot_reduce_add "
+                 "body for demotion test"))
+    return result;
+  auto stridedWideningDotOwner = getRVVSelectedBodyRealizationOwnerForBody(
+      stridedWideningDotBody,
+      "strided-input widening dot-reduce direct route-entry demotion test");
+  if (!stridedWideningDotOwner)
+    return fail("strided-input widening dot-reduce owner lookup: " +
+                llvm::toString(stridedWideningDotOwner.takeError()));
+  if (int result = expect(
+          (*stridedWideningDotOwner)->familyName == "contraction" &&
+              (*stridedWideningDotOwner)->isRouteEntryConsumer != nullptr &&
+              !(*stridedWideningDotOwner)
+                   ->isRouteEntryConsumer(stridedWideningDotBody),
+          "strided_input_widening_dot_reduce_add dispatches through the "
+          "contraction realization owner without direct route-entry authority"))
+    return result;
+
+  mlir::OpBuilder directStridedWideningDotBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      directStridedWideningDotRouteEntry =
+          tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+              VariantLoweringBoundaryRequest(
+                  stridedWideningDotVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  directStridedWideningDotBuilder));
+  if (directStridedWideningDotRouteEntry)
+    return fail("direct route-entry accepted "
+                "strided_input_widening_dot_reduce_add instead of requiring "
+                "selected lowering-boundary realization");
+  if (int result = expectErrorContains(
+          directStridedWideningDotRouteEntry.takeError(),
+          {"selected-body route-entry realization currently supports only",
+           "selected body belongs to another RVV realization family"}))
+    return result;
+
+  mlir::OpBuilder selectedStridedWideningDotBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      realizedStridedWideningDot =
+          contractionOwner->realize(
+              VariantLoweringBoundaryRequest(
+                  stridedWideningDotVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  selectedStridedWideningDotBuilder),
+              stridedWideningDotBody);
+  if (!realizedStridedWideningDot)
+    return fail("selected-boundary strided_input_widening_dot_reduce_add "
+                "realization failed: " +
+                llvm::toString(realizedStridedWideningDot.takeError()));
+  if (int result = expect(
+          countNestedOps(stridedWideningDotVariant,
+                         "tcrv_rvv.typed_strided_input_widening_dot_reduce_"
+                         "pre_realized_body") == 0 &&
+              countNestedOps(stridedWideningDotVariant, "tcrv_rvv.setvl") ==
+                  1 &&
+              countNestedOps(stridedWideningDotVariant, "tcrv_rvv.with_vl") ==
+                  1 &&
+              countNestedOps(stridedWideningDotVariant,
+                             "tcrv_rvv.strided_load") == 2 &&
+              countNestedOps(stridedWideningDotVariant,
+                             "tcrv_rvv.widening_dot_reduce") == 1 &&
+              countNestedOps(stridedWideningDotVariant, "tcrv_rvv.store") == 1,
+          "selected-boundary strided_input_widening_dot_reduce_add consumes "
+          "shorthand into typed setvl/with_vl/strided_load/strided_load/"
+          "widening_dot_reduce/store IR"))
+    return result;
+
+  auto stridedWideningDotAnalysis = analyzeRVVSelectedBodyRoute(
+      VariantEmitCLowerableRequest(stridedWideningDotVariant, kernel,
+                                   capabilities,
+                                   VariantEmissionRole::DirectVariant));
+  if (!stridedWideningDotAnalysis)
+    return fail("analyze realized selected-boundary "
+                "strided_input_widening_dot_reduce_add: " +
+                llvm::toString(stridedWideningDotAnalysis.takeError()));
+  if (int result = expect(
+          stridedWideningDotAnalysis->description.operation ==
+              RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd &&
+              stridedWideningDotAnalysis->description.memoryForm ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                      StridedInputWideningDotReduce &&
+              stridedWideningDotAnalysis->contractionRouteFamilyPlan &&
+              stridedWideningDotAnalysis->contractionRouteFamilyPlan
+                  ->usesDotReduction &&
+              stridedWideningDotAnalysis->contractionRouteFamilyPlan
+                  ->usesStridedInputs &&
+              !stridedWideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesWideningMAcc &&
+              !stridedWideningDotAnalysis->contractionRouteFamilyPlan
+                   ->usesComputedMask &&
+              stridedWideningDotAnalysis->description
+                      .contractionRouteFamilyPlanID ==
+                  "rvv-contraction-route-family-plan.v1",
+          "selected-boundary strided_input_widening_dot_reduce_add carries "
+          "dot-reduction and strided-input contraction family facts to route "
+          "analysis"))
+    return result;
+  auto stridedWideningDotMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *stridedWideningDotAnalysis,
+          "selected-boundary strided widening dot-reduce demotion test");
+  if (!stridedWideningDotMaterializationFacts)
+    return fail("strided widening dot-reduce materialization facts: " +
+                llvm::toString(
+                    stridedWideningDotMaterializationFacts.takeError()));
+  auto stridedWideningDotMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *stridedWideningDotAnalysis,
+          "selected-boundary strided widening dot-reduce demotion test");
+  if (!stridedWideningDotMathFacts)
+    return fail("strided widening dot-reduce math operand-binding facts: " +
+                llvm::toString(stridedWideningDotMathFacts.takeError()));
+  auto stridedWideningDotDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          *stridedWideningDotAnalysis,
+          *stridedWideningDotMaterializationFacts,
+          *stridedWideningDotMathFacts,
+          "selected-boundary strided widening dot-reduce demotion test");
+  if (!stridedWideningDotDirectProviderPlan)
+    return fail("strided widening dot-reduce direct contraction provider "
+                "plan: " +
+                llvm::toString(
+                    stridedWideningDotDirectProviderPlan.takeError()));
+  if (int result = expect(
+          stridedWideningDotMathFacts
+              ->bindsStridedInputWideningDotReduction &&
+              stridedWideningDotDirectProviderPlan
+                  ->plansDirectContractionRoute &&
+              stridedWideningDotDirectProviderPlan->plansDotReduction &&
+              stridedWideningDotDirectProviderPlan->plansStridedInput &&
+              !stridedWideningDotDirectProviderPlan->plansWideningMAcc &&
+              !stridedWideningDotDirectProviderPlan->plansComputedMask &&
+              stridedWideningDotDirectProviderPlan->lhsABI &&
+              stridedWideningDotDirectProviderPlan->rhsABI &&
+              stridedWideningDotDirectProviderPlan->accumulatorABI &&
+              stridedWideningDotDirectProviderPlan->outABI &&
+              stridedWideningDotDirectProviderPlan->runtimeElementCountABI &&
+              stridedWideningDotDirectProviderPlan->lhsStrideABI &&
+              stridedWideningDotDirectProviderPlan->rhsStrideABI &&
+              stridedWideningDotDirectProviderPlan->stridedSourceLoadLeaf ==
+                  stridedWideningDotMaterializationFacts
+                      ->stridedSourceLoadLeaf &&
+              stridedWideningDotDirectProviderPlan->contractionComputeLeaf ==
+                  stridedWideningDotMaterializationFacts
+                      ->contractionComputeLeaf,
+          "selected-boundary strided_input_widening_dot_reduce_add reaches "
+          "stride-aware math binding and direct contraction provider facts "
+          "before route construction"))
     return result;
 
   VariantOp negativeVariant =

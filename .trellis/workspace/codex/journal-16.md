@@ -482,7 +482,20 @@ Adopted masked_add into the RVV route-control provider boundary, strengthened ma
 
 ### Main Changes
 
-(Add details)
+- Excluded `TypedStridedInputWideningDotReducePreRealizedBodyOp` from the
+  direct pre-realized route-entry predicate while keeping it under the RVV
+  `contraction` selected-body realization owner.
+- Updated generated-bundle tooling so
+  `--direct-pre-realized-route-entry --op-kind
+  strided_input_widening_dot_reduce_add` fails closed before route-entry
+  materialization or bundle generation.
+- Added C++ coverage proving direct route-entry rejection and
+  selected-boundary realization into typed `setvl` / `with_vl` / strided i16
+  source loads / `widening_dot_reduce` / i32 scalar store IR.
+- Strengthened script lit coverage with direct route-entry fail-closed checks
+  and selected-boundary evidence requiring `route_entry_realization: false`.
+- Archived the Trellis task after PRD validation, `ssh rvv` evidence,
+  authority scan, and full `check-tianchenrv`.
 
 ### Git Commits
 
@@ -492,7 +505,31 @@ Adopted masked_add into the RVV route-control provider boundary, strengthened ma
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Direct route-entry fail-closed probe for
+  `--direct-pre-realized-route-entry --op-kind
+  strided_input_widening_dot_reduce_add`
+- [OK] Selected-boundary generated-bundle dry-run for
+  `strided_input_widening_dot_reduce_add`, counts `0,1,16,23,257`, with
+  `materializer: tcrv-materialize-selected-lowering-boundaries`,
+  `route_entry_realization: false`, and selected-body producer evidence
+- [OK] Real `ssh rvv` generated-bundle run for
+  `strided_input_widening_dot_reduce_add`, counts `0,1,16,23,257`, with
+  signed horizontal dot products, i32 seed accumulation, `lhs_stride=2`,
+  `rhs_stride=3`, scalar output, skipped source elements ignored, and tail
+  preservation
+- [OK] Adjacent widening dot family selected-boundary dry-run and
+  computed-mask widening dot direct route-entry non-regression dry-run
+- [OK] Bounded production-file authority scan found no new legacy-i32,
+  source-front-door, descriptor, direct-C, artifact-name, route-id, or
+  exact-intrinsic authority in changed production files
+- [OK] `git diff --check`
+- [OK] Trellis task validation
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 395/395
 
 ### Status
 
@@ -1600,6 +1637,39 @@ correctness evidence.
 - [OK] `git diff --check`
 - [OK] Trellis task validation
 - [OK] `cmake --build build --target check-tianchenrv -j2`: 394/394
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 263: Stage2 RVV strided widening dot selected realization
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV strided widening dot selected realization
+**Branch**: `main`
+
+### Summary
+
+Demoted direct pre-realized route-entry support for strided_input_widening_dot_reduce_add while preserving the selected lowering-boundary realization path, stride-aware provider facts, generated-bundle evidence, ssh rvv correctness, and full check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

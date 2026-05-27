@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check for project boundary, RVV stage order, and descriptor/source-front-door/i32 authority exclusions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, direct contraction provider, route-control, target artifact mirror, and diagnostics compliance."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI role declarations remain runtime/export facts and do not become compute or dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route and common EmitC neutrality after migration."}
