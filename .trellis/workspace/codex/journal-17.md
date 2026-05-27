@@ -364,3 +364,54 @@ A spec update was not needed. Existing RVV plugin, EmitC route, and MLIR testing
 ### Next Steps
 
 - None - task complete
+
+
+## Session 276: Stage2 RVV runtime scalar cmp/select boundary
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV runtime scalar cmp/select boundary
+**Branch**: `main`
+
+### Summary
+
+Closed runtime_scalar_cmp_select selected-boundary evidence with typed runtime scalar splat/compare/select extraction, two-RHS generated-bundle harness coverage, ssh rvv proof, and archived Trellis task.
+
+### Main Changes
+
+- Tightened `scripts/rvv_generated_bundle_abi_e2e.py` so
+  `runtime_scalar_cmp_select` evidence now requires two RHS scalar values and
+  explicitly extracts materialized `tcrv_rvv.splat`/`compare`/`select` facts.
+- Added emitted RVV C++ boundary extraction for the runtime scalar splat,
+  compare predicate, select layout, runtime AVL/VL control, and ABI order.
+- Added selected-boundary dry-run and direct pre-realized route-entry
+  fail-closed lit tests for `runtime_scalar_cmp_select`.
+- Archived the Trellis task with production-owner proof, artifact paths, and
+  check evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused runtime-scalar lit filter: 5/5 passed
+- [OK] selected-boundary dry-run for `runtime_scalar_cmp_select`
+- [OK] direct pre-realized route-entry fail-closed dry-run
+- [OK] `ssh rvv` generated-bundle compile/run/correctness for counts
+  `0,1,16,23,257` and RHS scalars `-37,91`
+- [OK] compare/select selected-boundary non-regression dry-run
+- [OK] RVV extension plugin and selected-lowering-boundary C++ tests
+- [OK] bounded authority scan and `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 407/407 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

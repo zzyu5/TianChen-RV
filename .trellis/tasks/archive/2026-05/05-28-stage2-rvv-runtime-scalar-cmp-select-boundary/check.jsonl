@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that implementation and evidence respect global RVV-first authority and Python/tooling boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary runtime scalar compare/select facts, provider-owned route construction, target artifact mirrors, and direct shortcut fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that runtime ABI roles stay envelope declarations and do not become compute authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral consumer of provider-built routes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed python3 -m py_compile and script --self-test after runtime scalar compare/select coverage validation was added."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-select-dry-run.test", "reason": "Passed focused runtime-scalar compare/select lit filter from build/test, including the new selected-boundary dry-run regression."}
+{"file": "artifacts/tmp/stage2_runtime_scalar_cmp_select_closure/runtime-scalar-cmp-select-ssh/runtime_scalar_cmp_select/evidence.json", "reason": "ssh rvv generated-bundle compile/run/correctness evidence passed for counts 0,1,16,23,257 and RHS scalars -37,91."}
+{"file": "artifacts/tmp/stage2_runtime_scalar_cmp_select_closure/compare-select-non-regression-dry-run/evidence.json", "reason": "Passed selected-boundary dry-run non-regression for cmp_select, cmp_select_sle, computed_mask_select, and computed_mask_select_sle."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed focused RVV provider/plugin C++ test; also passed build/bin/tianchenrv-rvv-selected-lowering-boundary-test."}
+{"file": ".trellis/tasks/05-28-stage2-rvv-runtime-scalar-cmp-select-boundary/prd.md", "reason": "Passed git diff --check and bounded touched-file authority scan; only exact intrinsic evidence checks appeared, not executable authority."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Final serial cmake --build build --target check-tianchenrv -j2 passed 407/407 tests after an earlier overlapping duplicate run produced an artifact-race failure that was not used as acceptance evidence."}

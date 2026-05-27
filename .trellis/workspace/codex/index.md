@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 275
+- **Total Sessions**: 276
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~359 | Active |
+| `journal-17.md` | ~432 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 276 | 2026-05-28 | Stage2 RVV runtime scalar cmp/select boundary | `this commit` | `main` |
 | 275 | 2026-05-28 | Stage2 RVV compare/select executable artifacts | pending-final-session-commit | `main` |
 | 274 | 2026-05-28 | Stage2 RVV widening conversion executable artifacts | pending-final-session-commit | `main` |
 | 273 | 2026-05-28 | Stage2 RVV plain segment2 executable artifact closure | pending-final-session-commit | `main` |

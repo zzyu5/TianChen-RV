@@ -41,7 +41,7 @@ DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 120
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 10
 DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
-DEFAULT_RHS_SCALAR_VALUES = (-37,)
+DEFAULT_RHS_SCALAR_VALUES = (-37, 91)
 DEFAULT_STRIDED_LOAD_BYTE_STRIDES = (4, 8, 12)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
@@ -7359,6 +7359,38 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = compare_select_predicate_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_runtime_scalar_compare_select:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            "__riscv_vmv_v_x_i32m1",
+            expectation.compare_intrinsic,
+            expectation.select_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ runtime scalar compare/select vector C type",
+        )
+        require_contains(
+            text,
+            expectation.rvv_mask_c_type,
+            "emitted RVV C/C++ runtime scalar compare/select mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ runtime scalar compare/select intrinsic spelling",
+            )
+        compare_select_predicate_boundary = (
+            extract_runtime_scalar_cmp_select_emitc_boundary(text, expectation)
+        )
+        runtime_avl_vl_boundary = compare_select_predicate_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.is_masked_elementwise:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -8638,6 +8670,146 @@ def extract_computed_mask_select_emitc_boundary(
     }
 
 
+def extract_runtime_scalar_cmp_select_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    mask_c_type = re.escape(expectation.rvv_mask_c_type)
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+        rf"{element_c_type}\s*(?P<rhs_scalar>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<true_value>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<false_value>v[0-9]+), "
+        rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ runtime_scalar_cmp_select ABI parameters",
+    )
+    lhs = signature.group("lhs")
+    rhs_scalar = signature.group("rhs_scalar")
+    true_value = signature.group("true_value")
+    false_value = signature.group("false_value")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ runtime_scalar_cmp_select full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ runtime_scalar_cmp_select runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ runtime_scalar_cmp_select remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+
+    def load_vector(parameter: str, label: str) -> re.Match[str]:
+        return require_regex(
+            text,
+            rf"const {element_c_type}\* (?P<{label}_ptr>v[0-9]+) = "
+            rf"{parameter} \+ {offset};\s*"
+            rf"{vector_c_type} (?P<{label}_vec>v[0-9]+) = "
+            rf"{re.escape(expectation.unit_load_intrinsic)}"
+            rf"\((?P={label}_ptr), {loop_vl}\);",
+            f"emitted RVV C/C++ runtime_scalar_cmp_select {label} load",
+        )
+
+    lhs_load = load_vector(lhs, "lhs")
+    true_load = load_vector(true_value, "true_value")
+    false_load = load_vector(false_value, "false_value")
+    lhs_vec = lhs_load.group("lhs_vec")
+    true_vec = true_load.group("true_value_vec")
+    false_vec = false_load.group("false_value_vec")
+    rhs_splat = require_regex(
+        text,
+        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+        rf"__riscv_vmv_v_x_i32m1\({rhs_scalar}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime_scalar_cmp_select RHS scalar splat",
+    )
+    rhs_vec = rhs_splat.group("rhs_vec")
+    compare = require_regex(
+        text,
+        rf"{mask_c_type} (?P<predicate>v[0-9]+) = "
+        rf"{re.escape(expectation.compare_intrinsic)}"
+        rf"\({lhs_vec}, {rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime_scalar_cmp_select compare predicate",
+    )
+    predicate = compare.group("predicate")
+    select = require_regex(
+        text,
+        rf"{vector_c_type} (?P<selected>v[0-9]+) = "
+        rf"{re.escape(expectation.select_intrinsic)}"
+        rf"\({false_vec}, {true_vec}, {predicate}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime_scalar_cmp_select select merge",
+    )
+    selected = select.group("selected")
+    store = require_regex(
+        text,
+        rf"{element_c_type}\* (?P<out_ptr>v[0-9]+) = {out} \+ {offset};\s*"
+        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"\((?P=out_ptr), {selected}, {loop_vl}\);",
+        "emitted RVV C/C++ runtime_scalar_cmp_select store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "lhs_abi_parameter": lhs,
+        "rhs_scalar_abi_parameter": rhs_scalar,
+        "true_value_abi_parameter": true_value,
+        "false_value_abi_parameter": false_value,
+        "out_abi_parameter": out,
+        "lhs_vector": lhs_vec,
+        "rhs_scalar_splat_vector": rhs_vec,
+        "true_value_vector": true_vec,
+        "false_value_vector": false_vec,
+        "predicate_mask": predicate,
+        "predicate_mask_type": expectation.rvv_mask_c_type,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "compare_rhs_source": COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE,
+        "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "select_intrinsic": expectation.select_intrinsic,
+        "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+        "select_true_vector": true_vec,
+        "select_false_vector": false_vec,
+        "emitted_vmerge_true_operand": true_vec,
+        "emitted_vmerge_false_operand": false_vec,
+        "selected_result_vector": selected,
+        "out_pointer": store.group("out_ptr"),
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "store_uses_selected_result": True,
+        "compare_uses_loop_vl": True,
+        "select_uses_loop_vl": True,
+    }
+
+
 def extract_masked_unit_store_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -8957,6 +9129,10 @@ def verify_materialized_selected_body(
     if expectation.is_computed_mask_select:
         compare_select_predicate_boundary = (
             extract_computed_mask_select_materialized_boundary(text, expectation)
+        )
+    if expectation.is_runtime_scalar_compare_select:
+        compare_select_predicate_boundary = (
+            extract_runtime_scalar_cmp_select_materialized_boundary(text, expectation)
         )
     conversion_sew_policy_boundary: dict[str, Any] = {}
     if expectation.has_conversion_sew_policy_boundary:
@@ -11316,6 +11492,88 @@ def extract_computed_mask_select_materialized_boundary(
         "select_false_operand_role": "false-value-input-buffer",
         "compare_lhs_role": "lhs-input-buffer",
         "compare_rhs_role": "rhs-input-buffer",
+        "output_role": "output-buffer",
+        "memory_form": expectation.memory_form,
+        "pre_realized_body_consumed": expectation.is_pre_realized,
+    }
+
+
+def extract_runtime_scalar_cmp_select_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    require_contains(
+        text,
+        "tcrv_rvv.splat",
+        "materialized selected-body MLIR runtime_scalar_cmp_select RHS scalar splat",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.compare",
+        "materialized selected-body MLIR runtime_scalar_cmp_select compare op",
+    )
+    require_contains(
+        text,
+        f'kind = "{expectation.compare_predicate_kind}"',
+        "materialized selected-body MLIR runtime_scalar_cmp_select predicate kind",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.select",
+        "materialized selected-body MLIR runtime_scalar_cmp_select select op",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR runtime_scalar_cmp_select predicate mask type",
+    )
+    require_contains(
+        text,
+        f'!tcrv_rvv.vector<{expectation.element_type}, "{expectation.lmul}">',
+        "materialized selected-body MLIR runtime_scalar_cmp_select vector type",
+    )
+    for role in (
+        "lhs-input-buffer",
+        "rhs-scalar-value",
+        "true-value-input-buffer",
+        "false-value-input-buffer",
+        "output-buffer",
+    ):
+        require_contains(
+            text,
+            f'role = "{role}"',
+            "materialized selected-body MLIR runtime_scalar_cmp_select ABI role",
+        )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.mask_load",
+        "materialized selected-body MLIR runtime_scalar_cmp_select produced predicate route",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.binary",
+        "materialized selected-body MLIR runtime_scalar_cmp_select route",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.masked_move",
+        "materialized selected-body MLIR runtime_scalar_cmp_select route",
+    )
+    return {
+        "typed_body_source": (
+            "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body"
+        ),
+        "realized_splat_op": "tcrv_rvv.splat",
+        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_select_op": expectation.typed_compute_op,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "predicate_type": f'!tcrv_rvv.mask<{expectation.element_type}, "{expectation.lmul}">',
+        "predicate_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "compare_rhs_source": COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE,
+        "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+        "select_true_operand_role": "true-value-input-buffer",
+        "select_false_operand_role": "false-value-input-buffer",
+        "compare_lhs_role": "lhs-input-buffer",
+        "compare_rhs_scalar_role": "rhs-scalar-value",
         "output_role": "output-buffer",
         "memory_form": expectation.memory_form,
         "pre_realized_body_consumed": expectation.is_pre_realized,
@@ -16911,6 +17169,19 @@ def validate_rhs_scalar_values(rhs_scalar_values: list[int]) -> None:
         )
 
 
+def validate_runtime_scalar_compare_select_rhs_coverage(
+    expectations: list[OpExpectation], rhs_scalar_values: list[int]
+) -> None:
+    if any(
+        expectation.is_runtime_scalar_compare_select for expectation in expectations
+    ) and len(rhs_scalar_values) < 2:
+        raise EvidenceError(
+            "runtime_scalar_cmp_select evidence requires at least two distinct "
+            "RHS scalar values to cover runtime threshold behavior: "
+            f"{rhs_scalar_values}"
+        )
+
+
 def validate_strided_load_byte_strides(stride_bytes_values: list[int]) -> None:
     if not stride_bytes_values:
         raise EvidenceError(
@@ -17601,25 +17872,40 @@ def compare_select_predicate_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if not (expectation.is_cmp_select or expectation.is_computed_mask_select):
+    if not (
+        expectation.is_cmp_select
+        or expectation.is_computed_mask_select
+        or expectation.is_runtime_scalar_compare_select
+    ):
         return {}
     select_layout = (
         PLAIN_COMPARE_SELECT_LAYOUT
         if expectation.is_cmp_select
         else COMPUTED_MASK_SELECT_LAYOUT
     )
-    selected_value_operands = (
-        {"true_value": "lhs", "false_value": "rhs", "output": "out"}
-        if expectation.is_cmp_select
-        else {
+    if expectation.is_cmp_select:
+        selected_value_operands = {
+            "true_value": "lhs",
+            "false_value": "rhs",
+            "output": "out",
+        }
+    elif expectation.is_runtime_scalar_compare_select:
+        selected_value_operands = {
+            "compare_lhs": "lhs",
+            "compare_rhs_scalar": "rhs_scalar",
+            "true_value": "true_value",
+            "false_value": "false_value",
+            "output": "out",
+        }
+    else:
+        selected_value_operands = {
             "compare_lhs": "cmp_lhs",
             "compare_rhs": "cmp_rhs",
             "true_value": "true_value",
             "false_value": "false_value",
             "output": "out",
         }
-    )
-    return {
+    summary = {
         "source": (
             "typed tcrv_rvv compare/select body/config -> RVV realization -> "
             "route-family facts -> operand-binding facts -> statement plan -> "
@@ -17652,6 +17938,18 @@ def compare_select_predicate_boundary_summary(
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_predicate_authority": True,
     }
+    if expectation.is_runtime_scalar_compare_select:
+        summary.update(
+            {
+                "runtime_scalar_producer_source": (
+                    COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE
+                ),
+                "runtime_scalar_operand": "rhs_scalar",
+                "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                "runtime_scalar_values_required_minimum": 2,
+            }
+        )
+    return summary
 
 
 def conversion_sew_policy_boundary_summary(
@@ -18429,7 +18727,11 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_cmp_select or expectation.is_computed_mask_select:
+        if (
+            expectation.is_cmp_select
+            or expectation.is_computed_mask_select
+            or expectation.is_runtime_scalar_compare_select
+        ):
             evidence["compare_select_predicate_boundary"] = (
                 compare_select_predicate_boundary_summary(
                     expectation=expectation,
@@ -19131,6 +19433,9 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "computed_masked_strided_load_unit_store"
             )
         validate_rhs_scalar_values(rhs_scalar_values)
+        validate_runtime_scalar_compare_select_rhs_coverage(
+            expectations, rhs_scalar_values
+        )
         if has_runtime_scalar_operand:
             evidence["rhs_scalar_values"] = rhs_scalar_values
         if (
@@ -19341,6 +19646,21 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "out-of-range scalar value",
             lambda: validate_rhs_scalar_values([-(2**31) - 1]),
+        )
+        validate_runtime_scalar_compare_select_rhs_coverage(
+            [EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_select"]],
+            [-37, 91],
+        )
+        expect_self_test_failure(
+            "single runtime scalar compare/select RHS value",
+            lambda: validate_runtime_scalar_compare_select_rhs_coverage(
+                [
+                    EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+                        "runtime_scalar_cmp_select"
+                    ]
+                ],
+                [-37],
+            ),
         )
         validate_strided_load_byte_strides([4, 8, 12])
         expect_self_test_failure(
