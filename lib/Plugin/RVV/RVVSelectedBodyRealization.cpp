@@ -1026,7 +1026,8 @@ bool isPreRealizedRVVWideningConversionRouteEntryOp(mlir::Operation *op) {
       llvm::dyn_cast<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
   if (!body)
     return false;
-  return isPreRealizedWideningConversionOpKind(body.getOpKind()) &&
+  return body.getOpKind() == "widen_i32_to_i64" &&
+         isPreRealizedWideningConversionOpKind(body.getOpKind()) &&
          isPreRealizedWideningConversionMemoryForm(body.getMemoryForm()) &&
          isPreRealizedWideningConversionRelation(
              body.getConversionRelation()) &&

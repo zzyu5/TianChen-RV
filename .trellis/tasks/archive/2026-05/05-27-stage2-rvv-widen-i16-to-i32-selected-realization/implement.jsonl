@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundary, RVV-first authority chain, Stage1/Stage2 ordering, source-of-truth rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, widening conversion dtype policy, route-entry narrowing, provider route facts, artifact mirror rules, fail-closed diagnostics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window/runtime_param ABI role boundary and selected-path diagnostics as mirror-only"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute provider-owned route and common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "RVV selected-body artifact, direct route-entry fail-closed evidence, ssh rvv evidence, authority hygiene"}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 typed tcrv_rvv body authority and route/artifact mirror-only constraints"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts constrain RVV legality and must not invent dtype/config/route authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV plugin-local selected-body realization and provider-owned type/intrinsic/ABI mapping checklist"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute stays in typed tcrv_rvv extension body, not tcrv.exec/core/common EmitC"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-computed-mask-strided-widening-dot-reduce-selected-realization/prd.md", "reason": "Adjacent completed direct route-entry demotion pattern and validation bar"}

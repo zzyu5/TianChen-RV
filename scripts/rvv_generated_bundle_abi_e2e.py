@@ -13,7 +13,7 @@ artifact/ABI evidence cases. Computed-mask select, ``scalar_broadcast_add``,
 ``macc_add``, ``scalar_broadcast_macc_add``, ``computed_masked_macc_add``,
 ``runtime_scalar_cmp_masked_macc_add``, ``widening_macc_add``,
 ``widening_dot_reduce_add``, ``strided_input_widening_dot_reduce_add``,
-``computed_masked_widening_dot_reduce_add``, and
+``computed_masked_widening_dot_reduce_add``, ``widen_i16_to_i32``, and
 ``computed_masked_strided_input_widening_dot_reduce_add`` intentionally remain
 on the selected lowering-boundary producer path. The legacy ``--source-seed``
 mode is unsupported and exits before bundle generation. The script does not
@@ -1877,7 +1877,6 @@ class OpExpectation:
             or self.is_computed_masked_segment2_update_unit_load
             or self.is_segment2_deinterleave_unit_store
             or self.is_segment2_interleave_unit_load
-            or self.is_widen_i16_to_i32
         )
 
     @property
@@ -14693,7 +14692,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 5;
   if (alloc_n == 5 && n == 0)
@@ -14708,7 +14707,21 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    lhs[index] = {expectation.lhs_initializer};
+    if (pattern == 0) {{
+      lhs[index] = {expectation.lhs_initializer};
+    }} else {{
+      lhs[index] = (int16_t)(((index % 6) == 0)
+                                 ? -32768
+                                 : ((index % 6) == 1)
+                                       ? -257
+                                       : ((index % 6) == 2)
+                                             ? -1
+                                             : ((index % 6) == 3)
+                                                   ? 0
+                                                   : ((index % 6) == 4)
+                                                         ? 255
+                                                         : (1024 + (int)(index % 31)));
+    }}
     out[index] = {expectation.out_initializer};
   }}
 
@@ -14716,24 +14729,27 @@ static int run_case(size_t n) {{
 
   size_t negative_lanes = 0;
   size_t positive_lanes = 0;
+  size_t wide_magnitude_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
     int32_t expected = {expectation.expected_expression};
     if (lhs[index] < 0)
       ++negative_lanes;
     if (lhs[index] > 0)
       ++positive_lanes;
+    if (lhs[index] <= -129 || lhs[index] >= 129)
+      ++wide_magnitude_lanes;
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d\\n",
-              n, index, out[index], expected, lhs[index]);
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got=%d expected=%d lhs=%d\\n",
+              n, pattern, index, out[index], expected, lhs[index]);
       free(lhs);
       free(out);
       return 12;
     }}
     if (lhs[index] < 0 && out[index] >= 0) {{
       fprintf(stderr,
-              "{expectation.kind} sign-extension failed n=%zu index=%zu lhs=%d out=%d\\n",
-              n, index, lhs[index], out[index]);
+              "{expectation.kind} sign-extension failed n=%zu pattern=%d index=%zu lhs=%d out=%d\\n",
+              n, pattern, index, lhs[index], out[index]);
       free(lhs);
       free(out);
       return 13;
@@ -14743,8 +14759,8 @@ static int run_case(size_t n) {{
   for (size_t index = n; index < alloc_n; ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, out[index], {expectation.out_initializer});
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, pattern, index, out[index], {expectation.out_initializer});
       free(lhs);
       free(out);
       return 14;
@@ -14753,32 +14769,44 @@ static int run_case(size_t n) {{
 
   if (n > 1 && (negative_lanes == 0 || positive_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} sign-extension coverage missing n=%zu negative_lanes=%zu positive_lanes=%zu\\n",
-            n, negative_lanes, positive_lanes);
+            "{expectation.kind} sign-extension coverage missing n=%zu pattern=%d negative_lanes=%zu positive_lanes=%zu\\n",
+            n, pattern, negative_lanes, positive_lanes);
     free(lhs);
     free(out);
     return 15;
   }}
+  if (pattern == 1 && n > 1 && wide_magnitude_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} wide-magnitude coverage missing n=%zu pattern=%d\\n",
+            n, pattern);
+    free(lhs);
+    free(out);
+    return 16;
+  }}
 
   free(lhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok sign_extension_checked tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu pattern=%d ok sign_extension_checked two_input_patterns_checked tail_preserved\\n",
+         n, pattern);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const int pattern_count = 2;
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (int pattern = 0; pattern < pattern_count; ++pattern) {{
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
   return 0;
-	}}
-	""".lstrip()
+}}
+""".lstrip()
     if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
         return f"""
 #include <stddef.h>
@@ -16810,8 +16838,7 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
                 "computed_masked_segment2_store_unit_load/"
                 "computed_masked_segment2_update_unit_load/"
                 "segment2_deinterleave_unit_store/"
-                "segment2_interleave_unit_load/"
-                "widen_i16_to_i32 "
+                "segment2_interleave_unit_load "
                 f"fixtures; got {unsupported_direct}"
             )
     return [
@@ -18849,6 +18876,12 @@ def run_one_op_e2e(
                 "only out[0] is written and tail/non-scalar output slots "
                 "preserve sentinels"
             )
+        if expectation.is_widen_i16_to_i32:
+            evidence["harness"]["conversion_sign_extension_contract"] = (
+                "two signed i16 input patterns cover mixed-sign values, "
+                "wide-magnitude int16 values, expected i32 sign-extension, "
+                "and output tail sentinel preservation"
+            )
         if expectation.is_segment2_deinterleave_unit_store:
             evidence["harness"]["field_order_contract"] = (
                 "multi-lane segment2_deinterleave_unit_store cases require "
@@ -19849,7 +19882,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"
-            "segment2_interleave_unit_load/widen_i16_to_i32 "
+            "segment2_interleave_unit_load "
             "fixtures before target bundle export"
         ),
     )

@@ -1699,6 +1699,7 @@ module {
             "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
+        variantName == "rvv_pre_route_widen_i16_to_i32" ||
         expectedProviderPlanID == "rvv-plain-macc-route-family-plan.v1" ||
         expectedProviderPlanID ==
             "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
@@ -1749,6 +1750,25 @@ module {
                     " is selected-boundary producer eligible when it is not "
                     "route-entry eligible"))
           return result;
+        if (variantName == "rvv_pre_route_widen_i16_to_i32") {
+          mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+          llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
+              tianchenrv::plugin::rvv::
+                  realizePreRealizedRVVRouteEntrySelectedBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          directRouteEntryBuilder));
+          if (directRouteEntry)
+            return fail("direct route-entry accepted widen_i16_to_i32 instead "
+                        "of requiring the selected-body realization producer");
+          if (int result = expectErrorContains(
+                  directRouteEntry.takeError(),
+                  {"selected-body route-entry realization currently supports "
+                   "only",
+                   "selected body belongs to another RVV realization family"}))
+            return result;
+        }
         mlir::OpBuilder producerBuilder(module->getContext());
         VariantLoweringBoundaryResult boundaryResult;
         if (int result = expectSuccess(
@@ -1880,7 +1900,7 @@ module {
               countNestedOps(variant, "tcrv_rvv.load") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.widening_convert") == 1 &&
                   countNestedOps(variant, "tcrv_rvv.store") == 1,
-              llvm::Twine("direct route-entry @") + variantName +
+              llvm::Twine("selected-body producer @") + variantName +
                   " realizes source load, widening conversion, and store"))
         return result;
     }

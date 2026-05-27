@@ -1771,3 +1771,60 @@ Demoted computed_masked_strided_input_widening_dot_reduce_add direct pre-realize
 ### Next Steps
 
 - None - task complete
+
+
+## Session 266: Stage2 RVV widen i16-to-i32 selected-body realization
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV widen i16-to-i32 selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Demoted widen_i16_to_i32 direct pre-realized route-entry authority, kept generated artifacts on the RVV selected lowering-boundary realization path, validated direct fail-closed behavior, selected-boundary evidence, ssh rvv counts 0,1,16,23,257 with two signed i16 patterns, and check-tianchenrv 397/397.
+
+### Main Changes
+
+- Demoted `widen_i16_to_i32` from the RVV direct pre-realized route-entry
+  predicate while keeping it under the widening conversion selected-body
+  realization owner.
+- Removed `widen_i16_to_i32` from generated-bundle direct route-entry support,
+  deleted the positive direct shortcut fixture, and added a fail-closed direct
+  shortcut lit fixture.
+- Strengthened selected-boundary evidence for `route_entry_realization: false`,
+  plugin-local selected-body realization, `sign_extend_widen_vf2`,
+  `signed-i16mf2-to-i32m1`, source/result SEW/LMUL facts, provider mirrors,
+  ABI order `lhs,out,n`, and neutral EmitC materialization.
+- Expanded the generated harness to run two signed i16 input patterns across
+  counts `0,1,16,23,257` and verify i32 sign-extension plus tail sentinel
+  preservation.
+- Archived the Trellis task with PRD validation results and no `.trellis/spec/`
+  update: the existing RVV plugin spec already covers this owner-vs-route-entry
+  narrowing pattern.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: demote widen i16 route entry` |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] selected-boundary generated-bundle dry-run for `widen_i16_to_i32`
+- [OK] direct route-entry generated-bundle request fails closed for
+  `widen_i16_to_i32`
+- [OK] real `ssh rvv` generated-bundle execution for counts `0,1,16,23,257`
+  with two signed i16 input patterns
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 397/397 passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

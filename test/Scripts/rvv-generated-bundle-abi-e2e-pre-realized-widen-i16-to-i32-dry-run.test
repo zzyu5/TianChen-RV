@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widen-i16-to-i32 --overwrite --op-kind widen_i16_to_i32 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widen-i16-to-i32 --overwrite --op-kind widen_i16_to_i32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widen-i16-to-i32/evidence.json
 # RUN: FileCheck %s --check-prefix=WIDEN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widen-i16-to-i32/widen_i16_to_i32/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widen-i16-to-i32/widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness.c
@@ -24,6 +24,8 @@
 # WIDEN-DAG: "expected_selected_variant": "pre_realized_body_rvv_widen_i16_to_i32"
 # WIDEN-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # WIDEN-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# WIDEN-DAG: "route_entry_realization": false
+# WIDEN-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
 # WIDEN-DAG: --tcrv-materialize-selected-lowering-boundaries
 # WIDEN-DAG: "pre_realized_body_consumed": true
 # WIDEN-DAG: "key": "rvv_emitc_lowerable_route"
@@ -92,6 +94,7 @@
 # WIDEN-DAG: "conversion_uses_loaded_source": true
 # WIDEN-DAG: "conversion_uses_loop_vl": true
 # WIDEN-DAG: "store_uses_converted_result": true
+# WIDEN-DAG: "conversion_sign_extension_contract": "two signed i16 input patterns cover mixed-sign values, wide-magnitude int16 values, expected i32 sign-extension, and output tail sentinel preservation"
 # WIDEN-DAG: "runtime_counts_are_execution_cases_not_conversion_authority": true
 # WIDEN-DAG: "status": "dry_run_success"
 
@@ -99,6 +102,8 @@
 # HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
 # HARNESS: tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32(lhs, out, n);
 # HARNESS: int32_t expected = (int32_t)lhs[index];
-# HARNESS: sign_extension_checked tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_widen_i16_to_i32_ok counts=7,16,23
-# HARNESS: PASS op=widen_i16_to_i32 counts=7,16,23
+# HARNESS: sign_extension_checked two_input_patterns_checked tail_preserved
+# HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESS: const int pattern_count = 2;
+# HARNESS: tcrv_rvv_generated_bundle_abi_widen_i16_to_i32_ok counts=0,1,16,23,257
+# HARNESS: PASS op=widen_i16_to_i32 counts=0,1,16,23,257
