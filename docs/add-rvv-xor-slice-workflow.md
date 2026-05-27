@@ -274,13 +274,13 @@ __riscv_vxor_vv_i32m1
 
 ## 9. 可选 QEMU Proof
 
-如果声明 runtime correctness，再写一个小 harness：
+如果声明 runtime correctness，再写一个小 harness。课堂分支已经提供了 `examples/qemu/harness_xor.cpp` 作为参考：
 
 ```text
 lhs[i] ^ rhs[i] -> out[i]
 ```
 
-然后用 `docs/build-and-rvv-proof.md` 中的 QEMU Makefile 片段编译运行。QEMU proof 不需要并入默认测试目标；PR 中记录命令和输出即可。
+然后用 `examples/qemu/Makefile.rvv` 编译运行。完整命令见 `examples/qemu/README.md` 和 `docs/build-and-rvv-proof.md`。QEMU proof 不需要并入默认测试目标；PR 中记录命令和输出即可。
 
 ## 10. PR 应该说明什么
 

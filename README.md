@@ -81,6 +81,34 @@ cmake --build build --target check-tianchenrv
 
 更多命令见 [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)。
 
+## 看一个真实 Kernel 运行
+
+lit/FileCheck 只能证明 compiler 输出形状正确；学生还需要理解 generated kernel 怎么被普通程序调用。本分支提供了一个本地 RVV QEMU 示例：
+
+- MLIR 输入：`test/Target/RVV/emitc-to-cpp-handoff.mlir` 或 `test/Target/RVV/emitc-to-cpp-xor.mlir`
+- compiler 输出：`generated.cpp`，里面只有 `extern "C"` RVV kernel，没有 `main`
+- runtime 输入/输出：`examples/qemu/harness_add.cpp` 或 `examples/qemu/harness_xor.cpp`
+- 编译运行：`examples/qemu/Makefile.rvv`
+
+快速路径：
+
+```bash
+mkdir -p /tmp/tcrv-rvv-qemu-xor
+
+build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-xor.mlir \
+  --tcrv-materialize-emission-plans \
+| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
+> /tmp/tcrv-rvv-qemu-xor/generated.cpp
+
+cp examples/qemu/harness_xor.cpp /tmp/tcrv-rvv-qemu-xor/harness.cpp
+
+make -C /tmp/tcrv-rvv-qemu-xor \
+  -f "$PWD/examples/qemu/Makefile.rvv" \
+  run-rvv
+```
+
+学生要改具体输入矩阵、数组、mask、index、`n` 或 oracle，改 harness。学生要改 kernel ABI 或 RVV 行为，先改 MLIR fixture 和 compiler/provider 路径，再同步 harness 里的 `extern "C"` 声明和调用参数。完整说明见 [本地 RVV QEMU 示例](examples/qemu/README.md)。
+
 ## 贡献边界
 
 每个 PR 应该只负责一个 RVV slice。一个合格的 slice 通常包含：

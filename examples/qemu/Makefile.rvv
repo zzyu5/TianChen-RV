@@ -3,23 +3,40 @@
 # 在包含 generated.cpp 和 harness.cpp 的目录中使用：
 #   make -f /path/to/examples/qemu/Makefile.rvv run-rvv
 
-RVV_CXX ?= clang++
+RVV_CXX ?= /usr/lib/llvm-20/bin/clang++
 QEMU_RISCV64 ?= qemu-riscv64
 SYSROOT ?= /usr/riscv64-linux-gnu
 RVV_MARCH ?= rv64gcv
 RVV_MABI ?= lp64d
-RVV_CXXFLAGS ?= --target=riscv64-linux-gnu -O2 -march=$(RVV_MARCH) -mabi=$(RVV_MABI) --sysroot=$(SYSROOT)
+RVV_CXXFLAGS ?= --target=riscv64-linux-gnu \
+                -std=c++17 \
+                -O2 \
+                -march=$(RVV_MARCH) \
+                -mabi=$(RVV_MABI) \
+                --sysroot=$(SYSROOT) \
+                --gcc-toolchain=/usr \
+                -I/usr/riscv64-linux-gnu/include/c++/14 \
+                -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu \
+                -L/usr/lib/gcc-cross/riscv64-linux-gnu/14 \
+                -static
 RVV_OUTPUT ?= rvv_case
 RVV_GENERATED ?= generated.cpp
 RVV_HARNESS ?= harness.cpp
+RVV_RUN_ARGS ?=
 
-.PHONY: build-rvv run-rvv clean-rvv
+.PHONY: print-rvv-config build-rvv run-rvv clean-rvv
+
+print-rvv-config:
+	@printf 'RVV_CXX=%s\n' '$(RVV_CXX)'
+	@printf 'QEMU_RISCV64=%s\n' '$(QEMU_RISCV64)'
+	@printf 'SYSROOT=%s\n' '$(SYSROOT)'
+	@printf 'RVV_CXXFLAGS=%s\n' '$(RVV_CXXFLAGS)'
 
 build-rvv:
 	$(RVV_CXX) $(RVV_CXXFLAGS) $(RVV_GENERATED) $(RVV_HARNESS) -o $(RVV_OUTPUT)
 
 run-rvv: build-rvv
-	$(QEMU_RISCV64) -L $(SYSROOT) ./$(RVV_OUTPUT)
+	$(QEMU_RISCV64) -L $(SYSROOT) ./$(RVV_OUTPUT) $(RVV_RUN_ARGS)
 
 clean-rvv:
 	rm -f $(RVV_OUTPUT)

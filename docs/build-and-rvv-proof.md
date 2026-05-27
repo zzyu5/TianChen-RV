@@ -122,7 +122,13 @@ generated RVV C/C++
 cp examples/qemu/Makefile.rvv /tmp/Makefile.rvv
 ```
 
-本仓库也提供一个最小 add harness 示例：
+QEMU proof 需要 RISC-V userspace emulator 和 cross sysroot。Ubuntu / WSL 上通常需要：
+
+```bash
+sudo apt install -y qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+```
+
+本仓库也提供最小 add/xor harness 示例。add 示例：
 
 ```bash
 build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
@@ -142,7 +148,26 @@ make -f /tmp/Makefile.rvv run-rvv \
   SYSROOT=/usr/riscv64-linux-gnu
 ```
 
-如果本机工具链路径不同，可以替换 `RVV_CXX`、`QEMU_RISCV64`、`SYSROOT`。PR 只要声明 runtime correctness，就应该记录实际编译和 QEMU 运行命令。
+`examples/qemu/Makefile.rvv` 默认使用课堂验证过的 clang/riscv64 参数：
+
+```make
+RVV_CXX ?= /usr/lib/llvm-20/bin/clang++
+RVV_CXXFLAGS ?= --target=riscv64-linux-gnu \
+                -std=c++17 \
+                -O2 \
+                -march=rv64gcv \
+                -mabi=lp64d \
+                --sysroot=$(SYSROOT) \
+                --gcc-toolchain=/usr \
+                -I/usr/riscv64-linux-gnu/include/c++/14 \
+                -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu \
+                -L/usr/lib/gcc-cross/riscv64-linux-gnu/14 \
+                -static
+```
+
+如果本机工具链路径不同，可以替换 `RVV_CXX`、`QEMU_RISCV64`、`SYSROOT`，或者覆盖 `RVV_CXXFLAGS`。PR 只要声明 runtime correctness，就应该记录实际编译和 QEMU 运行命令。
+
+更完整的 add/xor 示例见 [本地 RVV QEMU 示例](../examples/qemu/README.md)。
 
 ## 维护者 ssh rvv Proof
 
@@ -198,3 +223,5 @@ masked、tail、indexed、segment、widening slice 应该包含能区分正确 R
 ```
 
 不要把 QEMU harness 做成新的项目框架；它应该只是 PR 里的运行证据。
+
+学生需要注意：generated RVV C++ 只包含 exported kernel 函数，不包含 `main`，也不会自己构造测试矩阵或数组。具体输入、输出、mask、index、segment 数据和 scalar oracle 都由 harness 提供。如果 slice 修改了 kernel ABI，MLIR fixture、generated function signature、harness 的 `extern "C"` 声明和调用参数必须一起更新。
