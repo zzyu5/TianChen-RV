@@ -3684,6 +3684,18 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer;
@@ -4113,6 +4125,93 @@ module {
         "validated mirrors before statement planning");
   };
   if (int result = expectRuntimeSplatRouteControl(*runtimeSplatAnalysis))
+    return result;
+
+  auto runtimeSplatStatementFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeSplatAnalysis,
+          "runtime splat-store statement-plan unit test");
+  if (!runtimeSplatStatementFacts)
+    return fail("runtime splat-store statement materialization facts: " +
+                llvm::toString(runtimeSplatStatementFacts.takeError()));
+  auto runtimeSplatStatementResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          *runtimeSplatAnalysis,
+          "runtime splat-store statement-plan unit test");
+  if (!runtimeSplatStatementResidualFacts)
+    return fail("runtime splat-store statement residual binding facts: " +
+                llvm::toString(runtimeSplatStatementResidualFacts.takeError()));
+  auto runtimeSplatStatementPlan =
+      getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan(
+          *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+          *runtimeSplatStatementResidualFacts,
+          "runtime splat-store statement-plan unit test");
+  if (!runtimeSplatStatementPlan)
+    return fail("runtime splat-store statement plan: " +
+                llvm::toString(runtimeSplatStatementPlan.takeError()));
+  if (int result = expect(
+          runtimeSplatStatementPlan->plansRuntimeScalarSplatStoreRoute &&
+              runtimeSplatStatementPlan->plansRuntimeI32SplatStore &&
+              runtimeSplatStatementPlan->runtimeScalarSplatStorePlan ==
+                  &*runtimeSplatAnalysis
+                        ->runtimeScalarSplatStoreRouteFamilyPlan &&
+              runtimeSplatStatementPlan->preLoopSteps.size() == 1 &&
+              runtimeSplatStatementPlan->preLoopSteps[0].callee ==
+                  "__riscv_vsetvl_e32m1" &&
+              runtimeSplatStatementPlan->preLoopSteps[0]
+                      .operands.front()
+                      .expression == "n" &&
+              runtimeSplatStatementPlan->loop.inductionVarName == "offset" &&
+              runtimeSplatStatementPlan->loop.upperBound.expression == "n" &&
+              runtimeSplatStatementPlan->loop.step.expression ==
+                  "full_chunk_vl" &&
+              runtimeSplatStatementPlan->loop.bodySteps.size() == 3 &&
+              runtimeSplatStatementPlan->loop.bodySteps[0].callee ==
+                  "__riscv_vsetvl_e32m1" &&
+              runtimeSplatStatementPlan->loop.bodySteps[0]
+                      .operands.front()
+                      .expression == "n - offset" &&
+              runtimeSplatStatementPlan->loop.bodySteps[1].callee ==
+                  "__riscv_vmv_v_x_i32m1" &&
+              runtimeSplatStatementPlan->loop.bodySteps[1]
+                      .operands[0]
+                      .expression == "rhs_scalar" &&
+              runtimeSplatStatementPlan->loop.bodySteps[1]
+                      .operands[1]
+                      .expression == "vl" &&
+              runtimeSplatStatementPlan->loop.bodySteps[2].callee ==
+                  "__riscv_vse32_v_i32m1" &&
+              runtimeSplatStatementPlan->loop.bodySteps[2]
+                      .operands[0]
+                      .expression == "out + offset" &&
+              runtimeSplatStatementPlan->loop.bodySteps[2]
+                      .operands[2]
+                      .expression == "vl",
+          "runtime_i32_splat_store statement plan derives pre-loop setvl, "
+          "loop setvl, splat, and store from typed runtime AVL/VL facts"))
+    return result;
+
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+  auto migratedRuntimeSplatPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+      emptyElementwiseFacts, emptyMemoryFacts, emptyMathFacts,
+      *runtimeSplatStatementResidualFacts,
+      "runtime splat-store migrated statement-plan unit test");
+  if (!migratedRuntimeSplatPlan)
+    return fail("runtime splat-store migrated statement plan: " +
+                llvm::toString(migratedRuntimeSplatPlan.takeError()));
+  if (int result = expect(
+          migratedRuntimeSplatPlan->plansMigratedRoute &&
+              migratedRuntimeSplatPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                      RuntimeScalarSplatStore &&
+              migratedRuntimeSplatPlan->preLoopSteps.size() == 1 &&
+              migratedRuntimeSplatPlan->loop.bodySteps.size() == 3,
+          "runtime_i32_splat_store is now an active migrated statement-plan "
+          "consumer"))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingRuntimeSplatControl =
@@ -6016,9 +6115,9 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
                      RVVSelectedBodyMigratedRouteStatementPlanOwner>
       owners = getRVVSelectedBodyMigratedRouteStatementPlanOwners();
   if (int result =
-          expect(owners.size() == 9,
+          expect(owners.size() == 10,
                  "migrated route statement-plan owner registry has exactly "
-                 "nine active family entries"))
+                 "ten active family entries"))
     return result;
 
   struct ExpectedOwner {
@@ -6032,6 +6131,9 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
        RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect},
       {"widening conversion",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion},
+      {"runtime scalar splat-store",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::
+           RuntimeScalarSplatStore},
       {"standalone reduction",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction},
       {"plain MAcc", RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc},
@@ -6072,6 +6174,9 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
        RVVSelectedBodyMemoryForm::VectorRHSLoad, "compare/select"},
       {RVVSelectedBodyOperationKind::WidenI32ToI64,
        RVVSelectedBodyMemoryForm::UnitStrideConversion, "widening conversion"},
+      {RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+       RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
+       "runtime scalar splat-store"},
       {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
        RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction,
        "standalone reduction"},
@@ -6124,8 +6229,8 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
 
   RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
   nonConsumerAnalysis.description = makeDescription(
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
-      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore);
+      RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideWideningDotReduce);
   RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
   RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       emptyElementwiseFacts;
@@ -6148,7 +6253,7 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
   if (int result = expect(
           !isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
               nonConsumerAnalysis.description),
-          "runtime scalar splat-store remains outside the migrated "
+          "non-migrated contraction route remains outside the migrated "
           "statement-plan owner registry"))
     return result;
 

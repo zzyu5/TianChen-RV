@@ -966,3 +966,68 @@ family-plan facts.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 254: Stage2 RVV VL/control runtime-AVL boundary owner
+
+**Date**: 2026-05-27
+**Task**: Stage2 RVV VL/control runtime-AVL boundary owner
+**Branch**: `main`
+
+### Summary
+
+Migrated runtime scalar splat-store behind the RVV runtime AVL/VL control owner, kept widening conversion on the shared owner boundary, tightened target artifact ABI validation, and verified generated-bundle plus ssh rvv runtime evidence.
+
+### Main Changes
+
+### Main Changes
+
+- Added `RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan` and registered runtime scalar splat-store as a migrated statement-plan owner consuming the existing route-control runtime AVL/VL provider boundary.
+- Removed provider-local one-off runtime scalar splat-store fallback statement assembly so the active route exits through the owner/migrated statement-plan path.
+- Tightened RVV target artifact ABI validation for runtime scalar splat-store: ABI order `rhs_scalar,out,n`, provider headers/type maps, pre-loop and loop-body `setvl`, loop bound/step relation, remaining AVL, splat/store operand bindings, selected typed source provenance, policy facts, and stale incompatible mirror rejection.
+- Extended C++ coverage for direct and migrated runtime scalar splat-store statement plans while keeping `widen_i32_to_i64` as an adjacent conversion consumer of the shared runtime AVL/VL owner facts.
+
+### Testing
+
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `ninja -C build tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit for explicit and pre-realized runtime-i32-splat-store target artifacts
+- [OK] generated-bundle dry-run for `runtime_i32_splat_store` and `widen_i32_to_i64`
+- [OK] real `ssh rvv` generated-bundle execution for `runtime_i32_splat_store`, counts `0,1,16,17,1024`, `rhs_scalar=7`
+- [OK] bounded touched-file authority scan found no new positive legacy-i32, descriptor, source-front-door, route-id, artifact-name, script-derived, exact-intrinsic, or common EmitC route authority; hits were fail-closed tests, mirror labels, diagnostics, and task red-line text.
+- [OK] `git diff --check`
+- [OK] `ninja -C build check-tianchenrv` (390/390). An accidental concurrent duplicate check produced temporary artifact-directory races; the clean run passed.
+
+### Self-Repair
+
+- Fixed the runtime scalar splat-store statement-plan test expectation from `full_vl` to the production `full_chunk_vl` control value.
+- Relaxed runtime scalar splat-store target validation to reject stale elementwise/conversion facts without treating reusable vector-load type facts as stale route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

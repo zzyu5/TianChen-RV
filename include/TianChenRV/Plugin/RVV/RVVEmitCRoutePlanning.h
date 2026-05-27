@@ -1082,6 +1082,18 @@ struct RVVSelectedBodyWideningConversionRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan {
+  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
+      *runtimeScalarSplatStorePlan = nullptr;
+
+  bool plansRuntimeScalarSplatStoreRoute = false;
+  bool plansRuntimeI32SplatStore = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
 struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
   const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
       *standaloneReductionPlan = nullptr;
@@ -1325,6 +1337,7 @@ enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
   ElementwiseArithmetic,
   CompareSelect,
   WideningConversion,
+  RuntimeScalarSplatStore,
   StandaloneReduction,
   PlainMAcc,
   BaseMemoryMovement,
@@ -1671,6 +1684,14 @@ getRVVSelectedBodyWideningConversionRouteStatementPlan(
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts
         &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan>
+getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
     llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyStandaloneReductionRouteStatementPlan>

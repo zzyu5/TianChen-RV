@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV-first stage order, compiler stack boundary, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope, runtime_param/mem_window role binding, selected variant boundaries, and non-compute authority contract."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV runtime AVL/VL control, selected-body realization, route-control provider plan, statement-plan ownership, target artifact mirrors, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute boundary and common EmitC materialization neutrality constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++/generated-bundle/runtime evidence policy for runtime AVL/VL and typed RVV routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-conversion-dtype-policy-route-family-owner/prd.md", "reason": "Predecessor route-family owner scope, validation pattern, target artifact ABI consumer pattern, and completed conversion non-regression boundary."}

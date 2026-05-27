@@ -763,14 +763,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       boundIndexABI = memoryOperandBindingFacts.indexABI;
       boundOutABI = memoryOperandBindingFacts.destinationABI;
     } else if (description.memoryForm ==
-               RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
-      if (!residualOperandBindingFacts.bindsRuntimeScalarSplatStore)
-        return makeRVVEmitCRouteProviderError(
-            "runtime scalar splat-store provider requires RVV-owned residual "
-            "operand-binding facts before route statement construction");
-      boundRHSABI = residualOperandBindingFacts.rhsScalarABI;
-      boundOutABI = residualOperandBindingFacts.outABI;
-    } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
       if (!elementwiseSelectOperandBindingFacts
                .bindsScalarBroadcastElementwise)
@@ -1002,26 +994,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
   const bool isMaskedStore =
       isRVVSelectedBodyMaskedStoreRoute(description.operation);
-  const bool isRuntimeScalarSplatStore =
-      description.operation ==
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
-  if (isRuntimeScalarSplatStore) {
-    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
-        getRVVSelectedBodyRouteControlProviderPlan(
-            analysis, materializationFacts,
-            "selected RVV EmitC route construction");
-    if (!routeControlPlan)
-      return routeControlPlan.takeError();
-    if (!routeControlPlan->plansRouteControl ||
-        !routeControlPlan->controlsRuntimeScalarSplatStore ||
-        !materializationFacts.runtimeScalarSplatStorePlan ||
-        routeControlPlan->runtimeControlPlan !=
-            &materializationFacts.runtimeScalarSplatStorePlan
-                 ->runtimeControlPlan)
-      return makeRVVEmitCRouteProviderError(
-          "runtime scalar splat-store provider requires the RVV-owned "
-          "route-control provider plan before route statement construction");
-  }
   llvm::StringRef lhsResultName =
       isRVVSelectedBodyMemoryMovementRoute(description.operation)
           ? description.resultName
@@ -1110,11 +1082,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"lhs_vec",
                                       sourceVectorCType.str()}))
       return error;
-  } else if (isRuntimeMaskMemory || isRuntimeScalarSplatStore) {
+  } else if (isRuntimeMaskMemory) {
     // Runtime-mask load-store materializes the source vector through
     // tcrv_rvv.masked_load after mask and passthrough operands are available.
-    // Runtime scalar splat-store has no lhs load; tcrv_rvv.splat materializes
-    // the stored vector below.
   } else {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
@@ -1227,18 +1197,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRVVSelectedBodyMemoryMovementRoute(description.operation) ||
       (emitsStandaloneReduction && !emitsComputedMaskStandaloneReduction)) {
     // These bounded routes have no RHS dataflow.
-  } else if (description.memoryForm ==
-      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
-    if (llvm::Error error = addLoopStep(
-            slice->rhsLoadOperation, "load",
-            rhsScalarBroadcastLeaf,
-            {TCRVEmitCCallOpaqueOperand{boundRHSABI->cName,
-                                        boundRHSABI->cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{description.resultName.str(),
-                                      description.vectorCType.str()}))
-      return error;
   } else if (description.memoryForm ==
                  RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
              description.memoryForm ==
@@ -1720,9 +1678,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (isRuntimeScalarSplatStore) {
-    // The splat op is already materialized as the route's load step; the store
-    // consumes description.resultName directly.
   } else if (isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
     // Bounded memory movement routes forward the loaded vector into the
     // unit-stride store. tcrv_rvv.move is structural body authority and does
