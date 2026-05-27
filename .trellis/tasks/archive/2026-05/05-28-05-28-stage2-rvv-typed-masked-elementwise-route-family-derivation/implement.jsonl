@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Project boundary, source-of-truth order, RVV-first authority chain, and Stage1/Stage2 sequencing constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body/config authority, mask/tail policy, route-control provider plan, elementwise arithmetic statement-plan boundary, target artifact mirrors, fail-closed diagnostics, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundary; mem_window/runtime_param must not define RVV compute, dtype, config, or route identity."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality contract for provider-derived route facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, generated-bundle, mask/tail policy, inactive-lane/tail preservation, and ssh rvv evidence rules."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verifier support for typed masked elementwise body/config facts across non-i32m1 SEW/LMUL witnesses."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Pre-realized masked elementwise selected bodies realize into typed vector/mask tcrv_rvv compare/masked_binary/store structure."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Route planning derives masked elementwise element type, mask suffix, vector C type, intrinsic leaves, route-control, and runtime AVL/VL facts from typed body/config facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Provider validates typed masked elementwise route facts before building TCRVEmitCLowerableRoute."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Construction/export mirrors validate typed masked elementwise route-family facts without becoming route authority."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle evidence now covers masked_i64_add and masked_lmul_m2_sub, derives mask suffix/C type from SEW/LMUL, and emits type-correct i64 harness oracle."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-masked-i64-add.mlir", "reason": "Non-i32m1 dtype witness for masked elementwise route-family derivation: i64, SEW=64, LMUL=m1, mask type b64/vbool64_t."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-masked-lmul-m2-sub.mlir", "reason": "Non-i32m1 LMUL witness for masked elementwise route-family derivation: i32, SEW=32, LMUL=m2, mask type b16/vbool16_t, sub op kind."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-masked-typed-derivation-dry-run.test", "reason": "Regression lit coverage for typed masked elementwise evidence JSON, emitted C++ mask types/intrinsics, and harness oracle typing."}

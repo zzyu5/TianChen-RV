@@ -4375,14 +4375,19 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
   }
   if (!support::runtimeABIParametersEqual(facts.runtimeABIParameters,
                                           expectedParameters)) {
-    bool acceptsI64AddParameters = false;
-    if (route->operationMnemonic == "add") {
+    bool acceptsTypedI64ElementwiseParameters = false;
+    if (route->operationMnemonic == "add" ||
+        route->operationMnemonic == "sub" ||
+        route->operationMnemonic == "mul" ||
+        route->operationMnemonic == "masked_add" ||
+        route->operationMnemonic == "masked_sub" ||
+        route->operationMnemonic == "masked_mul") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> i64Parameters =
           tcrv::rvv::getRVVSelectedBodyI64RuntimeABIParameters();
-      acceptsI64AddParameters = support::runtimeABIParametersEqual(
+      acceptsTypedI64ElementwiseParameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, i64Parameters);
     }
-    if (!acceptsI64AddParameters)
+    if (!acceptsTypedI64ElementwiseParameters)
       return makeRVVConstructionError(
           llvm::Twine(context) +
           " runtime ABI parameters must mirror provider-derived operation '" +

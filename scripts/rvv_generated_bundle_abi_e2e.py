@@ -46,7 +46,14 @@ DEFAULT_STRIDED_LOAD_BYTE_STRIDES = (4, 8, 12)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
-MASKED_ELEMENTWISE_OP_KINDS = ("masked_add", "masked_sub", "masked_mul")
+MASKED_ELEMENTWISE_BASE_OP_BY_KIND = {
+    "masked_add": "masked_add",
+    "masked_sub": "masked_sub",
+    "masked_mul": "masked_mul",
+    "masked_i64_add": "masked_add",
+    "masked_lmul_m2_sub": "masked_sub",
+}
+MASKED_ELEMENTWISE_OP_KINDS = tuple(MASKED_ELEMENTWISE_BASE_OP_BY_KIND)
 SCALAR_BROADCAST_OP_KINDS = (
     "scalar_broadcast_add",
     "scalar_broadcast_sub",
@@ -131,6 +138,15 @@ PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS = (
 )
 PLAIN_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
     "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"
+)
+MASKED_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-masked-elementwise-arithmetic-leaf-profile.v1"
+)
+MASKED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-masked-elementwise-arithmetic-plan-validated"
+)
+MASKED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
+    "vl:size_t,lhs/rhs/passthrough:typed-vector,mask:typed-mask,result:typed-vector"
 )
 MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
@@ -761,16 +777,19 @@ RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
 )
 
 
-def masked_elementwise_route_operand_binding_plan(kind: str) -> str:
+def masked_elementwise_base_kind(kind: str) -> str:
     if kind not in MASKED_ELEMENTWISE_OP_KINDS:
         raise EvidenceError(f"unsupported masked elementwise op kind: {kind}")
-    return f"rvv-route-operand-binding:{kind}.v1"
+    return MASKED_ELEMENTWISE_BASE_OP_BY_KIND[kind]
+
+
+def masked_elementwise_route_operand_binding_plan(kind: str) -> str:
+    base_kind = masked_elementwise_base_kind(kind)
+    return f"rvv-route-operand-binding:{base_kind}.v1"
 
 
 def masked_elementwise_materialized_use_prefix(kind: str) -> str:
-    if kind not in MASKED_ELEMENTWISE_OP_KINDS:
-        raise EvidenceError(f"unsupported masked elementwise op kind: {kind}")
-    return kind.replace("_", "-")
+    return masked_elementwise_base_kind(kind).replace("_", "-")
 
 
 def masked_elementwise_route_operand_binding_operands(kind: str) -> str:
@@ -1411,17 +1430,36 @@ class OpExpectation:
 
     @property
     def rvv_mask_suffix(self) -> str:
-        if self.lmul == "m1":
-            return "b32"
-        if self.lmul == "m2":
-            return "b16"
+        sew_bits = int(self.sew)
+        if self.lmul.startswith("mf"):
+            lmul_denominator = int(self.lmul.removeprefix("mf"))
+            mask_bits = sew_bits * lmul_denominator
+        elif self.lmul.startswith("m"):
+            lmul_multiplier = int(self.lmul.removeprefix("m"))
+            if sew_bits % lmul_multiplier != 0:
+                raise EvidenceError(
+                    f"{self.kind} has non-integral mask suffix for SEW "
+                    f"{self.sew} and LMUL {self.lmul}"
+                )
+            mask_bits = sew_bits // lmul_multiplier
+        else:
+            raise EvidenceError(
+                f"{self.kind} has no mask suffix expectation for LMUL {self.lmul}"
+            )
+        if mask_bits in {1, 2, 4, 8, 16, 32, 64}:
+            return f"b{mask_bits}"
         raise EvidenceError(
-            f"{self.kind} has no mask suffix expectation for LMUL {self.lmul}"
+            f"{self.kind} has unsupported mask suffix b{mask_bits} for "
+            f"SEW {self.sew} and LMUL {self.lmul}"
         )
 
     @property
     def rvv_mask_c_type(self) -> str:
         return f"vbool{self.rvv_mask_suffix.removeprefix('b')}_t"
+
+    @property
+    def rvv_mask_type(self) -> str:
+        return f'!tcrv_rvv.mask<{self.element_type}, "{self.lmul}">'
 
     @property
     def compare_intrinsic(self) -> str:
@@ -1469,7 +1507,7 @@ class OpExpectation:
             "masked_add": "vadd",
             "masked_sub": "vsub",
             "masked_mul": "vmul",
-        }.get(self.kind)
+        }.get(masked_elementwise_base_kind(self.kind))
         if not op_leaf:
             raise EvidenceError(
                 f"{self.kind} has no masked elementwise compute intrinsic expectation"
@@ -1773,10 +1811,14 @@ class OpExpectation:
             return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
             return EXPECTED_I64_RUNTIME_PARAMETERS
+        if self.is_masked_elementwise and self.element_c_type == "int64_t":
+            return EXPECTED_I64_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
 
     @property
     def selected_body_operation(self) -> str:
+        if self.is_masked_elementwise:
+            return masked_elementwise_base_kind(self.kind)
         if self.is_i64_add or self.is_lmul_m2_add:
             return "add"
         if self.kind == "cmp_select_sle":
@@ -3489,6 +3531,44 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_mul",
         function_name="tcrv_emitc_pre_realized_body_masked_mul_kernel_pre_realized_body_rvv_masked_mul",
+    ),
+    "masked_i64_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_add"],
+        kind="masked_i64_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-i64-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_masked_i64_add",
+        function_name="tcrv_emitc_pre_realized_body_masked_i64_add_kernel_pre_realized_body_rvv_masked_i64_add",
+        lhs_initializer=(
+            "(int64_t)(((index % 4) == 0) "
+            "? (int64_t)(7000000000LL + (int64_t)index) "
+            ": (int64_t)(3000000000LL + (int64_t)index))"
+        ),
+        rhs_initializer=(
+            "(int64_t)(((index % 4) == 0) "
+            "? (int64_t)(7000000000LL + (int64_t)index) "
+            ": (int64_t)(-2000000000LL + (int64_t)index))"
+        ),
+        expected_expression=(
+            "(lhs[index] == rhs[index] ? "
+            "(int64_t)(lhs[index] + rhs[index]) : lhs[index])"
+        ),
+        out_initializer=I64_OUT_SENTINEL,
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
+    "masked_lmul_m2_sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_sub"],
+        kind="masked_lmul_m2_sub",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-lmul-m2-sub.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_masked_lmul_m2_sub",
+        function_name="tcrv_emitc_pre_realized_body_masked_lmul_m2_sub_kernel_pre_realized_body_rvv_masked_lmul_m2_sub",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["reduce_add"],
@@ -5840,6 +5920,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_masked_elementwise:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.source_memory_form": "unit-stride-load",
+                "tcrv_rvv.destination_memory_form": "unit-stride-store",
+                "tcrv_rvv.elementwise_arithmetic_route_family_plan": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    MASKED_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    MASKED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    MASKED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING
+                ),
                 "tcrv_rvv.mask_role": MASKED_ADD_MASK_ROLE,
                 "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
                 "tcrv_rvv.inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
@@ -9928,17 +10026,17 @@ def verify_materialized_selected_body(
         f"sew = {expectation.sew} : i64",
         "materialized selected-body MLIR SEW config",
     )
-    if expectation.is_i64_add:
+    if expectation.is_plain_elementwise_arithmetic or expectation.is_masked_elementwise:
         require_contains(
             text,
-            '!tcrv_rvv.vector<i64, "m1">',
-            "materialized selected-body MLIR i64 vector type",
+            expectation.rvv_vector_type,
+            "materialized selected-body MLIR typed elementwise vector type",
         )
-    if expectation.is_lmul_m2_add:
+    if expectation.is_masked_elementwise:
         require_contains(
             text,
-            '!tcrv_rvv.vector<i32, "m2">',
-            "materialized selected-body MLIR i32 LMUL m2 vector type",
+            expectation.rvv_mask_type,
+            "materialized selected-body MLIR typed masked elementwise mask type",
         )
     runtime_avl_vl_boundary = extract_runtime_avl_vl_materialized_boundary(
         text, expectation
@@ -17850,11 +17948,12 @@ static int run_case(size_t n) {{
     else
       ++mask_false_lanes;
 
-    int32_t expected = {expectation.expected_expression};
+    {expectation.element_c_type} expected = {expectation.expected_expression};
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d mask=%d\\n",
-              n, index, out[index], expected, lhs[index], rhs[index], mask);
+              "{expectation.kind} mismatch n=%zu index=%zu got=%lld expected=%lld lhs=%lld rhs=%lld mask=%d\\n",
+              n, index, (long long)out[index], (long long)expected,
+              (long long)lhs[index], (long long)rhs[index], mask);
       free(lhs);
       free(rhs);
       free(out);
@@ -17864,8 +17963,9 @@ static int run_case(size_t n) {{
     if (!mask) {{
       if (out[index] != lhs[index]) {{
         fprintf(stderr,
-                "{expectation.kind} inactive lane did not preserve passthrough n=%zu index=%zu got=%d passthrough=%d rhs=%d\\n",
-                n, index, out[index], lhs[index], rhs[index]);
+                "{expectation.kind} inactive lane did not preserve passthrough n=%zu index=%zu got=%lld passthrough=%lld rhs=%lld\\n",
+                n, index, (long long)out[index], (long long)lhs[index],
+                (long long)rhs[index]);
         free(lhs);
         free(rhs);
         free(out);
@@ -18846,7 +18946,7 @@ def mask_tail_policy_boundary_summary(
                 "typed tcrv_rvv masked elementwise body/config -> "
                 "compare-produced mask -> RVV route-family facts -> "
                 "residual operand bindings -> statement plan -> emitted "
-                "masked add and passthrough merge"
+                "masked elementwise arithmetic and passthrough merge"
             ),
             "authority": (
                 "provider-derived typed tcrv_rvv masked elementwise "
@@ -18859,6 +18959,15 @@ def mask_tail_policy_boundary_summary(
                 "role": MASKED_ADD_MASK_ROLE,
                 "source": MASKED_ADD_MASK_SOURCE,
                 "memory_form": "compare-produced-mask",
+                "mask_type": expectation.rvv_mask_type,
+                "mask_c_type": expectation.rvv_mask_c_type,
+            },
+            "typed_vector": {
+                "element_type": expectation.element_type,
+                "sew": expectation.sew,
+                "lmul": expectation.lmul,
+                "vector_type": expectation.rvv_vector_type,
+                "vector_c_type": expectation.rvv_vector_c_type,
             },
             "tail_policy": expected_metadata_for(expectation).get(
                 "tcrv_rvv.tail_policy"
@@ -18880,11 +18989,14 @@ def mask_tail_policy_boundary_summary(
                 ),
             },
             "emitted_cpp": {
-                "compare_intrinsic": "__riscv_vmseq_vv_i32m1_b32",
+                "compare_intrinsic": expectation.compare_intrinsic,
                 "active_compute_intrinsic": (
                     expectation.masked_elementwise_compute_intrinsic
                 ),
-                "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
+                "masked_merge_intrinsic": expectation.select_intrinsic,
+                "setvl_intrinsic": expectation.setvl_intrinsic,
+                "load_intrinsic": expectation.unit_load_intrinsic,
+                "store_intrinsic": expectation.unit_store_intrinsic,
                 "intrinsics": emitted_cpp_checks.get("intrinsics", []),
             },
             "route_metadata": mask_tail_policy_metadata_from_bundle(

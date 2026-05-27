@@ -3476,9 +3476,15 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     RVVSelectedBodyOperationKind operation,
     const RVVSelectedBodyConfigProfile &config) {
   if (config.sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (operation == RVVSelectedBodyOperationKind::Add &&
-        config.lmul == tcrv::rvv::getRVVLMULM1())
+    if (config.lmul != tcrv::rvv::getRVVLMULM1())
+      return {};
+    if (operation == RVVSelectedBodyOperationKind::Add ||
+        operation == RVVSelectedBodyOperationKind::MaskedAdd)
       return "__riscv_vadd_vv_i64m1";
+    if (operation == RVVSelectedBodyOperationKind::MaskedSub)
+      return "__riscv_vsub_vv_i64m1";
+    if (operation == RVVSelectedBodyOperationKind::MaskedMul)
+      return "__riscv_vmul_vv_i64m1";
     return {};
   }
 
@@ -3665,6 +3671,16 @@ getRVVSelectedBodyEqualCompareIntrinsic(llvm::StringRef lmul) {
 }
 
 llvm::StringRef
+getRVVSelectedBodyEqualCompareIntrinsic(
+    const RVVSelectedBodyConfigProfile &config) {
+  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vmseq_vv_i64m2_b32"
+               : "__riscv_vmseq_vv_i64m1_b64";
+  return getRVVSelectedBodyEqualCompareIntrinsic(config.lmul);
+}
+
+llvm::StringRef
 getRVVSelectedBodySignedLessThanCompareIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmslt_vv_i32m2_b16"
@@ -3701,6 +3717,15 @@ getRVVSelectedBodySelectIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmerge_vvm_i32m2"
              : "__riscv_vmerge_vvm_i32m1";
+}
+
+llvm::StringRef
+getRVVSelectedBodySelectIntrinsic(const RVVSelectedBodyConfigProfile &config) {
+  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vmerge_vvm_i64m2"
+               : "__riscv_vmerge_vvm_i64m1";
+  return getRVVSelectedBodySelectIntrinsic(config.lmul);
 }
 
 llvm::StringRef getRVVSelectedBodyMaskAndIntrinsic(llvm::StringRef lmul) {
@@ -10655,9 +10680,15 @@ deriveRVVSelectedBodyTargetLeafProfile(
     const RVVSelectedBodyConfigProfile &configProfile) {
   if (configProfile.sew == tcrv::rvv::getRVVSEW64Bits() &&
       description.operation != RVVSelectedBodyOperationKind::WidenI32ToI64) {
-    if (description.operation != RVVSelectedBodyOperationKind::Add ||
-        description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad ||
-        configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    const bool supportsPlainI64Add =
+        description.operation == RVVSelectedBodyOperationKind::Add &&
+        description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    const bool supportsMaskedI64Arithmetic =
+        operationProfile.isMaskedArithmetic &&
+        description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
@@ -10835,8 +10866,8 @@ deriveRVVSelectedBodyTargetLeafProfile(
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyArithmeticIntrinsic(description.operation,
                                              configProfile),
-        getRVVSelectedBodyEqualCompareIntrinsic(configProfile.lmul),
-        getRVVSelectedBodySelectIntrinsic(configProfile.lmul), ""};
+        getRVVSelectedBodyEqualCompareIntrinsic(configProfile),
+        getRVVSelectedBodySelectIntrinsic(configProfile), ""};
   }
 
   if (operationProfile.isMultiplyAccumulate) {

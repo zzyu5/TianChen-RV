@@ -265,14 +265,41 @@ llvm::Error verifyElementwiseArithmeticMaterializationFactsBeforeRouteBuild(
         "description mirrors to come from the validated typed family plan "
         "before creating TCRVEmitCLowerableRoute");
 
-  if (!plan->maskTypeName.empty() &&
-      (description.maskTypeName != plan->maskTypeName ||
-       description.maskCType != plan->maskCType))
+  if (plan->usesMaskedArithmetic) {
+    if (typedFacts.maskTypeName.empty() || typedFacts.maskCType.empty() ||
+        plan->maskTypeName.empty() || plan->maskCType.empty() ||
+        plan->maskTypeName != typedFacts.maskTypeName ||
+        plan->maskCType != typedFacts.maskCType)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " masked elementwise arithmetic route construction requires mask "
+          "type facts to mirror the selected typed RVV body/config before "
+          "creating TCRVEmitCLowerableRoute");
+    if (description.maskTypeName != plan->maskTypeName ||
+        description.maskCType != plan->maskCType ||
+        description.compareIntrinsic != plan->compareIntrinsic ||
+        description.maskedMergeIntrinsic != plan->maskedMergeIntrinsic ||
+        description.maskRole != plan->maskRole ||
+        description.maskSource != plan->maskSource ||
+        description.inactiveLaneContract != plan->inactiveLaneContract ||
+        description.maskedPassthroughLayout !=
+            plan->maskedPassthroughLayout)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " masked elementwise arithmetic route construction requires "
+          "description mask/type/leaf mirrors to come from the validated typed "
+          "family plan before creating TCRVEmitCLowerableRoute");
+  } else if (!plan->maskTypeName.empty() || !plan->maskCType.empty() ||
+             !description.maskTypeName.empty() ||
+             !description.maskCType.empty() ||
+             !description.compareIntrinsic.empty() ||
+             !description.maskedMergeIntrinsic.empty()) {
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " masked elementwise arithmetic route construction requires mask "
-        "type mirrors to come from the validated typed family plan before "
-        "creating TCRVEmitCLowerableRoute");
+        " elementwise arithmetic route construction rejects stale masked "
+        "type or leaf mirrors for non-masked routes before creating "
+        "TCRVEmitCLowerableRoute");
+  }
   if (!plan->stridedLoadIntrinsic.empty() &&
       (description.stridedLoadIntrinsic != plan->stridedLoadIntrinsic ||
        description.stridedStoreIntrinsic != plan->stridedStoreIntrinsic))

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 280
+- **Total Sessions**: 281
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~598 | Active |
+| `journal-17.md` | ~636 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 281 | 2026-05-28 | Stage2 RVV typed masked elementwise route-family derivation | pending-final-session-commit | `main` |
 | 280 | 2026-05-28 | Stage2 RVV typed dtype LMUL elementwise route-family derivation | - | `main` |
 | 279 | 2026-05-28 | Stage2 RVV runtime-scalar masked standalone reduction boundary | pending-final-session-commit | `main` |
 | 278 | 2026-05-28 | Stage2 RVV runtime-scalar cmp masked memory side-effect boundary | `7a36d25c` | `main` |

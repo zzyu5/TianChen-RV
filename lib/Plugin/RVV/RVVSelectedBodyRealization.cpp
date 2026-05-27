@@ -64,6 +64,15 @@ bool isPreRealizedMaskedOpKind(llvm::StringRef opKind) {
          opKind == "masked_mul";
 }
 
+bool isPreRealizedMaskedConfig(std::int64_t sew, llvm::StringRef lmul) {
+  if (tcrv::rvv::isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return true;
+  return tcrv::rvv::isRVVSelectedBodyI64M1Config(sew, lmul);
+}
+
 llvm::StringRef getPreRealizedMaskedBinaryKind(llvm::StringRef opKind) {
   if (opKind == "masked_add")
     return "add";
@@ -1404,11 +1413,11 @@ llvm::Error validatePreRealizedRVVSelectedMaskedBody(
     return makeRVVPluginError(
         "pre-realized RVV selected masked body currently supports only "
         "masked_passthrough 'passthrough-vector-preserves-inactive-lanes'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  if (!isPreRealizedMaskedConfig(static_cast<std::int64_t>(body.getSew()),
+                                 body.getLmul()))
     return makeRVVPluginError(
-        "pre-realized RVV selected masked body requires SEW32 LMUL m1");
+        "pre-realized RVV selected masked body requires SEW32 LMUL m1, SEW32 "
+        "LMUL m2, or SEW64 LMUL m1");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected masked body requires tail agnostic, mask "
@@ -5738,6 +5747,16 @@ mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
                                   tcrv::rvv::getRVVLMULM1());
 }
 
+mlir::Type getGenericMaskTypeForVector(mlir::OpBuilder &builder,
+                                       mlir::Value vector) {
+  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(vector.getType());
+  if (!vectorType)
+    return getStage1GenericMaskType(builder);
+  return tcrv::rvv::MaskType::get(builder.getContext(),
+                                  vectorType.getElementType(),
+                                  vectorType.getLmul());
+}
+
 mlir::Type getGenericIndexVectorType(mlir::OpBuilder &builder,
                                      std::int64_t indexEEW,
                                      llvm::StringRef lmul) {
@@ -5920,7 +5939,7 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
   mlir::OperationState state(loc, "tcrv_rvv.compare");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(kind));
-  state.addTypes(getStage1GenericMaskType(builder));
+  state.addTypes(getGenericMaskTypeForVector(builder, lhs));
   return builder.create(state);
 }
 
@@ -7399,24 +7418,20 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
     mlir::Location loc = maskedBody->getLoc();
     builder.setInsertionPoint(maskedBody.getOperation());
 
+    const std::int64_t sew = static_cast<std::int64_t>(maskedBody.getSew());
+    llvm::StringRef lmul = maskedBody.getLmul();
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, maskedBody.getN(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1(),
-        maskedBody.getPolicy()));
+        builder, loc, maskedBody.getN(), sew, lmul, maskedBody.getPolicy()));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires,
-                             tcrv::rvv::getRVVFirstSliceSEWBits(),
-                             tcrv::rvv::getRVVLMULM1(),
-                             maskedBody.getPolicy());
+                             sew, lmul, maskedBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maskedBody.getLhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+        builder, loc, maskedBody.getLhs(), setvl.getVl(), sew, lmul));
     auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maskedBody.getRhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+        builder, loc, maskedBody.getRhs(), setvl.getVl(), sew, lmul));
     mlir::Value lhsValue = lhsLoad.getLoaded();
     mlir::Value rhsValue = rhsLoad.getLoaded();
     auto compare = llvm::cast<tcrv::rvv::CompareOp>(

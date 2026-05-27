@@ -685,6 +685,15 @@ bool isSupportedTypedMaskedBinaryPreRealizedMemoryForm(
   return memoryForm == "masked-vector-rhs-load";
 }
 
+bool isSupportedTypedMaskedBinaryPreRealizedConfig(std::int64_t sew,
+                                                   llvm::StringRef lmul) {
+  if (isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  if (sew == getRVVFirstSliceSEWBits() && lmul == getRVVLMULM2())
+    return true;
+  return isRVVSelectedBodyI64M1Config(sew, lmul);
+}
+
 bool isSupportedTypedMaskedBinaryPreRealizedMaskSource(
     llvm::StringRef maskSource) {
   return maskSource == "compare-produced-mask-same-vl-scope";
@@ -2053,7 +2062,8 @@ llvm::StringRef getGenericRVVMaskLMUL(mlir::Type type) {
   auto mask = llvm::dyn_cast<tianchenrv::tcrv::rvv::MaskType>(type);
   if (!mask)
     return {};
-  if (!mask.getElementType().isInteger(32))
+  if (!mask.getElementType().isInteger(32) &&
+      !mask.getElementType().isInteger(64))
     return {};
   if (mask.getLmul() == "m1" || mask.getLmul() == "m2")
     return mask.getLmul();
@@ -2185,11 +2195,18 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
   if (!mask)
     return op->emitOpError()
            << "requires " << role << " type to be generic !tcrv_rvv.mask";
-  if (!mask.getElementType().isInteger(32))
+  auto integerElement =
+      llvm::dyn_cast<mlir::IntegerType>(mask.getElementType());
+  if (!integerElement)
+    return op->emitOpError()
+           << "requires " << role << " element type to be an integer type for "
+           << "the bounded Stage 2 predicate route";
+  if (integerElement.getWidth() != getRVVFirstSliceSEWBits() &&
+      integerElement.getWidth() != getRVVSEW64Bits())
     return op->emitOpError()
            << "currently requires " << role
-           << " element type to be i32 for the bounded Stage 2 predicate "
-              "route";
+           << " element type to be i32 or i64 for the bounded Stage 2 "
+              "predicate route";
 
   llvm::StringRef valueLMUL = getGenericRVVMaskLMUL(value.getType());
   if (valueLMUL.empty())
@@ -2208,11 +2225,12 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV mask dataflow";
-  if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
+  if (expectedSEW.getInt() != integerElement.getWidth())
     return op->emitOpError()
            << "requires " << role
-           << " element type i32 to agree with enclosing tcrv_rvv.with_vl "
-              "SEW32 metadata";
+           << " element width " << integerElement.getWidth()
+           << " to agree with enclosing tcrv_rvv.with_vl SEW metadata "
+           << expectedSEW.getInt();
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
@@ -3251,11 +3269,11 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
               "\"passthrough-vector-preserves-inactive-lanes\" for the "
               "bounded selected-body masked realization hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedMaskedBinaryPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
            << "requires bounded pre-realized masked config to be SEW32 LMUL "
-              "m1";
+              "m1, SEW32 LMUL m2, or SEW64 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "

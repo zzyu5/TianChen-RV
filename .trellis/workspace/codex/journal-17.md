@@ -601,3 +601,63 @@ Validated with check-tianchenrv 413/413, generated-bundle dry-run for i64_add an
 ### Next Steps
 
 - None - task complete
+
+
+## Session 281: Stage2 RVV typed masked elementwise route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed masked elementwise route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed typed masked elementwise route-family derivation for masked_i64_add and masked_lmul_m2_sub: RVV verifier/realization/planning/provider now derive vector and mask facts from typed body/config/runtime facts; generated-bundle dry-run, ssh rvv counts 0,1,16,23,257, non-regression dry-runs, git diff --check, authority scan, and check-tianchenrv 416/416 passed.
+
+### Main Changes
+
+- Extended typed masked selected-body validation from the bounded i32m1 case to
+  typed SEW64/LMUL m1 and SEW32/LMUL m2 masked elementwise witnesses.
+- Realization now creates compare mask types from the realized vector element
+  type and LMUL, so `masked_i64_add` produces `!tcrv_rvv.mask<i64, "m1">`
+  / `vbool64_t` and `masked_lmul_m2_sub` produces
+  `!tcrv_rvv.mask<i32, "m2">` / `vbool16_t`.
+- Route planning/provider now validate masked elementwise mask type/C type,
+  compare leaf, masked merge leaf, mask role/source, inactive-lane contract,
+  runtime AVL/VL facts, and provider mirrors before building
+  `TCRVEmitCLowerableRoute`.
+- Generated-bundle evidence covers `masked_i64_add` and
+  `masked_lmul_m2_sub`, including typed mask suffix derivation and type-correct
+  i64 harness oracle formatting.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: derive typed masked elementwise route facts` |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-run for `masked_i64_add` and
+  `masked_lmul_m2_sub`, counts `0,1,16,23,257`.
+- [OK] generated-bundle dry-run non-regression for `i64_add` and
+  `lmul_m2_add`, counts `0,1,16,23,257`.
+- [OK] `ssh rvv` generated-bundle compile/run/correctness for
+  `masked_i64_add` and `masked_lmul_m2_sub`, counts `0,1,16,23,257`,
+  with inactive-lane passthrough preservation.
+- [OK] `git diff --check`.
+- [OK] bounded added-line authority scan: production additions did not add
+  legacy `RVVI32M1` / `rvv-i32m1` / `tcrv_rvv.i32_`, descriptor,
+  source-front-door, direct-C/source-export, or exact i32m1 intrinsic
+  authority. New script mirror labels remain explicit
+  `provider_supported_mirror` evidence consumers.
+- [OK] `ninja -C build check-tianchenrv`: 416/416 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
