@@ -654,6 +654,8 @@ constexpr llvm::StringLiteral kRVVSubOperandBindingPlanID(
     "rvv-route-operand-binding:sub.v1");
 constexpr llvm::StringLiteral kRVVMulOperandBindingPlanID(
     "rvv-route-operand-binding:mul.v1");
+constexpr llvm::StringLiteral kRVVXorOperandBindingPlanID(
+    "rvv-route-operand-binding:xor.v1");
 constexpr llvm::StringLiteral kRVVCmpSelectOperandBindingPlanID(
     "rvv-route-operand-binding:cmp_select.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectOperandBindingPlanID(
@@ -681,6 +683,7 @@ bool isRVVFourOperandPlanID(llvm::StringRef planID) {
   return planID == kRVVAddOperandBindingPlanID ||
          planID == kRVVSubOperandBindingPlanID ||
          planID == kRVVMulOperandBindingPlanID ||
+         planID == kRVVXorOperandBindingPlanID ||
          planID == kRVVCmpSelectOperandBindingPlanID ||
          planID == kRVVMaskedAddOperandBindingPlanID ||
          planID == kRVVMaskedSubOperandBindingPlanID ||
@@ -697,6 +700,8 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVSubOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::Mul:
     return kRVVMulOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::Xor:
+    return kRVVXorOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::CmpSelect:
     return kRVVCmpSelectOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskSelect:
@@ -2621,7 +2626,7 @@ struct RVVSelectedBodyRouteProfile {
 
 constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
-    RVVSelectedBodyOperationKind::Mul,
+    RVVSelectedBodyOperationKind::Mul, RVVSelectedBodyOperationKind::Xor,
     RVVSelectedBodyOperationKind::CmpSelect,
     RVVSelectedBodyOperationKind::ComputedMaskSelect,
     RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect,
@@ -2693,6 +2698,14 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile kMul = {
       RVVSelectedBodyOperationKind::Mul, "mul", "product_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kXor = {
+      RVVSelectedBodyOperationKind::Xor, "xor", "xor_vec", "",
       /*isCompareSelect=*/false, /*isReduction=*/false,
       /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
       /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
@@ -3202,6 +3215,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kSub;
   case RVVSelectedBodyOperationKind::Mul:
     return kMul;
+  case RVVSelectedBodyOperationKind::Xor:
+    return kXor;
   case RVVSelectedBodyOperationKind::CmpSelect:
     return kCmpSelect;
   case RVVSelectedBodyOperationKind::ComputedMaskSelect:
@@ -3497,6 +3512,10 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     return config.lmul == tcrv::rvv::getRVVLMULM2()
                ? "__riscv_vmul_vv_i32m2"
                : "__riscv_vmul_vv_i32m1";
+  case RVVSelectedBodyOperationKind::Xor:
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vxor_vv_i32m2"
+               : "__riscv_vxor_vv_i32m1";
   case RVVSelectedBodyOperationKind::CmpSelect:
   case RVVSelectedBodyOperationKind::ComputedMaskSelect:
   case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
@@ -4266,6 +4285,7 @@ bool isRVVSelectedBodyElementwiseArithmeticRouteOperation(
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::Xor:
   case RVVSelectedBodyOperationKind::MaskedAdd:
   case RVVSelectedBodyOperationKind::MaskedSub:
   case RVVSelectedBodyOperationKind::MaskedMul:
@@ -4280,7 +4300,8 @@ bool isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::Add ||
          op == RVVSelectedBodyOperationKind::Sub ||
-         op == RVVSelectedBodyOperationKind::Mul;
+         op == RVVSelectedBodyOperationKind::Mul ||
+         op == RVVSelectedBodyOperationKind::Xor;
 }
 
 bool isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
@@ -4306,6 +4327,7 @@ getElementwiseArithmeticRouteFamilyMemoryForm(RVVSelectedBodyOperationKind op) {
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::Xor:
   case RVVSelectedBodyOperationKind::MaskedAdd:
   case RVVSelectedBodyOperationKind::MaskedSub:
   case RVVSelectedBodyOperationKind::MaskedMul:
@@ -13554,16 +13576,20 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
 
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Add ||
       slice.arithmeticKind == RVVSelectedBodyOperationKind::Sub ||
-      slice.arithmeticKind == RVVSelectedBodyOperationKind::Mul) {
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::Mul ||
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::Xor) {
     if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Add) {
       plan.planID = kRVVAddOperandBindingPlanID.str();
       context = "add route";
     } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Sub) {
       plan.planID = kRVVSubOperandBindingPlanID.str();
       context = "sub route";
-    } else {
+    } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Mul) {
       plan.planID = kRVVMulOperandBindingPlanID.str();
       context = "mul route";
+    } else {
+      plan.planID = kRVVXorOperandBindingPlanID.str();
+      context = "xor route";
     }
     expectedRuntimeABIOrder = kRVVGenericBinaryRuntimeABIOrder;
     addRouteOperandBinding(
@@ -15487,6 +15513,8 @@ parseRVVSelectedBodyBinaryKind(llvm::StringRef kind) {
     return RVVSelectedBodyOperationKind::Sub;
   if (kind == "mul")
     return RVVSelectedBodyOperationKind::Mul;
+  if (kind == "xor")
+    return RVVSelectedBodyOperationKind::Xor;
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("unsupported generic tcrv_rvv.binary kind '") + kind +
       "' for bounded RVV EmitC route");
@@ -24911,6 +24939,7 @@ static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::Xor:
     return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad ||
            description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
   case RVVSelectedBodyOperationKind::CmpSelect:
@@ -24991,6 +25020,7 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::Xor:
     if (description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad)
       if (llvm::Error error = requireFamilyPlan(
               analysis.elementwiseArithmeticRouteFamilyPlan.has_value(),

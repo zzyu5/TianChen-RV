@@ -428,7 +428,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
     if (description.operation == RVVSelectedBodyOperationKind::Add ||
         description.operation == RVVSelectedBodyOperationKind::Sub ||
-        description.operation == RVVSelectedBodyOperationKind::Mul) {
+        description.operation == RVVSelectedBodyOperationKind::Mul ||
+        description.operation == RVVSelectedBodyOperationKind::Xor) {
       if (!elementwiseSelectOperandBindingFacts
                .bindsOrdinaryElementwiseArithmetic)
         return makeRVVEmitCRouteProviderError(

@@ -19,7 +19,8 @@ module {
   }
 }
 
-// CHECK: currently supports only kind "add", "sub", or "mul"
+// CHECK: scalar-broadcast route currently requires
+// CHECK-SAME: kind = "add", "sub", or "mul"
 
 // -----
 

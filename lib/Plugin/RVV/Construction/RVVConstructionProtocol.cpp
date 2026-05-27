@@ -363,6 +363,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-binary-mul-emitc-route",
      "rvv-generic-binary-mul-callable-c-abi.v1",
      "rvv-generic-binary-mul-callable-c-abi"},
+    {"xor",
+     "tcrv_rvv.binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-binary-xor-emitc-route",
+     "rvv-generic-binary-xor-callable-c-abi.v1",
+     "rvv-generic-binary-xor-callable-c-abi"},
     {"cmp_select",
      "tcrv_rvv.select",
      "rvv.role.compute.generic_vector",
@@ -796,9 +802,9 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 52)
+          .size() != 53)
     return makeRVVConstructionError(
-        "selected-body construction mapping requires add, sub, mul, "
+        "selected-body construction mapping requires add, sub, mul, xor, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
         "runtime_scalar_dual_cmp_mask_and_select, "
         "runtime_scalar_cmp_masked_store, "

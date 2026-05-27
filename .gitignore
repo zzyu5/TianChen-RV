@@ -5,10 +5,10 @@ __pycache__/
 .ruff_cache/
 
 build/
+build-classroom/
 cmake-build-*/
 dist/
 *.egg-info/
 
 artifacts/tmp/
 *.log
-

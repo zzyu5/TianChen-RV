@@ -27,6 +27,7 @@ enum class RVVSelectedBodyOperationKind {
   Add,
   Sub,
   Mul,
+  Xor,
   CmpSelect,
   ComputedMaskSelect,
   RuntimeScalarCompareSelect,

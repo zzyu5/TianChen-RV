@@ -241,20 +241,20 @@ test/Target/RVV/
 
 ### 10. Bitwise Logical Arithmetic
 
-特性：支持整数 bitwise `and/or/xor`。
+特性：补齐整数 bitwise `and/or`。本分支已经把普通 vector-vector `xor` 作为参考 slice 完成，学生不要重复实现 `xor`，应阅读 `docs/add-rvv-xor-slice-workflow.md` 后按同样路径补齐剩余 bitwise slice。
 
 基础要求：
 
 - 扩展 generic `binary {kind}`。
 - 对整数 dtype 生成 RVV bitwise intrinsic。
 - 拒绝 floating element type。
-- 当前 `xor` 在测试里仍有 negative 痕迹，这是明确缺口，不要只改测试。
+- `xor` 已经是可参考的正向例子；新 PR 必须新增自己的正向 typed body、provider mapping、target FileCheck，并保留 unsupported dtype negative。
 
 主要改动：
 
 - `RVVDialect.cpp`：binary kind legality。
 - `RVVEmitCRoutePlanning.cpp`：bitwise intrinsic mapping。
-- `test/Dialect/RVV/`：从 negative 改出一个正向 typed body case，并保留 unsupported dtype negative。
+- `test/Dialect/RVV/`：补充正向 typed body case，并保留 unsupported dtype negative。
 
 进阶要求：添加 VX 或 VI 形式中的一个。
 

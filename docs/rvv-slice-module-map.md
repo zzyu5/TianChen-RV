@@ -161,7 +161,7 @@ actual output
 
 一个 PR 应该只做一个可 review 的 family：
 
-- 好：`binary {kind = xor}` + provider mapping + target FileCheck。
+- 好：参考已完成的 `binary {kind = xor}`，新增 `binary {kind = and}` 或同等小 slice + provider mapping + target FileCheck。
 - 好：`slide {direction = down}` + offset verifier + `vslidedown` FileCheck。
 - 好：`vcpop/vfirst` mask query + scalar ABI result。
 - 坏：一次性做所有 integer operation。

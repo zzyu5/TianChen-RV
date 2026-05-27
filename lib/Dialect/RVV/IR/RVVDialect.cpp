@@ -1353,7 +1353,7 @@ bool isSupportedTypedSegment2Field1InputRole(llvm::StringRef role) {
 }
 
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
-  return kind == "add" || kind == "sub" || kind == "mul";
+  return kind == "add" || kind == "sub" || kind == "mul" || kind == "xor";
 }
 
 bool isSupportedGenericMaskedBinaryKind(llvm::StringRef kind) {
@@ -8223,7 +8223,8 @@ mlir::LogicalResult BinaryOp::verify() {
 
   if (!isSupportedGenericBinaryKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"add\", \"sub\", or \"mul\" "
+           << "currently supports only kind \"add\", \"sub\", \"mul\", "
+              "or \"xor\" "
               "for the retained Stage 1 arithmetic route";
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)

@@ -4,6 +4,53 @@
 
 ## 构建 TianChenRV
 
+### 1. 安装基础工具
+
+Ubuntu / WSL 上建议先装基础构建工具：
+
+```bash
+sudo apt update
+sudo apt install -y build-essential cmake ninja-build python3 git wget
+```
+
+### 2. 安装 LLVM / MLIR
+
+TianChenRV 是真实 MLIR compiler path，不是自己模拟 MLIR。学生需要安装 LLVM/MLIR 工具链和 CMake package。课堂分支已在 LLVM 20 上验证。
+
+如果系统 apt 源已经提供 LLVM 20，可以直接尝试：
+
+```bash
+sudo apt install -y \
+  llvm-20 llvm-20-dev llvm-20-tools llvm-20-runtime \
+  clang-20 lld-20 \
+  libmlir-20-dev mlir-20-tools
+```
+
+如果系统源没有 LLVM 20，使用官方 LLVM apt 仓库脚本。官方入口是 <https://apt.llvm.org/>：
+
+```bash
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+sudo ./llvm.sh 20
+
+sudo apt install -y \
+  llvm-20 llvm-20-dev llvm-20-tools llvm-20-runtime \
+  clang-20 lld-20 \
+  libmlir-20-dev mlir-20-tools
+```
+
+安装后确认路径存在：
+
+```bash
+ls /usr/lib/llvm-20/lib/cmake/llvm
+ls /usr/lib/llvm-20/lib/cmake/mlir
+/usr/lib/llvm-20/bin/mlir-opt --version
+```
+
+如果你使用的是源码编译 LLVM/MLIR，也可以，只要 `LLVM_DIR` 和 `MLIR_DIR` 指向对应的 CMake package 目录。
+
+### 3. 配置项目
+
 准备 LLVM/MLIR CMake package 后配置：
 
 ```bash
