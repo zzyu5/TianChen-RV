@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify task remains inside TianChen-RV project boundary and compiler stack."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify migrated widening-dot artifact validation stays RVV target/plugin owned and fail-closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export code remains neutral and does not acquire RVV semantic authority."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify route/artifact checks do not move compute/dtype authority into tcrv.exec."}

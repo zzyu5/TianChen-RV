@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Top-level project boundary, stack, and spec routing for TianChen-RV changes."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, Stage2 selected-body realization, route authority, target artifact consumers, mirror metadata, and widening dot-reduce ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route/materializer neutrality and target-specific route fact boundary."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope, ABI/runtime role ownership, and non-ownership of RVV compute semantics."}

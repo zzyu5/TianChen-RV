@@ -3286,6 +3286,46 @@ Target artifact export is valid only after:
 Runtime, correctness, or performance claims additionally require real
 `ssh rvv` evidence.
 
+### Target Artifact Route-Family Validator Boundary
+
+RVV target artifact export has two target-owned validation layers:
+
+- the bridge layer, which rebuilds the selected-body route, checks generic
+  candidate shape, runtime ABI consistency, source-op provenance, forbidden
+  descriptor/direct-C/source-export residue, and artifact packaging mechanics;
+- route-family validators, which own family-specific artifact acceptance for a
+  selected `RVVSelectedBodyEmitCRouteDescription` and the rebuilt
+  `TCRVEmitCLowerableRoute`.
+
+The route-family validator registry must dispatch from the rebuilt provider
+description, not from artifact metadata, route ids, artifact names, ABI
+strings, tests, scripts, direct route entries, or exact intrinsic spellings.
+Each validator receives the target candidate, rebuilt lowerable route, and
+provider description. It may require metadata keys to mirror provider facts,
+but metadata remains evidence after route construction, never support
+authority.
+
+Required validator behavior:
+
+- Validate provider facts that are semantic to that family, such as family
+  plan ids, provider support labels, type/config relations, route operand
+  bindings, headers, type mappings, ABI mappings, and provider-built statement
+  plans.
+- Validate candidate metadata only as mirrors of those provider facts.
+- Fail closed when a required provider fact is absent, when a candidate mirror
+  is stale, or when stale facts for a different route subfamily appear on the
+  selected body.
+- Return success for unrelated route families only through registry dispatch;
+  family-specific validators should not make unrelated routes look accepted.
+
+Good: selected typed RVV body -> provider description and rebuilt
+`TCRVEmitCLowerableRoute` -> target bridge dispatches to the matching family
+validator -> artifact metadata mirrors the validated facts.
+
+Bad: central target-bundle code grows per-family semantic branches, or a family
+validator accepts an artifact because a route id, metadata key, ABI string,
+artifact filename, script expectation, or intrinsic spelling looks plausible.
+
 ### Segment2 Target Export Consumer Contract
 
 For segment2 route families, target artifact export must rebuild the

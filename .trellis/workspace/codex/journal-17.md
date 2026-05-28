@@ -833,7 +833,19 @@ Closed runtime_scalar_cmp_select_i64 and runtime_scalar_cmp_select_lmul_m2 throu
 
 ### Main Changes
 
-(Add details)
+- Added `RVVTargetArtifactRouteFamilyValidation` as the target-owned
+  route-family validation boundary and registered `widening-dot-reduction` as
+  the first production family.
+- Rewired `RVVTargetSupportBundle.cpp` to keep generic artifact bridge work
+  while dispatching widening-dot provider-fact and candidate mirror checks
+  through the new boundary.
+- Moved widening-dot route id mirror, provider support, binding, ABI, header,
+  type mapping, i16mf2->i32m1 relation, layout/store VL, computed-mask,
+  strided-input, and statement-plan checks into the family validator.
+- Added durable RVV plugin spec guidance for the target artifact route-family
+  validator boundary.
+- Archived Trellis task
+  `05-28-stage2-rvv-artifact-route-family-validator-boundary`.
 
 ### Git Commits
 
@@ -843,7 +855,15 @@ Closed runtime_scalar_cmp_select_i64 and runtime_scalar_cmp_select_lmul_m2 throu
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target TianChenRVTarget tcrv-translate tcrv-opt`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test && build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test && build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Four-case widening-dot dry-run with `local_bundle_generation.route_entry_realization=false`
+- [OK] Deprecated direct pre-realized route-entry failed closed for `computed_masked_strided_input_widening_dot_reduce_add`
+- [OK] `ssh rvv` generated-bundle run for `computed_masked_strided_input_widening_dot_reduce_add` and `widening_dot_reduce_add`
+- [OK] `cmake --build build --target check-tianchenrv` passed 456/456 after cleaning a duplicate-lit-run output collision
+- [OK] Bounded authority scan found no new metadata/descriptor/ABI-string/route-entry/source-front-door/exact-intrinsic/common-EmitC/artifact-name/script/legacy-i32 authority
 
 ### Status
 
@@ -1221,6 +1241,59 @@ Closed widening dot-reduce target artifact acceptance against rebuilt RVV provid
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 294: Stage2 RVV artifact route-family validator boundary
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV artifact route-family validator boundary
+**Branch**: `main`
+
+### Summary
+
+Migrated widening-dot target artifact validation into a target-owned RVV route-family validator boundary; verified focused target/plugin tests, four-case dry-run, direct shortcut fail-closed, ssh rvv, authority scan, and check-tianchenrv 456/456.
+
+### Main Changes
+
+- Added `RVVTargetArtifactRouteFamilyValidation` as the target-owned
+  route-family validation boundary and registered `widening-dot-reduction` as
+  the first production family.
+- Rewired `RVVTargetSupportBundle.cpp` to keep generic artifact bridge work
+  while dispatching widening-dot provider-fact and candidate mirror checks
+  through the new boundary.
+- Moved widening-dot route id mirror, provider support, binding, ABI, header,
+  type mapping, i16mf2->i32m1 relation, layout/store VL, computed-mask,
+  strided-input, and statement-plan checks into the family validator.
+- Added durable RVV plugin spec guidance for the target artifact route-family
+  validator boundary.
+- Archived Trellis task
+  `05-28-stage2-rvv-artifact-route-family-validator-boundary`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target TianChenRVTarget tcrv-translate tcrv-opt`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test && build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test && build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Four-case widening-dot dry-run with `local_bundle_generation.route_entry_realization=false`
+- [OK] Deprecated direct pre-realized route-entry failed closed for `computed_masked_strided_input_widening_dot_reduce_add`
+- [OK] `ssh rvv` generated-bundle run for `computed_masked_strided_input_widening_dot_reduce_add` and `widening_dot_reduce_add`
+- [OK] `cmake --build build --target check-tianchenrv` passed 456/456 after cleaning a duplicate-lit-run output collision
+- [OK] Bounded authority scan found no new metadata/descriptor/ABI-string/route-entry/source-front-door/exact-intrinsic/common-EmitC/artifact-name/script/legacy-i32 authority
 
 ### Status
 
