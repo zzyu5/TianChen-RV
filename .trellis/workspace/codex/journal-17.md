@@ -675,7 +675,11 @@ Derived bounded i64 m1 and i32 m2 compare/select route facts from typed tcrv_rvv
 
 ### Main Changes
 
-(Add details)
+- Extended runtime-scalar compare-select verifier/config and pre-realized body checks so SEW64 LMUL m1 and SEW32 LMUL m2 typed witnesses are accepted only with matching scalar SSA type and ABI C type facts.
+- Realized typed runtime-scalar compare-select bodies through setvl/with_vl, vector load, runtime scalar splat, compare mask, true/false loads, select, and store while preserving predicate, policy, AVL/VL, and ABI order.
+- Updated RVV provider route planning and construction evidence so runtime-scalar compare/select vector, mask, scalar C types, route-family diagnostics, intrinsic mirrors, and generated bundle ABI are derived from structural typed body/config/runtime facts.
+- Added i64 and LMUL m2 target fixtures, generated-bundle dry-run evidence, direct pre-realized route-entry fail-closed coverage, stale scalar type/C type negative tests, computed-mask select non-regression, and ssh rvv artifact evidence.
+- Archived `.trellis/tasks/05-28-05-28-stage2-rvv-typed-runtime-scalar-cmp-select-route-family-derivation` under `.trellis/tasks/archive/2026-05/`.
 
 ### Git Commits
 
@@ -685,7 +689,12 @@ Derived bounded i64 m1 and i32 m2 compare/select route facts from typed tcrv_rvv
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused verifier/FileCheck checks for `pre-realized-runtime-scalar-compare-select-negative.mlir`, `generic-stage2-dataflow.mlir`, and i64/m2 REALIZED/PLAN/HEADER target fixtures.
+- [OK] Generated-bundle dry-run for `runtime_scalar_cmp_select_i64` and `runtime_scalar_cmp_select_lmul_m2`, plus artifact JSON/C/harness FileChecks.
+- [OK] Direct pre-realized route-entry fail-closed for baseline/i64/m2 runtime-scalar compare-select.
+- [OK] Computed-mask select i64/m2 generated-bundle dry-run non-regression.
+- [OK] `ssh rvv` correctness for both typed witnesses with counts `0,1,16,23,257` and RHS scalars `-37,91`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`; `ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test`; `build/bin/tianchenrv-rvv-extension-plugin-test`; `ninja -C build check-tianchenrv` (426/426); `git diff --check`; Trellis validate; bounded authority scan.
 
 ### Status
 
@@ -714,6 +723,39 @@ Completed bounded typed computed-mask select route-family derivation for i64 m1 
 - Spec-update judgment: no `.trellis/spec/**` edit needed because existing RVV plugin, EmitC route, and testing specs already encode the durable contract; this task instantiates bounded witnesses rather than adding a new long-term rule.
 - Checks: py_compile; script self-test; typed generated-bundle dry-run; expected direct-route-entry fail-closed probes; non-regression dry-run after self-repair from a concurrent artifact collision; ssh rvv counts 0,1,16,23,257 for both typed witnesses; git diff --check; task validate; check-tianchenrv 422/422; bounded authority scan.
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 284: Stage2 RVV typed runtime-scalar compare-select route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed runtime-scalar compare-select route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Closed runtime_scalar_cmp_select_i64 and runtime_scalar_cmp_select_lmul_m2 through selected-boundary realization, provider-derived route facts, generated-bundle ABI dry-run, direct-entry fail-closed evidence, ssh rvv correctness, computed-mask non-regression, check-tianchenrv, archive, and commit preparation.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

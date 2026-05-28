@@ -1594,11 +1594,11 @@ bool isSupportedBoundedRuntimeABIValueCType(
            cType == "const int64_t *";
   case Role::IndexInputBuffer:
     return cType == "const uint32_t *";
-	  case Role::MaskInputBuffer:
-	    return cType == "const int32_t *";
-	  case Role::RHSScalarValue:
-	  case Role::RHSSecondaryScalarValue:
-	    return cType == "int32_t";
+  case Role::MaskInputBuffer:
+    return cType == "const int32_t *";
+  case Role::RHSScalarValue:
+  case Role::RHSSecondaryScalarValue:
+    return cType == "int32_t" || cType == "int64_t";
   case Role::OutputBuffer:
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
@@ -1634,11 +1634,11 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
     return "'const int16_t *', 'const int32_t *', or 'const int64_t *'";
   case Role::IndexInputBuffer:
     return "'const uint32_t *'";
-	  case Role::MaskInputBuffer:
-	    return "'const int32_t *'";
-	  case Role::RHSScalarValue:
-	  case Role::RHSSecondaryScalarValue:
-	    return "'int32_t'";
+  case Role::MaskInputBuffer:
+    return "'const int32_t *'";
+  case Role::RHSScalarValue:
+  case Role::RHSSecondaryScalarValue:
+    return "'int32_t' or 'int64_t'";
   case Role::OutputBuffer:
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
@@ -1943,13 +1943,17 @@ mlir::LogicalResult verifyRuntimeABIIndexOperandRole(
 
 mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
+    llvm::ArrayRef<std::int64_t> acceptedScalarWidths,
+    llvm::StringRef acceptedScalarTypesMessage,
     llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
         expectedRoles) {
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(value.getType());
-  if (!integerType || integerType.getWidth() != getRVVFirstSliceSEWBits())
+  if (!integerType || !llvm::is_contained(acceptedScalarWidths,
+                                          integerType.getWidth()))
     return op->emitOpError()
            << "requires " << operandName
-           << " operand to have i32 scalar type";
+           << " operand to have " << acceptedScalarTypesMessage
+           << " scalar type";
 
   auto binding = value.getDefiningOp<RuntimeABIValueOp>();
   if (!binding)
@@ -1982,6 +1986,15 @@ mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
   return op->emitOpError()
          << "requires " << operandName << " operand to bind runtime ABI role "
          << expected;
+}
+
+mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
+    mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+        expectedRoles) {
+  return verifyRuntimeABIScalarOperandRole(
+      op, value, operandName, {getRVVFirstSliceSEWBits()}, "i32",
+      expectedRoles);
 }
 
 mlir::LogicalResult verifyRuntimeElementCountOperand(mlir::Operation *op,
@@ -2813,10 +2826,12 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
 
   if (isBoundedScalarRole(*parsedRole)) {
     auto integerType = llvm::dyn_cast<mlir::IntegerType>(getValue().getType());
-    if (!integerType || integerType.getWidth() != getRVVFirstSliceSEWBits())
+    if (!integerType ||
+        (integerType.getWidth() != getRVVFirstSliceSEWBits() &&
+         integerType.getWidth() != getRVVSEW64Bits()))
       return emitOpError()
              << "requires runtime ABI role '" << getRole()
-             << "' result to have i32 scalar type";
+             << "' result to have i32 or i64 scalar type";
     return mlir::success();
   }
 
@@ -3574,24 +3589,37 @@ TypedRuntimeScalarCompareSelectPreRealizedBodyOp::verify() {
               "\"select-true-value-when-mask-else-false-value\" for the "
               "bounded selected-body runtime scalar compare/select hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedComputedMaskSelectPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
            << "requires bounded pre-realized runtime scalar compare/select "
-              "data config to be SEW32 LMUL m1";
+              "data config to be SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 "
+              "LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
               "selected-body runtime scalar compare/select hook";
+
+  std::int64_t sew = static_cast<std::int64_t>(getSew());
+  std::string expectedScalarType = (llvm::Twine("i") + llvm::Twine(sew)).str();
+  llvm::StringRef expectedScalarCType =
+      sew == getRVVSEW64Bits() ? "int64_t" : "int32_t";
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
-          op, getRhsScalar(), "rhs scalar threshold",
+          op, getRhsScalar(), "rhs scalar threshold", {sew},
+          expectedScalarType,
           {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
+  auto rhsScalarBinding = getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  if (!rhsScalarBinding || rhsScalarBinding.getCType() != expectedScalarCType)
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type '"
+           << expectedScalarCType
+           << "' to match typed runtime scalar compare/select SEW";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getTrueValue(), "true value",
           {tianchenrv::support::RuntimeABIParameterRole::
@@ -8181,12 +8209,6 @@ mlir::LogicalResult SplatOp::verify() {
     return emitOpError()
            << "requires exactly one explicit RHS scalar ABI operand, one "
               "!tcrv_rvv.vl operand, and one generic RVV vector result";
-  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
-          op, getScalar(), "RHS scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue,
-           tianchenrv::support::RuntimeABIParameterRole::
-               RHSSecondaryScalarValue})))
-    return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -8194,7 +8216,32 @@ mlir::LogicalResult SplatOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
-  return verifyGenericVectorTypeForWithVL(op, getBroadcast(), "result");
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getBroadcast(),
+                                                    "result")))
+    return mlir::failure();
+
+  auto resultVector =
+      llvm::cast<tianchenrv::tcrv::rvv::VectorType>(getBroadcast().getType());
+  auto resultElementType =
+      llvm::cast<mlir::IntegerType>(resultVector.getElementType());
+  std::int64_t resultSEW = resultElementType.getWidth();
+  std::string expectedScalarType =
+      (llvm::Twine("i") + llvm::Twine(resultSEW)).str();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getScalar(), "RHS scalar", {resultSEW}, expectedScalarType,
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue,
+           tianchenrv::support::RuntimeABIParameterRole::
+               RHSSecondaryScalarValue})))
+    return mlir::failure();
+
+  auto scalarBinding = getScalar().getDefiningOp<RuntimeABIValueOp>();
+  llvm::StringRef expectedScalarCType =
+      resultSEW == getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  if (scalarBinding.getCType() != expectedScalarCType)
+    return emitOpError()
+           << "requires RHS scalar operand C type '" << expectedScalarCType
+           << "' to match result vector element type";
+  return mlir::success();
 }
 
 mlir::LogicalResult StridedLoadOp::verify() {

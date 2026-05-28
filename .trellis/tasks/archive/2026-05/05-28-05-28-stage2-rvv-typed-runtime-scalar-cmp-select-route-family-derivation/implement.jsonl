@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Project boundary, RVV-first authority chain, Stage1/Stage2 ordering, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, runtime scalar ABI binding, typed SEW/LMUL derivation, compare/select route planning, provider-owned route construction, fail-closed diagnostics, mirror metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope boundary; runtime_param/mem_window must not define RVV dtype, compute, or route identity."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality contract for provider-derived RVV facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv evidence requirements for runtime/correctness claims and mirror-only metadata."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-computed-mask-select-route-family-derivation/prd.md", "reason": "Immediate adjacent typed computed-mask select derivation pattern, typed witness scope, checks, and authority-scan boundary."}
+{"file": ".trellis/workspace/codex/journal-17.md", "reason": "Prior sessions for baseline runtime_scalar_cmp_select evidence and typed computed_mask_select completion."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Typed route planning fact declarations for compare/select and runtime-scalar computed-mask select."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "RVV typed config, SEW/LMUL/mask relation, and fail-closed config contract."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Runtime-scalar compare-select pre-realized verifier and dialect-level typed witness constraints."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Selected-body construction protocol and target fixture creation for typed runtime-scalar witnesses."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "RVV plugin-local selected-body realization from runtime scalar pre-realized body to setvl/load/splat/compare/select/store facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider-derived typed route planning facts, operand binding, compare/select statement plan, fail-closed diagnostics, and mirror labels."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle ABI, target artifact evidence, typed fixture generation, ssh rvv harness, and dry-run checks."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-select.mlir", "reason": "Existing baseline selected-boundary fixture and FileCheck evidence for runtime_scalar_cmp_select."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-select-dry-run.test", "reason": "Existing selected-boundary generated-bundle dry-run evidence for runtime_scalar_cmp_select."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-select-fail-closed.test", "reason": "Existing direct pre-realized route-entry fail-closed evidence that must remain negative."}

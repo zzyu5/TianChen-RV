@@ -46,7 +46,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_select.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "runtime-scalar-splat-compare-rhs"}
-// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-runtime-scalar-cmp-select-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-select-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_runtime_scalar_cmp_select

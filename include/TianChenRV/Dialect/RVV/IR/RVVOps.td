@@ -528,10 +528,11 @@ def TypedRuntimeScalarCompareSelectPreRealizedBodyOp
       "generic typed pre-realized RVV runtime scalar compare/select body";
   let description = [{
     Carries one bounded RVV plugin-local pre-realized selected body where a
-    signed i32 vector load is compared against a non-AVL runtime scalar
-    threshold splatted inside the selected VL scope, and the produced mask
-    selects between explicit true-value and false-value vector operands before
-    storing to the output buffer. The op is nested directly in a selected
+    signed typed vector load is compared against a non-AVL runtime scalar
+    threshold with the same element type, splatted inside the selected VL
+    scope, and the produced mask selects between explicit true-value and
+    false-value vector operands before storing to the output buffer. The op is
+    nested directly in a selected
     tcrv.exec.variant and binds explicit runtime ABI values for lhs,
     rhs_scalar, true value, false value, output, and runtime n/AVL together
     with compare predicate, memory form, mask role/source/config, select

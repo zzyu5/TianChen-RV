@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check the task remains inside the TianChen-RV RVV-first typed route authority boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check runtime-scalar compare-select selected-body realization, typed vector/scalar/mask/config derivation, provider route construction, fail-closed diagnostics, and mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains an envelope and ABI role declaration surface only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and does not infer RVV semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle and ssh rvv evidence claims use typed route facts and real runtime evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-computed-mask-select-route-family-derivation/check.jsonl", "reason": "Reuse the adjacent task's focused generated-bundle, ssh rvv, check-tianchenrv, diff-check, and authority-scan evidence pattern."}
