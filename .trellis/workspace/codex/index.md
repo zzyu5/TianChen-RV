@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 295
+- **Total Sessions**: 297
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~1337 | Active |
+| `journal-17.md` | ~1465 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 297 | 2026-05-28 | Stage2 RVV segment2 memory artifact validator migration | pending-final-session-commit | `main` |
+| 296 | 2026-05-28 | Stage2 RVV conversion dtype-policy artifact validator migration | pending-final-session-commit | `main` |
 | 295 | 2026-05-28 | Stage2 RVV compare select mask artifact validator migration | pending-final-session-commit | `main` |
 | 294 | 2026-05-28 | Stage2 RVV artifact route-family validator boundary | pending-final-session-commit | `main` |
 | 293 | 2026-05-28 | Stage2 RVV widening dot target artifact authority closure | pending-final-session-commit | `main` |

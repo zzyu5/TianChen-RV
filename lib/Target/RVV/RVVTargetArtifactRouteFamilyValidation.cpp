@@ -261,6 +261,48 @@ bool isRVVConversionDtypePolicyRouteFamilyOperation(
   return isRVVConversionDtypePolicyWideningRouteFamilyOperation(operation);
 }
 
+bool isRVVSegment2MemoryRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      Segment2DeinterleaveUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      Segment2InterleaveUnitLoad:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskSegment2LoadUnitStore ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskSegment2StoreUnitLoad ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskSegment2UpdateUnitLoad;
+}
+
+bool isRVVPlainSegment2MemoryRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 Segment2DeinterleaveUnitStore ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 Segment2InterleaveUnitLoad;
+}
+
 bool routeHasHeader(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     llvm::StringRef expectedHeader) {
@@ -2297,6 +2339,506 @@ llvm::Error validateRVVConversionDtypePolicyTargetArtifactCandidateMirrors(
   return llvm::Error::success();
 }
 
+llvm::Error validateRVVSegment2MemoryRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-derived "
+        "required_header_declarations before accepting the route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires at least one "
+        "provider route header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "segment2-memory target artifact consumer saw an empty provider "
+          "route header declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("segment2-memory target artifact consumer requires "
+                      "rebuilt provider route header '") +
+          trimmed + "' before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSegment2MemoryRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-derived "
+        "VL, vector, and C type mapping facts before artifact export");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "rebuilt provider route type mapping '!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+          description.operation)) {
+    if (description.maskTypeName.empty() || description.maskCType.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask segment2-memory target artifact consumer requires "
+          "provider-derived mask type mapping facts before artifact export");
+    if (!routeHasTypeMapping(route, description.maskTypeName,
+                             description.maskCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("computed-mask segment2-memory target artifact consumer "
+                      "requires rebuilt provider route type mapping '") +
+          description.maskTypeName + "' -> '" + description.maskCType + "'");
+  } else if (!description.maskTypeName.empty() ||
+             !description.maskCType.empty()) {
+    return makeRVVTargetRouteError(
+        "plain segment2-memory target artifact consumer rejects stale mask "
+        "type mapping facts");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSegment2MemoryRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIOrder.empty() ||
+      description.runtimeABIParameters.empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-derived "
+        "runtime ABI order and ABI parameters before artifact export");
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "rebuilt provider route ABI mapping count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("segment2-memory target artifact consumer requires "
+                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("segment2-memory target artifact consumer requires "
+                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getCallOpaqueSteps().empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-built "
+        "pre-loop setvl statement facts before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires rebuilt provider "
+        "route pre-loop setvl statement to define the full-chunk VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "segment2-memory target artifact consumer requires pre-loop "
+          "statements to carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires exactly one "
+        "provider-built runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-built "
+        "loop bounds and step to mirror runtime AVL/VL route facts");
+  if (description.runtimeABIParameters.empty() ||
+      loop.upperBound.expression != description.runtimeABIParameters.back().cName ||
+      loop.upperBound.cType != description.runtimeABIParameters.back().cType)
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-built "
+        "loop upper bound to use the runtime n/AVL ABI parameter");
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-built "
+        "loop setvl statement to define per-iteration VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "segment2-memory target artifact consumer requires loop statements "
+          "to carry selected typed RVV source provenance");
+
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+          description.operation) &&
+      !routeLoopContainsCallee(loop, description.compareIntrinsic))
+    return makeRVVTargetRouteError(
+        "computed-mask segment2-memory target artifact consumer requires "
+        "provider-built compare/mask statement facts before artifact export");
+
+  switch (description.operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.segmentLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
+        !routeLoopContainsCallee(loop,
+                                 description.segmentFieldExtractIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.storeIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask segment2 load target artifact consumer requires "
+          "provider-built segment load, tuple, extract, and store statements");
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
+        !routeLoopContainsCallee(loop,
+                                 description.segmentFieldExtractIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask segment2 store target artifact consumer requires "
+          "provider-built tuple and masked segment-store statements");
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    if (description.intrinsic.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask segment2 update target artifact consumer requires "
+          "provider-derived update arithmetic facts before artifact export");
+    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.intrinsic) ||
+        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
+        !routeLoopContainsCallee(loop,
+                                 description.segmentFieldExtractIntrinsic))
+      return makeRVVTargetRouteError(
+          "computed-mask segment2 update target artifact consumer requires "
+          "provider-built arithmetic, tuple, and masked segment-store "
+          "statements");
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      Segment2DeinterleaveUnitStore:
+    if (!routeLoopContainsCallee(loop, description.segmentLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop,
+                                 description.segmentFieldExtractIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.storeIntrinsic))
+      return makeRVVTargetRouteError(
+          "segment2 deinterleave target artifact consumer requires "
+          "provider-built segment load, extract, and field-store statements");
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      Segment2InterleaveUnitLoad:
+    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
+        !routeLoopContainsCallee(loop,
+                                 description.segmentFieldExtractIntrinsic))
+      return makeRVVTargetRouteError(
+          "segment2 interleave target artifact consumer requires "
+          "provider-built tuple and segment-store statements");
+    break;
+  default:
+    llvm_unreachable("validated non-segment2 operation as segment2-memory");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+  if (description.providerSupportedMirror.empty() ||
+      description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty() ||
+      description.runtimeControlPlanID.empty() ||
+      description.segmentMemoryLayout.empty() ||
+      description.sourceMemoryForm.empty() ||
+      description.destinationMemoryForm.empty() ||
+      description.segmentCount != 2)
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires provider-derived "
+        "support, binding, runtime control, segment layout, memory form, and "
+        "segment-count facts before artifact export");
+
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+          description.operation)) {
+    if (description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+        description.computedMaskMemoryMaskProducerSource.empty() ||
+        description.maskRole.empty() || description.maskSource.empty() ||
+        description.maskMemoryForm.empty() || description.compareIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask segment2-memory target artifact consumer requires "
+          "provider-derived computed-mask family, producer, role, source, "
+          "memory-form, and compare facts before artifact export");
+    if (!description.segment2MemoryRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask segment2-memory target artifact consumer rejects "
+          "stale plain segment2 route-family facts");
+  } else if (isRVVPlainSegment2MemoryRouteFamilyOperation(
+                 description.operation)) {
+    if (description.segment2MemoryRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "plain segment2-memory target artifact consumer requires a "
+          "provider-derived segment2 route-family plan mirror before artifact "
+          "export");
+    if (!description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+        !description.computedMaskMemoryMaskProducerSource.empty() ||
+        !description.maskRole.empty() || !description.maskSource.empty() ||
+        !description.maskMemoryForm.empty())
+      return makeRVVTargetRouteError(
+          "plain segment2-memory target artifact consumer rejects stale "
+          "computed-mask route-family facts");
+  } else {
+    llvm_unreachable("validated non-segment2 operation as segment2-memory");
+  }
+
+  if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.wideningDotProductRelation.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer rejects stale non-segment2 "
+        "route-family facts");
+
+  if (llvm::Error error =
+          validateRVVSegment2MemoryRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVSegment2MemoryRouteTypeMappings(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVSegment2MemoryRouteABIMappings(route, description))
+    return error;
+  return validateRVVSegment2MemoryRouteStatementPlan(route, description);
+}
+
+llvm::Error validateRVVSegment2MemoryTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVSegment2MemoryRoutePayloadFacts(context.route,
+                                                    context.description);
+}
+
+llvm::Error requireEmptySegment2MemoryStaleMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  return requireCandidateMetadataMirror(candidate, key, "", label);
+}
+
+llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          description.routeOperandBindingPlanID,
+          "selected typed RVV segment2-memory binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          description.routeOperandBindingSummary,
+          "selected typed RVV segment2-memory binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          description.providerSupportedMirror,
+          "selected typed RVV segment2-memory provider support"))
+    return error;
+
+  if (isRVVPlainSegment2MemoryRouteFamilyOperation(description.operation)) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment2_memory_route_family_plan",
+            description.segment2MemoryRouteFamilyPlanID,
+            "selected typed RVV segment2 route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
+            "selected typed RVV computed-mask segment2 route-family plan"))
+      return error;
+  } else if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+                 description.operation)) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment2_memory_route_family_plan", "",
+            "selected typed RVV segment2 route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.computed_mask_memory_route_family_plan",
+            description.computedMaskMemoryRouteFamilyPlanID,
+            "selected typed RVV computed-mask segment2 route-family plan"))
+      return error;
+  }
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              description.memoryForm),
+          "selected typed RVV segment2-memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_control_plan",
+          description.runtimeControlPlanID,
+          "selected typed RVV segment2-memory runtime AVL/VL control plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order",
+          description.runtimeABIOrder,
+          "selected typed RVV segment2-memory runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.required_header_declarations",
+          description.requiredHeaderDeclarations,
+          "selected typed RVV segment2-memory route header requirements"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.c_type_mapping",
+          description.cTypeMappingSummary,
+          "selected typed RVV segment2-memory route type mapping summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.segment_memory_layout",
+          description.segmentMemoryLayout,
+          "selected typed RVV segment2 memory layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_memory_form",
+          description.sourceMemoryForm,
+          "selected typed RVV segment2 source memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_memory_form",
+          description.destinationMemoryForm,
+          "selected typed RVV segment2 destination memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.segment_count",
+          llvm::Twine(description.segmentCount).str(),
+          "selected typed RVV segment2 count"))
+    return error;
+
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+          description.operation)) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.computed_mask_memory_mask_producer_source",
+            description.computedMaskMemoryMaskProducerSource,
+            "selected typed RVV computed-mask segment2 producer source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_role", description.maskRole,
+            "selected typed RVV computed-mask segment2 mask role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_source", description.maskSource,
+            "selected typed RVV computed-mask segment2 mask source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_memory_form", description.maskMemoryForm,
+            "selected typed RVV computed-mask segment2 mask memory form"))
+      return error;
+  } else {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.computed_mask_memory_mask_producer_source",
+            "", "selected typed RVV computed-mask segment2 producer source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_role", "",
+            "selected typed RVV computed-mask segment2 mask role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_source", "",
+            "selected typed RVV computed-mask segment2 mask source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_memory_form", "",
+            "selected typed RVV computed-mask segment2 mask memory form"))
+      return error;
+  }
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_tail_policy_route_family_plan",
+          description.maskTailPolicyRouteFamilyPlanID,
+          "selected typed RVV segment2-memory mask/tail policy plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_tail_policy_owner",
+          description.maskTailPolicyOwner,
+          "selected typed RVV segment2-memory mask/tail policy owner"))
+    return error;
+
+  constexpr llvm::StringLiteral staleMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.widening_macc_relation",
+      "tcrv_rvv.widening_dot_relation"};
+  for (llvm::StringRef key : staleMirrors)
+    if (llvm::Error error = requireEmptySegment2MemoryStaleMirror(
+            candidate, key,
+            "selected typed RVV non-segment2 route-family mirror"))
+      return error;
+
+  return llvm::Error::success();
+}
+
 llvm::StringRef getRVVElementwiseArithmeticSignedCType(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (description.elementTypeName == "i16")
@@ -2966,6 +3508,11 @@ bool isRVVConversionDtypePolicyTargetArtifactRouteFamilyConsumer(
   return isRVVConversionDtypePolicyRouteFamilyOperation(description.operation);
 }
 
+bool isRVVSegment2MemoryTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSegment2MemoryRouteFamilyOperation(description.operation);
+}
+
 bool isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVElementwiseArithmeticRouteFamilyDescription(description);
@@ -2992,6 +3539,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVConversionDtypePolicyTargetArtifactRouteFamilyConsumer,
        validateRVVConversionDtypePolicyTargetArtifactProviderFacts,
        validateRVVConversionDtypePolicyTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("segment2-memory"),
+       isRVVSegment2MemoryTargetArtifactRouteFamilyConsumer,
+       validateRVVSegment2MemoryTargetArtifactProviderFacts,
+       validateRVVSegment2MemoryTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("elementwise-arithmetic"),
        isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer,
        validateRVVElementwiseArithmeticTargetArtifactProviderFacts,

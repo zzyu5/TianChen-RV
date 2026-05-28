@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Final quality gate for global architecture and RVV authority-chain compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final quality gate for segment2 memory target artifact validator ownership, provider facts, mirror-only metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final quality gate that common EmitC remains neutral and target export consumes provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final quality gate for focused lit/C++ evidence and no unclaimed runtime evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-segment2-memory-artifact-validator-migration/prd.md", "reason": "Task-specific acceptance criteria and validation plan."}
+{"command": "rtk cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2", "result": "passed"}
+{"command": "rtk build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed: RVV extension plugin smoke test passed"}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter \"pre-realized-selected-body-artifact-segment2-interleave-unit-load\\.mlir|pre-realized-selected-body-artifact-segment2-deinterleave-unit-store\\.mlir|pre-realized-selected-body-artifact-computed-masked-segment2-load\\.mlir|pre-realized-selected-body-artifact-computed-masked-segment2-store\\.mlir|pre-realized-selected-body-artifact-computed-masked-segment2-update\\.mlir\"", "result": "passed from build/test after correcting an initial root-directory lit config invocation: 5/5 focused segment2 artifact tests"}
+{"command": "git diff --check", "result": "passed"}
+{"command": "bounded authority-leak scan over touched production and test files", "result": "passed: no segment2 semantic helper branch remains in RVVTargetSupportBundle; script-derived strings are limited to negative lit injections; descriptor/source residue hits are existing central fail-closed mechanics"}
+{"command": "rtk cmake --build build --target check-tianchenrv -j2", "result": "passed: 456/456"}

@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-segment2-interleave-plan-validated/s//provider_supported_mirror:rvv-script-derived-segment2-interleave/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-segment2-memory-route-family-plan.v1/s//rvv-script-derived-plain-segment2-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SEGMENT2-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.destination_memory_form", value = "segment2-interleaved-unit-stride-store"/s//tcrv_rvv.destination_memory_form", value = "script-derived-segment2-destination"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEST-MEM
 
 // Pre-realized selected-body input for one bounded Stage2 segment2 interleave
 // memory movement slice. The RVV plugin must realize the field0 source, field1
@@ -109,3 +110,7 @@ module {
 // STALE-SEGMENT2-PLAN: RVV materialized EmitC target artifact bridge failed
 // STALE-SEGMENT2-PLAN: candidate tcrv_rvv.segment2_memory_route_family_plan provenance must mirror selected typed RVV segment2 route-family plan
 // STALE-SEGMENT2-PLAN-SAME: rvv-script-derived-plain-segment2-plan.v1
+
+// STALE-DEST-MEM: RVV materialized EmitC target artifact bridge failed
+// STALE-DEST-MEM: candidate tcrv_rvv.destination_memory_form provenance must mirror selected typed RVV segment2 destination memory form
+// STALE-DEST-MEM-SAME: script-derived-segment2-destination

@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV authority-chain invariants before implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV segment2 memory target export consumer contract, target artifact validator ownership, mirror-only metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute handoff rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ evidence requirements and RVV runtime evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-segment2-memory-artifact-validator-migration/prd.md", "reason": "Task-specific requirements, acceptance criteria, non-goals, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-conversion-dtype-policy-artifact-validator-migration/prd.md", "reason": "Immediate prior migration pattern for route-family artifact validator ownership."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Production registry and destination for segment2 memory target artifact provider/mirror validation."}
+{"file": "include/TianChenRV/Target/RVV/RVVTargetArtifactRouteFamilyValidation.h", "reason": "Route-family validation API surface; expected to remain unchanged unless implementation requires it."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Central bridge currently owning segment2 memory validation that must be migrated out."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Focused plain segment2 artifact positive and stale-mirror fail-closed coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-deinterleave-unit-store.mlir", "reason": "Focused second plain segment2 artifact consumer."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-load.mlir", "reason": "Focused computed-mask segment2 load artifact consumer."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-store.mlir", "reason": "Focused computed-mask segment2 store artifact positive and stale-mirror fail-closed coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Focused computed-mask segment2 update artifact consumer."}

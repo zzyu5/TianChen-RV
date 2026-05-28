@@ -1419,3 +1419,47 @@ authority scan, and check-tianchenrv 456/456.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 297: Stage2 RVV segment2 memory artifact validator migration
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV segment2 memory artifact validator migration
+**Branch**: `main`
+
+### Summary
+
+Migrated segment2 memory target artifact validation into the target-owned RVV route-family validator registry; kept RVVTargetSupportBundle on neutral bridge, residue, metadata listing, and registry dispatch mechanics; verified focused segment2 consumers, C++ target/plugin checks, authority scan, and check-tianchenrv 456/456.
+
+### Main Changes
+
+- Registered the `segment2-memory` route-family validator in `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Moved segment2 provider-fact checks for plain and computed-mask segment2 memory routes into the validator, including route id agreement, headers, type mappings, ABI order/mapping, memory forms, segment count/layout, runtime AVL/VL control, statement-plan structure, and computed-mask facts.
+- Moved segment2 candidate mirror checks into the validator for provider support, route operand binding, plain/computed family plans, memory/runtime/header/type evidence, segment facts, and computed-mask mask evidence.
+- Removed central segment2 semantic helper ownership and candidate mirror branch from `RVVTargetSupportBundle.cpp`; the central bundle retains neutral route rebuild, residue rejection, metadata evidence listing, and registry dispatch.
+- Added focused negative coverage for stale plain segment2 destination-memory evidence, stale computed-mask mask-role evidence, and stale non-segment2 route-family residue.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: migrate segment2 artifact validation` |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused segment2 artifact lit passed 5/5 from `build/test` after correcting an initial root-directory lit config invocation
+- [OK] `git diff --check`
+- [OK] Bounded authority scan: no segment2 semantic helper left in central support; script-derived strings only appear in negative lit injections; descriptor/source residue hits are central fail-closed mechanics
+- [OK] `rtk cmake --build build --target check-tianchenrv -j2` passed 456/456
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -9,6 +9,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-TYPE
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-computed-mask-memory-route-family-plan.v1/s//rvv-script-derived-computed-mask-segment2-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CM-PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.segment_count", value = "2"/s//tcrv_rvv.segment_count", value = "3"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SEGCOUNT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"/s//tcrv_rvv.mask_role", value = "script-derived-mask-role"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MASK-ROLE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-computed-mask-segment2-update-add-leaf-profile.v1"/s//tcrv_rvv.elementwise_arithmetic_route_family_plan", value = "rvv-script-derived-elementwise-plan.v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESIDUE
 
 // Pre-realized selected-body input for one bounded Stage2 computed-mask
 // segment2 update slice. The RVV plugin must realize compare lhs/rhs,
@@ -121,21 +123,28 @@ module {
 // STALE-BINDING-SAME: rvv-route-operand-binding:script-derived-segment2-update.v1
 
 // STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV runtime ABI order
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV segment2-memory runtime ABI order
 // STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
 
 // STALE-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV route header requirements
+// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV segment2-memory route header requirements
 // STALE-HEADER-SAME: stddef.h,stdint.h
 
 // STALE-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV route type mapping summary
+// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV segment2-memory route type mapping summary
 // STALE-TYPE-SAME: vl:uint64_t
 
 // STALE-CM-PLAN: RVV materialized EmitC target artifact bridge failed
-// STALE-CM-PLAN: candidate tcrv_rvv.computed_mask_memory_route_family_plan provenance must mirror selected typed RVV computed-mask memory route-family plan
+// STALE-CM-PLAN: candidate tcrv_rvv.computed_mask_memory_route_family_plan provenance must mirror selected typed RVV computed-mask segment2 route-family plan
 // STALE-CM-PLAN-SAME: rvv-script-derived-computed-mask-segment2-plan.v1
 
 // STALE-SEGCOUNT: RVV materialized EmitC target artifact bridge failed
 // STALE-SEGCOUNT: candidate tcrv_rvv.segment_count provenance must mirror selected typed RVV segment2 count
 // STALE-SEGCOUNT-SAME: 3
+
+// STALE-MASK-ROLE: RVV materialized EmitC target artifact bridge failed
+// STALE-MASK-ROLE: candidate tcrv_rvv.mask_role provenance must mirror selected typed RVV computed-mask segment2 mask role
+// STALE-MASK-ROLE-SAME: script-derived-mask-role
+
+// STALE-RESIDUE: RVV materialized EmitC target artifact bridge failed
+// STALE-RESIDUE: candidate metadata must not carry tcrv_rvv.elementwise_arithmetic_route_family_plan mirrors for a selected typed RVV body route without selected typed RVV non-segment2 route-family mirror
