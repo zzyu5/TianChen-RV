@@ -68,7 +68,6 @@ real `ssh rvv` evidence, and preparing the Trellis task for archive and commit.
 ### Next Steps
 
 - None - task complete
-
 ## 2026-05-28 - Runtime-Scalar Compare-Masked Standalone Min/Max Scalar Channel
 
 ### Trellis Task
@@ -1521,6 +1520,72 @@ candidate mirrors are owned by `RVVTargetArtifactRouteFamilyValidation.cpp`.
   and route-id hits are fail-closed diagnostics or PRD constraints, not support
   authority.
 - [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 299: Stage2 RVV runtime-scalar splat-store artifact validator migration
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV runtime-scalar splat-store artifact validator migration
+**Branch**: `main`
+
+### Summary
+
+Migrated runtime-scalar splat-store target artifact validation into the
+target-owned RVV route-family validator registry. `RVVTargetSupportBundle.cpp`
+now keeps neutral selected-body route rebuild, generic metadata checks,
+artifact mechanics, residue rejection, and registry dispatch for this family;
+runtime-scalar splat-store provider facts and candidate mirrors are owned by
+`RVVTargetArtifactRouteFamilyValidation.cpp`.
+
+### Main Changes
+
+- Registered the `runtime-scalar-splat-store` route-family validator in
+  `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Moved runtime-scalar splat-store provider-fact checks into the validator,
+  including route id agreement, provider support mirror, family plan, route
+  operand binding, memory form, headers, type mappings, ABI order/mapping,
+  runtime AVL/VL loop, scalar splat, store, result, policy/config, source
+  provenance, and stale non-splat-store fact rejection.
+- Moved runtime-scalar splat-store candidate mirror checks into the validator
+  for provider support, family plan, operand binding, memory form, target leaf
+  profile, runtime control, runtime ABI order, headers, and C type mapping.
+- Added focused target artifact C++ coverage that builds a runtime-scalar
+  splat-store selected-body fixture, validates registry acceptance, and mutates
+  provider facts/candidate mirrors to prove fail-closed behavior.
+- Removed the support-bundle direct runtime-scalar splat-store payload
+  validation call and semantic helper ownership.
+- No `.trellis/spec/**` update was needed: the route-family validator boundary
+  and mirror-only metadata contract were already captured in
+  `extension-plugins/rvv-plugin.md`; this task applied that contract to the
+  remaining runtime-scalar splat-store family.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: migrate runtime splat-store artifact validation` |
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused runtime-scalar splat-store lit passed 2/2 from `build/test`
+  after correcting an initial root-directory lit config invocation.
+- [OK] `git diff --check`
+- [OK] Bounded authority scan: no runtime-scalar splat-store semantic helper,
+  direct validator call, route-family acceptance, intrinsic spelling choice, or
+  metadata acceptance owner remains in `RVVTargetSupportBundle.cpp`; registry
+  entry and validators are in `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456.
 
 ### Status
 

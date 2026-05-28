@@ -1,0 +1,10 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV Stage2 scope, and artifact metadata mirror invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar splat-store residual binding, provider facts, target artifact validator registry, and fail-closed mirror rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and selected variant envelope constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck/C++ testing requirements for route-provider and target artifact work."}
+{"file": ".trellis/tasks/05-28-05-28-stage2-rvv-runtime-scalar-splat-store-artifact-validator-migration/prd.md", "reason": "Current task requirements, boundaries, acceptance criteria, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-standalone-reduction-accumulation-artifact-validator-migration/prd.md", "reason": "Immediately prior route-family artifact validator migration pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-runtime-scalar-splat-store-runtime-binding-closure/prd.md", "reason": "Runtime-scalar splat-store provider/runtime/binding closure facts to preserve."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-runtime-scalar-splat-store-route-control/prd.md", "reason": "Runtime-scalar splat-store route-control provider-plan integration to preserve."}

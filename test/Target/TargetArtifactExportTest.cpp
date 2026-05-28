@@ -23,6 +23,7 @@
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 #include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
+#include "TianChenRV/Target/RVV/RVVTargetArtifactRouteFamilyValidation.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/Template/TemplateTargetSupportBundle.h"
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
@@ -614,6 +615,39 @@ mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
   std::string source;
   llvm::raw_string_ostream os(source);
   std::string variant = getRVVTestVariantSymbol(op);
+  if (op ==
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+          RuntimeI32SplatStore) {
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "source-arg-0:rhs_scalar", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-1:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "source-arg-2:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %broadcast = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        tcrv_rvv.store %out, %broadcast, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   const bool useLegacyBody =
       op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
@@ -961,6 +995,55 @@ bool expectRVVTargetArtifactCandidateFixtureReady(
   return false;
 }
 
+bool buildRVVRouteValidationInputs(
+    const RVVTargetArtifactCandidateFixture &fixture,
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, context))
+    return false;
+
+  tianchenrv::tcrv::exec::KernelOp kernel =
+      findSingleRVVTestKernel(*fixture.module);
+  if (!kernel) {
+    llvm::errs() << context << ": failed to find RVV selected-body kernel\n";
+    return false;
+  }
+
+  tianchenrv::tcrv::exec::VariantOp variant =
+      findRVVTestVariant(kernel, fixture.candidate.selectedVariant);
+  if (!variant) {
+    llvm::errs() << context << ": failed to find selected RVV variant @"
+                 << fixture.candidate.selectedVariant << "\n";
+    return false;
+  }
+
+  tianchenrv::support::TargetCapabilitySet capabilities =
+      tianchenrv::support::TargetCapabilitySet::buildFromKernel(kernel);
+  route = tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute();
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      described = tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+          tianchenrv::plugin::VariantEmitCLowerableRequest(
+              variant, kernel, capabilities,
+              tianchenrv::plugin::VariantEmissionRole::DirectVariant),
+          &route);
+  if (!described) {
+    llvm::errs() << context
+                 << ": failed to rebuild RVV route description: "
+                 << llvm::toString(described.takeError()) << "\n";
+    return false;
+  }
+  if (llvm::Error verifyError = route.verify()) {
+    llvm::errs() << context << ": rebuilt RVV route failed verification: "
+                 << llvm::toString(std::move(verifyError)) << "\n";
+    return false;
+  }
+
+  description = std::move(*described);
+  return true;
+}
+
 bool expectRVVTargetArtifactExporterShape(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
   const tianchenrv::plugin::rvv::RVVConstructionManifest &manifest =
@@ -1022,6 +1105,217 @@ bool expectRVVTargetArtifactExporterShape(
                     "rhs-broadcast-load memory form\n";
     return false;
   }
+
+  using RVVRouteDescription =
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using RVVRouteValidationContext =
+      tianchenrv::target::rvv::
+          RVVTargetArtifactRouteFamilyValidationContext;
+  RVVTargetArtifactCandidateFixture runtimeSplatFixture(
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+          RuntimeI32SplatStore);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          runtimeSplatFixture,
+          "build valid RVV runtime-scalar splat-store candidate fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         runtimeSplatFixture.candidate, *exporter),
+                     "validate RVV runtime-scalar splat-store target artifact "
+                     "candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute runtimeSplatRoute;
+  RVVRouteDescription runtimeSplatDescription;
+  if (!buildRVVRouteValidationInputs(
+          runtimeSplatFixture, runtimeSplatRoute, runtimeSplatDescription,
+          "rebuild RVV runtime-scalar splat-store route validator inputs"))
+    return false;
+
+  RVVRouteValidationContext runtimeSplatContext{
+      runtimeSplatFixture.candidate, runtimeSplatRoute,
+      runtimeSplatDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  runtimeSplatContext),
+          "runtime-scalar splat-store registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  runtimeSplatContext),
+          "runtime-scalar splat-store registry accepts candidate mirrors"))
+    return false;
+
+  auto expectRuntimeSplatProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        runtimeSplatFixture.candidate, runtimeSplatRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectRuntimeSplatCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{mutated, runtimeSplatRoute,
+                                             runtimeSplatDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleRuntimeSplatRouteID = runtimeSplatDescription;
+  staleRuntimeSplatRouteID.emitCRouteID = "metadata-derived-runtime-splat-route";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatRouteID,
+          "runtime-scalar splat-store registry rejects stale route id",
+          {"route id", "metadata-derived-runtime-splat-route",
+           runtimeSplatRoute.getRouteID()}))
+    return false;
+
+  RVVRouteDescription missingRuntimeSplatProvider =
+      runtimeSplatDescription;
+  missingRuntimeSplatProvider.providerSupportedMirror = "";
+  if (!expectRuntimeSplatProviderFailure(
+          missingRuntimeSplatProvider,
+          "runtime-scalar splat-store registry rejects missing provider "
+          "support mirror",
+          {"provider-supported", "artifact export"}))
+    return false;
+
+  RVVRouteDescription missingRuntimeSplatPlan = runtimeSplatDescription;
+  missingRuntimeSplatPlan.runtimeScalarSplatStoreRouteFamilyPlanID = "";
+  if (!expectRuntimeSplatProviderFailure(
+          missingRuntimeSplatPlan,
+          "runtime-scalar splat-store registry rejects missing route-family "
+          "plan",
+          {"route-family plan", "artifact export"}))
+    return false;
+
+  RVVRouteDescription wrongRuntimeSplatMemoryForm =
+      runtimeSplatDescription;
+  wrongRuntimeSplatMemoryForm.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (!expectRuntimeSplatProviderFailure(
+          wrongRuntimeSplatMemoryForm,
+          "runtime-scalar splat-store registry rejects wrong memory form",
+          {"memory form", "runtime-scalar-splat-store"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatABIOrder =
+      runtimeSplatDescription;
+  staleRuntimeSplatABIOrder.runtimeABIOrder = "rhs_scalar,n,out";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatABIOrder,
+          "runtime-scalar splat-store registry rejects stale runtime ABI "
+          "order",
+          {"runtime ABI order", "rhs_scalar,out,n", "rhs_scalar,n,out"}))
+    return false;
+
+  RVVRouteDescription missingRuntimeSplatSplat =
+      runtimeSplatDescription;
+  missingRuntimeSplatSplat.rhsBroadcastIntrinsic = "";
+  if (!expectRuntimeSplatProviderFailure(
+          missingRuntimeSplatSplat,
+          "runtime-scalar splat-store registry rejects missing scalar splat "
+          "fact",
+          {"runtime scalar splat", "result facts"}))
+    return false;
+
+  RVVRouteDescription missingRuntimeSplatStore =
+      runtimeSplatDescription;
+  missingRuntimeSplatStore.storeIntrinsic = "";
+  if (!expectRuntimeSplatProviderFailure(
+          missingRuntimeSplatStore,
+          "runtime-scalar splat-store registry rejects missing store fact",
+          {"store", "result facts"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatElementwise =
+      runtimeSplatDescription;
+  staleRuntimeSplatElementwise.scalarBroadcastElementwiseRouteFamilyPlanID =
+      "metadata-derived-scalar-broadcast";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatElementwise,
+          "runtime-scalar splat-store registry rejects stale elementwise "
+          "provider facts",
+          {"stale", "non-splat-store route-family facts"}))
+    return false;
+
+  RVVRouteDescription exactIntrinsicAuthority =
+      runtimeSplatDescription;
+  exactIntrinsicAuthority.intrinsic = "__riscv_vadd_vv_i32m1";
+  if (!expectRuntimeSplatProviderFailure(
+          exactIntrinsicAuthority,
+          "runtime-scalar splat-store registry rejects exact-intrinsic "
+          "provider residue",
+          {"stale", "non-splat-store route-family facts"}))
+    return false;
+
+  TargetArtifactCandidate missingRuntimeSplatMirror =
+      runtimeSplatFixture.candidate;
+  if (!eraseArtifactMetadataKey(
+          missingRuntimeSplatMirror,
+          "tcrv_rvv.runtime_scalar_splat_store_route_family_plan")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar splat-store "
+                    "route-family mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeSplatCandidateFailure(
+          missingRuntimeSplatMirror,
+          "runtime-scalar splat-store registry rejects missing family mirror",
+          {"runtime_scalar_splat_store_route_family_plan", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeSplatABIMirror =
+      runtimeSplatFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeSplatABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "rhs_scalar,n,out")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar splat-store "
+                    "runtime ABI order mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeSplatCandidateFailure(
+          staleRuntimeSplatABIMirror,
+          "runtime-scalar splat-store registry rejects stale ABI mirror",
+          {"runtime_abi_order", "rhs_scalar,out,n", "rhs_scalar,n,out"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeSplatTypeMirror =
+      runtimeSplatFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeSplatTypeMirror,
+                                    "tcrv_rvv.c_type_mapping",
+                                    "metadata:i32")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar splat-store "
+                    "C type mapping mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeSplatCandidateFailure(
+          staleRuntimeSplatTypeMirror,
+          "runtime-scalar splat-store registry rejects stale type mirror",
+          {"c_type_mapping", runtimeSplatDescription.cTypeMappingSummary,
+           "metadata:i32"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeSplatNonFamilyMirror =
+      runtimeSplatFixture.candidate;
+  staleRuntimeSplatNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+          "metadata-derived-elementwise"));
+  if (!expectRuntimeSplatCandidateFailure(
+          staleRuntimeSplatNonFamilyMirror,
+          "runtime-scalar splat-store registry rejects stale non-splat "
+          "candidate route-family mirror",
+          {"must not carry",
+           "selected typed RVV non-splat-store route-family plan"}))
+    return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect);

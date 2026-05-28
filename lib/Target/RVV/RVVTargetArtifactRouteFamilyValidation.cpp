@@ -357,6 +357,12 @@ bool isRVVPlainSegment2MemoryRouteFamilyOperation(
                  Segment2InterleaveUnitLoad;
 }
 
+bool isRVVRuntimeScalarSplatStoreRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+         plugin::rvv::RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+}
+
 bool routeHasHeader(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     llvm::StringRef expectedHeader) {
@@ -394,6 +400,388 @@ bool routeStepSourceIsSelectedRVVBody(
   return step.sourceOp.opInterface ==
              plugin::rvv::getRVVEmitCLowerableOpInterfaceName() &&
          !step.sourceOp.opName.empty() && !step.sourceOp.role.empty();
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-derived required_header_declarations before accepting the "
+        "route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires at "
+        "least one provider route header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "runtime scalar splat-store target artifact consumer saw an empty "
+          "provider route header declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("runtime scalar splat-store target artifact consumer "
+                      "requires rebuilt provider route header '") +
+          trimmed + "' before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-derived VL, vector, and C type mapping facts before "
+        "artifact export");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime scalar splat-store target artifact consumer "
+                    "requires rebuilt provider route type mapping "
+                    "'!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime scalar splat-store target artifact consumer "
+                    "requires rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime scalar splat-store target artifact consumer "
+                    "requires rebuilt provider route ABI mapping count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("runtime scalar splat-store target artifact consumer "
+                      "requires rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("runtime scalar splat-store target artifact consumer "
+                      "requires rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIParameters.size() != 3)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-derived ABI order rhs_scalar,out,n before artifact export");
+  const support::RuntimeABIParameter &rhsScalar =
+      description.runtimeABIParameters[0];
+  const support::RuntimeABIParameter &out = description.runtimeABIParameters[1];
+  const support::RuntimeABIParameter &runtimeN =
+      description.runtimeABIParameters[2];
+
+  if (route.getCallOpaqueSteps().size() != 1)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires exactly "
+        "one provider-built pre-loop setvl statement before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      preLoopSetVL.operands.size() != 1 ||
+      preLoopSetVL.operands.front().expression != runtimeN.cName ||
+      preLoopSetVL.operands.front().cType != runtimeN.cType ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires rebuilt "
+        "provider route pre-loop setvl statement to use runtime n/AVL and "
+        "define the full-chunk VL");
+  if (!routeStepSourceIsSelectedRVVBody(preLoopSetVL))
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "pre-loop setvl to carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires exactly "
+        "one provider-built runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeN.cName ||
+      loop.upperBound.cType != runtimeN.cType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
+  if (loop.bodySteps.size() != 3)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-built loop setvl, runtime scalar splat, and store "
+        "statements before artifact export");
+
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &loopSetVL =
+      loop.bodySteps[0];
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeN.cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (loopSetVL.callee != description.setVLIntrinsic ||
+      loopSetVL.operands.size() != 1 ||
+      loopSetVL.operands.front().expression != expectedRemainingAVL ||
+      loopSetVL.operands.front().cType != description.vlCType ||
+      !stepHasResult(loopSetVL, description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-built loop setvl to derive per-iteration VL from remaining "
+        "runtime AVL");
+
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &splat = loop.bodySteps[1];
+  if (splat.callee != description.rhsBroadcastIntrinsic ||
+      splat.operands.size() != 2 ||
+      splat.operands[0].expression != rhsScalar.cName ||
+      splat.operands[0].cType != rhsScalar.cType ||
+      splat.operands[1].expression != description.emitCLoopVLName ||
+      splat.operands[1].cType != description.vlCType ||
+      !stepHasResult(splat, description.resultName, description.vectorCType))
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-built runtime scalar splat statement to consume rhs_scalar "
+        "and per-iteration VL");
+
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &store = loop.bodySteps[2];
+  const std::string expectedOutPointer =
+      (llvm::StringRef(out.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (store.callee != description.storeIntrinsic ||
+      store.operands.size() != 3 ||
+      store.operands[0].expression != expectedOutPointer ||
+      store.operands[0].cType != out.cType ||
+      store.operands[1].expression != description.resultName ||
+      store.operands[1].cType != description.vectorCType ||
+      store.operands[2].expression != description.emitCLoopVLName ||
+      store.operands[2].cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-built store statement to consume out+offset, splat vector, "
+        "and per-iteration VL");
+
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "runtime scalar splat-store target artifact consumer requires loop "
+          "statements to carry selected typed RVV source provenance");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime scalar splat-store target artifact consumer "
+                    "requires rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+  if (description.memoryForm !=
+      plugin::rvv::RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore)
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "selected typed RVV memory form runtime-scalar-splat-store before "
+        "artifact export");
+  if (description.providerSupportedMirror.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-supported mirror facts before artifact export");
+  if (description.runtimeScalarSplatStoreRouteFamilyPlanID.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "runtime-scalar splat-store route-family plan facts before artifact "
+        "export");
+  if (description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "route operand-binding mirror facts before artifact export");
+  if (description.runtimeControlPlanID.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-derived runtime AVL/VL control plan facts before artifact "
+        "export");
+  if (description.runtimeABIOrder != "rhs_scalar,out,n")
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime scalar splat-store target artifact consumer "
+                    "requires provider-derived runtime ABI order "
+                    "rhs_scalar,out,n but was '") +
+        description.runtimeABIOrder + "'");
+  if (description.sew == 0 || description.lmul.empty() ||
+      description.tailPolicy.empty() || description.maskPolicy.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-derived dtype and policy facts before artifact export");
+  if (description.setVLIntrinsic.empty() ||
+      description.rhsBroadcastIntrinsic.empty() ||
+      description.storeIntrinsic.empty() || description.resultName.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer requires "
+        "provider-derived setvl, runtime scalar splat, store, and result facts "
+        "before artifact export");
+  if (!description.intrinsic.empty() ||
+      !description.sourceVectorTypeName.empty() ||
+      !description.sourceVectorCType.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.wideningDotProductRelation.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty())
+    return makeRVVTargetRouteError(
+        "runtime scalar splat-store target artifact consumer must reject stale "
+        "non-splat-store route-family facts");
+
+  if (llvm::Error error =
+          validateRVVRuntimeScalarSplatStoreRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVRuntimeScalarSplatStoreRouteTypeMappings(route,
+                                                              description))
+    return error;
+  if (llvm::Error error =
+          validateRVVRuntimeScalarSplatStoreRouteABIMappings(route,
+                                                             description))
+    return error;
+  return validateRVVRuntimeScalarSplatStoreRouteStatementPlan(route,
+                                                              description);
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
+      context.route, context.description);
+}
+
+llvm::Error validateRVVRuntimeScalarSplatStoreTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          description.routeOperandBindingPlanID,
+          "selected typed RVV runtime scalar splat-store binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          description.routeOperandBindingSummary,
+          "selected typed RVV runtime scalar splat-store binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          description.providerSupportedMirror,
+          "selected typed RVV runtime scalar splat-store provider support"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+          description.runtimeScalarSplatStoreRouteFamilyPlanID,
+          "selected typed RVV runtime scalar splat-store route-family plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              description.memoryForm),
+          "selected typed RVV runtime scalar splat-store memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.target_leaf_profile",
+          description.targetLeafProfile,
+          "selected typed RVV runtime scalar splat-store target leaf profile"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_control_plan",
+          description.runtimeControlPlanID,
+          "selected typed RVV runtime scalar splat-store runtime AVL/VL "
+          "control plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
+          "selected typed RVV runtime scalar splat-store runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.required_header_declarations",
+          description.requiredHeaderDeclarations,
+          "selected typed RVV runtime scalar splat-store route header "
+          "requirements"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.c_type_mapping",
+          description.cTypeMappingSummary,
+          "selected typed RVV runtime scalar splat-store route type mapping "
+          "summary"))
+    return error;
+
+  constexpr llvm::StringLiteral staleRouteFamilies[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan"};
+  for (llvm::StringRef key : staleRouteFamilies)
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, key, "",
+            "selected typed RVV non-splat-store route-family plan"))
+      return error;
+
+  return llvm::Error::success();
 }
 
 bool routeStepsContainCallee(
@@ -4160,6 +4548,12 @@ bool isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer(
   return isRVVElementwiseArithmeticRouteFamilyDescription(description);
 }
 
+bool isRVVRuntimeScalarSplatStoreTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVRuntimeScalarSplatStoreRouteFamilyOperation(
+      description.operation);
+}
+
 struct RVVTargetArtifactRouteFamilyValidator {
   llvm::StringLiteral familyName;
   bool (*isConsumer)(
@@ -4193,6 +4587,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer,
        validateRVVElementwiseArithmeticTargetArtifactProviderFacts,
        validateRVVElementwiseArithmeticTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("runtime-scalar-splat-store"),
+       isRVVRuntimeScalarSplatStoreTargetArtifactRouteFamilyConsumer,
+       validateRVVRuntimeScalarSplatStoreTargetArtifactProviderFacts,
+       validateRVVRuntimeScalarSplatStoreTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("macc"),
        isRVVMAccTargetArtifactRouteFamilyConsumer,
        validateRVVMAccTargetArtifactProviderFacts,
