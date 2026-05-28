@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 290
+- **Total Sessions**: 291
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~1091 | Active |
+| `journal-17.md` | ~1129 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 291 | 2026-05-28 | Stage2 RVV standalone reduce add LMUL m2 route | pending-final-session-commit | `main` |
 | 290 | 2026-05-28 | Stage2 RVV vector computed-mask MAcc m2 route | same-final-commit | `main` |
 | 289 | 2026-05-28 | Stage2 RVV runtime-scalar compare-masked MAcc typed route family | pending-final-session-commit | `main` |
 | 288 | 2026-05-28 | Stage2 RVV standalone min/max scalar-channel reduction family | pending-final-session-commit | `main` |

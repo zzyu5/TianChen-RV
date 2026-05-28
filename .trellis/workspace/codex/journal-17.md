@@ -1089,3 +1089,51 @@ Completed the vector computed-mask MAcc typed route-family m2 witness and archiv
 ### Next Steps
 
 - None - task complete
+
+
+## Session 291: Stage2 RVV standalone reduce add LMUL m2 route
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV standalone reduce add LMUL m2 route
+**Branch**: `main`
+
+### Summary
+
+Completed the plain standalone_reduce_add_lmul_m2 selected-boundary route member with typed source LMUL m2, scalar-result LMUL m1, generated-bundle evidence, direct route-entry fail-closed coverage, ssh rvv correctness, and check-tianchenrv.
+
+### Main Changes
+
+- Added a selected-boundary target fixture for `standalone_reduce_add_lmul_m2` proving SEW32 source/work LMUL m2 and scalar accumulator/result LMUL m1 realization, provider plan, and header mirrors.
+- Reused the existing RVV standalone reduction production provider generically; no fake production branch was needed. Focused C++ coverage now proves typed source m2 and scalar-result m1 facts for plain add.
+- Generalized generated-bundle standalone add evidence parsing/checking to use typed source/scalar-channel facts rather than m1 hard-coding, then added the new dry-run script test.
+- Extended direct pre-realized route-entry fail-closed coverage to include `standalone_reduce_add_lmul_m2`.
+- Spec-update judgment: no `.trellis/spec/**` edit needed; existing RVV plugin, tcrv.exec, EmitC route, and testing specs already cover the durable scalar-channel, provider-authority, neutral EmitC, and ssh rvv evidence rules.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] REALIZED/PLAN/HEADER FileCheck for `test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add-lmul-m2.mlir`.
+- [OK] Generated-bundle dry-run for `standalone_reduce_add_lmul_m2` over counts 0,1,16,23,257.
+- [OK] Direct pre-realized route-entry failed closed for `standalone_reduce_add` and `standalone_reduce_add_lmul_m2`.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused generated-bundle dry-run non-regressions for standalone m1 add, standalone min/max m2, computed-mask add m2, and runtime-scalar add m2.
+- [OK] `ssh rvv` generated-bundle correctness for `standalone_reduce_add_lmul_m2` over counts 0,1,16,23,257 and seeds -11,17 with tail preservation.
+- [OK] Bounded touched-file authority scan found no new descriptor/source-front-door/route-id/artifact-name/exact-intrinsic/common-EmitC/legacy-i32 route authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -112,6 +112,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "segment2_interleave_unit_load",
     *SCALAR_BROADCAST_OP_KINDS,
     "standalone_reduce_add",
+    "standalone_reduce_add_lmul_m2",
     "standalone_reduce_min",
     "standalone_reduce_max",
     "standalone_reduce_min_lmul_m2",
@@ -4554,6 +4555,17 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_standalone_reduce_add",
         function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add",
     ),
+    "standalone_reduce_add_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_add"],
+        kind="standalone_reduce_add_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_standalone_reduce_add_lmul_m2",
+        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_add_lmul_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
+    ),
     "standalone_reduce_min": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_min"],
         kind="standalone_reduce_min",
@@ -8724,18 +8736,26 @@ def verify_emitted_rvv_cpp(
             "runtime_avl_vl_control"
         ]
     if expectation.is_standalone_reduce_add:
-        vector_c_type = expectation.rvv_vector_c_type
+        source_vector_c_type = expectation.standalone_reduction_source_vector_c_type
+        scalar_result_vector_c_type = (
+            expectation.standalone_reduction_scalar_result_vector_c_type
+        )
         intrinsics = [
             expectation.setvl_intrinsic,
             expectation.unit_load_intrinsic,
-            "__riscv_vmv_v_x_i32m1",
-            "__riscv_vredsum_vs_i32m1_i32m1",
-            expectation.unit_store_intrinsic,
+            expectation.standalone_reduction_scalar_seed_splat_intrinsic,
+            expectation.standalone_reduction_intrinsic,
+            expectation.standalone_reduction_scalar_result_store_intrinsic,
         ]
         require_contains(
             text,
-            vector_c_type,
-            "emitted RVV C/C++ standalone reduction vector C type",
+            source_vector_c_type,
+            "emitted RVV C/C++ standalone reduction source vector C type",
+        )
+        require_contains(
+            text,
+            scalar_result_vector_c_type,
+            "emitted RVV C/C++ standalone reduction scalar result vector C type",
         )
         for intrinsic in intrinsics:
             require_contains(
@@ -9082,7 +9102,12 @@ def extract_standalone_reduction_emitc_boundary(
 ) -> dict[str, Any]:
     code = re.sub(r"^[ \t]*//[^\n]*(?:\n|$)", "", text, flags=re.MULTILINE)
     element_c_type = re.escape(expectation.element_c_type)
-    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    source_vector_c_type = re.escape(
+        expectation.standalone_reduction_source_vector_c_type
+    )
+    scalar_result_vector_c_type = re.escape(
+        expectation.standalone_reduction_scalar_result_vector_c_type
+    )
     signature = require_regex(
         code,
         rf"extern \"C\" void {re.escape(expectation.function_name)}"
@@ -9107,10 +9132,10 @@ def extract_standalone_reduction_emitc_boundary(
     initial_seed = require_regex(
         code,
         rf"const {element_c_type} (?P<seed_scalar>v[0-9]+) = {acc}\[0\];\s*"
-        rf"{vector_c_type} (?P<seed_vector>v[0-9]+) = "
-        rf"{re.escape(expectation.scalar_splat_intrinsic)}\((?P=seed_scalar), "
+        rf"{scalar_result_vector_c_type} (?P<seed_vector>v[0-9]+) = "
+        rf"{re.escape(expectation.standalone_reduction_scalar_seed_splat_intrinsic)}\((?P=seed_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);\s*"
-        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"{re.escape(expectation.standalone_reduction_scalar_result_store_intrinsic)}"
         rf"\({out}, (?P=seed_vector), {STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ standalone reduction initial accumulator seed",
     )
@@ -9137,7 +9162,7 @@ def extract_standalone_reduction_emitc_boundary(
         code,
         rf"const {element_c_type}\* (?P<lhs_ptr>v[0-9]+) = "
         rf"{lhs} \+ {offset};\s*"
-        rf"{vector_c_type} (?P<source_vec>v[0-9]+) = "
+        rf"{source_vector_c_type} (?P<source_vec>v[0-9]+) = "
         rf"{re.escape(expectation.unit_load_intrinsic)}"
         rf"\((?P=lhs_ptr), {loop_vl}\);",
         "emitted RVV C/C++ standalone reduction source load",
@@ -9146,8 +9171,8 @@ def extract_standalone_reduction_emitc_boundary(
     accumulator = require_regex(
         code,
         rf"{element_c_type} (?P<acc_scalar>v[0-9]+) = {out}\[0\];\s*"
-        rf"{vector_c_type} (?P<acc_vec>v[0-9]+) = "
-        rf"__riscv_vmv_v_x_i32m1\((?P=acc_scalar), "
+        rf"{scalar_result_vector_c_type} (?P<acc_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.standalone_reduction_scalar_seed_splat_intrinsic)}\((?P=acc_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ standalone reduction loop accumulator splat",
     )
@@ -9155,10 +9180,10 @@ def extract_standalone_reduction_emitc_boundary(
     acc_vec = accumulator.group("acc_vec")
     reduction = require_regex(
         code,
-        rf"{vector_c_type} (?P<result_vec>v[0-9]+) = "
-        r"__riscv_vredsum_vs_i32m1_i32m1"
+        rf"{scalar_result_vector_c_type} (?P<result_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.standalone_reduction_intrinsic)}"
         rf"\({source_vec}, {acc_vec}, {loop_vl}\);\s*"
-        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"{re.escape(expectation.standalone_reduction_scalar_result_store_intrinsic)}"
         rf"\({out}, (?P=result_vec), {STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ standalone reduction intrinsic and scalar store",
     )
@@ -9187,16 +9212,21 @@ def extract_standalone_reduction_emitc_boundary(
         "loop_accumulator_scalar": acc_scalar,
         "loop_accumulator_vector": acc_vec,
         "result_vector": result_vec,
-        "vector_c_type": expectation.rvv_vector_c_type,
+        "source_vector_c_type": expectation.standalone_reduction_source_vector_c_type,
+        "scalar_result_vector_c_type": (
+            expectation.standalone_reduction_scalar_result_vector_c_type
+        ),
         "reduction_kind": expectation.standalone_reduction_kind,
         "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
         "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
         "store_vl": STANDALONE_REDUCE_STORE_VL,
         "setvl_intrinsic": expectation.setvl_intrinsic,
         "source_load_intrinsic": expectation.unit_load_intrinsic,
-        "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
-        "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
-        "store_intrinsic": expectation.unit_store_intrinsic,
+        "scalar_seed_splat_intrinsic": (
+            expectation.standalone_reduction_scalar_seed_splat_intrinsic
+        ),
+        "standalone_reduce_intrinsic": expectation.standalone_reduction_intrinsic,
+        "store_intrinsic": expectation.standalone_reduction_scalar_result_store_intrinsic,
         "seed_store_initializes_empty_count_result": True,
         "loop_accumulator_reads_previous_scalar_result": True,
         "reduction_uses_loaded_source": True,
@@ -21049,15 +21079,15 @@ def reduction_accumulation_boundary_summary(
             "family": "standalone reduction",
             "pre_loop_callees": [
                 expectation.setvl_intrinsic,
-                "__riscv_vmv_v_x_i32m1",
-                expectation.unit_store_intrinsic,
+                expectation.standalone_reduction_scalar_seed_splat_intrinsic,
+                expectation.standalone_reduction_scalar_result_store_intrinsic,
             ],
             "loop_callees": [
                 expectation.setvl_intrinsic,
                 expectation.unit_load_intrinsic,
-                "__riscv_vmv_v_x_i32m1",
-                "__riscv_vredsum_vs_i32m1_i32m1",
-                expectation.unit_store_intrinsic,
+                expectation.standalone_reduction_scalar_seed_splat_intrinsic,
+                expectation.standalone_reduction_intrinsic,
+                expectation.standalone_reduction_scalar_result_store_intrinsic,
             ],
             "seed_source": "acc[0]",
             "loop_accumulator_source": "out[0]",

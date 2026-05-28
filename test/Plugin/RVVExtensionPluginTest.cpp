@@ -16774,6 +16774,79 @@ module {
           "provider-derived and mirrored from the family plan"))
     return result;
 
+  constexpr llvm::StringLiteral plainM2Source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_standalone_reduction_provider_m2_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_standalone_reduce_m2 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test-m2:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test-m2:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test-m2:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "standalone-provider-test-m2:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_standalone_reduce_m2, sew = 32 : i64, source_kernel = "rvv_standalone_reduction_provider_m2_kernel", status = "selected-lowering-boundary"} {
+        %input = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %reduced = tcrv_rvv.standalone_reduce %input, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @standalone_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_standalone_reduce_m2 {origin = "rvv-plugin"}
+      tcrv.exec.fallback @standalone_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> plainM2Module =
+      parseModule(context, plainM2Source);
+  if (!plainM2Module)
+    return fail("failed to parse standalone reduction m2 provider test module");
+  KernelOp plainM2Kernel = findKernel(
+      *plainM2Module, "rvv_standalone_reduction_provider_m2_kernel");
+  VariantOp plainM2Variant =
+      findVariant(plainM2Kernel, "rvv_standalone_reduce_m2");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> plainM2Analysis =
+      analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+          plainM2Variant, plainM2Kernel,
+          TargetCapabilitySet::buildFromKernel(plainM2Kernel),
+          VariantEmissionRole::DirectVariant));
+  if (!plainM2Analysis)
+    return fail("analyze standalone reduction m2 provider route: " +
+                llvm::toString(plainM2Analysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              *plainM2Analysis,
+              "standalone reduction m2 provider unit test"),
+          "valid standalone reduce-add m2 family provider plan"))
+    return result;
+  if (int result = expect(
+          plainM2Analysis->standaloneReductionRouteFamilyPlan
+                  ->sourceVectorTypeName ==
+              "!tcrv_rvv.vector<i32, \"m2\">" &&
+              plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->sourceVectorCType == "vint32m2_t" &&
+              plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">" &&
+              plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorCType == "vint32m1_t" &&
+              plainM2Analysis->description
+                      .standaloneReductionSourceVectorTypeName ==
+                  plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->sourceVectorTypeName &&
+              plainM2Analysis->description
+                      .standaloneReductionScalarResultVectorCType ==
+                  plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorCType &&
+              plainM2Analysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:standalone_reduce_add.v1",
+          "plain standalone reduce-add m2 plan must derive source m2, scalar "
+          "result m1, and add operand-binding facts from the family plan"))
+    return result;
+
   RVVSelectedBodyRouteAnalysis stale = *plainAnalysis;
   stale.standaloneReductionRouteFamilyPlan->operation =
       RVVSelectedBodyOperationKind::StandaloneReduceMin;
