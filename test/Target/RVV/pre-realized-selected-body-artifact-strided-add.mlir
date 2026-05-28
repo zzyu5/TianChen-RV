@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.strided_memory_layout", value = "element-strided-lhs-rhs-output-runtime-abi"/s//tcrv_rvv.strided_memory_layout", value = "script-derived-strided-layout"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-LAYOUT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride/s//lhs,rhs,out,n,rhs_stride,lhs_stride,out_stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-ABI
 
 // Pre-realized selected-body input for one bounded Stage2 strided add. The
 // RVV plugin must realize the explicit stride ABI operands into typed
@@ -82,3 +84,13 @@ module {
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:strided_add.v1
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|header;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|header;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header
 // HEADER: void tcrv_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride, size_t out_stride);
+
+// STALE-STRIDED-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-STRIDED-LAYOUT: tcrv_rvv.strided_memory_layout
+// STALE-STRIDED-LAYOUT-SAME: must mirror
+// STALE-STRIDED-LAYOUT-SAME: script-derived-strided-layout
+
+// STALE-STRIDED-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-STRIDED-ABI: tcrv_rvv.runtime_abi_order
+// STALE-STRIDED-ABI-SAME: must mirror
+// STALE-STRIDED-ABI-SAME: lhs,rhs,out,n,rhs_stride,lhs_stride,out_stride

@@ -3,6 +3,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-scalar-broadcast-elementwise-route-family-plan.v1/s//rvv-script-derived-scalar-broadcast-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs_scalar,out,n/s//lhs,out,rhs_scalar,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated/s//provider_supported_mirror:rvv-script-derived-scalar-broadcast/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rhs_scalar:i32/s//rhs_scalar:i64/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-TYPE
 
 // Pre-realized selected-body input for one bounded Stage2 vector-scalar add.
 // The RVV plugin must realize the explicit RHS scalar ABI value into generic
@@ -89,3 +91,13 @@ module {
 // STALE-SB-ABI: tcrv_rvv.runtime_abi_order
 // STALE-SB-ABI-SAME: must mirror
 // STALE-SB-ABI-SAME: lhs,out,rhs_scalar,n
+
+// STALE-SB-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-SB-PROVIDER: tcrv_rvv.provider_supported_mirror
+// STALE-SB-PROVIDER-SAME: must mirror
+// STALE-SB-PROVIDER-SAME: rvv-script-derived-scalar-broadcast
+
+// STALE-SB-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-SB-TYPE: tcrv_rvv.c_type_mapping
+// STALE-SB-TYPE-SAME: must mirror
+// STALE-SB-TYPE-SAME: rhs_scalar:i64

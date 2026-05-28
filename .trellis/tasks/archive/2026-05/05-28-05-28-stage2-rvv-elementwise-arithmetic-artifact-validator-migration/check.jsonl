@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Final quality gate for global architecture and RVV authority-chain compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final quality gate for elementwise/scalar-broadcast provider facts, mirror-only metadata, fail-closed diagnostics, and target artifact validator ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final quality gate that common EmitC remains neutral and target export consumes provider-built routes."}
+{"file": ".trellis/tasks/05-28-05-28-stage2-rvv-elementwise-arithmetic-artifact-validator-migration/prd.md", "reason": "Task-specific acceptance criteria and validation plan."}
+{"command": "cmake --build build --target TianChenRVRVVTarget tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2", "result": "pending"}
+{"command": "build/bin/tianchenrv-target-artifact-export-test", "result": "pending"}
+{"command": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "pending"}
+{"command": "focused lit tests for ordinary, masked, scalar-broadcast, and strided elementwise target artifact consumers", "result": "pending"}
+{"command": "git diff --check", "result": "pending"}
+{"command": "bounded authority-leak scan over touched production and test files", "result": "pending"}
+{"command": "cmake --build build --target check-tianchenrv -j2", "result": "pending"}
+{"command": "cmake --build build --target TianChenRVRVVTarget -j2", "result": "passed"}
+{"command": "cd build/test && python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-add\\.mlir|pre-realized-selected-body-artifact-scalar-broadcast-add\\.mlir|pre-realized-selected-body-artifact-strided-add\\.mlir|pre-realized-selected-body-artifact-masked-add\\.mlir'", "result": "passed: 4/4 selected tests"}
+{"command": "cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2", "result": "passed"}
+{"command": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed: RVV extension plugin smoke test passed"}
+{"command": "git diff --check", "result": "passed"}
+{"command": "rg -n \"validateRVVElementwiseArithmeticRoute|isRVVElementwiseArithmeticRouteFamily|getRVVElementwiseArithmeticSignedCType|isRVVConversionDtypePolicyScalarBroadcast|RVVI32M1|rvv-i32m1|descriptor|source-front-door|source_artifact|__riscv_.*_i32m1\" lib/Target/RVV/RVVTargetSupportBundle.cpp lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp include/TianChenRV/Target/RVV/RVVTargetArtifactRouteFamilyValidation.h", "result": "passed: elementwise helpers only remain in route-family validator file; support bundle matches are descriptor residue rejection only; no i32m1/source-front-door/source-artifact/exact-i32m1 authority matches"}
+{"command": "cmake --build build --target check-tianchenrv", "result": "passed: 456/456"}

@@ -184,6 +184,67 @@ bool isRVVCompareSelectMaskRouteFamilyOperation(
          isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(operation);
 }
 
+bool isRVVScalarBroadcastElementwiseRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVElementwiseArithmeticRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::Add:
+  case plugin::rvv::RVVSelectedBodyOperationKind::Sub:
+  case plugin::rvv::RVVSelectedBodyOperationKind::Mul:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedSub:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedMul:
+  case plugin::rvv::RVVSelectedBodyOperationKind::StridedAdd:
+    return true;
+  default:
+    return isRVVScalarBroadcastElementwiseRouteFamilyOperation(operation);
+  }
+}
+
+bool isRVVMaskedElementwiseArithmeticRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedSub:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedMul:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVStridedElementwiseArithmeticRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation == plugin::rvv::RVVSelectedBodyOperationKind::StridedAdd;
+}
+
+bool isRVVElementwiseArithmeticRouteFamilyDescription(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVElementwiseArithmeticRouteFamilyOperation(description.operation))
+    return false;
+  if (isRVVStridedElementwiseArithmeticRouteFamilyOperation(
+          description.operation))
+    return description.memoryForm ==
+           plugin::rvv::RVVSelectedBodyMemoryForm::StridedLoadStore;
+  if (isRVVScalarBroadcastElementwiseRouteFamilyOperation(
+          description.operation))
+    return description.memoryForm ==
+           plugin::rvv::RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
+  return description.memoryForm ==
+         plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+}
+
 bool routeHasHeader(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     llvm::StringRef expectedHeader) {
@@ -1844,6 +1905,655 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
   return llvm::Error::success();
 }
 
+llvm::StringRef getRVVElementwiseArithmeticSignedCType(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.elementTypeName == "i16")
+    return "int16_t";
+  if (description.elementTypeName == "i32")
+    return "int32_t";
+  if (description.elementTypeName == "i64")
+    return "int64_t";
+  return {};
+}
+
+llvm::Error validateRVVElementwiseArithmeticRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-derived required_header_declarations before accepting the "
+        "route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires at least "
+        "one provider route header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer saw an empty "
+          "provider route header declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("elementwise arithmetic target artifact consumer "
+                      "requires rebuilt provider route header '") +
+          trimmed + "' before artifact export");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVElementwiseArithmeticRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.elementTypeName.empty() || description.sew == 0 ||
+      description.lmul.empty() || description.vlCType.empty() ||
+      description.vectorTypeName.empty() || description.vectorCType.empty() ||
+      description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-derived dtype, SEW, LMUL, VL, vector, and C type mapping "
+        "facts before artifact export");
+
+  if (getRVVElementwiseArithmeticSignedCType(description).empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires a "
+        "provider-derived signed C type for the typed RVV element type");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("elementwise arithmetic target artifact consumer "
+                    "requires rebuilt provider route type mapping "
+                    "'!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("elementwise arithmetic target artifact consumer "
+                    "requires rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+
+  if (isRVVMaskedElementwiseArithmeticRouteFamilyOperation(
+          description.operation)) {
+    if (description.maskTypeName.empty() || description.maskCType.empty())
+      return makeRVVTargetRouteError(
+          "masked elementwise arithmetic target artifact consumer requires "
+          "provider-derived mask type mapping facts before artifact export");
+    if (!routeHasTypeMapping(route, description.maskTypeName,
+                             description.maskCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("masked elementwise arithmetic target artifact consumer "
+                      "requires rebuilt provider route type mapping '") +
+          description.maskTypeName + "' -> '" + description.maskCType + "'");
+  } else if (!description.maskTypeName.empty() ||
+             !description.maskCType.empty()) {
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer rejects stale mask "
+        "type mapping facts for non-masked elementwise routes");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVElementwiseArithmeticRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("elementwise arithmetic target artifact consumer "
+                    "requires rebuilt provider route ABI mapping count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  llvm::StringRef signedCType =
+      getRVVElementwiseArithmeticSignedCType(description);
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("elementwise arithmetic target artifact consumer "
+                      "requires rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("elementwise arithmetic target artifact consumer "
+                      "requires rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+
+    switch (expected.role) {
+    case support::RuntimeABIParameterRole::LHSInputBuffer:
+    case support::RuntimeABIParameterRole::RHSInputBuffer:
+    case support::RuntimeABIParameterRole::OutputBuffer:
+      if (!llvm::StringRef(expected.cType).contains(signedCType))
+        return makeRVVTargetRouteError(
+            llvm::Twine("elementwise arithmetic target artifact consumer "
+                        "requires ABI parameter '") +
+            expected.cName + "' C type '" + expected.cType +
+            "' to carry signed element C type '" + signedCType + "'");
+      break;
+    case support::RuntimeABIParameterRole::RHSScalarValue:
+      if (expected.cType != signedCType)
+        return makeRVVTargetRouteError(
+            "scalar-broadcast elementwise target artifact consumer requires "
+            "rhs scalar ABI C type to mirror the typed RVV element C type");
+      break;
+    case support::RuntimeABIParameterRole::RuntimeElementCount:
+      if (expected.cType != description.vlCType)
+        return makeRVVTargetRouteError(
+            "elementwise arithmetic target artifact consumer requires runtime "
+            "element-count ABI C type to mirror provider VL C type");
+      break;
+    case support::RuntimeABIParameterRole::LHSInputStride:
+    case support::RuntimeABIParameterRole::RHSInputStride:
+    case support::RuntimeABIParameterRole::OutputStride:
+      if (expected.cType != "size_t" && expected.cType != "ptrdiff_t")
+        return makeRVVTargetRouteError(
+            "strided elementwise arithmetic target artifact consumer requires "
+            "stride ABI C types to be size_t or ptrdiff_t integer stride "
+            "parameters");
+      break;
+    default:
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer rejects ABI roles "
+          "outside lhs, rhs, rhs scalar, out, runtime n, and optional stride "
+          "roles");
+    }
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const support::RuntimeABIParameter *runtimeN =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeN)
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires a runtime "
+        "n/AVL ABI parameter before artifact export");
+
+  if (route.getCallOpaqueSteps().size() != 1)
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires exactly "
+        "one provider-built pre-loop setvl statement before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      preLoopSetVL.operands.size() != 1 ||
+      preLoopSetVL.operands.front().expression != runtimeN->cName ||
+      preLoopSetVL.operands.front().cType != runtimeN->cType ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires rebuilt "
+        "provider route pre-loop setvl statement to use runtime n/AVL and "
+        "define the full-chunk VL");
+  if (!routeStepSourceIsSelectedRVVBody(preLoopSetVL))
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires pre-loop "
+        "setvl provenance from the selected typed RVV body");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires exactly "
+        "one provider-built runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeN->cName ||
+      loop.upperBound.cType != runtimeN->cType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeN->cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      loop.bodySteps.front().operands.size() != 1 ||
+      loop.bodySteps.front().operands.front().expression !=
+          expectedRemainingAVL ||
+      loop.bodySteps.front().operands.front().cType != description.vlCType ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-built loop setvl to derive per-iteration VL from remaining "
+        "runtime AVL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer requires loop "
+          "statements to carry selected typed RVV source provenance");
+
+  const bool isMasked = isRVVMaskedElementwiseArithmeticRouteFamilyOperation(
+      description.operation);
+  const bool isStrided = isRVVStridedElementwiseArithmeticRouteFamilyOperation(
+      description.operation);
+  const bool isScalarBroadcast =
+      isRVVScalarBroadcastElementwiseRouteFamilyOperation(
+          description.operation);
+
+  if (isStrided) {
+    if (!routeLoopContainsCallee(loop, description.stridedLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.intrinsic) ||
+        !routeLoopContainsCallee(loop, description.stridedStoreIntrinsic))
+      return makeRVVTargetRouteError(
+          "strided elementwise arithmetic target artifact consumer requires "
+          "provider-built strided loads, elementwise compute, and strided "
+          "store statements before artifact export");
+  } else if (isScalarBroadcast) {
+    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.intrinsic) ||
+        !routeLoopContainsCallee(loop, description.storeIntrinsic))
+      return makeRVVTargetRouteError(
+          "scalar-broadcast elementwise target artifact consumer requires "
+          "provider-built vector load, RHS scalar broadcast, elementwise "
+          "compute, and store statements before artifact export");
+  } else {
+    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.intrinsic) ||
+        !routeLoopContainsCallee(loop, description.storeIntrinsic))
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer requires "
+          "provider-built vector loads, elementwise compute, and store "
+          "statements before artifact export");
+  }
+  if (isMasked) {
+    if (!routeLoopContainsCallee(loop, description.compareIntrinsic) ||
+        !routeLoopContainsCallee(loop, description.maskedMergeIntrinsic))
+      return makeRVVTargetRouteError(
+          "masked elementwise arithmetic target artifact consumer requires "
+          "provider-built compare and masked merge statements before artifact "
+          "export");
+  } else if (!description.compareIntrinsic.empty() ||
+             !description.maskedMergeIntrinsic.empty()) {
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer rejects stale "
+        "masked compare/merge leaves for non-masked elementwise routes");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("elementwise arithmetic target artifact consumer requires "
+                    "rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+  if (description.providerSupportedMirror.empty() ||
+      description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-supported and operand-binding mirror facts before artifact "
+        "export");
+
+  const bool isScalarBroadcast =
+      isRVVScalarBroadcastElementwiseRouteFamilyOperation(
+          description.operation);
+  const bool isStrided = isRVVStridedElementwiseArithmeticRouteFamilyOperation(
+      description.operation);
+  llvm::StringRef expectedRuntimeABIOrder =
+      isStrided ? llvm::StringRef(
+                      "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride")
+      : isScalarBroadcast
+          ? llvm::StringRef("lhs,rhs_scalar,out,n")
+          : llvm::StringRef("lhs,rhs,out,n");
+  if (description.runtimeControlPlanID.empty() ||
+      description.runtimeABIOrder != expectedRuntimeABIOrder ||
+      description.elementTypeName.empty() || description.sew == 0 ||
+      description.lmul.empty() || description.tailPolicy.empty() ||
+      description.maskPolicy.empty() || description.configContractID.empty() ||
+      description.setVLIntrinsic.empty() || description.intrinsic.empty() ||
+      description.storeIntrinsic.empty() || description.resultName.empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-derived runtime AVL/VL, dtype, SEW, LMUL, policy, config, "
+        "intrinsic, and result facts before artifact export");
+  if (description.vectorLoadIntrinsic.empty() && !isStrided)
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer requires "
+        "provider-derived vector load facts before artifact export");
+  if (isScalarBroadcast) {
+    if (description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+        description.rhsBroadcastIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "scalar-broadcast elementwise target artifact consumer requires "
+          "provider-derived scalar-broadcast plan and RHS broadcast facts "
+          "before artifact export");
+    if (!description.elementwiseArithmeticRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "scalar-broadcast elementwise target artifact consumer rejects stale "
+          "plain elementwise arithmetic route-family facts");
+  } else {
+    if (description.elementwiseArithmeticRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer requires "
+          "provider-derived elementwise route-family facts before artifact "
+          "export");
+    if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+        !description.rhsBroadcastIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer rejects stale "
+          "scalar-broadcast route facts");
+  }
+  if (!description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.sourceVectorTypeName.empty() ||
+      !description.sourceVectorCType.empty() ||
+      !description.sourceVectorLoadIntrinsic.empty() ||
+      !description.conversionRelation.empty())
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer rejects stale "
+        "conversion/source route facts");
+
+  const bool isMasked = isRVVMaskedElementwiseArithmeticRouteFamilyOperation(
+      description.operation);
+  if (isMasked) {
+    if (description.compareIntrinsic.empty() ||
+        description.maskedMergeIntrinsic.empty() ||
+        description.maskName.empty() || description.maskRole.empty() ||
+        description.maskSource.empty() ||
+        description.inactiveLaneContract.empty() ||
+        description.maskedPassthroughLayout.empty())
+      return makeRVVTargetRouteError(
+          "masked elementwise arithmetic target artifact consumer requires "
+          "provider-derived mask, compare, merge, inactive-lane, and "
+          "passthrough facts before artifact export");
+  } else if (!description.maskName.empty() || !description.maskRole.empty() ||
+             !description.maskSource.empty() ||
+             !description.inactiveLaneContract.empty() ||
+             !description.maskedPassthroughLayout.empty()) {
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer rejects stale mask "
+        "metadata for non-masked elementwise routes");
+  }
+  if (isStrided) {
+    if (description.stridedLoadIntrinsic.empty() ||
+        description.stridedStoreIntrinsic.empty() ||
+        description.stridedMemoryLayout.empty() ||
+        description.lhsStrideSource.empty() ||
+        description.rhsStrideSource.empty() ||
+        description.outStrideSource.empty())
+      return makeRVVTargetRouteError(
+          "strided elementwise arithmetic target artifact consumer requires "
+          "provider-derived strided load/store and stride-source facts before "
+          "artifact export");
+  } else if (!description.stridedLoadIntrinsic.empty() ||
+             !description.stridedStoreIntrinsic.empty() ||
+             !description.stridedMemoryLayout.empty() ||
+             !description.lhsStrideSource.empty() ||
+             !description.rhsStrideSource.empty() ||
+             !description.outStrideSource.empty()) {
+    return makeRVVTargetRouteError(
+        "elementwise arithmetic target artifact consumer rejects stale "
+        "strided metadata for non-strided elementwise routes");
+  }
+
+  if (llvm::Error error =
+          validateRVVElementwiseArithmeticRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVElementwiseArithmeticRouteTypeMappings(route,
+                                                            description))
+    return error;
+  if (llvm::Error error =
+          validateRVVElementwiseArithmeticRouteABIMappings(route, description))
+    return error;
+  return validateRVVElementwiseArithmeticRouteStatementPlan(route, description);
+}
+
+llvm::Error validateRVVElementwiseArithmeticTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVElementwiseArithmeticRoutePayloadFacts(
+      context.route, context.description);
+}
+
+llvm::Error requireEmptyElementwiseStaleRouteFamilyMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  return requireCandidateMetadataMirror(candidate, key, "", label);
+}
+
+llvm::Error validateRVVElementwiseArithmeticTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+  const bool isScalarBroadcast =
+      isRVVScalarBroadcastElementwiseRouteFamilyOperation(
+          description.operation);
+  const bool isMasked = isRVVMaskedElementwiseArithmeticRouteFamilyOperation(
+      description.operation);
+  const bool isStrided = isRVVStridedElementwiseArithmeticRouteFamilyOperation(
+      description.operation);
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          description.routeOperandBindingPlanID,
+          "selected typed RVV elementwise binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          description.routeOperandBindingSummary,
+          "selected typed RVV elementwise binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          description.providerSupportedMirror,
+          "selected typed RVV elementwise provider support"))
+    return error;
+
+  if (isScalarBroadcast) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+            description.scalarBroadcastElementwiseRouteFamilyPlanID,
+            "selected typed RVV scalar-broadcast elementwise route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.elementwise_arithmetic_route_family_plan", "",
+            "selected typed RVV elementwise arithmetic route-family plan"))
+      return error;
+  } else {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+            description.elementwiseArithmeticRouteFamilyPlanID,
+            "selected typed RVV elementwise arithmetic route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate,
+            "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan", "",
+            "selected typed RVV scalar-broadcast elementwise route-family plan"))
+      return error;
+  }
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              description.memoryForm),
+          "selected typed RVV elementwise memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.target_leaf_profile",
+          description.targetLeafProfile,
+          "selected typed RVV elementwise target leaf profile"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_control_plan",
+          description.runtimeControlPlanID,
+          "selected typed RVV elementwise runtime AVL/VL control plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
+          "selected typed RVV elementwise runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.required_header_declarations",
+          description.requiredHeaderDeclarations,
+          "selected typed RVV elementwise route header requirements"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.c_type_mapping",
+          description.cTypeMappingSummary,
+          "selected typed RVV elementwise route type mapping summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_memory_form",
+          description.sourceMemoryForm,
+          "selected typed RVV elementwise source memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_memory_form",
+          description.destinationMemoryForm,
+          "selected typed RVV elementwise destination memory form"))
+    return error;
+
+  if (isMasked) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_role", description.maskRole,
+            "selected typed RVV masked elementwise mask role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_source", description.maskSource,
+            "selected typed RVV masked elementwise mask source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.inactive_lane_contract",
+            description.inactiveLaneContract,
+            "selected typed RVV masked elementwise inactive lane contract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_passthrough_layout",
+            description.maskedPassthroughLayout,
+            "selected typed RVV masked elementwise passthrough layout"))
+      return error;
+  } else {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_role", "",
+            "selected typed RVV masked elementwise mask role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_source", "",
+            "selected typed RVV masked elementwise mask source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.inactive_lane_contract", "",
+            "selected typed RVV masked elementwise inactive lane contract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_passthrough_layout", "",
+            "selected typed RVV masked elementwise passthrough layout"))
+      return error;
+  }
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_memory_form", "",
+          "selected typed RVV masked elementwise mask memory form"))
+    return error;
+
+  if (isStrided) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.strided_memory_layout",
+            description.stridedMemoryLayout,
+            "selected typed RVV strided elementwise memory layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.lhs_stride_source",
+            description.lhsStrideSource,
+            "selected typed RVV strided elementwise lhs stride source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.rhs_stride_source",
+            description.rhsStrideSource,
+            "selected typed RVV strided elementwise rhs stride source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.out_stride_source",
+            description.outStrideSource,
+            "selected typed RVV strided elementwise output stride source"))
+      return error;
+  } else {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.strided_memory_layout", "",
+            "selected typed RVV strided elementwise memory layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.lhs_stride_source", "",
+            "selected typed RVV strided elementwise lhs stride source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.rhs_stride_source", "",
+            "selected typed RVV strided elementwise rhs stride source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.out_stride_source", "",
+            "selected typed RVV strided elementwise output stride source"))
+      return error;
+  }
+
+  constexpr llvm::StringLiteral staleRouteFamilies[] = {
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan"};
+  for (llvm::StringRef key : staleRouteFamilies)
+    if (llvm::Error error =
+            requireEmptyElementwiseStaleRouteFamilyMirror(
+                candidate, key,
+                "selected typed RVV non-elementwise route-family plan"))
+      return error;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_sew", "",
+          "selected typed RVV widening conversion source SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_lmul", "",
+          "selected typed RVV widening conversion source LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.dest_sew", "",
+          "selected typed RVV widening conversion destination SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.dest_lmul", "",
+          "selected typed RVV widening conversion destination LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.conversion_relation", "",
+          "selected typed RVV widening conversion relation"))
+    return error;
+
+  return llvm::Error::success();
+}
+
 bool isRVVWideningDotReductionTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVWideningDotReductionRouteFamilyOperation(description.operation);
@@ -1857,6 +2567,11 @@ bool isRVVMAccTargetArtifactRouteFamilyConsumer(
 bool isRVVCompareSelectMaskTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVCompareSelectMaskRouteFamilyOperation(description.operation);
+}
+
+bool isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVElementwiseArithmeticRouteFamilyDescription(description);
 }
 
 struct RVVTargetArtifactRouteFamilyValidator {
@@ -1876,6 +2591,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVCompareSelectMaskTargetArtifactRouteFamilyConsumer,
        validateRVVCompareSelectMaskTargetArtifactProviderFacts,
        validateRVVCompareSelectMaskTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("elementwise-arithmetic"),
+       isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer,
+       validateRVVElementwiseArithmeticTargetArtifactProviderFacts,
+       validateRVVElementwiseArithmeticTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("macc"),
        isRVVMAccTargetArtifactRouteFamilyConsumer,
        validateRVVMAccTargetArtifactProviderFacts,
