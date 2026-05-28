@@ -925,7 +925,20 @@ Completed typed runtime_scalar_cmp_masked_standalone_reduce_add derivation for b
 
 ### Main Changes
 
-(Add details)
+- Registered the `compare-select-mask` target artifact route-family validator
+  in `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Moved compare/select mask provider-fact checks for headers, type mappings,
+  ABI order/mapping, route operand binding, predicate, mask producer/source,
+  mask/tail policy, select layout, masked-memory layout, statement-plan
+  callees, and route-family candidate mirrors out of
+  `RVVTargetSupportBundle.cpp`.
+- Left the central bridge with generic rebuild, selected-boundary checks,
+  runtime ABI consistency, residue rejection, neutral artifact mechanics,
+  metadata evidence listing, and registry dispatch.
+- Strengthened target artifact negative tests for plain compare/select,
+  computed-mask select, and compare-produced computed-mask memory consumers.
+- Archived Trellis task
+  `05-28-stage2-rvv-compare-select-mask-artifact-validator-migration`.
 
 ### Git Commits
 
@@ -935,7 +948,21 @@ Completed typed runtime_scalar_cmp_masked_standalone_reduce_add derivation for b
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target TianChenRVRVVTarget -j2`
+- [OK] `cmake --build build --target tcrv-translate -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused target artifact pipelines for cmp-select,
+  computed-mask-select, runtime-scalar-cmp-select,
+  runtime-scalar-dual-cmp-mask-and-select, and computed-mask memory consumers
+- [OK] Negative stale metadata checks for provider support, route operand
+  binding, ABI, headers, type mapping, predicate/layout, mask producer,
+  mask/tail policy, and computed-mask memory layout facts
+- [OK] `git diff --check`
+- [OK] Bounded authority scan found no new descriptor/direct-C/source-export,
+  route-id, artifact-name, ABI-string, script-derived, exact-intrinsic,
+  common-EmitC, or legacy-i32 executable authority
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456
 
 ### Status
 
@@ -1294,6 +1321,39 @@ Migrated widening-dot target artifact validation into a target-owned RVV route-f
 - [OK] `ssh rvv` generated-bundle run for `computed_masked_strided_input_widening_dot_reduce_add` and `widening_dot_reduce_add`
 - [OK] `cmake --build build --target check-tianchenrv` passed 456/456 after cleaning a duplicate-lit-run output collision
 - [OK] Bounded authority scan found no new metadata/descriptor/ABI-string/route-entry/source-front-door/exact-intrinsic/common-EmitC/artifact-name/script/legacy-i32 authority
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 295: Stage2 RVV compare select mask artifact validator migration
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV compare select mask artifact validator migration
+**Branch**: `main`
+
+### Summary
+
+Migrated compare/select mask and compare-produced computed-mask memory target artifact semantic validation into the target-owned RVV route-family validator registry; verified focused target artifact consumers, fail-closed stale metadata cases, RVV plugin smoke test, authority scan, git diff --check, and check-tianchenrv 456/456.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

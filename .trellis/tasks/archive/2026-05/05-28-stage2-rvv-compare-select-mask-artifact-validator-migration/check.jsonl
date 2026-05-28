@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Final quality gate for global architecture and RVV authority-chain compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final quality gate for compare/select, computed-mask memory, provider facts, mirror-only metadata, fail-closed diagnostics, and target artifact validator ownership."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Final quality gate that tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final quality gate that common EmitC remains neutral and target export consumes provider-built routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-compare-select-mask-artifact-validator-migration/prd.md", "reason": "Task-specific acceptance criteria and validation plan."}
+{"command": "cmake --build build --target TianChenRVRVVTarget -j2", "result": "passed"}
+{"command": "cmake --build build --target tcrv-translate -j2", "result": "passed"}
+{"command": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed", "stdout": "RVV extension plugin smoke test passed"}
+{"command": "manual sed negative checks for stale compare/select provider, binding, ABI, header, type, predicate, layout, mask producer, mask/tail policy plan-owner, and computed-mask memory layout facts", "result": "passed"}
+{"command": "target artifact export pipelines for cmp-select, computed-mask-select, runtime-scalar-cmp-select, runtime-scalar-dual-cmp-mask-and-select, and computed-masked-unit-load-store", "result": "passed"}
+{"command": "indexed gather/scatter computed-mask memory header export pipelines", "result": "passed after narrowing statement-plan callee requirements to route-operation-specific provider facts"}
+{"command": "git diff --check", "result": "passed"}
+{"command": "rg -n \"CompareSelectMask|validateRVVCompareSelectMask|isRVVComputedMaskSelect|isRVVCompareProducedComputedMaskMemory|isRVVPlainCompareSelectMask|isRVVCompareSelectMaskProducer\" lib/Target/RVV/RVVTargetSupportBundle.cpp", "result": "no matches; compare/select mask semantic helpers no longer live in the central bridge"}
+{"command": "rg -n \"source-front-door|source-export|descriptor|direct-C|artifact-name|script-derived|rvv-i32m1|RVVI32M1|tcrv_rvv\\\\.i32_|__riscv_.*_i32m1\" touched production and target artifact test files", "result": "only intentional negative-test script-derived substitutions and existing generic descriptor/direct-C/source-export residue rejection or metadata listing; no new executable authority leak"}
+{"command": "cmake --build build --target check-tianchenrv -j2", "result": "passed 456/456 after using a single check run; earlier duplicate concurrent runs only collided on shared lit/script output artifacts"}

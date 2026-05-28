@@ -1,6 +1,10 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vector-compare-rhs-load/s//script-derived-mask-producer/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMM-MASK-PRODUCER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-mask-tail-policy-route-family-plan.v1/s//rvv-script-derived-mask-tail-policy-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMM-MASK-TAIL-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/computed-mask memory mask.tail policy/s//script-derived memory mask-tail owner/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMM-MASK-TAIL-OWNER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/unit-stride-compare-source-old-destination-runtime-abi/s//script-derived-masked-memory-layout/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMM-LAYOUT
 
 // Pre-realized selected-body input for one bounded Stage2 computed-mask
 // unit-stride memory movement slice. The RVV plugin must realize compare
@@ -103,3 +107,23 @@ module {
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-load-store
 // HEADER: void tcrv_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n);
+
+// STALE-CMM-MASK-PRODUCER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMM-MASK-PRODUCER: tcrv_rvv.computed_mask_memory_mask_producer_source
+// STALE-CMM-MASK-PRODUCER-SAME: must mirror
+// STALE-CMM-MASK-PRODUCER-SAME: script-derived-mask-producer
+
+// STALE-CMM-MASK-TAIL-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-CMM-MASK-TAIL-PLAN: tcrv_rvv.mask_tail_policy_route_family_plan
+// STALE-CMM-MASK-TAIL-PLAN-SAME: must mirror
+// STALE-CMM-MASK-TAIL-PLAN-SAME: rvv-script-derived-mask-tail-policy-plan.v1
+
+// STALE-CMM-MASK-TAIL-OWNER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMM-MASK-TAIL-OWNER: tcrv_rvv.mask_tail_policy_owner
+// STALE-CMM-MASK-TAIL-OWNER-SAME: must mirror
+// STALE-CMM-MASK-TAIL-OWNER-SAME: script-derived memory mask-tail owner
+
+// STALE-CMM-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-CMM-LAYOUT: tcrv_rvv.masked_memory_layout
+// STALE-CMM-LAYOUT-SAME: must mirror
+// STALE-CMM-LAYOUT-SAME: script-derived-masked-memory-layout
