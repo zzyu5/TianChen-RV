@@ -1,5 +1,15 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-script-derived-widening-dot/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:masked_strided_wdot.v1/s//rvv-route-operand-binding:script-derived-wdot.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride/s//cmp_lhs,cmp_rhs,lhs,rhs,acc,out,lhs_stride,n,rhs_stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32/s//vl:size_t,source:signed-e32m1,result:signed-e32m1,mask:b32/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv-contraction-route-family-plan.v1/s//rvv-script-derived-contraction-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONTRACTION
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"/s//tcrv_rvv.widening_dot_relation", value = "route-id-derived-relation"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RELATION
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_reduction_store_vl", value = "1"/s//tcrv_rvv.widening_dot_reduction_store_vl", value = "4"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STOREVL
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vlse16_v_i16mf2/s//__riscv_vle16_v_i16mf2/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vwmul_vv_i32m1_m/s//__riscv_vwmul_vv_i32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MASKPROD
 
 // Explicit selected-body input for one bounded Stage 2 signed computed-mask
 // runtime-strided-input widening dot-product reduction slice. The generic
@@ -83,3 +93,14 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_strided_wdot.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask;dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16;dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr
 // HEADER: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
 // HEADER: void tcrv_emitc_explicit_masked_strided_dot_kernel_rvv_explicit_masked_strided_dot(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride);
+
+// STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
+// STALE-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV widening dot runtime ABI order
+// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV widening dot route header requirements
+// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV widening dot route type mapping summary
+// STALE-CONTRACTION: candidate tcrv_rvv.contraction_route_family_plan provenance must mirror selected typed RVV widening dot contraction route-family plan
+// STALE-RELATION: candidate tcrv_rvv.widening_dot_relation provenance must mirror selected typed RVV widening dot relation
+// STALE-STOREVL: candidate tcrv_rvv.widening_dot_reduction_store_vl provenance must mirror selected typed RVV widening dot reduction store VL
+// STALE-STRIDE: candidate tcrv_rvv.strided_load_intrinsic provenance must mirror selected typed RVV strided widening dot source load intrinsic
+// STALE-MASKPROD: candidate tcrv_rvv.masked_widening_product_intrinsic provenance must mirror selected typed RVV computed-mask widening dot product intrinsic

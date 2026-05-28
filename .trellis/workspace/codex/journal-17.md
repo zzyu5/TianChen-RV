@@ -1170,3 +1170,62 @@ Closed standalone-reduction family authority checks for provider source/scalar m
 ### Next Steps
 
 - None - task complete
+
+
+## Session 293: Stage2 RVV widening dot target artifact authority closure
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV widening dot target artifact authority closure
+**Branch**: `main`
+
+### Summary
+
+Closed widening dot-reduce target artifact acceptance against rebuilt RVV provider route facts; verified stale mirror failures, generated bundles, ssh rvv, and check-tianchenrv 456/456.
+
+### Main Changes
+
+### Main Changes
+
+- Added a widening-dot target artifact consumer in `RVVTargetSupportBundle.cpp` for plain, strided, computed-mask, and computed-mask-strided dot-reduction routes.
+- Required rebuilt provider route facts for headers, type mappings, ABI mappings, operand binding, runtime control, i16mf2 source and i32m1 result relation, mask/stride facts, reduction store VL, and statement plan calls before artifact acceptance.
+- Added explicit target fixture stale-mirror failures for provider support, binding, ABI, header, C type, contraction plan, relation, store VL, stride intrinsic, and masked product intrinsic.
+- Archived Trellis task `05-28-stage2-rvv-widening-dot-artifact-authority`.
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVTarget tcrv-translate tcrv-opt`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test && build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test && build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv` passed 456/456
+- [OK] Generated-bundle dry-run for all four widening-dot variants with `route_entry_realization=false`
+- [OK] Deprecated direct pre-realized route-entry failed closed for `computed_masked_strided_input_widening_dot_reduce_add`
+- [OK] `ssh rvv` generated-bundle run for `computed_masked_strided_input_widening_dot_reduce_add` and plain `widening_dot_reduce_add`
+- [OK] `git diff --check`
+- [OK] Bounded touched-file authority scan found no new descriptor/source-front-door/route-id/artifact-name/common-EmitC/legacy-i32 route authority
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
