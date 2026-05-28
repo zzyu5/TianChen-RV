@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification must check the RVV-first typed authority chain and no forbidden authority source re-entered."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, reduction/accumulation channel facts, provider ownership, fail-closed diagnostics, and mirror metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime role binding remains in tcrv.exec and compute facts remain in typed RVV body/provider."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and only materializes provider-built route facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck, generated artifact, ssh rvv evidence, and runtime correctness claim standards."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-cmp-masked-standalone-reduction-route-family-derivation/prd.md", "reason": "Check non-regression for SEW32 LMUL m1 and SEW64 LMUL m1 standalone reduction plus previous direct-route fail-closed boundary."}

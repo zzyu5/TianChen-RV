@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 286
+- **Total Sessions**: 287
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~891 | Active |
+| `journal-17.md` | ~924 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 287 | 2026-05-28 | Stage2 RVV standalone reduction scalar channel | pending | `main` |
 | 286 | 2026-05-28 | Stage2 RVV typed runtime-scalar compare-masked standalone reduction route-family derivation | pending-final-session-commit | `main` |
 | 285 | 2026-05-28 | Stage2 RVV typed runtime-scalar dual compare-mask/select route-family derivation | pending-final-session-commit | `main` |
 | 284 | 2026-05-28 | Stage2 RVV typed runtime-scalar compare-select route-family derivation | pending-final-session-commit | `main` |

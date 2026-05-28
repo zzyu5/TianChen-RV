@@ -55,7 +55,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,rhs_scalar,src,acc,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"}
-// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs/source:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-vector"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_accumulator_layout", value = "scalar-i64-seed-lane0-from-accumulator-input"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"

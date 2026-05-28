@@ -520,8 +520,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
   llvm::StringRef vlCType = typedConfigFacts.vlCType;
   llvm::StringRef resultVectorTypeName =
-      typedConfigFacts.vectorTypeName;
-  llvm::StringRef resultVectorCType = typedConfigFacts.vectorCType;
+      materializationFacts.resultVectorTypeName;
+  llvm::StringRef resultVectorCType = materializationFacts.resultVectorCType;
   llvm::StringRef sourceVectorTypeName =
       materializationFacts.sourceVectorTypeName;
   llvm::StringRef sourceVectorCType = materializationFacts.sourceVectorCType;
@@ -608,7 +608,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (!description.indexVectorTypeName.empty())
       route.addTypeMapping(typedConfigFacts.indexVectorTypeName,
                            typedConfigFacts.indexVectorCType);
-    if (!sourceVectorTypeName.empty())
+    if (!sourceVectorTypeName.empty() &&
+        sourceVectorTypeName != resultVectorTypeName)
       route.addTypeMapping(sourceVectorTypeName, sourceVectorCType);
     if (!maskTypeName.empty())
       route.addTypeMapping(maskTypeName, maskCType);

@@ -833,6 +833,100 @@ mapping remain in the owning RVV family plan and verifier. Common EmitC and
 target export may consume mirrors after route construction, but they must not
 own the route-family registry or infer RVV semantics from it.
 
+### Standalone Reduction Scalar Channel Boundary
+
+#### 1. Scope / Trigger
+
+Standalone reduction routes have two typed data channels when the RVV reduction
+source LMUL differs from the scalar reduction result LMUL. The source/work
+channel owns vector loads, masks, runtime-scalar compares, inactive-lane
+neutralization, and the reduction source. The scalar accumulator/result channel
+owns the seed, reduction accumulator/result vector, lane-0 scalar result
+layout, and scalar output store.
+
+#### 2. Signatures
+
+The standalone-reduction family plan and route materialization facts must expose
+distinct source and scalar-result fields, for example:
+
+```c++
+sourceVectorTypeName
+sourceVectorCType
+scalarResultVectorTypeName
+scalarResultVectorCType
+```
+
+#### 3. Contracts
+
+The RVV selected-body realization must preserve the source SEW/LMUL on the
+vector input/work channel and must materialize a scalar accumulator/result
+channel with the same element dtype/SEW and the RVV scalar reduction result
+LMUL required by the operation. For SEW32 LMUL m2 standalone reduce-add, the
+source/work channel is `!tcrv_rvv.vector<i32, "m2">` and the scalar
+accumulator/result channel is `!tcrv_rvv.vector<i32, "m1">`.
+
+Provider construction must derive the reduction intrinsic, seed splat, result
+store, C type mapping, route operand binding closure, and target artifact
+mirrors from these typed family-plan facts. Common EmitC may only materialize
+the provider-built route. Header/object exporters may mirror the source and
+scalar-result C/vector types after rebuilding and validating the provider route.
+
+#### 4. Validation & Error Matrix
+
+- Missing scalar accumulator role/layout -> fail closed before provider route
+  construction.
+- Missing scalar result role/layout -> fail closed before provider route
+  construction.
+- Source/work vector type equals the scalar result type only when RVV reduction
+  semantics require that relation; otherwise mismatched or absent relation ->
+  fail closed.
+- Scalar result dtype/SEW differs from the source reduction dtype/SEW without an
+  explicit widening/narrowing family plan -> fail closed.
+- Runtime scalar mask binding, AVL/VL binding, or accumulator/output ABI order
+  does not match the realized typed body -> fail closed.
+- Header/artifact metadata claims source or scalar-result types not present in
+  the validated family plan -> fail closed as stale mirror metadata.
+
+#### 5. Good/Base/Bad Cases
+
+Good: typed selected body carries source m2 and scalar-result m1 facts -> RVV
+realization preserves the split -> provider builds an m2-to-m1 reduction route
+-> artifact metadata mirrors the split after route validation.
+
+Base: source LMUL m1 standalone reductions may have source and scalar-result
+channels with the same LMUL, but that equality is still a typed family-plan
+fact, not route-name authority.
+
+Bad: route id, artifact name, ABI parameter string, exact intrinsic spelling,
+test name, descriptor residue, or common EmitC code decides the reduction
+source/result relation.
+
+#### 6. Tests Required
+
+- lit/FileCheck must cover selected-body realization, emission-plan/provider
+  facts, header artifact mirrors, and direct route-entry fail-closed behavior.
+- Generated-bundle evidence must prove `route_entry_realization: false`,
+  `pre_realized_body_consumed: true`, source vector type/C type, scalar
+  accumulator/result vector type/C type, runtime AVL/VL, mask/runtime-scalar
+  binding, and scalar output ABI order.
+- Runtime correctness claims require `ssh rvv` compile/run evidence over zero,
+  one, exact-VL, tail, and stress counts with signed data and multiple runtime
+  scalar thresholds.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+standalone_reduce_add route name -> choose i32m1 reduction/result shape
+```
+
+Correct:
+
+```text
+typed source/result channels -> RVV family plan -> provider-built route
+```
+
 The conversion dtype-policy cluster is a route-family owner boundary over:
 
 - widening conversion routes, where the RVV widening conversion plan owns

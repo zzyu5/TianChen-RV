@@ -2113,7 +2113,7 @@ constexpr llvm::StringLiteral
         "vl:size_t,compare/source:signed-e32m1,mask:b32,seed:i32,result:signed-e32m1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStandaloneReductionCTypeMappingSummary(
-        "vl:size_t,cmp_lhs/source:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-vector");
+        "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector");
 constexpr llvm::StringLiteral
     kRVVStandaloneReductionMaskedInactiveLaneZeroingRequirement(
         "masked-standalone-reduction-zero-inactive-lanes-before-reduction");
@@ -2643,9 +2643,59 @@ bool isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
 
 bool isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  return (sew == tcrv::rvv::getRVVFirstSliceSEWBits() ||
-          sew == tcrv::rvv::getRVVSEW64Bits()) &&
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return lmul == tcrv::rvv::getRVVLMULM1() ||
+           lmul == tcrv::rvv::getRVVLMULM2();
+  return sew == tcrv::rvv::getRVVSEW64Bits() &&
          lmul == tcrv::rvv::getRVVLMULM1();
+}
+
+llvm::StringRef getRVVStandaloneReductionScalarResultVectorTypeName(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == tcrv::rvv::getRVVLMULM1() ||
+       lmul == tcrv::rvv::getRVVLMULM2()))
+    return "!tcrv_rvv.vector<i32, \"m1\">";
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "!tcrv_rvv.vector<i64, \"m1\">";
+  return {};
+}
+
+llvm::StringRef getRVVStandaloneReductionScalarResultVectorCType(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == tcrv::rvv::getRVVLMULM1() ||
+       lmul == tcrv::rvv::getRVVLMULM2()))
+    return "vint32m1_t";
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "vint64m1_t";
+  return {};
+}
+
+llvm::StringRef getRVVStandaloneReductionScalarSeedSplatIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == tcrv::rvv::getRVVLMULM1() ||
+       lmul == tcrv::rvv::getRVVLMULM2()))
+    return "__riscv_vmv_v_x_i32m1";
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vmv_v_x_i64m1";
+  return {};
+}
+
+llvm::StringRef getRVVStandaloneReductionScalarResultStoreIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == tcrv::rvv::getRVVLMULM1() ||
+       lmul == tcrv::rvv::getRVVLMULM2()))
+    return "__riscv_vse32_v_i32m1";
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vse64_v_i64m1";
+  return {};
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
@@ -10165,6 +10215,15 @@ validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan requires a "
         "provider-derived compare leaf for the selected typed config");
+  llvm::StringRef expectedStoreLeaf =
+      isStandaloneReduction
+          ? getRVVStandaloneReductionScalarResultStoreIntrinsic(
+                plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul)
+          : expectedConfig->storeIntrinsic;
+  if (expectedStoreLeaf.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires a "
+        "provider-derived store leaf for the selected scalar result channel");
 
   if (plan.memoryForm != expectedMemoryForm)
     return makeRVVEmitCRouteProviderError(
@@ -10268,7 +10327,7 @@ validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "store leaf", plan.storeIntrinsic,
-              expectedConfig->storeIntrinsic))
+              expectedStoreLeaf))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
@@ -10386,10 +10445,9 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
             configProfile.sew, configProfile.lmul))
       return makeRVVEmitCRouteProviderError(
           "computed-mask accumulation route-family plan requires runtime-"
-          "scalar standalone reduction typed config to be SEW32 LMUL m1 or "
-          "SEW64 LMUL m1; SEW32 LMUL m2 requires a separate LMUL m1 scalar "
-          "reduction accumulator/result channel and fails closed in this "
-          "bounded route family");
+          "scalar standalone reduction typed config to be SEW32 LMUL m1, "
+          "SEW32 LMUL m2, or SEW64 LMUL m1 with a separate LMUL m1 scalar "
+          "reduction accumulator/result channel");
   } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
              configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
@@ -10499,7 +10557,11 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   plan.rhsScalarSplatIntrinsic =
       isRuntimeScalarProducer ? targetLeaves.rhsBroadcastIntrinsic : "";
   plan.compareIntrinsic = targetLeaves.compareIntrinsic;
-  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.storeIntrinsic =
+      isStandaloneReduction
+          ? getRVVStandaloneReductionScalarResultStoreIntrinsic(
+                configProfile.sew, configProfile.lmul)
+          : configProfile.storeIntrinsic;
   plan.maskRole = kRVVMaskedPredicateMaskRole;
   plan.maskSource = kRVVMaskedCompareMaskSource;
   plan.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
@@ -10861,6 +10923,41 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
           expectedConfig->vectorCType))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "source vector type", plan.sourceVectorTypeName,
+          expectedConfig->vectorTypeName))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "source vector C type", plan.sourceVectorCType,
+          expectedConfig->vectorCType))
+    return error;
+  llvm::StringRef expectedScalarResultVectorType =
+      getRVVStandaloneReductionScalarResultVectorTypeName(
+          plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul);
+  llvm::StringRef expectedScalarResultVectorCType =
+      getRVVStandaloneReductionScalarResultVectorCType(
+          plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul);
+  llvm::StringRef expectedScalarSeedSplatIntrinsic =
+      getRVVStandaloneReductionScalarSeedSplatIntrinsic(
+          plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul);
+  llvm::StringRef expectedScalarResultStoreIntrinsic =
+      getRVVStandaloneReductionScalarResultStoreIntrinsic(
+          plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul);
+  if (expectedScalarResultVectorType.empty() ||
+      expectedScalarResultVectorCType.empty() ||
+      expectedScalarSeedSplatIntrinsic.empty() ||
+      expectedScalarResultStoreIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "standalone reduction route-family plan requires a supported typed "
+        "scalar accumulator/result vector channel for the selected SEW/LMUL");
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "scalar result vector type", plan.scalarResultVectorTypeName,
+          expectedScalarResultVectorType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "scalar result vector C type", plan.scalarResultVectorCType,
+          expectedScalarResultVectorCType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "setvl leaf", plan.setVLIntrinsic,
           expectedConfig->setVLIntrinsic))
     return error;
@@ -10869,8 +10966,12 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
           expectedConfig->vectorLoadIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
-          plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
+          plan, "source splat leaf", plan.sourceSplatIntrinsic,
           expectedConfig->rhsBroadcastIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
+          expectedScalarSeedSplatIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic,
@@ -10934,7 +11035,7 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   }
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "store leaf", plan.storeIntrinsic,
-          expectedConfig->storeIntrinsic))
+          expectedScalarResultStoreIntrinsic))
     return error;
   llvm::StringRef expectedAccumulatorLayout =
       getRVVStandaloneReductionAccumulatorLayoutForSEW(
@@ -11022,15 +11123,30 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       return makeRVVEmitCRouteProviderError(
           "standalone reduction route-family plan requires runtime-scalar "
           "computed-mask standalone reduction typed config to be SEW32 LMUL "
-          "m1 or SEW64 LMUL m1; SEW32 LMUL m2 requires a separate LMUL m1 "
-          "scalar reduction accumulator/result channel and fails closed in "
-          "this bounded route family");
+          "m1, SEW32 LMUL m2, or SEW64 LMUL m1 with an explicit scalar "
+          "accumulator/result channel");
   } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
              configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan currently requires non-"
         "runtime-scalar standalone reduction config to be SEW32 LMUL m1");
   }
+  mlir::Value reductionResult =
+      isComputedMask ? analysis.slice.maskedStandaloneReduceOp.getResult()
+                     : analysis.slice.standaloneReduceOp.getResult();
+  auto resultVector =
+      llvm::dyn_cast<tcrv::rvv::VectorType>(reductionResult.getType());
+  auto resultElementType =
+      resultVector ? llvm::dyn_cast<mlir::IntegerType>(
+                         resultVector.getElementType())
+                   : mlir::IntegerType();
+  if (!resultVector || !resultElementType ||
+      resultElementType.getWidth() != configProfile.sew ||
+      resultVector.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "standalone reduction route-family plan requires the typed body to "
+        "carry a scalar accumulator/result channel with the same SEW as the "
+        "source vector and LMUL m1 result layout");
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       (isRuntimeScalarComputedMask
@@ -11096,15 +11212,28 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.vlCType = configProfile.vlCType;
   plan.vectorTypeName = configProfile.vectorTypeName;
   plan.vectorCType = configProfile.vectorCType;
+  plan.sourceVectorTypeName = configProfile.vectorTypeName;
+  plan.sourceVectorCType = configProfile.vectorCType;
+  plan.scalarResultVectorTypeName =
+      getRVVStandaloneReductionScalarResultVectorTypeName(configProfile.sew,
+                                                          configProfile.lmul);
+  plan.scalarResultVectorCType =
+      getRVVStandaloneReductionScalarResultVectorCType(configProfile.sew,
+                                                       configProfile.lmul);
   plan.setVLIntrinsic = configProfile.setVLIntrinsic;
   plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.sourceSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
   plan.rhsScalarSplatIntrinsic =
       isRuntimeScalarComputedMask ? targetLeaves.rhsBroadcastIntrinsic : "";
-  plan.scalarSeedSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
+  plan.scalarSeedSplatIntrinsic =
+      getRVVStandaloneReductionScalarSeedSplatIntrinsic(configProfile.sew,
+                                                        configProfile.lmul);
   plan.reductionIntrinsic = targetLeaves.intrinsic;
   plan.compareIntrinsic = targetLeaves.compareIntrinsic;
   plan.maskedMergeIntrinsic = targetLeaves.maskedMergeIntrinsic;
-  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.storeIntrinsic =
+      getRVVStandaloneReductionScalarResultStoreIntrinsic(configProfile.sew,
+                                                          configProfile.lmul);
   plan.accumulatorLayout =
       isComputedMask
           ? analysis.slice.maskedStandaloneReduceOp.getAccumulatorLayout()
@@ -11158,6 +11287,15 @@ void applyRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   description.vlCType = plan.vlCType;
   description.vectorTypeName = plan.vectorTypeName;
   description.vectorCType = plan.vectorCType;
+  description.sourceVectorTypeName = "";
+  description.sourceVectorCType = "";
+  description.standaloneReductionSourceVectorTypeName =
+      plan.sourceVectorTypeName;
+  description.standaloneReductionSourceVectorCType = plan.sourceVectorCType;
+  description.standaloneReductionScalarResultVectorTypeName =
+      plan.scalarResultVectorTypeName;
+  description.standaloneReductionScalarResultVectorCType =
+      plan.scalarResultVectorCType;
   description.setVLIntrinsic = plan.setVLIntrinsic;
   description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
   description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
@@ -12695,17 +12833,42 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     return llvm::Error::success();
   }
 
-  if (isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+  if (isRVVSelectedBodyStandaloneReductionRouteOperation(
           slice.arithmeticKind)) {
+    tcrv::rvv::RVVCompileTimeConfig scalarResultConfig = config;
+    scalarResultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    if (isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
+            slice.arithmeticKind) ||
+        isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+            slice.arithmeticKind)) {
+      if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+              slice.lhsValue,
+              "standalone reduction compare lhs vector", config))
+        return error;
+      if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+              slice.rhsValue,
+              "standalone reduction compare rhs vector", config))
+        return error;
+      if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+              slice.sourceValue,
+              "standalone reduction active source vector", config))
+        return error;
+      if (llvm::Error error = validateRVVSelectedBodyMaskTypeAgainstConfig(
+              slice.compareMask,
+              "standalone reduction predicate mask", config))
+        return error;
+    } else {
+      if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+              slice.lhsValue, "standalone reduction input vector", config))
+        return error;
+    }
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-            slice.lhsValue, "standalone reduction input vector", config))
+            slice.arithmeticResult,
+            "standalone reduction scalar result vector", scalarResultConfig))
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-            slice.arithmeticResult, "standalone reduction result vector",
-            config))
-      return error;
-    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-            slice.storeValue, "standalone reduction stored vector", config))
+            slice.storeValue, "standalone reduction stored scalar result vector",
+            scalarResultConfig))
       return error;
     return llvm::Error::success();
   }
@@ -24518,7 +24681,9 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.standaloneReductionPlan ? facts.standaloneReductionPlan->vlCType
                                       : typedConfigFacts.vlCType;
   facts.resultVectorTypeName =
-      facts.computedMaskAccumulationPlan
+      facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->scalarResultVectorTypeName
+      : facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorTypeName
       : facts.plainMAccPlan
           ? facts.plainMAccPlan->vectorTypeName
@@ -24533,11 +24698,11 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.baseMemoryMovementPlan
           ? facts.baseMemoryMovementPlan->vectorTypeName
       : facts.contractionPlan ? facts.contractionPlan->resultVectorTypeName
-      : facts.standaloneReductionPlan
-          ? facts.standaloneReductionPlan->vectorTypeName
           : typedConfigFacts.vectorTypeName;
   facts.resultVectorCType =
-      facts.computedMaskAccumulationPlan
+      facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->scalarResultVectorCType
+      : facts.computedMaskAccumulationPlan
           ? facts.computedMaskAccumulationPlan->vectorCType
       : facts.plainMAccPlan ? facts.plainMAccPlan->vectorCType
       : facts.scalarBroadcastMAccPlan
@@ -24550,18 +24715,20 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.baseMemoryMovementPlan
           ? facts.baseMemoryMovementPlan->vectorCType
       : facts.contractionPlan ? facts.contractionPlan->resultVectorCType
-      : facts.standaloneReductionPlan
-          ? facts.standaloneReductionPlan->vectorCType
           : typedConfigFacts.vectorCType;
   facts.sourceVectorTypeName =
       facts.wideningConversionPlan
           ? facts.wideningConversionPlan->sourceVectorTypeName
       : facts.contractionPlan ? facts.contractionPlan->sourceVectorTypeName
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->sourceVectorTypeName
                               : description.sourceVectorTypeName;
   facts.sourceVectorCType =
       facts.wideningConversionPlan
           ? facts.wideningConversionPlan->sourceVectorCType
       : facts.contractionPlan ? facts.contractionPlan->sourceVectorCType
+      : facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->sourceVectorCType
                               : description.sourceVectorCType;
   facts.maskTypeName =
       facts.computedMaskAccumulationPlan
@@ -24690,6 +24857,10 @@ getRVVSelectedBodyRouteMaterializationFacts(
   else if (facts.standaloneReductionPlan)
     facts.storeLeaf = facts.standaloneReductionPlan->storeIntrinsic;
   facts.stridedStoreLeaf = description.stridedStoreIntrinsic;
+  facts.sourceSplatLeaf =
+      facts.standaloneReductionPlan
+          ? facts.standaloneReductionPlan->sourceSplatIntrinsic
+          : description.rhsBroadcastIntrinsic;
 
   facts.contractionComputeLeaf =
       facts.contractionPlan ? facts.contractionPlan->contractionComputeIntrinsic
@@ -24789,14 +24960,25 @@ getRVVSelectedBodyRouteMaterializationFacts(
   if (llvm::Error error = requireTypedEmissionMatch(
           "VL C type", facts.vlCType, typedConfigFacts.vlCType))
     return std::move(error);
-  if (llvm::Error error = requireTypedEmissionMatch(
-          "result vector type", facts.resultVectorTypeName,
-          typedConfigFacts.vectorTypeName))
-    return std::move(error);
-  if (llvm::Error error = requireTypedEmissionMatch(
-          "result vector C type", facts.resultVectorCType,
-          typedConfigFacts.vectorCType))
-    return std::move(error);
+  if (facts.standaloneReductionPlan) {
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "source vector type", facts.sourceVectorTypeName,
+            typedConfigFacts.vectorTypeName))
+      return std::move(error);
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "source vector C type", facts.sourceVectorCType,
+            typedConfigFacts.vectorCType))
+      return std::move(error);
+  } else {
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "result vector type", facts.resultVectorTypeName,
+            typedConfigFacts.vectorTypeName))
+      return std::move(error);
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "result vector C type", facts.resultVectorCType,
+            typedConfigFacts.vectorCType))
+      return std::move(error);
+  }
   if (llvm::Error error = requireTypedEmissionMatch(
           "setvl intrinsic", facts.setVLLeaf,
           typedConfigFacts.setVLIntrinsic))
@@ -33718,6 +33900,10 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           description, context))
     return std::move(error);
   if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
+          materializationFacts.sourceSplatLeaf, "source splat callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVStandaloneReductionStatementPlanLeaf(
           materializationFacts.scalarSeedSplatLeaf,
           "scalar seed splat callee", description, context))
     return std::move(error);
@@ -33757,6 +33943,12 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
   llvm::StringRef scalarCType =
       description.sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  llvm::StringRef sourceVectorCType =
+      !materializationFacts.sourceVectorCType.empty()
+          ? materializationFacts.sourceVectorCType
+          : materializationFacts.resultVectorCType;
+  llvm::StringRef scalarResultVectorCType =
+      materializationFacts.resultVectorCType;
   llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
       makeRVVStandaloneReductionStatementPlanStep(
           slice.setvl.getOperation(), "configure",
@@ -33782,8 +33974,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                                       materializationFacts.vlCType.str()}},
           description, context,
           TCRVEmitCCallOpaqueResult{"standalone_initial_acc_vec",
-                                    materializationFacts.resultVectorCType
-                                        .str()});
+                                    scalarResultVectorCType.str()});
   if (!initialSplat)
     return initialSplat.takeError();
   plan.preLoopSteps.push_back(std::move(*initialSplat));
@@ -33793,8 +33984,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           slice.storeOperation, "store", materializationFacts.storeLeaf,
           {TCRVEmitCCallOpaqueOperand{outABI->cName, outABI->cType},
            TCRVEmitCCallOpaqueOperand{"standalone_initial_acc_vec",
-                                      materializationFacts.resultVectorCType
-                                          .str()},
+                                      scalarResultVectorCType.str()},
            TCRVEmitCCallOpaqueOperand{reductionPlan.reductionStoreVL.str(),
                                       materializationFacts.vlCType.str()}},
           description, context);
@@ -33835,8 +34025,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                                       materializationFacts.vlCType.str()}},
           description, context,
           TCRVEmitCCallOpaqueResult{"lhs_vec",
-                                    materializationFacts.resultVectorCType
-                                        .str()}))
+                                    sourceVectorCType.str()}))
     return std::move(error);
 
   llvm::StringRef reductionInputVector = "lhs_vec";
@@ -33853,8 +34042,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                                           materializationFacts.vlCType.str()}},
               description, context,
               TCRVEmitCCallOpaqueResult{"rhs_vec",
-                                        materializationFacts.resultVectorCType
-                                            .str()}))
+                                        sourceVectorCType.str()}))
         return std::move(error);
     } else if (llvm::Error error =
                    addRVVStandaloneReductionStatementPlanLoopStep(
@@ -33870,8 +34058,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                             materializationFacts.vlCType.str()}},
                        description, context,
                        TCRVEmitCCallOpaqueResult{
-                           "rhs_vec",
-                           materializationFacts.resultVectorCType.str()})) {
+                           "rhs_vec", sourceVectorCType.str()})) {
       return std::move(error);
     }
 
@@ -33886,18 +34073,16 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                                         materializationFacts.vlCType.str()}},
             description, context,
             TCRVEmitCCallOpaqueResult{
-                "source_vec", materializationFacts.resultVectorCType.str()}))
+                "source_vec", sourceVectorCType.str()}))
       return std::move(error);
 
     if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
             plan, slice.compareOp.getOperation(), "compute",
             materializationFacts.compareLeaf,
             {TCRVEmitCCallOpaqueOperand{"lhs_vec",
-                                        materializationFacts.resultVectorCType
-                                            .str()},
+                                        sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"rhs_vec",
-                                        materializationFacts.resultVectorCType
-                                            .str()},
+                                        sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         materializationFacts.vlCType.str()}},
             description, context,
@@ -33916,7 +34101,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           "route statement construction");
     if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
             plan, slice.arithmeticOp, "compute",
-            materializationFacts.scalarSeedSplatLeaf,
+            materializationFacts.sourceSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{inactiveNeutral.str(),
                                         scalarCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -33924,7 +34109,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
             description, context,
             TCRVEmitCCallOpaqueResult{
                 "standalone_inactive_neutral_vec",
-                materializationFacts.resultVectorCType.str()}))
+                sourceVectorCType.str()}))
       return std::move(error);
 
     if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
@@ -33932,9 +34117,9 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
             materializationFacts.maskedMergeLeaf,
             {TCRVEmitCCallOpaqueOperand{
                  "standalone_inactive_neutral_vec",
-                 materializationFacts.resultVectorCType.str()},
+                 sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{
-                 "source_vec", materializationFacts.resultVectorCType.str()},
+                 "source_vec", sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.maskName.str(),
                                         materializationFacts.maskCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -33942,7 +34127,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
             description, context,
             TCRVEmitCCallOpaqueResult{
                 "standalone_masked_source_vec",
-                materializationFacts.resultVectorCType.str()}))
+                sourceVectorCType.str()}))
       return std::move(error);
     reductionInputVector = "standalone_masked_source_vec";
   }
@@ -33957,25 +34142,21 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                                       materializationFacts.vlCType.str()}},
           description, context,
           TCRVEmitCCallOpaqueResult{"standalone_acc_vec",
-                                    materializationFacts.resultVectorCType
-                                        .str()}))
+                                    scalarResultVectorCType.str()}))
     return std::move(error);
 
   if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
           plan, slice.arithmeticOp, "compute",
           materializationFacts.contractionComputeLeaf,
           {TCRVEmitCCallOpaqueOperand{reductionInputVector.str(),
-                                      materializationFacts.resultVectorCType
-                                          .str()},
+                                      sourceVectorCType.str()},
            TCRVEmitCCallOpaqueOperand{"standalone_acc_vec",
-                                      materializationFacts.resultVectorCType
-                                          .str()},
+                                      scalarResultVectorCType.str()},
            TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                       materializationFacts.vlCType.str()}},
           description, context,
           TCRVEmitCCallOpaqueResult{description.resultName.str(),
-                                    materializationFacts.resultVectorCType
-                                        .str()}))
+                                    scalarResultVectorCType.str()}))
     return std::move(error);
 
   if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
@@ -33983,7 +34164,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           {TCRVEmitCCallOpaqueOperand{outABI->cName, outABI->cType},
            TCRVEmitCCallOpaqueOperand{
                description.resultName.str(),
-               materializationFacts.resultVectorCType.str()},
+               scalarResultVectorCType.str()},
            TCRVEmitCCallOpaqueOperand{reductionPlan.reductionStoreVL.str(),
                                       materializationFacts.vlCType.str()}},
           description, context))
@@ -39563,6 +39744,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                     configProfile)
           : isMaskedUnitStore
               ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
+          : isStandaloneReductionRoute
+              ? getRVVStandaloneReductionScalarResultStoreIntrinsic(
+                    description.sew, description.lmul)
               : configProfile.storeIntrinsic))
     return error;
   if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd ||
@@ -39940,11 +40124,43 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else if (isStandaloneReductionRoute) {
     llvm::StringRef expectedAccumulatorLayout =
         getRVVStandaloneReductionAccumulatorLayoutForSEW(description.sew);
+    llvm::StringRef expectedScalarResultVectorType =
+        getRVVStandaloneReductionScalarResultVectorTypeName(description.sew,
+                                                            description.lmul);
+    llvm::StringRef expectedScalarResultVectorCType =
+        getRVVStandaloneReductionScalarResultVectorCType(description.sew,
+                                                         description.lmul);
     if (expectedAccumulatorLayout.empty())
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " requires a supported typed scalar accumulator layout for the "
           "selected standalone reduction SEW");
+    if (expectedScalarResultVectorType.empty() ||
+        expectedScalarResultVectorCType.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " requires a supported typed scalar accumulator/result vector "
+          "channel for the selected standalone reduction SEW/LMUL");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction source vector type",
+            description.standaloneReductionSourceVectorTypeName,
+            description.vectorTypeName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction source vector C type",
+            description.standaloneReductionSourceVectorCType,
+            description.vectorCType))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar result vector type",
+            description.standaloneReductionScalarResultVectorTypeName,
+            expectedScalarResultVectorType))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar result vector C type",
+            description.standaloneReductionScalarResultVectorCType,
+            expectedScalarResultVectorCType))
+      return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "reduction accumulator layout",
             description.reductionAccumulatorLayout,
@@ -39976,6 +40192,22 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction scalar result runtime boundary",
             description.standaloneReductionScalarResultRuntimeBoundary, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction source vector type",
+            description.standaloneReductionSourceVectorTypeName, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction source vector C type",
+            description.standaloneReductionSourceVectorCType, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar result vector type",
+            description.standaloneReductionScalarResultVectorTypeName, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar result vector C type",
+            description.standaloneReductionScalarResultVectorCType, ""))
       return error;
     if (operationProfile.operation !=
             RVVSelectedBodyOperationKind::WideningDotReduceAdd &&
@@ -40103,8 +40335,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "scalar seed splat intrinsic",
             description.scalarSeedSplatIntrinsic,
-            isStandaloneReductionRoute ? configProfile.rhsBroadcastIntrinsic
-                                       : ""))
+            isStandaloneReductionRoute
+                ? getRVVStandaloneReductionScalarSeedSplatIntrinsic(
+                      description.sew, description.lmul)
+                : ""))
       return error;
   }
   if (isComputedMaskStridedInputWideningDotReduce) {
@@ -41245,6 +41479,22 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.standaloneReductionRouteFamilyPlanID.empty())
     metadata.push_back({"tcrv_rvv.standalone_reduction_route_family_plan",
                         description.standaloneReductionRouteFamilyPlanID});
+  if (!description.standaloneReductionSourceVectorTypeName.empty())
+    metadata.push_back(
+        {"tcrv_rvv.standalone_reduction_source_vector_type",
+         description.standaloneReductionSourceVectorTypeName});
+  if (!description.standaloneReductionSourceVectorCType.empty())
+    metadata.push_back(
+        {"tcrv_rvv.standalone_reduction_source_vector_c_type",
+         description.standaloneReductionSourceVectorCType});
+  if (!description.standaloneReductionScalarResultVectorTypeName.empty())
+    metadata.push_back(
+        {"tcrv_rvv.standalone_reduction_scalar_result_vector_type",
+         description.standaloneReductionScalarResultVectorTypeName});
+  if (!description.standaloneReductionScalarResultVectorCType.empty())
+    metadata.push_back(
+        {"tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
+         description.standaloneReductionScalarResultVectorCType});
   if (!description.standaloneReductionScalarResultRuntimeBoundary.empty())
     metadata.push_back(
         {"tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",

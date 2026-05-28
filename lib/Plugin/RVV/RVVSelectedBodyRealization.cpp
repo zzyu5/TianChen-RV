@@ -254,8 +254,10 @@ bool isPreRealizedRuntimeScalarComputedMaskMemoryConfig(std::int64_t sew,
 
 bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  return (sew == tcrv::rvv::getRVVFirstSliceSEWBits() ||
-          sew == tcrv::rvv::getRVVSEW64Bits()) &&
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return lmul == tcrv::rvv::getRVVLMULM1() ||
+           lmul == tcrv::rvv::getRVVLMULM2();
+  return sew == tcrv::rvv::getRVVSEW64Bits() &&
          lmul == tcrv::rvv::getRVVLMULM1();
 }
 
@@ -2720,10 +2722,9 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           sew, body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
-        "reduction body requires SEW32 LMUL m1 or SEW64 LMUL m1 config; "
-        "SEW32 LMUL m2 requires a separate LMUL m1 scalar reduction "
-        "accumulator/result channel and fails closed in this bounded route "
-        "family");
+        "reduction body requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 "
+        "LMUL m1 config with a separate LMUL m1 scalar reduction "
+        "accumulator/result channel");
   if (!isPreRealizedStandaloneReduceAccumulatorLayoutForSEW(
           body.getAccumulatorLayout(), sew))
     return makeRVVPluginError(
@@ -6157,7 +6158,8 @@ createRealizedGenericMaskedStandaloneReduceCompute(
     llvm::StringRef maskRole, llvm::StringRef maskSource,
     llvm::StringRef maskMemoryForm, llvm::StringRef accumulatorLayout,
     llvm::StringRef resultLayout, mlir::Value mask, mlir::Value input,
-    mlir::Value accumulatorSeed, mlir::Value vl) {
+    mlir::Value accumulatorSeed, mlir::Value vl,
+    mlir::Type resultType = {}) {
   if (!isPreRealizedComputedMaskStandaloneReduceOpKind(opKind) &&
       !isPreRealizedRuntimeScalarComputedMaskStandaloneReduceOpKind(opKind))
     return makeRVVPluginError(
@@ -6181,7 +6183,7 @@ createRealizedGenericMaskedStandaloneReduceCompute(
   state.addAttribute("accumulator_layout",
                      builder.getStringAttr(accumulatorLayout));
   state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
-  state.addTypes(input.getType());
+  state.addTypes(resultType ? resultType : input.getType());
   return builder.create(state);
 }
 
@@ -6965,6 +6967,9 @@ realizePreRealizedRVVStandaloneReductionOwner(
             builder, loc, compareLhsLoad.getLoaded(),
             rhsSplat.getBroadcast(), setvl.getVl(),
             runtimeScalarMaskedStandaloneReduceBody.getPredicateKind()));
+    mlir::Type scalarResultType =
+        getGenericVectorType(builder, runtimeControlPlan->sew,
+                             tcrv::rvv::getRVVLMULM1());
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericMaskedStandaloneReduceCompute(
             builder, loc, runtimeScalarMaskedStandaloneReduceBody.getOpKind(),
@@ -6974,7 +6979,8 @@ realizePreRealizedRVVStandaloneReductionOwner(
             runtimeScalarMaskedStandaloneReduceBody.getAccumulatorLayout(),
             runtimeScalarMaskedStandaloneReduceBody.getResultLayout(),
             compare.getMask(), sourceLoad.getLoaded(),
-            runtimeScalarMaskedStandaloneReduceBody.getAcc(), setvl.getVl());
+            runtimeScalarMaskedStandaloneReduceBody.getAcc(), setvl.getVl(),
+            scalarResultType);
     if (!compute)
       return compute.takeError();
     createRealizedGenericStore(
@@ -8619,8 +8625,9 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
     llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
         deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
             variant, runtimeScalarMaskedStandaloneReduceBody.getN(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1(),
+            static_cast<std::int64_t>(
+                runtimeScalarMaskedStandaloneReduceBody.getSew()),
+            runtimeScalarMaskedStandaloneReduceBody.getLmul(),
             runtimeScalarMaskedStandaloneReduceBody.getPolicy(),
             "cmp_lhs,rhs_scalar,src,acc,out,n",
             "pre-realized RVV runtime scalar computed-mask standalone "
@@ -8664,6 +8671,9 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
             builder, loc, compareLhsLoad.getLoaded(),
             rhsSplat.getBroadcast(), setvl.getVl(),
             runtimeScalarMaskedStandaloneReduceBody.getPredicateKind()));
+    mlir::Type scalarResultType =
+        getGenericVectorType(builder, runtimeControlPlan->sew,
+                             tcrv::rvv::getRVVLMULM1());
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericMaskedStandaloneReduceCompute(
             builder, loc, runtimeScalarMaskedStandaloneReduceBody.getOpKind(),
@@ -8673,7 +8683,8 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
             runtimeScalarMaskedStandaloneReduceBody.getAccumulatorLayout(),
             runtimeScalarMaskedStandaloneReduceBody.getResultLayout(),
             compare.getMask(), sourceLoad.getLoaded(),
-            runtimeScalarMaskedStandaloneReduceBody.getAcc(), setvl.getVl());
+            runtimeScalarMaskedStandaloneReduceBody.getAcc(), setvl.getVl(),
+            scalarResultType);
     if (!compute)
       return compute.takeError();
     createRealizedGenericStore(

@@ -788,8 +788,13 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef scalarResultVectorTypeName;
+  llvm::StringRef scalarResultVectorCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef sourceSplatIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef reductionIntrinsic;
@@ -901,6 +906,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef stridedSourceLoadLeaf;
   llvm::StringRef storeLeaf;
   llvm::StringRef stridedStoreLeaf;
+  llvm::StringRef sourceSplatLeaf;
   llvm::StringRef contractionComputeLeaf;
   llvm::StringRef elementwiseComputeLeaf;
   llvm::StringRef wideningProductLeaf;

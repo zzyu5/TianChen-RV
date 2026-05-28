@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide architecture boundary: RVV-first typed body to plugin provider to neutral EmitC; no descriptor, source-front-door, or common-EmitC authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, reduction/accumulation, dtype/SEW/LMUL policy, provider construction, artifact ABI, fail-closed, and mirror-metadata rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope boundary and selected variant/body ownership separation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality; RVV route facts must be provider-derived before materialization."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Evidence requirements for RVV runtime/correctness claims and artifact provenance."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-cmp-masked-standalone-reduction-route-family-derivation/prd.md", "reason": "Previous completed task and explicit SEW32 LMUL m2 blocker: missing separate LMUL m1 scalar reduction accumulator/result channel."}

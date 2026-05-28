@@ -1,15 +1,18 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --op-kind runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=REDUCEM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_add_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESSM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
 
 # ROOT-DAG: "input_mode": "pre-realized-selected-body"
 # ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_add"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2"
 # ROOT-DAG: "rhs_scalar_values": [
 # ROOT-DAG: -37
 # ROOT-DAG: 91
@@ -84,6 +87,39 @@
 # REDUCE-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # REDUCE-DAG: "status": "dry_run_success"
 
+# REDUCEM2-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2"
+# REDUCEM2-DAG: "input_mode": "pre-realized-selected-body"
+# REDUCEM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-lmul-m2.mlir"
+# REDUCEM2-DAG: "prototype": "void tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
+# REDUCEM2-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2"
+# REDUCEM2-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce_m2"
+# REDUCEM2-DAG: "route_entry_realization": false
+# REDUCEM2-DAG: "pre_realized_body_consumed": true
+# REDUCEM2-DAG: "key": "tcrv_rvv.config_contract"
+# REDUCEM2-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_type"
+# REDUCEM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_c_type"
+# REDUCEM2-DAG: "value": "vint32m2_t"
+# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
+# REDUCEM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# REDUCEM2-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+# REDUCEM2-DAG: "value": "vint32m1_t"
+# REDUCEM2-DAG: "__riscv_vsetvl_e32m2"
+# REDUCEM2-DAG: "__riscv_vle32_v_i32m2"
+# REDUCEM2-DAG: "__riscv_vmv_v_x_i32m2"
+# REDUCEM2-DAG: "__riscv_vmerge_vvm_i32m2"
+# REDUCEM2-DAG: "__riscv_vmv_v_x_i32m1"
+# REDUCEM2-DAG: "__riscv_vredsum_vs_i32m2_i32m1"
+# REDUCEM2-DAG: "__riscv_vse32_v_i32m1"
+# REDUCEM2-DAG: "source_type_policy": {
+# REDUCEM2-DAG: "lmul": "m2"
+# REDUCEM2-DAG: "accumulator_type_policy": {
+# REDUCEM2-DAG: "vector_c_type": "vint32m1_t"
+# REDUCEM2-DAG: "result_type_policy": {
+# REDUCEM2-DAG: "vector_c_type": "vint32m1_t"
+# REDUCEM2-DAG: "status": "dry_run_success"
+
 # HARNESS: int32_t expected = seed;
 # HARNESS: expected = (int32_t)(expected + src[index]);
 # HARNESS: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce(cmp_lhs, rhs_scalar, src, acc, out, n);
@@ -93,3 +129,13 @@
 # HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
 # HARNESS: seeds=-11,17
+
+# HARNESSM2: int32_t expected = seed;
+# HARNESSM2: expected = (int32_t)(expected + src[index]);
+# HARNESSM2: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESSM2: runtime_scalar_computed_mask_standalone_reduce
+# HARNESSM2: inactive_nonzero
+# HARNESSM2: tail_preserved
+# HARNESSM2: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESSM2: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESSM2: seeds=-11,17

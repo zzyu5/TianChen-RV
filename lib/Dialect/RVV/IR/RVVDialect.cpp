@@ -871,8 +871,9 @@ bool isSupportedTypedRuntimeScalarComputedMaskMemoryPreRealizedConfig(
 
 bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
     std::int64_t sew, llvm::StringRef lmul) {
-  return (sew == getRVVFirstSliceSEWBits() || sew == getRVVSEW64Bits()) &&
-         lmul == getRVVLMULM1();
+  if (sew == getRVVFirstSliceSEWBits())
+    return lmul == getRVVLMULM1() || lmul == getRVVLMULM2();
+  return sew == getRVVSEW64Bits() && lmul == getRVVLMULM1();
 }
 
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -2195,6 +2196,62 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for generic RVV vector dataflow";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult
+verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
+                                                     mlir::Value value,
+                                                     llvm::StringRef role) {
+  auto vector =
+      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(value.getType());
+  if (!vector)
+    return op->emitOpError()
+           << "requires " << role
+           << " type to be generic !tcrv_rvv.vector";
+  auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  if (!integerType)
+    return op->emitOpError()
+           << "requires standalone reduction scalar accumulator/result "
+              "channel element type to be integer";
+
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
+
+  auto expectedSEW =
+      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (!expectedSEW)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+              "metadata for standalone reduction scalar result dataflow";
+  if (expectedSEW.getInt() != integerType.getWidth())
+    return op->emitOpError()
+           << "requires " << role << " element width "
+           << integerType.getWidth()
+           << " to agree with enclosing tcrv_rvv.with_vl SEW"
+           << expectedSEW.getInt()
+           << " metadata for standalone reduction scalar result channel";
+
+  auto expectedLMUL =
+      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedLMUL)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+              "metadata for standalone reduction scalar result dataflow";
+  if (vector.getLmul() != getRVVLMULM1())
+    return op->emitOpError()
+           << "requires " << role << " type " << value.getType()
+           << " to use LMUL \"m1\" as the scalar standalone reduction "
+              "accumulator/result channel; the source/work vector channel "
+              "continues to follow enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << expectedLMUL.getValue() << "'";
+
+  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for standalone reduction scalar result dataflow";
 
   return mlir::success();
 }
@@ -4602,10 +4659,9 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
           sew, getLmul()))
      return emitOpError()
              << "requires bounded pre-realized runtime scalar computed-mask "
-              "standalone reduction config to be SEW32 LMUL m1 or SEW64 "
-              "LMUL m1; SEW32 LMUL m2 requires a separate LMUL m1 scalar "
-              "reduction accumulator/result channel and fails closed in this "
-              "bounded route family";
+              "standalone reduction config to be SEW32 LMUL m1, SEW32 LMUL "
+              "m2, or SEW64 LMUL m1 with a separate LMUL m1 scalar "
+              "reduction accumulator/result channel";
   if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
           getAccumulatorLayout(), sew))
     return emitOpError()
@@ -8977,10 +9033,6 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
            << "requires compare-produced mask, source generic RVV vector, one "
               "scalar accumulator seed runtime ABI operand, one "
               "!tcrv_rvv.vl operand, and one generic RVV vector result";
-  if (getInput().getType() != getResult().getType())
-    return emitOpError()
-           << "requires input and result to have the same generic RVV vector "
-              "type";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
@@ -9042,9 +9094,9 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
           sew, expectedLMUL.getValue()))
     return emitOpError()
              << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
-              "LMUL m1 or SEW64 LMUL m1 for the bounded masked standalone "
-              "reduction route; SEW32 LMUL m2 requires a separate LMUL m1 "
-              "scalar reduction accumulator/result channel and fails closed";
+              "LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 for the bounded "
+              "masked standalone reduction route with a separate LMUL m1 "
+              "scalar reduction accumulator/result channel";
   if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
           getAccumulatorLayout(), sew))
     return emitOpError()
@@ -9067,7 +9119,8 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for masked standalone reduction";
 
-  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+  return verifyStandaloneReductionScalarResultVectorForWithVL(
+      op, getResult(), "result");
 }
 
 mlir::LogicalResult MAccOp::verify() {
@@ -9865,6 +9918,10 @@ mlir::LogicalResult StoreOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
+  if (getValue().getDefiningOp<StandaloneReduceOp>() ||
+      getValue().getDefiningOp<MaskedStandaloneReduceOp>())
+    return verifyStandaloneReductionScalarResultVectorForWithVL(
+        op, getValue(), "stored standalone reduction result");
   return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
 }
 

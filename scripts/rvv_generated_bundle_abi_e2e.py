@@ -117,6 +117,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_mask_standalone_reduce_max",
     "runtime_scalar_cmp_masked_standalone_reduce_add",
     "runtime_scalar_cmp_masked_standalone_reduce_add_i64",
+    "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2",
     "runtime_i32_splat_store",
     "i64_add",
     "lmul_m2_add",
@@ -311,8 +312,8 @@ RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
 )
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING = (
-    "vl:size_t,cmp_lhs/source:typed-vector,rhs_scalar:typed-scalar,"
-    "mask:typed-mask,seed:typed-scalar,result:typed-vector"
+    "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,"
+    "mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"
 )
 COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING = (
     "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
@@ -1553,6 +1554,8 @@ class OpExpectation:
     def standalone_reduction_intrinsic(self) -> str:
         if self.sew == "32" and self.lmul == "m1":
             return "__riscv_vredsum_vs_i32m1_i32m1"
+        if self.sew == "32" and self.lmul == "m2":
+            return "__riscv_vredsum_vs_i32m2_i32m1"
         if self.sew == "64" and self.lmul == "m1":
             return "__riscv_vredsum_vs_i64m1_i64m1"
         raise EvidenceError(
@@ -1570,6 +1573,47 @@ class OpExpectation:
         raise EvidenceError(
             f"{self.kind} has no supported standalone reduction accumulator "
             f"layout for element type {self.element_type}"
+        )
+
+    @property
+    def standalone_reduction_source_vector_c_type(self) -> str:
+        return self.rvv_vector_c_type
+
+    @property
+    def standalone_reduction_source_vector_type(self) -> str:
+        return self.rvv_vector_type
+
+    @property
+    def standalone_reduction_scalar_result_lmul(self) -> str:
+        if self.is_runtime_scalar_computed_mask_standalone_reduce:
+            return "m1"
+        return self.lmul
+
+    @property
+    def standalone_reduction_scalar_result_vector_c_type(self) -> str:
+        return (
+            f"vint{self.sew}{self.standalone_reduction_scalar_result_lmul}_t"
+        )
+
+    @property
+    def standalone_reduction_scalar_result_vector_type(self) -> str:
+        return (
+            f'!tcrv_rvv.vector<{self.element_type}, '
+            f'"{self.standalone_reduction_scalar_result_lmul}">'
+        )
+
+    @property
+    def standalone_reduction_scalar_seed_splat_intrinsic(self) -> str:
+        return (
+            f"__riscv_vmv_v_x_{self.element_type}"
+            f"{self.standalone_reduction_scalar_result_lmul}"
+        )
+
+    @property
+    def standalone_reduction_scalar_result_store_intrinsic(self) -> str:
+        return (
+            f"__riscv_vse{self.sew}_v_{self.element_type}"
+            f"{self.standalone_reduction_scalar_result_lmul}"
         )
 
     @property
@@ -1929,7 +1973,10 @@ class OpExpectation:
             "runtime_scalar_cmp_masked_load_store_lmul_m2",
         }:
             return "runtime_scalar_cmp_masked_load_store"
-        if self.kind == "runtime_scalar_cmp_masked_standalone_reduce_add_i64":
+        if self.kind in {
+            "runtime_scalar_cmp_masked_standalone_reduce_add_i64",
+            "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2",
+        }:
             return "runtime_scalar_cmp_masked_standalone_reduce_add"
         return self.kind
 
@@ -2271,6 +2318,7 @@ class OpExpectation:
         return self.kind in {
             "runtime_scalar_cmp_masked_standalone_reduce_add",
             "runtime_scalar_cmp_masked_standalone_reduce_add_i64",
+            "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2",
         }
 
     @property
@@ -4354,6 +4402,19 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
     ),
+    "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_standalone_reduce_add"
+        ],
+        kind="runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_m2",
+        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
+    ),
     "computed_mask_standalone_reduce_min": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
             "computed_mask_standalone_reduce_min"
@@ -5878,7 +5939,6 @@ FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
 )
 FORBIDDEN_HEADER_TOKENS = (
     "__riscv_",
-    "vint32m1_t",
     "return;",
     "int main",
     "main(",
@@ -6272,6 +6332,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
                 "tcrv_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.standalone_reduction_source_vector_type": (
+                    expectation.rvv_vector_type
+                ),
+                "tcrv_rvv.standalone_reduction_source_vector_c_type": (
+                    expectation.rvv_vector_c_type
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_vector_type": (
+                    expectation.standalone_reduction_scalar_result_vector_type
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": (
+                    expectation.standalone_reduction_scalar_result_vector_c_type
                 ),
                 "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
                     STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
@@ -8330,20 +8402,29 @@ def verify_emitted_rvv_cpp(
             "runtime_avl_vl_control"
         ]
     if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
-        vector_c_type = expectation.rvv_vector_c_type
+        source_vector_c_type = expectation.standalone_reduction_source_vector_c_type
+        scalar_result_vector_c_type = (
+            expectation.standalone_reduction_scalar_result_vector_c_type
+        )
         intrinsics = [
             expectation.setvl_intrinsic,
             expectation.unit_load_intrinsic,
             expectation.scalar_splat_intrinsic,
             expectation.compare_intrinsic,
             expectation.select_intrinsic,
+            expectation.standalone_reduction_scalar_seed_splat_intrinsic,
             expectation.standalone_reduction_intrinsic,
-            expectation.unit_store_intrinsic,
+            expectation.standalone_reduction_scalar_result_store_intrinsic,
         ]
         require_contains(
             text,
-            vector_c_type,
-            "emitted RVV C/C++ runtime scalar computed-mask standalone reduction vector C type",
+            source_vector_c_type,
+            "emitted RVV C/C++ runtime scalar computed-mask standalone reduction source vector C type",
+        )
+        require_contains(
+            text,
+            scalar_result_vector_c_type,
+            "emitted RVV C/C++ runtime scalar computed-mask standalone reduction scalar result vector C type",
         )
         require_contains(
             text,
@@ -8779,7 +8860,10 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
 ) -> dict[str, Any]:
     code = re.sub(r"^[ \t]*//[^\n]*(?:\n|$)", "", text, flags=re.MULTILINE)
     element_c_type = re.escape(expectation.element_c_type)
-    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    source_vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    scalar_result_vector_c_type = re.escape(
+        expectation.standalone_reduction_scalar_result_vector_c_type
+    )
     mask_c_type = re.escape(expectation.rvv_mask_c_type)
     signature = require_regex(
         code,
@@ -8809,10 +8893,10 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     initial_seed = require_regex(
         code,
         rf"const {element_c_type} (?P<seed_scalar>v[0-9]+) = {acc}\[0\];\s*"
-        rf"{vector_c_type} (?P<seed_vector>v[0-9]+) = "
-        rf"{re.escape(expectation.scalar_splat_intrinsic)}\((?P=seed_scalar), "
+        rf"{scalar_result_vector_c_type} (?P<seed_vector>v[0-9]+) = "
+        rf"{re.escape(expectation.standalone_reduction_scalar_seed_splat_intrinsic)}\((?P=seed_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);\s*"
-        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"{re.escape(expectation.standalone_reduction_scalar_result_store_intrinsic)}"
         rf"\({out}, (?P=seed_vector), {STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction initial seed",
     )
@@ -8839,7 +8923,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         code,
         rf"const {element_c_type}\* (?P<cmp_lhs_ptr>v[0-9]+) = "
         rf"{cmp_lhs} \+ {offset};\s*"
-        rf"{vector_c_type} (?P<cmp_lhs_vec>v[0-9]+) = "
+        rf"{source_vector_c_type} (?P<cmp_lhs_vec>v[0-9]+) = "
         rf"{re.escape(expectation.unit_load_intrinsic)}"
         rf"\((?P=cmp_lhs_ptr), {loop_vl}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction compare lhs load",
@@ -8847,7 +8931,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     cmp_lhs_vec = cmp_lhs_load.group("cmp_lhs_vec")
     scalar_splat = require_regex(
         code,
-        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+        rf"{source_vector_c_type} (?P<rhs_vec>v[0-9]+) = "
         rf"{re.escape(expectation.scalar_splat_intrinsic)}"
         rf"\({rhs_scalar}, {loop_vl}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction scalar splat",
@@ -8857,7 +8941,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         code,
         rf"const {element_c_type}\* (?P<src_ptr>v[0-9]+) = "
         rf"{src} \+ {offset};\s*"
-        rf"{vector_c_type} (?P<src_vec>v[0-9]+) = "
+        rf"{source_vector_c_type} (?P<src_vec>v[0-9]+) = "
         rf"{re.escape(expectation.unit_load_intrinsic)}"
         rf"\((?P=src_ptr), {loop_vl}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction source load",
@@ -8873,14 +8957,14 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     compare_mask = compare.group("compare_mask")
     neutral = require_regex(
         code,
-        rf"{vector_c_type} (?P<neutral_vec>v[0-9]+) = "
+        rf"{source_vector_c_type} (?P<neutral_vec>v[0-9]+) = "
         rf"{re.escape(expectation.scalar_splat_intrinsic)}\(0, {loop_vl}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction inactive neutral",
     )
     neutral_vec = neutral.group("neutral_vec")
     merge = require_regex(
         code,
-        rf"{vector_c_type} (?P<masked_source>v[0-9]+) = "
+        rf"{source_vector_c_type} (?P<masked_source>v[0-9]+) = "
         rf"{re.escape(expectation.select_intrinsic)}"
         rf"\({neutral_vec}, {src_vec}, {compare_mask}, {loop_vl}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction masked source merge",
@@ -8889,8 +8973,8 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     accumulator = require_regex(
         code,
         rf"{element_c_type} (?P<acc_scalar>v[0-9]+) = {out}\[0\];\s*"
-        rf"{vector_c_type} (?P<acc_vec>v[0-9]+) = "
-        rf"{re.escape(expectation.scalar_splat_intrinsic)}\((?P=acc_scalar), "
+        rf"{scalar_result_vector_c_type} (?P<acc_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.standalone_reduction_scalar_seed_splat_intrinsic)}\((?P=acc_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction accumulator splat",
     )
@@ -8898,10 +8982,10 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     acc_vec = accumulator.group("acc_vec")
     reduction = require_regex(
         code,
-        rf"{vector_c_type} (?P<result_vec>v[0-9]+) = "
+        rf"{scalar_result_vector_c_type} (?P<result_vec>v[0-9]+) = "
         rf"{re.escape(expectation.standalone_reduction_intrinsic)}"
         rf"\({masked_source}, {acc_vec}, {loop_vl}\);\s*"
-        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"{re.escape(expectation.standalone_reduction_scalar_result_store_intrinsic)}"
         rf"\({out}, (?P=result_vec), {STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction intrinsic and store",
     )
@@ -8938,6 +9022,10 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         "loop_accumulator_scalar": acc_scalar,
         "loop_accumulator_vector": acc_vec,
         "result_vector": result_vec,
+        "source_vector_c_type": expectation.rvv_vector_c_type,
+        "scalar_result_vector_c_type": (
+            expectation.standalone_reduction_scalar_result_vector_c_type
+        ),
         "vector_c_type": expectation.rvv_vector_c_type,
         "mask_c_type": expectation.rvv_mask_c_type,
         "reduction_kind": "add",
@@ -8948,12 +9036,18 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         "store_vl": STANDALONE_REDUCE_STORE_VL,
         "setvl_intrinsic": expectation.setvl_intrinsic,
         "source_load_intrinsic": expectation.unit_load_intrinsic,
+        "source_splat_intrinsic": expectation.scalar_splat_intrinsic,
         "scalar_splat_intrinsic": expectation.scalar_splat_intrinsic,
         "compare_intrinsic": expectation.compare_intrinsic,
         "inactive_neutral_splat_intrinsic": expectation.scalar_splat_intrinsic,
         "masked_source_merge_intrinsic": expectation.select_intrinsic,
+        "scalar_seed_splat_intrinsic": (
+            expectation.standalone_reduction_scalar_seed_splat_intrinsic
+        ),
         "standalone_reduce_intrinsic": expectation.standalone_reduction_intrinsic,
-        "store_intrinsic": expectation.unit_store_intrinsic,
+        "store_intrinsic": (
+            expectation.standalone_reduction_scalar_result_store_intrinsic
+        ),
         "seed_store_initializes_empty_count_result": True,
         "compare_uses_runtime_scalar_splat": True,
         "inactive_lanes_zeroed_before_reduction": True,
@@ -20307,9 +20401,9 @@ def reduction_accumulation_boundary_summary(
                 expectation.compare_intrinsic,
                 expectation.scalar_splat_intrinsic,
                 expectation.select_intrinsic,
-                expectation.scalar_splat_intrinsic,
+                expectation.standalone_reduction_scalar_seed_splat_intrinsic,
                 expectation.standalone_reduction_intrinsic,
-                expectation.unit_store_intrinsic,
+                expectation.standalone_reduction_scalar_result_store_intrinsic,
             ]
         )
         statement_plan = {
@@ -20320,8 +20414,8 @@ def reduction_accumulation_boundary_summary(
             ),
             "pre_loop_callees": [
                 expectation.setvl_intrinsic,
-                expectation.scalar_splat_intrinsic,
-                expectation.unit_store_intrinsic,
+                expectation.standalone_reduction_scalar_seed_splat_intrinsic,
+                expectation.standalone_reduction_scalar_result_store_intrinsic,
             ],
             "loop_callees": loop_callees,
             "seed_source": "acc[0]",
@@ -20380,6 +20474,12 @@ def reduction_accumulation_boundary_summary(
                 "element_c_type": expectation.element_c_type,
                 "layout": expectation.standalone_reduction_accumulator_layout,
                 "abi_role": "accumulator-input-buffer",
+                "vector_type": (
+                    expectation.standalone_reduction_scalar_result_vector_type
+                ),
+                "vector_c_type": (
+                    expectation.standalone_reduction_scalar_result_vector_c_type
+                ),
             },
             "result_type_policy": {
                 "element_type": expectation.element_type,
@@ -20387,6 +20487,12 @@ def reduction_accumulation_boundary_summary(
                 "layout": STANDALONE_REDUCE_RESULT_LAYOUT,
                 "abi_role": "output-buffer",
                 "scalar_slot": "out[0]",
+                "vector_type": (
+                    expectation.standalone_reduction_scalar_result_vector_type
+                ),
+                "vector_c_type": (
+                    expectation.standalone_reduction_scalar_result_vector_c_type
+                ),
             },
             "reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
             "selected_source_abi": selected_source_abi,
