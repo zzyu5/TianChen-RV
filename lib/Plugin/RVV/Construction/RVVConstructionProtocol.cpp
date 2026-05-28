@@ -3421,6 +3421,19 @@ getRuntimeScalarCompareSelectExpectedParametersForFacts(
       getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRuntimeScalarDualCompareMaskAndSelectExpectedParametersForFacts(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  llvm::SmallVector<support::RuntimeABIParameter, 8> i64Parameters =
+      tcrv::rvv::
+          buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
+              "int64_t");
+  if (support::runtimeABIParametersEqual(parameters, i64Parameters))
+    return i64Parameters;
+  return tcrv::rvv::
+      getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
+}
+
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
 getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName) {
   const RVVSelectedBodyConstructionRoute *route =
@@ -4215,8 +4228,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
              "runtime_scalar_dual_cmp_mask_and_select") {
     llvm::SmallVector<support::RuntimeABIParameter, 8>
         runtimeScalarDualCompareMaskAndSelectParameters =
-            tcrv::rvv::
-                getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
+            getRuntimeScalarDualCompareMaskAndSelectExpectedParametersForFacts(
+                facts.runtimeABIParameters);
     expectedParameters.append(
         runtimeScalarDualCompareMaskAndSelectParameters.begin(),
         runtimeScalarDualCompareMaskAndSelectParameters.end());
@@ -4437,6 +4450,16 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                       "int64_t");
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, runtimeScalarCompareSelectI64Parameters);
+    } else if (route->operationMnemonic ==
+               "runtime_scalar_dual_cmp_mask_and_select") {
+      llvm::SmallVector<support::RuntimeABIParameter, 8>
+          runtimeScalarDualCompareMaskAndSelectI64Parameters =
+              tcrv::rvv::
+                  buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
+                      "int64_t");
+      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
+          facts.runtimeABIParameters,
+          runtimeScalarDualCompareMaskAndSelectI64Parameters);
     }
     if (!acceptsTypedI64Parameters)
       return makeRVVConstructionError(

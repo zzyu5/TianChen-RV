@@ -49,10 +49,10 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "cmp_lhs_a=abi|load|cmp|and;rhs_scalar_a=abi|splat|cmp;cmp_lhs_b=abi|load|cmp|and;rhs_scalar_b=abi|splat|cmp;true_value=abi|load|sel;false_value=abi|load|sel;out=abi|store|hdr;n=abi|setvl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "dual-runtime-scalar-splat-compare-rhs-mask-and"}
-// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs_a:signed-e32m1,rhs_scalar_a:i32,cmp_lhs_b:signed-e32m1,rhs_scalar_b:i32,mask_a:b32,mask_b:b32,mask_and:b32,true_false:signed-e32m1,result:signed-e32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-mask-and"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "mask-and-of-two-runtime-scalar-compare-produced-masks"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_memory_form", value = "composed-compare-produced-mask"}

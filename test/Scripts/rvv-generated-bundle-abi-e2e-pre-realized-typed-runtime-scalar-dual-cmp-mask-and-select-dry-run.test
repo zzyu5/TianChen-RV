@@ -1,0 +1,130 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select --overwrite --op-kind runtime_scalar_dual_cmp_mask_and_select_i64 --op-kind runtime_scalar_dual_cmp_mask_and_select_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/evidence.json
+# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=I64CPP < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select_i64/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=M2CPP < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=I64HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select_i64/rvv_generated_bundle_abi_runtime_scalar_dual_cmp_mask_and_select_i64_harness.c
+# RUN: FileCheck %s --check-prefix=M2HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-typed-runtime-scalar-dual-cmp-mask-and-select/runtime_scalar_dual_cmp_mask_and_select_lmul_m2/rvv_generated_bundle_abi_runtime_scalar_dual_cmp_mask_and_select_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_dual_cmp_mask_and_select_i64"
+# ROOT-DAG: "runtime_scalar_dual_cmp_mask_and_select_lmul_m2"
+# ROOT-DAG: "rhs_scalar_a_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "rhs_scalar_b_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "status": "dry_run_success"
+
+# I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select-i64.mlir"
+# I64-DAG: "prototype": "void tcrv_emitc_pr_dual_cmp_sel_i64_kernel_pr_rvv_dual_cmp_sel_i64(const int64_t *cmp_lhs_a, int64_t rhs_scalar_a, const int64_t *cmp_lhs_b, int64_t rhs_scalar_b, const int64_t *true_value, const int64_t *false_value, int64_t *out, size_t n);"
+# I64-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1"
+# I64-DAG: "expected_selected_variant": "pr_rvv_dual_cmp_sel_i64"
+# I64-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# I64-DAG: "route_entry_realization": false
+# I64-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# I64-DAG: "pre_realized_body_consumed": true
+# I64-DAG: "element_type": "i64"
+# I64-DAG: "sew": "64"
+# I64-DAG: "lmul": "m1"
+# I64-DAG: "config_contract": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
+# I64-DAG: "key": "rvv_selected_body_operation"
+# I64-DAG: "value": "runtime_scalar_dual_cmp_mask_and_select"
+# I64-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# I64-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# I64-DAG: "compare_predicate_kind": "sle"
+# I64-DAG: "secondary_compare_predicate_kind": "sle"
+# I64-DAG: "mask_composition": "and"
+# I64-DAG: "predicate_mask_type": "vbool64_t"
+# I64-DAG: "vector_c_type": "vint64m1_t"
+# I64-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i64m1"
+# I64-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i64m1_b64"
+# I64-DAG: "mask_and_intrinsic": "__riscv_vmand_mm_b64"
+# I64-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i64m1"
+# I64-DAG: "store_intrinsic": "__riscv_vse64_v_i64m1"
+# I64-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"
+# I64-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector"
+# I64-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "dual-runtime-scalar-splat-compare-rhs-mask-and"
+# I64-DAG: "mask_composition_coverage_contract": "multi-lane runtime_scalar_dual_cmp_mask_and_select cases require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
+# I64-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# I64-DAG: "status": "dry_run_success"
+
+# M2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select-lmul-m2.mlir"
+# M2-DAG: "prototype": "void tcrv_emitc_pr_dual_cmp_sel_m2_kernel_pr_rvv_dual_cmp_sel_m2(const int32_t *cmp_lhs_a, int32_t rhs_scalar_a, const int32_t *cmp_lhs_b, int32_t rhs_scalar_b, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);"
+# M2-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1"
+# M2-DAG: "expected_selected_variant": "pr_rvv_dual_cmp_sel_m2"
+# M2-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# M2-DAG: "route_entry_realization": false
+# M2-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# M2-DAG: "pre_realized_body_consumed": true
+# M2-DAG: "element_type": "i32"
+# M2-DAG: "sew": "32"
+# M2-DAG: "lmul": "m2"
+# M2-DAG: "config_contract": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# M2-DAG: "key": "rvv_selected_body_operation"
+# M2-DAG: "value": "runtime_scalar_dual_cmp_mask_and_select"
+# M2-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# M2-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# M2-DAG: "compare_predicate_kind": "sle"
+# M2-DAG: "secondary_compare_predicate_kind": "sle"
+# M2-DAG: "mask_composition": "and"
+# M2-DAG: "predicate_mask_type": "vbool16_t"
+# M2-DAG: "vector_c_type": "vint32m2_t"
+# M2-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m2"
+# M2-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m2_b16"
+# M2-DAG: "mask_and_intrinsic": "__riscv_vmand_mm_b16"
+# M2-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i32m2"
+# M2-DAG: "store_intrinsic": "__riscv_vse32_v_i32m2"
+# M2-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"
+# M2-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector"
+# M2-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "dual-runtime-scalar-splat-compare-rhs-mask-and"
+# M2-DAG: "mask_composition_coverage_contract": "multi-lane runtime_scalar_dual_cmp_mask_and_select cases require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
+# M2-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# M2-DAG: "status": "dry_run_success"
+
+# I64CPP: __riscv_vsetvl_e64m1
+# I64CPP: __riscv_vle64_v_i64m1
+# I64CPP: vint64m1_t
+# I64CPP: __riscv_vmv_v_x_i64m1
+# I64CPP: __riscv_vmsle_vv_i64m1_b64
+# I64CPP: vbool64_t
+# I64CPP: __riscv_vmand_mm_b64
+# I64CPP: __riscv_vmerge_vvm_i64m1
+# I64CPP: __riscv_vse64_v_i64m1
+
+# M2CPP: __riscv_vsetvl_e32m2
+# M2CPP: __riscv_vle32_v_i32m2
+# M2CPP: vint32m2_t
+# M2CPP: __riscv_vmv_v_x_i32m2
+# M2CPP: __riscv_vmsle_vv_i32m2_b16
+# M2CPP: vbool16_t
+# M2CPP: __riscv_vmand_mm_b16
+# M2CPP: __riscv_vmerge_vvm_i32m2
+# M2CPP: __riscv_vse32_v_i32m2
+
+# I64HARNESS: tcrv_emitc_pr_dual_cmp_sel_i64_kernel_pr_rvv_dual_cmp_sel_i64(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
+# I64HARNESS: int64_t expected =
+# I64HARNESS: (cmp_lhs_a[index] <= rhs_scalar_a && cmp_lhs_b[index] <= rhs_scalar_b)
+# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 mask coverage missing
+# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 mask-and distinction missing
+# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 select payload coverage missing
+# I64HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# I64HARNESS: const int64_t rhs_scalar_a_values[] = {(int64_t)-37LL, (int64_t)91LL};
+# I64HARNESS: const int64_t rhs_scalar_b_values[] = {(int64_t)-37LL, (int64_t)91LL};
+
+# M2HARNESS: tcrv_emitc_pr_dual_cmp_sel_m2_kernel_pr_rvv_dual_cmp_sel_m2(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
+# M2HARNESS: int32_t expected =
+# M2HARNESS: (cmp_lhs_a[index] <= rhs_scalar_a && cmp_lhs_b[index] <= rhs_scalar_b)
+# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 mask coverage missing
+# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 mask-and distinction missing
+# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 select payload coverage missing
+# M2HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# M2HARNESS: const int32_t rhs_scalar_a_values[] = {(int32_t)-37, (int32_t)91};
+# M2HARNESS: const int32_t rhs_scalar_b_values[] = {(int32_t)-37, (int32_t)91};

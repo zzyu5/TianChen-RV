@@ -212,6 +212,11 @@ bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectLayout(
   return layout == "select-true-value-when-mask-else-false-value";
 }
 
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return isPreRealizedComputedMaskSelectConfig(sew, lmul);
+}
+
 bool isPreRealizedRuntimeScalarComputedMaskStoreOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_store";
@@ -1899,12 +1904,12 @@ validatePreRealizedRVVSelectedRuntimeScalarDualCompareMaskAndSelectBody(
         "pre-realized RVV selected runtime scalar dual-compare mask-and select "
         "body currently supports only select_layout "
         "'select-true-value-when-mask-else-false-value'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectConfig(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar dual-compare mask-and select "
-        "body requires SEW32 LMUL m1 data/mask config");
+        "body requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 "
+        "data/mask config");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar dual-compare mask-and select "

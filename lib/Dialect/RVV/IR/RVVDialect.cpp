@@ -829,6 +829,11 @@ bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedSelectLayou
   return layout == "select-true-value-when-mask-else-false-value";
 }
 
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return isSupportedTypedComputedMaskSelectPreRealizedConfig(sew, lmul);
+}
+
 bool isSupportedTypedRuntimeScalarComputedMaskStorePreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_store";
@@ -3728,15 +3733,26 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
               "\"select-true-value-when-mask-else-false-value\" for the "
               "bounded runtime scalar dual-compare mask-and select hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(getSew());
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedConfig(
+          sew, getLmul()))
     return emitOpError()
            << "requires bounded pre-realized runtime scalar dual-compare "
-              "mask-and select data config to be SEW32 LMUL m1";
+              "mask-and select data config to be SEW32 LMUL m1, SEW32 LMUL "
+              "m2, or SEW64 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
               "selected-body runtime scalar dual-compare mask-and select hook";
+
+  std::string expectedScalarType =
+      (llvm::Twine("i") + llvm::Twine(sew)).str();
+  llvm::StringRef expectedScalarCType =
+      sew == getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedScalarCType) + " *").str();
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhsA(), "compare lhs A",
@@ -3744,6 +3760,7 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalarA(), "rhs scalar threshold A",
+          {sew}, expectedScalarType,
           {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
@@ -3752,6 +3769,7 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalarB(), "rhs scalar threshold B",
+          {sew}, expectedScalarType,
           {tianchenrv::support::RuntimeABIParameterRole::
                RHSSecondaryScalarValue})))
     return mlir::failure();
@@ -3783,39 +3801,48 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
   RuntimeABIValueOp falseValueBinding =
       getFalseValue().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
-  if (!compareLHSABinding || compareLHSABinding.getCType() != "const int32_t *")
+  if (!compareLHSABinding ||
+      compareLHSABinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires compare lhs A operand C type 'const int32_t *' to "
+           << "requires compare lhs A operand C type '"
+           << expectedConstPointer << "' to "
               "match typed runtime scalar dual-compare mask-and select "
               "predicate dtype";
-  if (!rhsScalarABinding || rhsScalarABinding.getCType() != "int32_t")
+  if (!rhsScalarABinding || rhsScalarABinding.getCType() != expectedScalarCType)
     return emitOpError()
-           << "requires rhs scalar threshold A operand C type 'int32_t' to "
+           << "requires rhs scalar threshold A operand C type '"
+           << expectedScalarCType << "' to "
               "match typed runtime scalar dual-compare mask-and select "
               "predicate dtype";
-  if (!compareLHSBBinding || compareLHSBBinding.getCType() != "const int32_t *")
+  if (!compareLHSBBinding ||
+      compareLHSBBinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires compare lhs B operand C type 'const int32_t *' to "
+           << "requires compare lhs B operand C type '"
+           << expectedConstPointer << "' to "
               "match typed runtime scalar dual-compare mask-and select "
               "predicate dtype";
-  if (!rhsScalarBBinding || rhsScalarBBinding.getCType() != "int32_t")
+  if (!rhsScalarBBinding || rhsScalarBBinding.getCType() != expectedScalarCType)
     return emitOpError()
-           << "requires rhs scalar threshold B operand C type 'int32_t' to "
+           << "requires rhs scalar threshold B operand C type '"
+           << expectedScalarCType << "' to "
               "match typed runtime scalar dual-compare mask-and select "
               "predicate dtype";
-  if (!trueValueBinding || trueValueBinding.getCType() != "const int32_t *")
+  if (!trueValueBinding || trueValueBinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires true value operand C type 'const int32_t *' to match "
+           << "requires true value operand C type '"
+           << expectedConstPointer << "' to match "
               "typed runtime scalar dual-compare mask-and select payload "
               "dtype";
-  if (!falseValueBinding || falseValueBinding.getCType() != "const int32_t *")
+  if (!falseValueBinding || falseValueBinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires false value operand C type 'const int32_t *' to match "
+           << "requires false value operand C type '"
+           << expectedConstPointer << "' to match "
               "typed runtime scalar dual-compare mask-and select payload "
               "dtype";
-  if (!outBinding || outBinding.getCType() != "int32_t *")
+  if (!outBinding || outBinding.getCType() != expectedMutablePointer)
     return emitOpError()
-           << "requires out operand C type 'int32_t *' to match typed runtime "
+           << "requires out operand C type '"
+           << expectedMutablePointer << "' to match typed runtime "
               "scalar dual-compare mask-and select result dtype";
 
   return verifyRuntimeElementCountOperand(op, getN());

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check the task remains inside the TianChen-RV RVV-first typed route authority boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, typed dual compare/mask/select derivation, provider route construction, fail-closed diagnostics, and mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains an envelope and ABI role declaration surface only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and does not infer RVV semantics."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-cmp-select-route-family-derivation/check.jsonl", "reason": "Reuse adjacent task focused generated-bundle, ssh rvv, check-tianchenrv, diff-check, and authority-scan evidence pattern."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check generated bundle ABI evidence and harness remain typed and selected-boundary derived."}
+{"file": "test/Dialect/RVV/runtime-scalar-dual-compare-mask-and-select-dataflow.mlir", "reason": "Check positive and fail-closed verifier coverage for typed dual witnesses."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir", "reason": "Check baseline target fixture non-regression after typed generalization."}

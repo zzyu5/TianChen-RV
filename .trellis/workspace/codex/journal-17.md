@@ -774,3 +774,42 @@ Closed runtime_scalar_cmp_select_i64 and runtime_scalar_cmp_select_lmul_m2 throu
 ### Next Steps
 
 - None - task complete
+
+
+## Session 285: Stage2 RVV typed runtime-scalar dual compare-mask/select route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed runtime-scalar dual compare-mask/select route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed typed runtime_scalar_dual_cmp_mask_and_select i64 and LMUL m2 derivation through selected-boundary realization, provider-derived route facts, generated-bundle ABI, direct-entry fail-closed evidence, ssh rvv correctness, and final check-tianchenrv.
+
+### Main Changes
+
+- Extended RVV config/runtime ABI construction, verifier checks, selected-body realization validation, construction metadata verification, and EmitC route planning so dual runtime-scalar compare-mask/select derives element type, SEW, LMUL, scalar/vector/mask C types, mask-and intrinsic, ABI order, and provider mirrors from typed body/config/runtime facts.
+- Added typed i64 and LMUL m2 pre-realized target fixtures and generated-bundle dry-run coverage; updated baseline dual fixture mirrors from e32m1-specific profile text to typed route-family mirrors.
+- Preserved selected-boundary-only behavior: direct pre-realized route-entry fails closed for baseline/i64/m2 dual witnesses, while selected-boundary dry-run reports route_entry_realization=false and consumes the pre-realized body before provider route construction.
+- Verified ssh rvv compile/run/correctness for runtime_scalar_dual_cmp_mask_and_select_i64 and runtime_scalar_dual_cmp_mask_and_select_lmul_m2 over counts 0,1,16,23,257 and threshold pairs -37/-37, -37/91, 91/-37, 91/91, covering both masks, composed lanes, single-mask-only lanes, selected payloads, and tail preservation.
+- Spec-update judgment: no .trellis/spec/** edit needed; existing RVV plugin, tcrv.exec, EmitC route, and testing specs already encode the durable selected-body realization and typed authority contract. The transient failures observed during closeout came from accidental concurrent generated-bundle/check invocations sharing artifact roots; clean single reruns passed.
+- Checks: py_compile; script self-test; tcrv-opt/tcrv-translate/plugin-test build; build/bin/tianchenrv-rvv-extension-plugin-test; typed dual dry-run; direct fail-closed probe; runtime_scalar_cmp_select and computed_mask_select non-regression dry-runs; ssh rvv dual correctness; git diff --check; task validate; final single ninja -C build check-tianchenrv 429/429; bounded production added-line authority scan.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
