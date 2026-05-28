@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first authority chain for the task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, computed-mask memory owner, typed config/runtime/provider, fail-closed, and mirror-only contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope, mem_window/runtime_param ABI role boundary, and mirror metadata constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-dual-cmp-mask-select-route-family-derivation/prd.md", "reason": "Immediate previous typed runtime-scalar derivation pattern and evidence shape."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-runtime-scalar-cmp-masked-memory-side-effect-boundary/prd.md", "reason": "Existing baseline masked-memory selected-boundary module and executable evidence boundary."}

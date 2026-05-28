@@ -247,6 +247,11 @@ bool isPreRealizedRuntimeScalarComputedMaskLoadStorePredicateKind(
   return predicateKind == "sle";
 }
 
+bool isPreRealizedRuntimeScalarComputedMaskMemoryConfig(std::int64_t sew,
+                                                        llvm::StringRef lmul) {
+  return isPreRealizedComputedMaskSelectConfig(sew, lmul);
+}
+
 bool isPreRealizedRuntimeScalarComputedMaskMAccOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_macc_add";
@@ -2048,12 +2053,13 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask store body "
         "requires inactive_lane_policy 'preserve-output-on-false-lanes'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+  if (!isPreRealizedRuntimeScalarComputedMaskMemoryConfig(sew,
+                                                          body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask store body "
-        "requires SEW32 LMUL m1 data/mask config");
+        "requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 data/mask "
+        "config");
   if (!tcrv::rvv::isRVVUndisturbedPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask store body "
@@ -2098,6 +2104,23 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
+
+  llvm::StringRef expectedElementCType =
+      sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedElementCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedElementCType) + " *").str();
+  if ((*lhs).getCType() != expectedConstPointer ||
+      (*rhsScalar).getCType() != expectedElementCType ||
+      (*source).getCType() != expectedConstPointer ||
+      (*destination).getCType() != expectedMutablePointer)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected runtime scalar computed-mask "
+                    "store body requires lhs/source ") +
+        expectedConstPointer + ", rhs scalar " + expectedElementCType +
+        ", and destination " + expectedMutablePointer +
+        " runtime ABI bindings");
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {
@@ -2179,12 +2202,13 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask load-store "
         "body requires inactive_lane_policy 'preserve-old-destination'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+  if (!isPreRealizedRuntimeScalarComputedMaskMemoryConfig(sew,
+                                                          body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask load-store "
-        "body requires SEW32 LMUL m1 data/mask config");
+        "body requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 "
+        "data/mask config");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask load-store "
@@ -2230,6 +2254,23 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
+
+  llvm::StringRef expectedElementCType =
+      sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedElementCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedElementCType) + " *").str();
+  if ((*lhs).getCType() != expectedConstPointer ||
+      (*rhsScalar).getCType() != expectedElementCType ||
+      (*source).getCType() != expectedConstPointer ||
+      (*destination).getCType() != expectedMutablePointer)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected runtime scalar computed-mask "
+                    "load-store body requires lhs/source ") +
+        expectedConstPointer + ", rhs scalar " + expectedElementCType +
+        ", and destination " + expectedMutablePointer +
+        " runtime ABI bindings");
 
   mlir::Operation *unexpectedRVVOp = nullptr;
   variant.getBody().walk([&](mlir::Operation *op) {

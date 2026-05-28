@@ -864,6 +864,11 @@ bool isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedMemoryForm(
   return memoryForm == "runtime-scalar-computed-mask-load-store";
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskMemoryPreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return isSupportedTypedComputedMaskSelectPreRealizedConfig(sew, lmul);
+}
+
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "reduce_add";
 }
@@ -3924,15 +3929,26 @@ TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp::verify() {
               "\"preserve-output-on-false-lanes\" because false mask lanes "
               "are not written by the masked store";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(getSew());
+  if (!isSupportedTypedRuntimeScalarComputedMaskMemoryPreRealizedConfig(
+          sew, getLmul()))
     return emitOpError()
            << "requires bounded pre-realized runtime scalar computed-mask "
-              "store data config to be SEW32 LMUL m1";
+              "store data config to be SEW32 LMUL m1, SEW32 LMUL m2, or "
+              "SEW64 LMUL m1";
   if (!isRVVUndisturbedPolicy(getPolicy()))
     return emitOpError()
            << "requires tail undisturbed, mask undisturbed policy for the "
               "bounded selected-body runtime scalar computed-mask store hook";
+
+  std::string expectedScalarType =
+      (llvm::Twine("i") + llvm::Twine(sew)).str();
+  llvm::StringRef expectedScalarCType =
+      sew == getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedScalarCType) + " *").str();
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
@@ -3940,6 +3956,7 @@ TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
+          {sew}, expectedScalarType,
           {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
@@ -3950,6 +3967,37 @@ TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp::verify() {
           op, getDestination(), "destination",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBinding =
+      getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp sourceBinding =
+      getSource().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp destinationBinding =
+      getDestination().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != expectedConstPointer)
+    return emitOpError()
+           << "requires lhs operand C type '" << expectedConstPointer
+           << "' to match typed runtime scalar computed-mask store predicate "
+              "dtype";
+  if (!rhsScalarBinding ||
+      rhsScalarBinding.getCType() != expectedScalarCType)
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type '"
+           << expectedScalarCType
+           << "' to match typed runtime scalar computed-mask store predicate "
+              "dtype";
+  if (!sourceBinding || sourceBinding.getCType() != expectedConstPointer)
+    return emitOpError()
+           << "requires active source operand C type '" << expectedConstPointer
+           << "' to match typed runtime scalar computed-mask store payload "
+              "dtype";
+  if (!destinationBinding ||
+      destinationBinding.getCType() != expectedMutablePointer)
+    return emitOpError()
+           << "requires destination operand C type '" << expectedMutablePointer
+           << "' to match typed runtime scalar computed-mask store result "
+              "dtype";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
@@ -4031,15 +4079,26 @@ TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp::verify() {
               "because false mask lanes preserve the loaded old destination "
               "passthrough value";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(getSew());
+  if (!isSupportedTypedRuntimeScalarComputedMaskMemoryPreRealizedConfig(
+          sew, getLmul()))
     return emitOpError()
            << "requires bounded pre-realized runtime scalar computed-mask "
-              "load-store data config to be SEW32 LMUL m1";
+              "load-store data config to be SEW32 LMUL m1, SEW32 LMUL m2, or "
+              "SEW64 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
               "selected-body runtime scalar computed-mask load-store hook";
+
+  std::string expectedScalarType =
+      (llvm::Twine("i") + llvm::Twine(sew)).str();
+  llvm::StringRef expectedScalarCType =
+      sew == getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedScalarCType) + " *").str();
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",
@@ -4047,6 +4106,7 @@ TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
+          {sew}, expectedScalarType,
           {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
@@ -4057,6 +4117,38 @@ TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp::verify() {
           op, getDestination(), "destination/passthrough",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBinding =
+      getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp sourceBinding =
+      getSource().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp destinationBinding =
+      getDestination().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != expectedConstPointer)
+    return emitOpError()
+           << "requires lhs operand C type '" << expectedConstPointer
+           << "' to match typed runtime scalar computed-mask load-store "
+              "predicate dtype";
+  if (!rhsScalarBinding ||
+      rhsScalarBinding.getCType() != expectedScalarCType)
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type '"
+           << expectedScalarCType
+           << "' to match typed runtime scalar computed-mask load-store "
+              "predicate dtype";
+  if (!sourceBinding || sourceBinding.getCType() != expectedConstPointer)
+    return emitOpError()
+           << "requires active source operand C type '" << expectedConstPointer
+           << "' to match typed runtime scalar computed-mask load-store "
+              "payload dtype";
+  if (!destinationBinding ||
+      destinationBinding.getCType() != expectedMutablePointer)
+    return emitOpError()
+           << "requires destination/passthrough operand C type '"
+           << expectedMutablePointer
+           << "' to match typed runtime scalar computed-mask load-store "
+              "result dtype";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 

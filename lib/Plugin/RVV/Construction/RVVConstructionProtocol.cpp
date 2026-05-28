@@ -3434,6 +3434,19 @@ getRuntimeScalarDualCompareMaskAndSelectExpectedParametersForFacts(
       getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRuntimeScalarComputedMaskStoreExpectedParametersForFacts(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> i64Parameters =
+      tcrv::rvv::
+          buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
+              "int64_t");
+  if (support::runtimeABIParametersEqual(parameters, i64Parameters))
+    return i64Parameters;
+  return tcrv::rvv::
+      getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
+}
+
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
 getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName) {
   const RVVSelectedBodyConstructionRoute *route =
@@ -4239,8 +4252,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  "runtime_scalar_cmp_masked_load_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 5>
         runtimeScalarComputedMaskStoreParameters =
-            tcrv::rvv::
-                getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
+            getRuntimeScalarComputedMaskStoreExpectedParametersForFacts(
+                facts.runtimeABIParameters);
     expectedParameters.append(
         runtimeScalarComputedMaskStoreParameters.begin(),
         runtimeScalarComputedMaskStoreParameters.end());

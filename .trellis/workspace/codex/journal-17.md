@@ -69,6 +69,49 @@ real `ssh rvv` evidence, and preparing the Trellis task for archive and commit.
 
 - None - task complete
 
+
+## Session 286: Stage2 RVV typed runtime-scalar compare-masked memory route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed runtime-scalar compare-masked memory route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed typed runtime_scalar_cmp_masked_store and runtime_scalar_cmp_masked_load_store derivation for baseline SEW32 LMUL m1, SEW64 LMUL m1, and SEW32 LMUL m2 selected-boundary witnesses while preserving direct pre-realized route-entry fail-closed behavior.
+
+### Main Changes
+
+- Extended RVV config/runtime ABI contracts, dialect verifiers, construction metadata checks, selected-body realization validation, and EmitC route planning so runtime-scalar computed-mask memory derives scalar C type, vector/mask C types, SEW, LMUL, policy, ABI order, provider mirrors, and target leaves from typed body/config/runtime facts.
+- Added typed i64 and LMUL m2 pre-realized target fixtures for masked store and masked load-store; updated baseline fixture mirrors from e32m1-specific leaf/profile text to typed route-family mirrors.
+- Updated generated-bundle ABI tooling for typed runtime-scalar compare-masked memory witnesses, including typed prototypes, runtime parameter facts, intrinsic expectations, harness value types, and direct route-entry fail-closed coverage across baseline/i64/m2 op kinds.
+- Preserved selected-boundary-only behavior: direct pre-realized route-entry fails closed for all baseline/i64/m2 masked-memory witnesses; selected-boundary dry-run reports `route_entry_realization=false` and `pre_realized_body_consumed=true`.
+- Verified `ssh rvv` compile/run/correctness for i64 and LMUL m2 typed masked store/load-store witnesses over counts 0,1,8,16,23,32,257 and rhs scalar values -37/91, covering active/inactive masks, inactive-lane preservation, old-destination passthrough, source preservation, payload distinction, and tail preservation. Baseline masked store/load-store remote non-regression passed over counts 0,1,16,23,257.
+- Spec-update judgment: no `.trellis/spec/**` edit needed; existing RVV plugin, `tcrv.exec`, EmitC route, and testing specs already encode typed body authority, runtime-scalar computed-mask memory statement-plan ownership, mirror-only metadata, selected-boundary realization, and direct route-entry fail-closed contracts.
+- Checks: py_compile; script self-test; focused build for `tcrv-opt`, `tcrv-translate`, and `tianchenrv-rvv-extension-plugin-test`; plugin smoke test; typed REALIZED/PLAN/HEADER FileCheck for four new fixtures; generated-bundle typed dry-run and evidence FileChecks; baseline dry-run; runtime_scalar_cmp_select and runtime_scalar_dual_cmp_mask_and_select typed dry-run non-regression; direct pre-realized route-entry fail-closed probe; `ssh rvv` typed and baseline correctness; `git diff --check`; bounded added-line authority scan; final `cmake --build build --target check-tianchenrv -j2` 434/434.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused local compiler/script checks passed.
+- [OK] Generated-bundle selected-boundary dry-runs passed for baseline and typed masked-memory witnesses.
+- [OK] Direct pre-realized route-entry remains fail-closed for baseline/i64/m2 masked-memory witnesses.
+- [OK] `ssh rvv` compile/run/correctness passed for typed and baseline masked-memory witnesses.
+- [OK] `check-tianchenrv` passed 434/434.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive the Trellis task and create the final commit.
+
 ## Session 271: Stage2 RVV computed-masked segment2 selected realization migration
 
 **Date**: 2026-05-27

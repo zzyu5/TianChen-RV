@@ -626,6 +626,9 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   bool usesSegment2Load = false;
   bool usesSegment2Store = false;
   bool usesSegment2Update = false;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef elementCType;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;

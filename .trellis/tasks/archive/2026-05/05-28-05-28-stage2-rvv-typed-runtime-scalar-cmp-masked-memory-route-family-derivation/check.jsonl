@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve global compiler-stack and authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify RVV typed body authority, selected-boundary realization, computed-mask memory facts, and fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Final check must confirm tcrv.exec remains ABI/envelope-only and mirrors are not route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must confirm common EmitC consumes provider-built routes neutrally."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-dual-cmp-mask-select-route-family-derivation/prd.md", "reason": "Non-regression comparison for the adjacent completed typed runtime-scalar route family."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-runtime-scalar-cmp-masked-memory-side-effect-boundary/prd.md", "reason": "Baseline masked-memory evidence and selected-boundary-only expectations to preserve while adding typed witnesses."}

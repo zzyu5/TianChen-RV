@@ -2236,10 +2236,10 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateTargetLeafProfile(
     "rvv-v1-e32m1-computed-mask-segment2-update-add-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreTargetLeafProfile(
-        "rvv-v1-e32m1-runtime-scalar-cmp-masked-store-leaf-profile.v1");
+        "rvv-v1-typed-runtime-scalar-cmp-masked-store-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskLoadStoreTargetLeafProfile(
-        "rvv-v1-e32m1-runtime-scalar-cmp-masked-load-store-leaf-profile.v1");
+        "rvv-v1-typed-runtime-scalar-cmp-masked-load-store-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccTargetLeafProfile(
         "rvv-v1-e32m1-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1");
@@ -2317,10 +2317,10 @@ constexpr llvm::StringLiteral
         "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreCTypeMappingSummary(
-        "vl:size_t,lhs_payload:signed-e32m1,rhs_scalar:i32,mask:b32,dst:masked-store");
+        "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,dst:masked-store");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskLoadStoreCTypeMappingSummary(
-        "vl:size_t,lhs/source/passthrough:signed-e32m1,rhs_scalar:i32,mask:b32,result:masked-load-store");
+        "vl:size_t,lhs/source/passthrough:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:masked-load-store");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary(
         "vl:size_t,cmp_lhs/lhs/rhs/acc:signed-e32m1,rhs_scalar:i32,mask:b32,result:signed-e32m1");
@@ -2618,6 +2618,189 @@ struct RVVSelectedBodyTargetLeafProfile {
   llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef maskAndIntrinsic;
 };
+
+bool isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      (lmul == tcrv::rvv::getRVVLMULM1() ||
+       lmul == tcrv::rvv::getRVVLMULM2()))
+    return true;
+  return sew == tcrv::rvv::getRVVSEW64Bits() &&
+         lmul == tcrv::rvv::getRVVLMULM1();
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vle64_v_i64m1_tumu";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vle32_v_i32m2_tumu";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return kRVVMaskedLoadIntrinsic;
+  return {};
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
+    const RVVSelectedBodyConfigProfile &config) {
+  return getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(config.sew,
+                                                            config.lmul);
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vse64_v_i64m1_m";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vse32_v_i32m2_m";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return kRVVMaskedStoreIntrinsic;
+  return {};
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
+    const RVVSelectedBodyConfigProfile &config) {
+  return getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(config.sew,
+                                                             config.lmul);
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryElementCType(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew, lmul))
+    return {};
+  return sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryVectorTypeName(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "!tcrv_rvv.vector<i64, \"m1\">";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "!tcrv_rvv.vector<i32, \"m2\">";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "!tcrv_rvv.vector<i32, \"m1\">";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryVectorCType(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "vint64m1_t";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "vint32m2_t";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "vint32m1_t";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryMaskTypeName(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "!tcrv_rvv.mask<i64, \"m1\">";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "!tcrv_rvv.mask<i32, \"m2\">";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "!tcrv_rvv.mask<i32, \"m1\">";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryMaskCType(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "vbool64_t";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "vbool16_t";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "vbool32_t";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemorySetVLIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vsetvl_e64m1";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vsetvl_e32m2";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vsetvl_e32m1";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryVectorLoadIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vle64_v_i64m1";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vle32_v_i32m2";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vle32_v_i32m1";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryUnitStoreIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vse64_v_i64m1";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vse32_v_i32m2";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vse32_v_i32m1";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemorySplatIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vmv_v_x_i64m1";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vmv_v_x_i32m2";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vmv_v_x_i32m1";
+  return {};
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryCompareIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vmsle_vv_i64m1_b64";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vmsle_vv_i32m2_b16";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vmsle_vv_i32m1_b32";
+  return {};
+}
 
 struct RVVSelectedBodyRouteProfile {
   RVVSelectedBodyOperationProfile operation;
@@ -3328,15 +3511,24 @@ llvm::Expected<RVVSelectedBodyConfigProfile>
 deriveRVVSelectedBodyConfigProfile(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   const bool isMaskedStorePolicy =
-      description.operation == RVVSelectedBodyOperationKind::MaskedUnitStore ||
       description.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
-  if (isMaskedStorePolicy) {
+      RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isRuntimeScalarComputedMaskStore =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
+  const bool usesUndisturbedPolicy =
+      isMaskedStorePolicy || isRuntimeScalarComputedMaskStore;
+  if (usesUndisturbedPolicy) {
     if (description.tailPolicy != "undisturbed" ||
         description.maskPolicy != "undisturbed")
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    if (description.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-        description.lmul != tcrv::rvv::getRVVLMULM1())
+    if (isMaskedStorePolicy &&
+        (description.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+         description.lmul != tcrv::rvv::getRVVLMULM1()))
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    if (isRuntimeScalarComputedMaskStore &&
+        !isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
+            description.sew, description.lmul))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   } else if (description.tailPolicy != "agnostic" ||
              description.maskPolicy != "agnostic") {
@@ -3348,9 +3540,9 @@ deriveRVVSelectedBodyConfigProfile(
     return RVVSelectedBodyConfigProfile{
         32,
         "m1",
-        isMaskedStorePolicy ? "undisturbed" : "agnostic",
-        isMaskedStorePolicy ? "undisturbed" : "agnostic",
-        isMaskedStorePolicy
+        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+        usesUndisturbedPolicy
             ? &tcrv::rvv::getRVVSelectedBodyM1UndisturbedConfigVLContract()
             : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m1"),
         "size_t",
@@ -3380,9 +3572,11 @@ deriveRVVSelectedBodyConfigProfile(
     return RVVSelectedBodyConfigProfile{
         32,
         "m2",
-        "agnostic",
-        "agnostic",
-        &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m2"),
+        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+        usesUndisturbedPolicy
+            ? &tcrv::rvv::getRVVSelectedBodyM2UndisturbedConfigVLContract()
+            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m2"),
         "size_t",
         "!tcrv_rvv.vector<i32, \"m2\">",
         "",
@@ -3406,15 +3600,15 @@ deriveRVVSelectedBodyConfigProfile(
         "__riscv_vsse32_v_i32m2"};
 
   if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1() &&
-      description.tailPolicy == "agnostic" &&
-      description.maskPolicy == "agnostic")
+      description.lmul == tcrv::rvv::getRVVLMULM1())
     return RVVSelectedBodyConfigProfile{
         64,
         "m1",
-        "agnostic",
-        "agnostic",
-        &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m1"),
+        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+        usesUndisturbedPolicy
+            ? &tcrv::rvv::getRVVSelectedBodyI64M1UndisturbedConfigVLContract()
+            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m1"),
         "size_t",
         "!tcrv_rvv.vector<i64, \"m1\">",
         "",
@@ -8406,14 +8600,76 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "VL C type", plan.vlCType, "size_t"))
     return error;
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires typed SEW/LMUL to "
+        "mirror runtime AVL/VL control");
+  if (isRuntimeScalar) {
+    if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(plan.sew,
+                                                               plan.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask memory route-family plan requires runtime scalar "
+          "computed-mask memory config to be SEW32 LMUL m1, SEW32 LMUL m2, "
+          "or SEW64 LMUL m1");
+    if (plan.elementCType !=
+        getRVVRuntimeScalarComputedMaskMemoryElementCType(plan.sew, plan.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask memory route-family plan requires element C type to "
+          "mirror typed runtime scalar memory config");
+  } else if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+             plan.lmul != tcrv::rvv::getRVVLMULM1()) {
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan currently requires non-runtime "
+        "computed-mask memory config to be SEW32 LMUL m1");
+  }
+  llvm::StringRef expectedVectorTypeName =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemoryVectorTypeName(plan.sew,
+                                                               plan.lmul)
+          : llvm::StringRef("!tcrv_rvv.vector<i32, \"m1\">");
+  llvm::StringRef expectedVectorCType =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemoryVectorCType(plan.sew,
+                                                            plan.lmul)
+          : llvm::StringRef("vint32m1_t");
+  llvm::StringRef expectedMaskTypeName =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemoryMaskTypeName(plan.sew,
+                                                             plan.lmul)
+          : llvm::StringRef("!tcrv_rvv.mask<i32, \"m1\">");
+  llvm::StringRef expectedMaskCType =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemoryMaskCType(plan.sew, plan.lmul)
+          : llvm::StringRef("vbool32_t");
+  llvm::StringRef expectedSetVLIntrinsic =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemorySetVLIntrinsic(plan.sew,
+                                                               plan.lmul)
+          : llvm::StringRef("__riscv_vsetvl_e32m1");
+  llvm::StringRef expectedVectorLoadIntrinsic =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemoryVectorLoadIntrinsic(
+                plan.sew, plan.lmul)
+          : llvm::StringRef("__riscv_vle32_v_i32m1");
+  llvm::StringRef expectedRHSScalarSplatIntrinsic =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemorySplatIntrinsic(plan.sew,
+                                                               plan.lmul)
+          : llvm::StringRef();
+  llvm::StringRef expectedCompareIntrinsic =
+      isRuntimeScalar
+          ? getRVVRuntimeScalarComputedMaskMemoryCompareIntrinsic(plan.sew,
+                                                                 plan.lmul)
+          : llvm::StringRef("__riscv_vmslt_vv_i32m1_b32");
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "vector type", plan.vectorTypeName,
-              "!tcrv_rvv.vector<i32, \"m1\">"))
+              expectedVectorTypeName))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
-              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+              plan, "vector C type", plan.vectorCType, expectedVectorCType))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
@@ -8431,22 +8687,21 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
-              plan, "mask type", plan.maskTypeName,
-              "!tcrv_rvv.mask<i32, \"m1\">"))
+              plan, "mask type", plan.maskTypeName, expectedMaskTypeName))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
-              plan, "mask C type", plan.maskCType, "vbool32_t"))
+              plan, "mask C type", plan.maskCType, expectedMaskCType))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "setvl leaf", plan.setVLIntrinsic,
-              "__riscv_vsetvl_e32m1"))
+              expectedSetVLIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-              "__riscv_vle32_v_i32m1"))
+              expectedVectorLoadIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
@@ -8466,14 +8721,12 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "RHS scalar splat leaf",
               plan.rhsScalarSplatIntrinsic,
-              isRuntimeScalar ? llvm::StringRef("__riscv_vmv_v_x_i32m1")
-                              : llvm::StringRef()))
+              expectedRHSScalarSplatIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "compare leaf", plan.compareIntrinsic,
-              isRuntimeScalar ? llvm::StringRef("__riscv_vmsle_vv_i32m1_b32")
-                              : llvm::StringRef("__riscv_vmslt_vv_i32m1_b32")))
+              expectedCompareIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
@@ -8488,29 +8741,36 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
-	              plan, "masked-load leaf", plan.maskedLoadIntrinsic,
-	              isIndexedGather ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
-	              : plan.operation ==
-	                      RVVSelectedBodyOperationKind::
-	                          ComputedMaskStridedLoadUnitStore
-	                  ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
-	              : isSegment2Load
-	                  ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
-	              : isLoadMerge ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
-	                            : llvm::StringRef()))
-	    return error;
+              plan, "masked-load leaf", plan.maskedLoadIntrinsic,
+              isIndexedGather ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
+              : plan.operation ==
+                      RVVSelectedBodyOperationKind::
+                          ComputedMaskStridedLoadUnitStore
+                  ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
+              : isSegment2Load
+                  ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
+              : isRuntimeScalar && isLoadMerge
+                  ? getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
+                        plan.sew, plan.lmul)
+              : isLoadMerge ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
+                            : llvm::StringRef()))
+    return error;
   if (plan.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
     if (llvm::Error error =
             requireRVVSelectedBodyComputedMaskMemoryPlanField(
                 plan, "masked-store leaf", plan.maskedStoreIntrinsic,
-                kRVVMaskedStoreIntrinsic))
+                getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
+                    plan.sew, plan.lmul)))
       return error;
   } else if (isLoadMerge || isIndexedScatter || isSegment2StoreLike) {
     if (llvm::Error error =
             requireRVVSelectedBodyComputedMaskMemoryPlanField(
                 plan, "store leaf", plan.maskedStoreIntrinsic,
-                "__riscv_vse32_v_i32m1"))
+                isRuntimeScalar
+                    ? getRVVRuntimeScalarComputedMaskMemoryUnitStoreIntrinsic(
+                          plan.sew, plan.lmul)
+                    : llvm::StringRef("__riscv_vse32_v_i32m1")))
       return error;
   } else {
     if (llvm::Error error =
@@ -8887,11 +9147,19 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan currently requires the "
         "operation-specific bounded compare predicate");
-  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+  if (isRuntimeScalar) {
+    if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
+            configProfile.sew, configProfile.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask memory route-family plan requires runtime scalar "
+          "computed-mask memory config to be SEW32 LMUL m1, SEW32 LMUL m2, "
+          "or SEW64 LMUL m1");
+  } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+             configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan currently "
         "requires SEW32 LMUL m1 typed config");
+  }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       (isRuntimeScalar &&
@@ -8973,6 +9241,9 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   plan.usesSegment2Load = isComputedMaskSegment2Load;
   plan.usesSegment2Store = isComputedMaskSegment2StoreLike;
   plan.usesSegment2Update = isComputedMaskSegment2Update;
+  plan.sew = configProfile.sew;
+  plan.lmul = configProfile.lmul;
+  plan.elementCType = configProfile.scalarCType;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
   plan.familyPlanID = kRVVComputedMaskMemoryRouteFamilyPlanID;
   plan.maskProducerSource = getComputedMaskMemoryProducerSource(operation);
@@ -10826,11 +11097,25 @@ deriveRVVSelectedBodyTargetLeafProfile(
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect &&
         configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    const bool supportsRuntimeScalarI64ComputedMaskStore =
+        description.operation ==
+            RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore &&
+        description.memoryForm ==
+            RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    const bool supportsRuntimeScalarI64ComputedMaskLoadStore =
+        description.operation ==
+            RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore &&
+        description.memoryForm ==
+            RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
     if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic &&
         !supportsPlainI64CompareSelect &&
         !supportsComputedMaskI64CompareSelect &&
         !supportsRuntimeScalarI64CompareSelect &&
-        !supportsRuntimeScalarI64DualCompareMaskAndSelect)
+        !supportsRuntimeScalarI64DualCompareMaskAndSelect &&
+        !supportsRuntimeScalarI64ComputedMaskStore &&
+        !supportsRuntimeScalarI64ComputedMaskLoadStore)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
@@ -11203,27 +11488,36 @@ deriveRVVSelectedBodyTargetLeafProfile(
         !isComputedMaskStridedStore && !isComputedMaskStridedLoad &&
         !isComputedMaskIndexedGather && !isComputedMaskIndexedScatter)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    if (configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    const bool isRuntimeScalarComputedMaskMemory =
+        isRuntimeScalarComputedMaskStore ||
+        isRuntimeScalarComputedMaskLoadStore;
+    if (isRuntimeScalarComputedMaskMemory &&
+        !isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
+            configProfile.sew, configProfile.lmul))
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    if (!isRuntimeScalarComputedMaskMemory &&
+        configProfile.lmul != tcrv::rvv::getRVVLMULM1())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
-        isComputedMaskIndexedScatter
-            ? llvm::StringRef(kRVVMaskedIndexedStoreIntrinsic)
+      isComputedMaskIndexedScatter
+          ? llvm::StringRef(kRVVMaskedIndexedStoreIntrinsic)
         : isComputedMaskIndexedGather
             ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
         : isComputedMaskStridedStore
             ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
         : isComputedMaskStridedLoad
             ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
-        : (isRuntimeMask || isComputedMask ||
-           isRuntimeScalarComputedMaskLoadStore)
-            ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
-        : isRuntimeScalarComputedMaskStore
-            ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
-            : llvm::StringRef(),
-        (isRuntimeScalarComputedMaskStore ||
-         isRuntimeScalarComputedMaskLoadStore)
-            ? getRVVSelectedBodyCompareIntrinsic(
-                  description.comparePredicateKind, configProfile.lmul)
+      : isRuntimeScalarComputedMaskLoadStore
+          ? getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(configProfile)
+      : (isRuntimeMask || isComputedMask)
+          ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
+      : isRuntimeScalarComputedMaskStore
+          ? getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(configProfile)
+          : llvm::StringRef(),
+      (isRuntimeScalarComputedMaskStore ||
+       isRuntimeScalarComputedMaskLoadStore)
+          ? getRVVSelectedBodyCompareIntrinsic(
+                description.comparePredicateKind, configProfile)
         : (isComputedMask || isComputedMaskStridedStore ||
            isComputedMaskStridedLoad || isComputedMaskIndexedGather ||
            isComputedMaskIndexedScatter)
@@ -36674,6 +36968,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
        analysis.slice.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore ||
        analysis.slice.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore ||
+       analysis.slice.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore ||
        analysis.slice.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore)
@@ -36688,9 +36984,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.rhsBroadcastIntrinsic =
       routeProfile->targetLeaves.rhsBroadcastIntrinsic;
   analysis.description.storeIntrinsic =
-      (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::MaskedUnitStore ||
-       analysis.slice.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore)
+      analysis.slice.memoryForm ==
+              RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore
+          ? routeProfile->targetLeaves.intrinsic
+      : analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::MaskedUnitStore
           ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
           : routeProfile->config.storeIntrinsic;
   analysis.description.stridedStoreIntrinsic =
@@ -39081,12 +39378,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   if (operationProfile.operation ==
           RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
       operationProfile.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
-      operationProfile.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked-load intrinsic",
             description.maskedLoadIntrinsic, kRVVMaskedLoadIntrinsic))
+      return error;
+  } else if (operationProfile.operation ==
+             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "masked-load intrinsic",
+            description.maskedLoadIntrinsic,
+            getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(configProfile)))
       return error;
   } else if (operationProfile.operation ==
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore) {
@@ -39119,7 +39421,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           operationProfile.operation ==
                   RVVSelectedBodyOperationKind::ComputedMaskStridedStore
               ? llvm::StringRef()
-          : (isMaskedUnitStore || isRuntimeScalarComputedMaskStore)
+          : isRuntimeScalarComputedMaskStore
+              ? getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
+                    configProfile)
+          : isMaskedUnitStore
               ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
               : configProfile.storeIntrinsic))
     return error;

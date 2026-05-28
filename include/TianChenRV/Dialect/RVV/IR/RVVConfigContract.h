@@ -68,6 +68,10 @@ const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI64M2ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM1UndisturbedConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyM2UndisturbedConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI64M1UndisturbedConfigVLContract();
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context);
 void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
                                                mlir::OperationState &state);
@@ -166,6 +170,9 @@ buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
     llvm::StringRef elementCType);
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
 getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
+    llvm::StringRef elementCType);
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>

@@ -75,7 +75,11 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "runtime_scalar_dual_cmp_mask_and_select_i64",
     "runtime_scalar_dual_cmp_mask_and_select_lmul_m2",
     "runtime_scalar_cmp_masked_store",
+    "runtime_scalar_cmp_masked_store_i64",
+    "runtime_scalar_cmp_masked_store_lmul_m2",
     "runtime_scalar_cmp_masked_load_store",
+    "runtime_scalar_cmp_masked_load_store_i64",
+    "runtime_scalar_cmp_masked_load_store_lmul_m2",
     "reduce_add",
     *MASKED_ELEMENTWISE_OP_KINDS,
     "macc_add",
@@ -964,7 +968,7 @@ RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
 RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_SECONDARY_RHS_SCALAR_VALUES = (-37, 91)
 RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,src,dst,n"
 RUNTIME_SCALAR_CMP_MASKED_STORE_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-runtime-scalar-cmp-masked-store-leaf-profile.v1"
+    "rvv-v1-typed-runtime-scalar-cmp-masked-store-leaf-profile.v1"
 )
 RUNTIME_SCALAR_CMP_MASKED_STORE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-store-plan-validated"
@@ -973,11 +977,12 @@ RUNTIME_SCALAR_CMP_MASKED_STORE_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 RUNTIME_SCALAR_CMP_MASKED_STORE_C_TYPE_MAPPING = (
-    "vl:size_t,lhs_payload:signed-e32m1,rhs_scalar:i32,mask:b32,dst:masked-store"
+    "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,"
+    "mask:typed-mask,dst:masked-store"
 )
 RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,src,dst,n"
 RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-runtime-scalar-cmp-masked-load-store-leaf-profile.v1"
+    "rvv-v1-typed-runtime-scalar-cmp-masked-load-store-leaf-profile.v1"
 )
 RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-load-store-plan-validated"
@@ -986,8 +991,8 @@ RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_C_TYPE_MAPPING = (
-    "vl:size_t,lhs/source/passthrough:signed-e32m1,rhs_scalar:i32,"
-    "mask:b32,result:masked-load-store"
+    "vl:size_t,lhs/source/passthrough:typed-vector,"
+    "rhs_scalar:typed-scalar,mask:typed-mask,result:masked-load-store"
 )
 COMPUTED_MASK_UNIT_LOAD_STORE_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-computed-mask-unit-load-store-leaf-profile.v1"
@@ -1450,6 +1455,14 @@ class OpExpectation:
         return f"__riscv_vse{self.sew}_v_{self.element_type}{self.lmul}"
 
     @property
+    def masked_load_intrinsic(self) -> str:
+        return f"__riscv_vle{self.sew}_v_{self.element_type}{self.lmul}_tumu"
+
+    @property
+    def masked_store_intrinsic(self) -> str:
+        return f"__riscv_vse{self.sew}_v_{self.element_type}{self.lmul}_m"
+
+    @property
     def rvv_mask_suffix(self) -> str:
         sew_bits = int(self.sew)
         if self.lmul.startswith("mf"):
@@ -1613,9 +1626,10 @@ class OpExpectation:
             or self.is_runtime_scalar_computed_mask_load_store
         ):
             return (
-                f"void {self.function_name}(const int32_t *lhs, "
-                "int32_t rhs_scalar, const int32_t *src, "
-                "int32_t *dst, size_t n);"
+                f"void {self.function_name}(const {self.element_c_type} *lhs, "
+                f"{self.element_c_type} rhs_scalar, "
+                f"const {self.element_c_type} *src, "
+                f"{self.element_c_type} *dst, size_t n);"
             )
         if self.is_computed_masked_strided_store:
             return (
@@ -1789,9 +1803,13 @@ class OpExpectation:
                 self.element_c_type
             )
         if self.is_runtime_scalar_computed_mask_store:
-            return EXPECTED_RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_PARAMETERS
+            return runtime_scalar_cmp_masked_store_runtime_parameters(
+                self.element_c_type
+            )
         if self.is_runtime_scalar_computed_mask_load_store:
-            return EXPECTED_RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_PARAMETERS
+            return runtime_scalar_cmp_masked_store_runtime_parameters(
+                self.element_c_type
+            )
         if self.is_computed_masked_strided_store:
             return EXPECTED_COMPUTED_MASK_STRIDED_STORE_RUNTIME_PARAMETERS
         if self.is_computed_masked_strided_load_unit_store:
@@ -1873,6 +1891,16 @@ class OpExpectation:
             "runtime_scalar_dual_cmp_mask_and_select_lmul_m2",
         }:
             return "runtime_scalar_dual_cmp_mask_and_select"
+        if self.kind in {
+            "runtime_scalar_cmp_masked_store_i64",
+            "runtime_scalar_cmp_masked_store_lmul_m2",
+        }:
+            return "runtime_scalar_cmp_masked_store"
+        if self.kind in {
+            "runtime_scalar_cmp_masked_load_store_i64",
+            "runtime_scalar_cmp_masked_load_store_lmul_m2",
+        }:
+            return "runtime_scalar_cmp_masked_load_store"
         return self.kind
 
     @property
@@ -2015,11 +2043,19 @@ class OpExpectation:
 
     @property
     def is_runtime_scalar_computed_mask_store(self) -> bool:
-        return self.kind == "runtime_scalar_cmp_masked_store"
+        return self.kind in {
+            "runtime_scalar_cmp_masked_store",
+            "runtime_scalar_cmp_masked_store_i64",
+            "runtime_scalar_cmp_masked_store_lmul_m2",
+        }
 
     @property
     def is_runtime_scalar_computed_mask_load_store(self) -> bool:
-        return self.kind == "runtime_scalar_cmp_masked_load_store"
+        return self.kind in {
+            "runtime_scalar_cmp_masked_load_store",
+            "runtime_scalar_cmp_masked_load_store_i64",
+            "runtime_scalar_cmp_masked_load_store_lmul_m2",
+        }
 
     def compare_predicate_c_expression(self, lhs: str, rhs: str) -> str:
         if self.compare_predicate_kind == "eq":
@@ -3789,6 +3825,40 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_runtime_scalar_cmp_masked_store",
         function_name="tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store",
     ),
+    "runtime_scalar_cmp_masked_store_i64": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_masked_store"],
+        kind="runtime_scalar_cmp_masked_store_i64",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-i64.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pr_rvv_cmp_mstore_i64",
+        function_name="tcrv_emitc_pr_rt_cmp_mstore_i64_kernel_pr_rvv_cmp_mstore_i64",
+        lhs_initializer=(
+            "(int64_t)(((index % 5) == 0) ? (int64_t)-9000000000LL : "
+            "((index % 5) == 1) ? (int64_t)-37LL : "
+            "((index % 5) == 2) ? (int64_t)0LL : "
+            "((index % 5) == 3) ? (int64_t)91LL : "
+            "(int64_t)9000000000LL)"
+        ),
+        source_initializer=(
+            "(int64_t)(17000000000LL + (int64_t)(index * 31))"
+        ),
+        out_initializer=I64_OUT_SENTINEL,
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-undisturbed-mask-undisturbed.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
+    "runtime_scalar_cmp_masked_store_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_masked_store"],
+        kind="runtime_scalar_cmp_masked_store_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pr_rvv_cmp_mstore_m2",
+        function_name="tcrv_emitc_pr_rt_cmp_mstore_m2_kernel_pr_rvv_cmp_mstore_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-undisturbed-mask-undisturbed.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
+    ),
     "runtime_scalar_cmp_masked_load_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
             "runtime_scalar_cmp_masked_load_store"
@@ -3797,6 +3867,44 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pr_rvv_cmp_mload",
         function_name="tcrv_emitc_pr_rt_cmp_mload_kernel_pr_rvv_cmp_mload",
+    ),
+    "runtime_scalar_cmp_masked_load_store_i64": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_load_store"
+        ],
+        kind="runtime_scalar_cmp_masked_load_store_i64",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store-i64.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pr_rvv_cmp_mload_i64",
+        function_name="tcrv_emitc_pr_rt_cmp_mload_i64_kernel_pr_rvv_cmp_mload_i64",
+        lhs_initializer=(
+            "(int64_t)(((index % 5) == 0) ? (int64_t)-9000000000LL : "
+            "((index % 5) == 1) ? (int64_t)-37LL : "
+            "((index % 5) == 2) ? (int64_t)0LL : "
+            "((index % 5) == 3) ? (int64_t)91LL : "
+            "(int64_t)9000000000LL)"
+        ),
+        source_initializer=(
+            "(int64_t)(19000000000LL + (int64_t)(index * 37))"
+        ),
+        out_initializer=I64_OUT_SENTINEL,
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
+    "runtime_scalar_cmp_masked_load_store_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_load_store"
+        ],
+        kind="runtime_scalar_cmp_masked_load_store_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pr_rvv_cmp_mload_m2",
+        function_name="tcrv_emitc_pr_rt_cmp_mload_m2_kernel_pr_rvv_cmp_mload_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "masked_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_add"],
@@ -4827,6 +4935,43 @@ def runtime_scalar_dual_cmp_mask_and_select_runtime_parameters(
     )
 
 
+def runtime_scalar_cmp_masked_store_runtime_parameters(
+    element_c_type: str,
+) -> tuple[dict[str, str], ...]:
+    return (
+        {
+            "c_name": "lhs",
+            "c_type": f"const {element_c_type} *",
+            "role": "lhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "rhs_scalar",
+            "c_type": element_c_type,
+            "role": "rhs-scalar-value",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "src",
+            "c_type": f"const {element_c_type} *",
+            "role": "source-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "dst",
+            "c_type": f"{element_c_type} *",
+            "role": "output-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "n",
+            "c_type": "size_t",
+            "role": "runtime-element-count",
+            "ownership": "target-export-abi-owned",
+        },
+    )
+
+
 EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
     {
@@ -4844,26 +4989,7 @@ EXPECTED_RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_RUNTIME_PARAMETERS = (
     runtime_scalar_dual_cmp_mask_and_select_runtime_parameters("int32_t")
 )
 EXPECTED_RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_PARAMETERS = (
-    EXPECTED_RUNTIME_PARAMETERS[0],
-    {
-        "c_name": "rhs_scalar",
-        "c_type": "int32_t",
-        "role": "rhs-scalar-value",
-        "ownership": "target-export-abi-owned",
-    },
-    {
-        "c_name": "src",
-        "c_type": "const int32_t *",
-        "role": "source-input-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    {
-        "c_name": "dst",
-        "c_type": "int32_t *",
-        "role": "output-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    EXPECTED_RUNTIME_PARAMETERS[3],
+    runtime_scalar_cmp_masked_store_runtime_parameters("int32_t")
 )
 EXPECTED_COMPUTED_MASK_STRIDED_STORE_RUNTIME_PARAMETERS = (
     *EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS,
@@ -7991,10 +8117,10 @@ def verify_emitted_rvv_cpp(
             expectation.compare_intrinsic,
         ]
         if expectation.is_runtime_scalar_computed_mask_store:
-            intrinsics.append("__riscv_vse32_v_i32m1_m")
+            intrinsics.append(expectation.masked_store_intrinsic)
         else:
             intrinsics.extend(
-                ["__riscv_vle32_v_i32m1_tumu", expectation.unit_store_intrinsic]
+                [expectation.masked_load_intrinsic, expectation.unit_store_intrinsic]
             )
         require_contains(
             text,
@@ -9936,7 +10062,7 @@ def extract_runtime_scalar_computed_mask_store_emitc_boundary(
     load_intrinsic = re.escape(expectation.unit_load_intrinsic)
     splat_intrinsic = re.escape(expectation.scalar_splat_intrinsic)
     compare_intrinsic = re.escape(expectation.compare_intrinsic)
-    masked_store_intrinsic = "__riscv_vse32_v_i32m1_m"
+    masked_store_intrinsic = expectation.masked_store_intrinsic
     fields = _runtime_scalar_computed_mask_memory_signature(text, expectation)
     lhs = fields["lhs"]
     rhs_scalar = fields["rhs_scalar"]
@@ -10040,7 +10166,7 @@ def extract_runtime_scalar_computed_mask_load_store_emitc_boundary(
     load_intrinsic = re.escape(expectation.unit_load_intrinsic)
     splat_intrinsic = re.escape(expectation.scalar_splat_intrinsic)
     compare_intrinsic = re.escape(expectation.compare_intrinsic)
-    masked_load_intrinsic = "__riscv_vle32_v_i32m1_tumu"
+    masked_load_intrinsic = expectation.masked_load_intrinsic
     store_intrinsic = re.escape(expectation.unit_store_intrinsic)
     fields = _runtime_scalar_computed_mask_memory_signature(text, expectation)
     lhs = fields["lhs"]
@@ -14875,6 +15001,12 @@ int main(void) {{
             if expectation.is_runtime_scalar_computed_mask_load_store
             else "runtime_scalar_computed_mask_store"
         )
+        value_printf_format = (
+            "%lld" if expectation.element_c_type == "int64_t" else "%d"
+        )
+        value_printf_cast = (
+            "(long long)" if expectation.element_c_type == "int64_t" else ""
+        )
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -14883,18 +15015,18 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n, int32_t rhs_scalar) {{
+static int run_case(size_t n, {expectation.element_c_type} rhs_scalar) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t dst_alloc_n = alloc_n + 8;
-  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *src_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
-  int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *src = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *src_before = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *dst = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * dst_alloc_n);
+  {expectation.element_c_type} *old_dst = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * dst_alloc_n);
   if (!lhs || !src || !src_before || !dst || !old_dst) {{
-    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d\\n",
-            n, rhs_scalar);
+    fprintf(stderr, "allocation failed for n=%zu rhs_scalar={value_printf_format}\\n",
+            n, {value_printf_cast}rhs_scalar);
     free(lhs);
     free(src);
     free(src_before);
@@ -14925,14 +15057,16 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
       ++active_lanes;
     else
       ++inactive_lanes;
-    int32_t expected = {expectation.expected_expression};
+    {expectation.element_c_type} expected = {expectation.expected_expression};
     if (active && src[index] != old_dst[index])
       ++payload_distinguishing_lanes;
     if (dst[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu rhs_scalar=%d index=%zu got=%d expected=%d lhs=%d src=%d old_dst=%d\\n",
-              n, rhs_scalar, index, dst[index], expected, lhs[index],
-              src[index], old_dst[index]);
+              "{expectation.kind} mismatch n=%zu rhs_scalar={value_printf_format} index=%zu got={value_printf_format} expected={value_printf_format} lhs={value_printf_format} src={value_printf_format} old_dst={value_printf_format}\\n",
+              n, {value_printf_cast}rhs_scalar, index,
+              {value_printf_cast}dst[index], {value_printf_cast}expected,
+              {value_printf_cast}lhs[index], {value_printf_cast}src[index],
+              {value_printf_cast}old_dst[index]);
       free(lhs);
       free(src);
       free(src_before);
@@ -14943,8 +15077,10 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
     if (!active) {{
       if (dst[index] != old_dst[index]) {{
         fprintf(stderr,
-                "{expectation.kind} inactive lane did not preserve old destination n=%zu rhs_scalar=%d index=%zu got=%d old_dst=%d\\n",
-                n, rhs_scalar, index, dst[index], old_dst[index]);
+                "{expectation.kind} inactive lane did not preserve old destination n=%zu rhs_scalar={value_printf_format} index=%zu got={value_printf_format} old_dst={value_printf_format}\\n",
+                n, {value_printf_cast}rhs_scalar, index,
+                {value_printf_cast}dst[index],
+                {value_printf_cast}old_dst[index]);
         free(lhs);
         free(src);
         free(src_before);
@@ -14959,8 +15095,10 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   for (size_t index = n; index < dst_alloc_n; ++index) {{
     if (dst[index] != old_dst[index]) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu rhs_scalar=%d raw_index=%zu got=%d old_dst=%d\\n",
-              n, rhs_scalar, index, dst[index], old_dst[index]);
+              "{expectation.kind} touched tail sentinel n=%zu rhs_scalar={value_printf_format} raw_index=%zu got={value_printf_format} old_dst={value_printf_format}\\n",
+              n, {value_printf_cast}rhs_scalar, index,
+              {value_printf_cast}dst[index],
+              {value_printf_cast}old_dst[index]);
       free(lhs);
       free(src);
       free(src_before);
@@ -14972,8 +15110,10 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   for (size_t index = 0; index < alloc_n; ++index) {{
     if (src[index] != src_before[index]) {{
       fprintf(stderr,
-              "{expectation.kind} source payload buffer mutated n=%zu rhs_scalar=%d index=%zu got=%d before=%d\\n",
-              n, rhs_scalar, index, src[index], src_before[index]);
+              "{expectation.kind} source payload buffer mutated n=%zu rhs_scalar={value_printf_format} index=%zu got={value_printf_format} before={value_printf_format}\\n",
+              n, {value_printf_cast}rhs_scalar, index,
+              {value_printf_cast}src[index],
+              {value_printf_cast}src_before[index]);
       free(lhs);
       free(src);
       free(src_before);
@@ -14985,8 +15125,8 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
 
   if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar=%d active_lanes=%zu inactive_lanes=%zu\\n",
-            n, rhs_scalar, active_lanes, inactive_lanes);
+            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar={value_printf_format} active_lanes=%zu inactive_lanes=%zu\\n",
+            n, {value_printf_cast}rhs_scalar, active_lanes, inactive_lanes);
     free(lhs);
     free(src);
     free(src_before);
@@ -14996,8 +15136,8 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   }}
   if (inactive_lanes != inactive_preserved_lanes) {{
     fprintf(stderr,
-            "{expectation.kind} inactive preservation coverage mismatch n=%zu rhs_scalar=%d inactive_lanes=%zu preserved_lanes=%zu\\n",
-            n, rhs_scalar, inactive_lanes, inactive_preserved_lanes);
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu rhs_scalar={value_printf_format} inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, {value_printf_cast}rhs_scalar, inactive_lanes, inactive_preserved_lanes);
     free(lhs);
     free(src);
     free(src_before);
@@ -15007,8 +15147,8 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   }}
   if (n > 1 && active_lanes != 0 && payload_distinguishing_lanes == 0) {{
     fprintf(stderr,
-            "{expectation.kind} payload-distinguishing coverage missing n=%zu rhs_scalar=%d\\n",
-            n, rhs_scalar);
+            "{expectation.kind} payload-distinguishing coverage missing n=%zu rhs_scalar={value_printf_format}\\n",
+            n, {value_printf_cast}rhs_scalar);
     free(lhs);
     free(src);
     free(src_before);
@@ -15022,15 +15162,15 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   free(src_before);
   free(dst);
   free(old_dst);
-  printf("{expectation.kind} case n=%zu rhs_scalar=%d ok {runtime_masked_memory_label} active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu payload_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
-         n, rhs_scalar, active_lanes, inactive_lanes,
+  printf("{expectation.kind} case n=%zu rhs_scalar={value_printf_format} ok {runtime_masked_memory_label} active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu payload_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
+         n, {value_printf_cast}rhs_scalar, active_lanes, inactive_lanes,
          inactive_preserved_lanes, payload_distinguishing_lanes);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
-  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const {expectation.element_c_type} rhs_scalar_values[] = {{{scalar_values_literal}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t rhs_scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
   for (size_t count_index = 0; count_index < count_count; ++count_index) {{
@@ -19848,7 +19988,7 @@ def runtime_scalar_computed_mask_memory_boundary_summary(
                 expectation.scalar_splat_intrinsic,
                 expectation.unit_load_intrinsic,
                 expectation.compare_intrinsic,
-                "__riscv_vse32_v_i32m1_m",
+                expectation.masked_store_intrinsic,
             ],
             "compare_operand_order": "lhs,rhs_scalar_splat,vl",
             "masked_store_operand_order": "mask,dst,src,vl",
@@ -19877,7 +20017,7 @@ def runtime_scalar_computed_mask_memory_boundary_summary(
                 expectation.scalar_splat_intrinsic,
                 expectation.unit_load_intrinsic,
                 expectation.compare_intrinsic,
-                "__riscv_vle32_v_i32m1_tumu",
+                expectation.masked_load_intrinsic,
                 expectation.unit_store_intrinsic,
             ],
             "compare_operand_order": "lhs,rhs_scalar_splat,vl",

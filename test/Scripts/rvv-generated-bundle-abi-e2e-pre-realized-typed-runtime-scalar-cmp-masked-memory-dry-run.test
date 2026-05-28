@@ -1,0 +1,88 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-typed-runtime-scalar-cmp-masked-memory --overwrite --op-kind runtime_scalar_cmp_masked_store_i64 --op-kind runtime_scalar_cmp_masked_store_lmul_m2 --op-kind runtime_scalar_cmp_masked_load_store_i64 --op-kind runtime_scalar_cmp_masked_load_store_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/evidence.json
+# RUN: FileCheck %s --check-prefix=STOREI64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_store_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=STOREM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_store_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=LOADI64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_load_store_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=LOADM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_load_store_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS-I64 < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_store_i64/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_store_i64_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-M2 < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-memory/runtime_scalar_cmp_masked_load_store_lmul_m2/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_load_store_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_store_i64"
+# ROOT-DAG: "runtime_scalar_cmp_masked_store_lmul_m2"
+# ROOT-DAG: "runtime_scalar_cmp_masked_load_store_i64"
+# ROOT-DAG: "runtime_scalar_cmp_masked_load_store_lmul_m2"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# STOREI64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-i64.mlir"
+# STOREI64-DAG: "prototype": "void tcrv_emitc_pr_rt_cmp_mstore_i64_kernel_pr_rvv_cmp_mstore_i64(const int64_t *lhs, int64_t rhs_scalar, const int64_t *src, int64_t *dst, size_t n);"
+# STOREI64-DAG: "expected_selected_variant": "pr_rvv_cmp_mstore_i64"
+# STOREI64-DAG: "element_type": "i64"
+# STOREI64-DAG: "sew": "64"
+# STOREI64-DAG: "lmul": "m1"
+# STOREI64-DAG: "config_contract": "rvv-selected-body-sew64-lmul-m1-tail-undisturbed-mask-undisturbed.v1"
+# STOREI64-DAG: "vector_c_type": "vint64m1_t"
+# STOREI64-DAG: "predicate_mask_type": "vbool64_t"
+# STOREI64-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i64m1"
+# STOREI64-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i64m1_b64"
+# STOREI64-DAG: "masked_store_intrinsic": "__riscv_vse64_v_i64m1_m"
+# STOREI64-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-runtime-scalar-cmp-masked-store-leaf-profile.v1"
+# STOREI64-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,dst:masked-store"
+# STOREI64-DAG: "status": "dry_run_success"
+
+# STOREM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-lmul-m2.mlir"
+# STOREM2-DAG: "prototype": "void tcrv_emitc_pr_rt_cmp_mstore_m2_kernel_pr_rvv_cmp_mstore_m2(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *dst, size_t n);"
+# STOREM2-DAG: "expected_selected_variant": "pr_rvv_cmp_mstore_m2"
+# STOREM2-DAG: "element_type": "i32"
+# STOREM2-DAG: "sew": "32"
+# STOREM2-DAG: "lmul": "m2"
+# STOREM2-DAG: "config_contract": "rvv-selected-body-sew32-lmul-m2-tail-undisturbed-mask-undisturbed.v1"
+# STOREM2-DAG: "vector_c_type": "vint32m2_t"
+# STOREM2-DAG: "predicate_mask_type": "vbool16_t"
+# STOREM2-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m2"
+# STOREM2-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m2_b16"
+# STOREM2-DAG: "masked_store_intrinsic": "__riscv_vse32_v_i32m2_m"
+# STOREM2-DAG: "status": "dry_run_success"
+
+# LOADI64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store-i64.mlir"
+# LOADI64-DAG: "prototype": "void tcrv_emitc_pr_rt_cmp_mload_i64_kernel_pr_rvv_cmp_mload_i64(const int64_t *lhs, int64_t rhs_scalar, const int64_t *src, int64_t *dst, size_t n);"
+# LOADI64-DAG: "expected_selected_variant": "pr_rvv_cmp_mload_i64"
+# LOADI64-DAG: "element_type": "i64"
+# LOADI64-DAG: "sew": "64"
+# LOADI64-DAG: "lmul": "m1"
+# LOADI64-DAG: "config_contract": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
+# LOADI64-DAG: "vector_c_type": "vint64m1_t"
+# LOADI64-DAG: "predicate_mask_type": "vbool64_t"
+# LOADI64-DAG: "masked_load_intrinsic": "__riscv_vle64_v_i64m1_tumu"
+# LOADI64-DAG: "store_intrinsic": "__riscv_vse64_v_i64m1"
+# LOADI64-DAG: "status": "dry_run_success"
+
+# LOADM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store-lmul-m2.mlir"
+# LOADM2-DAG: "prototype": "void tcrv_emitc_pr_rt_cmp_mload_m2_kernel_pr_rvv_cmp_mload_m2(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *dst, size_t n);"
+# LOADM2-DAG: "expected_selected_variant": "pr_rvv_cmp_mload_m2"
+# LOADM2-DAG: "element_type": "i32"
+# LOADM2-DAG: "sew": "32"
+# LOADM2-DAG: "lmul": "m2"
+# LOADM2-DAG: "config_contract": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# LOADM2-DAG: "vector_c_type": "vint32m2_t"
+# LOADM2-DAG: "predicate_mask_type": "vbool16_t"
+# LOADM2-DAG: "masked_load_intrinsic": "__riscv_vle32_v_i32m2_tumu"
+# LOADM2-DAG: "store_intrinsic": "__riscv_vse32_v_i32m2"
+# LOADM2-DAG: "status": "dry_run_success"
+
+# HARNESS-I64: static int run_case(size_t n, int64_t rhs_scalar)
+# HARNESS-I64: int64_t *lhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
+# HARNESS-I64: tcrv_emitc_pr_rt_cmp_mstore_i64_kernel_pr_rvv_cmp_mstore_i64(lhs, rhs_scalar, src, dst, n);
+# HARNESS-I64: const int64_t rhs_scalar_values[] = {(int64_t)-37LL, (int64_t)91LL};
+
+# HARNESS-M2: static int run_case(size_t n, int32_t rhs_scalar)
+# HARNESS-M2: int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS-M2: tcrv_emitc_pr_rt_cmp_mload_m2_kernel_pr_rvv_cmp_mload_m2(lhs, rhs_scalar, src, dst, n);
+# HARNESS-M2: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
