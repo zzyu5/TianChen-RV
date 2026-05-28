@@ -5584,6 +5584,56 @@ bool isRVVVectorReductionTargetArtifactRouteFamilyConsumer(
              plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
 }
 
+constexpr llvm::StringLiteral kRVVVectorReductionRuntimeABIOrder(
+    "lhs,rhs,out,n");
+constexpr llvm::StringLiteral kRVVVectorReductionAccumulatorLayout(
+    "rhs-vector-seed-lane0-per-vl-chunk");
+constexpr llvm::StringLiteral kRVVVectorReductionResultLayout(
+    "store-reduction-lane0-to-output-chunk-base");
+constexpr llvm::StringLiteral kRVVVectorReductionStoreVL("1");
+
+llvm::Error validateRVVVectorReductionRuntimeABIFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIOrder != kRVVVectorReductionRuntimeABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("vector reduction target artifact consumer requires "
+                    "provider-derived runtime ABI order '") +
+        kRVVVectorReductionRuntimeABIOrder + "' but was '" +
+        description.runtimeABIOrder + "'");
+  if (description.runtimeABIParameters.size() != 4)
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider-derived "
+        "runtime ABI parameters for lhs, rhs seed/accumulator, out, and n "
+        "before artifact export");
+
+  struct ExpectedRuntimeABIParameterRole {
+    llvm::StringRef cName;
+    support::RuntimeABIParameterRole role;
+  };
+  const ExpectedRuntimeABIParameterRole expectedRoles[] = {
+      {"lhs", support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"rhs", support::RuntimeABIParameterRole::RHSInputBuffer},
+      {"out", support::RuntimeABIParameterRole::OutputBuffer},
+      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
+  };
+  constexpr size_t expectedRoleCount =
+      sizeof(expectedRoles) / sizeof(expectedRoles[0]);
+  for (size_t index = 0; index < expectedRoleCount; ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    if (actual.cName != expectedRoles[index].cName ||
+        actual.role != expectedRoles[index].role)
+      return makeRVVTargetRouteError(
+          llvm::Twine("vector reduction target artifact consumer requires "
+                      "provider-derived runtime ABI parameter ") +
+          std::to_string(index) + " to bind " + expectedRoles[index].cName +
+          " as " +
+          support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
+          " before artifact export");
+  }
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVVectorReductionRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -5693,6 +5743,16 @@ llvm::Error validateRVVVectorReductionRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "vector reduction target artifact consumer requires provider route "
         "operand binding facts before artifact export");
+  llvm::StringRef routeOperandBindingSummary(
+      description.routeOperandBindingSummary);
+  if (!routeOperandBindingSummary.contains("lhs=lhs-input-buffer") ||
+      !routeOperandBindingSummary.contains("rhs=rhs-input-buffer") ||
+      !routeOperandBindingSummary.contains("out=output-buffer") ||
+      !routeOperandBindingSummary.contains("n=runtime-element-count"))
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider route "
+        "operand binding facts for lhs input, rhs seed/accumulator, scalar "
+        "output slot, and runtime n before artifact export");
   if (description.memoryForm !=
           plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad ||
       description.typedComputeOpName != "tcrv_rvv.reduce")
@@ -5703,6 +5763,9 @@ llvm::Error validateRVVVectorReductionRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "vector reduction target artifact consumer requires "
         "provider-derived runtime AVL/VL facts before artifact export");
+  if (llvm::Error error =
+          validateRVVVectorReductionRuntimeABIFacts(description))
+    return error;
   if (description.reductionAccumulatorLayout.empty() ||
       description.reductionResultLayout.empty() ||
       description.reductionStoreVL.empty() ||
@@ -5712,6 +5775,20 @@ llvm::Error validateRVVVectorReductionRoutePayloadFacts(
         "vector reduction target artifact consumer requires "
         "provider-derived reduction layout, vector load, reduction, and store "
         "facts before artifact export");
+  if (description.reductionAccumulatorLayout !=
+          kRVVVectorReductionAccumulatorLayout ||
+      description.reductionResultLayout != kRVVVectorReductionResultLayout ||
+      description.reductionStoreVL != kRVVVectorReductionStoreVL)
+    return makeRVVTargetRouteError(
+        llvm::Twine("vector reduction target artifact consumer requires "
+                    "provider-derived reduce_add layout facts accumulator '") +
+        kRVVVectorReductionAccumulatorLayout + "', result '" +
+        kRVVVectorReductionResultLayout + "', and store VL '" +
+        kRVVVectorReductionStoreVL + "' before artifact export but provider "
+        "carried accumulator '" +
+        description.reductionAccumulatorLayout + "', result '" +
+        description.reductionResultLayout + "', and store VL '" +
+        description.reductionStoreVL + "'");
   if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
       !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||

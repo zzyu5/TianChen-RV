@@ -1456,6 +1456,151 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  RVVTargetArtifactCandidateFixture vectorReductionFixture(
+      OperationKind::ReduceAdd);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          vectorReductionFixture,
+          "build valid RVV vector-reduction reduce_add candidate fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         vectorReductionFixture.candidate, *exporter),
+                     "validate RVV vector-reduction reduce_add target "
+                     "artifact candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute vectorReductionRoute;
+  RVVRouteDescription vectorReductionDescription;
+  if (!buildRVVRouteValidationInputs(
+          vectorReductionFixture, vectorReductionRoute,
+          vectorReductionDescription,
+          "rebuild RVV vector-reduction reduce_add route validator inputs"))
+    return false;
+  RVVRouteValidationContext vectorReductionContext{
+      vectorReductionFixture.candidate, vectorReductionRoute,
+      vectorReductionDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  vectorReductionContext),
+          "vector-reduction reduce_add registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  vectorReductionContext),
+          "vector-reduction reduce_add registry accepts candidate mirrors"))
+    return false;
+
+  auto expectVectorReductionProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        vectorReductionFixture.candidate, vectorReductionRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectVectorReductionCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, vectorReductionRoute, vectorReductionDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleVectorReductionABIOrder =
+      vectorReductionDescription;
+  staleVectorReductionABIOrder.runtimeABIOrder = "lhs,out,rhs,n";
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionABIOrder,
+          "vector-reduction reduce_add registry rejects stale runtime ABI "
+          "order",
+          {"runtime ABI order", "lhs,rhs,out,n", "lhs,out,rhs,n"}))
+    return false;
+
+  RVVRouteDescription staleVectorReductionAccumulatorRole =
+      vectorReductionDescription;
+  staleVectorReductionAccumulatorRole.routeOperandBindingSummary =
+      "rvv-route-operand-binding:reduce_add.v1;"
+      "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base;"
+      "rhs=metadata-derived-buffer:rhs:runtime-abi-mirror;"
+      "out=output-buffer:out:runtime-abi-mirror;"
+      "n=runtime-element-count:n:runtime-abi-mirror";
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionAccumulatorRole,
+          "vector-reduction reduce_add registry rejects stale seed/"
+          "accumulator binding",
+          {"operand binding", "rhs seed/accumulator"}))
+    return false;
+
+  RVVRouteDescription staleVectorReductionLayout = vectorReductionDescription;
+  staleVectorReductionLayout.reductionAccumulatorLayout =
+      "metadata-derived-accumulator-layout";
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionLayout,
+          "vector-reduction reduce_add registry rejects stale accumulator "
+          "layout",
+          {"reduce_add layout facts", "rhs-vector-seed-lane0-per-vl-chunk",
+           "metadata-derived-accumulator-layout"}))
+    return false;
+
+  RVVRouteDescription staleVectorReductionStoreVL = vectorReductionDescription;
+  staleVectorReductionStoreVL.reductionStoreVL = "full_chunk_vl";
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionStoreVL,
+          "vector-reduction reduce_add registry rejects stale scalar store VL",
+          {"reduce_add layout facts", "store VL '1'", "full_chunk_vl"}))
+    return false;
+
+  TargetArtifactCandidate staleVectorReductionABIMirror =
+      vectorReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleVectorReductionABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,out,rhs,n")) {
+    llvm::errs() << "test fixture did not contain vector-reduction runtime "
+                    "ABI order mirror metadata\n";
+    return false;
+  }
+  if (!expectVectorReductionCandidateFailure(
+          staleVectorReductionABIMirror,
+          "vector-reduction reduce_add registry rejects stale ABI mirror",
+          {"runtime_abi_order", "lhs,rhs,out,n", "lhs,out,rhs,n"}))
+    return false;
+
+  TargetArtifactCandidate staleVectorReductionStoreVLMirror =
+      vectorReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleVectorReductionStoreVLMirror,
+                                    "tcrv_rvv.reduction_store_vl",
+                                    "full_chunk_vl")) {
+    llvm::errs() << "test fixture did not contain vector-reduction store VL "
+                    "mirror metadata\n";
+    return false;
+  }
+  if (!expectVectorReductionCandidateFailure(
+          staleVectorReductionStoreVLMirror,
+          "vector-reduction reduce_add registry rejects stale store VL mirror",
+          {"reduction_store_vl", "1", "full_chunk_vl"}))
+    return false;
+
+  TargetArtifactCandidate staleVectorReductionNonFamilyMirror =
+      vectorReductionFixture.candidate;
+  staleVectorReductionNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+          "metadata-derived-elementwise"));
+  if (!expectVectorReductionCandidateFailure(
+          staleVectorReductionNonFamilyMirror,
+          "vector-reduction reduce_add registry rejects stale non-vector "
+          "candidate route-family mirror",
+          {"must not carry",
+           "selected typed RVV non-vector-reduction route-family mirror"}))
+    return false;
+
   auto expectBaseMemoryPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture,

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage1/Stage2 boundaries, and mirror-only metadata constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed selected-body authority, reduction/accumulation rules, provider facts, target artifact validator boundary, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec owns ABI/runtime envelope only and must not infer RVV reduce semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and runtime ABI boundary for selected extension routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated bundle and real ssh rvv evidence requirements for RVV runtime/correctness claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, typed body, route provider, and metadata mirror constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-route-family-validator-coverage-gate/prd.md", "reason": "Immediate predecessor task that added fail-closed validator coverage and vector-reduction target validator."}

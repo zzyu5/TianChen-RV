@@ -1664,6 +1664,17 @@ class OpExpectation:
         return f"__riscv_{op_leaf}_vv_{self.element_type}{self.lmul}"
 
     @property
+    def vector_reduction_intrinsic(self) -> str:
+        if not self.is_reduce_add:
+            raise EvidenceError(
+                f"{self.kind} has no vector reduction intrinsic expectation"
+            )
+        return (
+            f"__riscv_vredsum_vs_{self.element_type}{self.lmul}_"
+            f"{self.element_type}{self.lmul}"
+        )
+
+    @property
     def standalone_reduction_intrinsic(self) -> str:
         if self.is_standalone_reduce:
             reduction_kind = self.standalone_reduction_kind
@@ -6172,6 +6183,31 @@ REDUCTION_ACCUMULATION_METADATA_KEYS = (
     "tcrv_rvv.reduction_store_vl",
     "tcrv_rvv.runtime_abi_order",
 )
+VECTOR_REDUCTION_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.runtime_avl_abi_parameter",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.emitc_loop",
+    "tcrv_rvv.loop_induction",
+    "tcrv_rvv.loop_step",
+    "tcrv_rvv.remaining_avl",
+    "tcrv_rvv.pointer_advance",
+    "tcrv_rvv.multi_vl",
+    "tcrv_rvv.reduction_accumulator_layout",
+    "tcrv_rvv.reduction_result_layout",
+    "tcrv_rvv.reduction_store_vl",
+)
 MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.element_type",
@@ -8480,6 +8516,7 @@ def verify_emitted_rvv_cpp(
     compare_select_predicate_boundary: dict[str, Any] = {}
     conversion_sew_policy_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
+    vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
     computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
@@ -8735,6 +8772,42 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = conversion_sew_policy_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_reduce_add:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.vector_reduction_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ vector reduction vector C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ vector reduction intrinsic spelling",
+            )
+        runtime_avl_vl_boundary = extract_runtime_avl_vl_emitc_boundary(
+            text, expectation
+        )
+        vector_reduction_boundary = {
+            "typed_compute_op": "tcrv_rvv.reduce",
+            "reduction_kind": "add",
+            "vector_c_type": vector_c_type,
+            "source_load_intrinsic": expectation.unit_load_intrinsic,
+            "seed_accumulator_load_intrinsic": expectation.unit_load_intrinsic,
+            "reduction_intrinsic": expectation.vector_reduction_intrinsic,
+            "store_intrinsic": expectation.unit_store_intrinsic,
+            "accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+            "result_layout": REDUCE_ADD_RESULT_LAYOUT,
+            "store_vl": REDUCE_ADD_STORE_VL,
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+            "uses_scalar_result_store_vl": True,
+        }
     if expectation.is_standalone_reduce_add:
         source_vector_c_type = expectation.standalone_reduction_source_vector_c_type
         scalar_result_vector_c_type = (
@@ -8980,6 +9053,7 @@ def verify_emitted_rvv_cpp(
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
+        "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
         "computed_masked_widening_dot_reduce_boundary": (
@@ -10986,15 +11060,23 @@ def extract_runtime_avl_vl_emitc_boundary(
     )
     remaining_avl = remaining.group("remaining_avl")
     loop_vl = remaining.group("loop_vl")
-    for intrinsic, context in (
-        (expectation.unit_load_intrinsic, "load"),
-        (expectation.plain_binary_compute_intrinsic, "compute"),
-        (expectation.unit_store_intrinsic, "store"),
-    ):
+    if expectation.is_reduce_add:
+        intrinsic_uses = (
+            (expectation.unit_load_intrinsic, "load", loop_vl),
+            (expectation.vector_reduction_intrinsic, "compute", loop_vl),
+            (expectation.unit_store_intrinsic, "store", REDUCE_ADD_STORE_VL),
+        )
+    else:
+        intrinsic_uses = (
+            (expectation.unit_load_intrinsic, "load", loop_vl),
+            (expectation.plain_binary_compute_intrinsic, "compute", loop_vl),
+            (expectation.unit_store_intrinsic, "store", loop_vl),
+        )
+    for intrinsic, context, vl_operand in intrinsic_uses:
         require_regex(
             text,
-            rf"{re.escape(intrinsic)}\([^;\n]*,\s*{loop_vl}\)",
-            f"emitted RVV C/C++ {context} intrinsic uses loop VL",
+            rf"{re.escape(intrinsic)}\([^;\n]*,\s*{vl_operand}\)",
+            f"emitted RVV C/C++ {context} intrinsic uses expected VL operand",
         )
     return {
         "runtime_abi_parameter": runtime_n,
@@ -11007,7 +11089,9 @@ def extract_runtime_avl_vl_emitc_boundary(
         "loop_remaining_avl": f"{runtime_n} - {offset}",
         "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
         "uses_runtime_remaining_avl": True,
-        "uses_loop_vl_for_intrinsics": True,
+        "uses_loop_vl_for_intrinsics": not expectation.is_reduce_add,
+        "uses_expected_vl_operands_for_intrinsics": True,
+        "store_uses_scalar_result_vl": expectation.is_reduce_add,
     }
 
 
@@ -11194,6 +11278,7 @@ def verify_materialized_selected_body(
             extract_widening_conversion_materialized_boundary(text, expectation)
         )
     reduction_accumulation_boundary: dict[str, Any] = {}
+    vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
     computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
@@ -12867,6 +12952,26 @@ def verify_materialized_selected_body(
             'result_layout = "store-reduction-lane0-to-output-chunk-base"',
             "materialized selected-body MLIR reduce result layout",
         )
+        vector_reduction_boundary = {
+            "typed_compute_op": "tcrv_rvv.reduce",
+            "reduction_kind": "add",
+            "source_vector_type": expectation.rvv_vector_type,
+            "seed_accumulator_vector_type": expectation.rvv_vector_type,
+            "result_vector_type": expectation.rvv_vector_type,
+            "source_element_type": expectation.element_type,
+            "accumulator_element_type": expectation.element_type,
+            "result_element_type": expectation.element_type,
+            "accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+            "result_layout": REDUCE_ADD_RESULT_LAYOUT,
+            "store_vl": REDUCE_ADD_STORE_VL,
+            "selected_source_abi": {
+                "lhs": "lhs-input-buffer",
+                "rhs": "rhs-input-buffer seed/accumulator vector",
+                "out": "output-buffer lane0 scalar result per chunk",
+                "n": "runtime-element-count",
+            },
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_standalone_reduce:
         require_contains(
             text,
@@ -13415,6 +13520,7 @@ def verify_materialized_selected_body(
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
+        "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
         "computed_masked_widening_dot_reduce_boundary": (
@@ -19994,6 +20100,36 @@ def reduction_accumulation_metadata_from_bundle(
     return metadata
 
 
+def vector_reduction_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "vector-reduction evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in VECTOR_REDUCTION_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object vector-reduction metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header vector-reduction metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def multiply_accumulate_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
@@ -20810,6 +20946,140 @@ def conversion_sew_policy_boundary_summary(
         },
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_conversion_authority": True,
+    }
+
+
+def vector_reduction_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_reduce_add:
+        return {}
+    return {
+        "source": (
+            "selected tcrv.exec RVV variant -> typed tcrv_rvv.reduce "
+            "body/config/runtime facts -> RVV provider reduction route facts "
+            "-> target-owned vector-reduction validator -> neutral EmitC "
+            "materialization -> runtime-callable artifact ABI"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv vector-reduction "
+            "body/config/runtime facts"
+        ),
+        "target_artifact_validator": (
+            "target-owned vector-reduction route-family validator"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "direct_pre_realized_route_entry_supported": False,
+        "reduction_kind": "add",
+        "typed_compute_op": "tcrv_rvv.reduce",
+        "memory_form": "vector-rhs-load",
+        "source_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+        },
+        "accumulator_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+            "abi_role": "rhs-input-buffer",
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "layout": REDUCE_ADD_RESULT_LAYOUT,
+            "abi_role": "output-buffer",
+            "scalar_store_vl": REDUCE_ADD_STORE_VL,
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+        },
+        "selected_source_abi": {
+            "lhs": "lhs-input-buffer",
+            "rhs": "rhs-input-buffer seed/accumulator vector",
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        },
+        "statement_plan": {
+            "family": "vector-reduction reduce_add",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.vector_reduction_intrinsic,
+                expectation.unit_store_intrinsic,
+            ],
+            "reduction_operand_order": "lhs_source,rhs_seed_accumulator,vl",
+            "store_pointer": "out + loop_induction",
+            "store_vl": REDUCE_ADD_STORE_VL,
+        },
+        "provider_route_facts": {
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "route_operand_binding_plan": REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN,
+            "route_operand_binding_operands": (
+                REDUCE_ADD_ROUTE_OPERAND_BINDING_OPERANDS
+            ),
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "vector_load_intrinsic": expectation.unit_load_intrinsic,
+            "reduction_intrinsic": expectation.vector_reduction_intrinsic,
+            "store_intrinsic": expectation.unit_store_intrinsic,
+            "reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+            "reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
+            "reduction_store_vl": REDUCE_ADD_STORE_VL,
+        },
+        "target_validator_consumed_facts": [
+            "emitc_route_id",
+            "typed_compute_op_name",
+            "memory_form",
+            "runtime_abi_order",
+            "runtime_abi_parameter_roles",
+            "route_operand_binding_plan",
+            "route_operand_binding_operands",
+            "vl_and_vector_type_mappings",
+            "setvl_intrinsic",
+            "vector_load_intrinsic",
+            "reduction_intrinsic",
+            "store_intrinsic",
+            "reduction_accumulator_layout",
+            "reduction_result_layout",
+            "reduction_store_vl",
+            "statement_plan",
+            "candidate_mirror_labels",
+        ],
+        "materialized_body": materialized_checks.get(
+            "vector_reduction_boundary",
+            {
+                "typed_compute_op": materialized_checks.get(
+                    "typed_compute_op"
+                ),
+                "memory_form": materialized_checks.get("memory_form"),
+                "runtime_avl_vl_boundary": materialized_checks.get(
+                    "runtime_avl_vl_boundary", {}
+                ),
+            },
+        ),
+        "emitted_cpp": emitted_cpp_checks.get("vector_reduction_boundary", {}),
+        "route_metadata": vector_reduction_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "runtime_parameters": expectation.runtime_parameters,
+        },
+        "empty_count_behavior": "runtime loop skipped; output tail sentinel preserved",
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_reduction_authority": True,
     }
 
 
@@ -21689,6 +21959,18 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
+        if expectation.is_reduce_add:
+            evidence["vector_reduction_boundary"] = (
+                vector_reduction_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
         if expectation.is_standalone_reduce_add or (
             expectation.is_computed_mask_standalone_reduce_add
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
@@ -22250,6 +22532,9 @@ def root_op_result_summary(
         "conversion_sew_policy_boundary": result.get(
             "conversion_sew_policy_boundary", {}
         ),
+        "vector_reduction_boundary": result.get(
+            "vector_reduction_boundary", {}
+        ),
         "reduction_accumulation_boundary": result.get(
             "reduction_accumulation_boundary", {}
         ),
@@ -22667,7 +22952,27 @@ def run_self_test() -> int:
             bundle = make_fake_bundle(
                 tmp / expectation.input_mode / expectation.kind, expectation
             )
-            verify_bundle(bundle, readobj=None, expectation=expectation)
+            bundle_checks = verify_bundle(
+                bundle, readobj=None, expectation=expectation
+            )
+            if expectation.is_reduce_add:
+                vector_reduction_metadata = vector_reduction_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                if (
+                    vector_reduction_metadata.get(
+                        "tcrv_rvv.reduction_store_vl"
+                    )
+                    != REDUCE_ADD_STORE_VL
+                    or vector_reduction_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost vector "
+                        "reduction validator-backed metadata"
+                    )
             harness = harness_source(
                 "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
                 [1, 17, 257],
