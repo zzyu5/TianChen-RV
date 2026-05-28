@@ -16846,6 +16846,39 @@ module {
           "plain standalone reduce-add m2 plan must derive source m2, scalar "
           "result m1, and add operand-binding facts from the family plan"))
     return result;
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for standalone reduction provider route test"))
+    return result;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute plainM2Route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  plainM2Variant, plainM2Kernel,
+                  TargetCapabilitySet::buildFromKernel(plainM2Kernel),
+                  VariantEmissionRole::DirectVariant),
+              plainM2Route),
+          "build standalone reduce-add m2 provider route"))
+    return result;
+  if (int result = expect(
+          routeHasTypeMapping(
+              plainM2Route,
+              plainM2Analysis->standaloneReductionRouteFamilyPlan
+                  ->sourceVectorTypeName,
+              plainM2Analysis->standaloneReductionRouteFamilyPlan
+                  ->sourceVectorCType) &&
+              routeHasTypeMapping(
+                  plainM2Route,
+                  plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorTypeName,
+                  plainM2Analysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorCType) &&
+              routeABIMappingsMatchDescription(plainM2Route,
+                                               plainM2Analysis->description),
+          "plain standalone reduce-add m2 provider route maps source m2, "
+          "scalar-result m1, and ABI order from provider facts"))
+    return result;
 
   RVVSelectedBodyRouteAnalysis stale = *plainAnalysis;
   stale.standaloneReductionRouteFamilyPlan->operation =
@@ -16863,6 +16896,44 @@ module {
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               stale, "standalone reduction provider unit test"),
           {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainM2Analysis;
+  stale.description.standaloneReductionSourceVectorTypeName =
+      "!tcrv_rvv.vector<i32, \"m1\">";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction m2 provider unit test"),
+          {"source/scalar-result channel mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainM2Analysis;
+  stale.description.standaloneReductionSourceVectorCType = "vint32m1_t";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction m2 provider unit test"),
+          {"source/scalar-result channel mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainM2Analysis;
+  stale.description.standaloneReductionScalarResultVectorTypeName =
+      "!tcrv_rvv.vector<i32, \"m2\">";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction m2 provider unit test"),
+          {"source/scalar-result channel mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainM2Analysis;
+  stale.description.standaloneReductionScalarResultVectorCType = "vint32m2_t";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction m2 provider unit test"),
+          {"source/scalar-result channel mirrors",
            "validated family plan"}))
     return result;
 

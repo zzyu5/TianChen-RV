@@ -2122,6 +2122,32 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteTypeMappings(
         llvm::Twine("standalone reduction/accumulation target artifact "
                     "consumer requires rebuilt provider route type mapping '") +
         description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+  if (description.standaloneReductionSourceVectorTypeName.empty() ||
+      description.standaloneReductionSourceVectorCType.empty() ||
+      description.standaloneReductionScalarResultVectorTypeName.empty() ||
+      description.standaloneReductionScalarResultVectorCType.empty())
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-derived source and scalar-result vector type mapping facts "
+        "before artifact export");
+  if (!routeHasTypeMapping(
+          route, description.standaloneReductionSourceVectorTypeName,
+          description.standaloneReductionSourceVectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("standalone reduction/accumulation target artifact "
+                    "consumer requires rebuilt provider route source type "
+                    "mapping '") +
+        description.standaloneReductionSourceVectorTypeName + "' -> '" +
+        description.standaloneReductionSourceVectorCType + "'");
+  if (!routeHasTypeMapping(
+          route, description.standaloneReductionScalarResultVectorTypeName,
+          description.standaloneReductionScalarResultVectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("standalone reduction/accumulation target artifact "
+                    "consumer requires rebuilt provider route scalar-result "
+                    "type mapping '") +
+        description.standaloneReductionScalarResultVectorTypeName + "' -> '" +
+        description.standaloneReductionScalarResultVectorCType + "'");
 
   if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
           description.operation)) {

@@ -24235,6 +24235,18 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " standalone reduction scalar-result runtime boundary mirror must "
         "match the validated family plan before provider materialization");
+  if (analysis.description.standaloneReductionSourceVectorTypeName !=
+          plan.sourceVectorTypeName ||
+      analysis.description.standaloneReductionSourceVectorCType !=
+          plan.sourceVectorCType ||
+      analysis.description.standaloneReductionScalarResultVectorTypeName !=
+          plan.scalarResultVectorTypeName ||
+      analysis.description.standaloneReductionScalarResultVectorCType !=
+          plan.scalarResultVectorCType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction source/scalar-result channel mirrors must "
+        "match the validated family plan before provider materialization");
   if (analysis.description.inactiveLaneZeroingRequirement !=
       plan.inactiveLaneZeroingRequirement)
     return makeRVVEmitCRouteProviderError(

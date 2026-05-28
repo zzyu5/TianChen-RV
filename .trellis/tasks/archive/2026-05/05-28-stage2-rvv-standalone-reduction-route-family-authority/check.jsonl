@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global RVV-first authority and no descriptor/common-EmitC semantic drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify standalone-reduction source/scalar channel closure and artifact mirror-only handling."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC stays neutral and target artifacts consume provider routes."}
