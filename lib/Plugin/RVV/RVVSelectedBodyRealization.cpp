@@ -283,6 +283,13 @@ bool isPreRealizedRuntimeScalarComputedMaskMAccPredicateKind(
   return predicateKind == "sle";
 }
 
+bool isPreRealizedRuntimeScalarComputedMaskMAccConfig(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == tcrv::rvv::getRVVLMULM1() ||
+          lmul == tcrv::rvv::getRVVLMULM2());
+}
+
 bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_standalone_reduce_add" ||
@@ -3158,12 +3165,11 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
         "pre-realized RVV selected runtime scalar computed-mask macc body "
         "currently supports only result_layout "
         "'store-multiply-accumulate-result-to-output-buffer'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  if (!isPreRealizedRuntimeScalarComputedMaskMAccConfig(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask macc body "
-        "requires SEW32 LMUL m1");
+        "requires SEW32 LMUL m1 or SEW32 LMUL m2");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask macc body "
@@ -8886,8 +8892,8 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
     llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
         deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
             variant, runtimeScalarMaskedMAccBody.getN(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1(),
+            static_cast<std::int64_t>(runtimeScalarMaskedMAccBody.getSew()),
+            runtimeScalarMaskedMAccBody.getLmul(),
             runtimeScalarMaskedMAccBody.getPolicy(),
             "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n",
             "pre-realized RVV runtime scalar computed-mask macc "

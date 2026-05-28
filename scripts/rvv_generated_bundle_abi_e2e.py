@@ -86,6 +86,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "scalar_broadcast_macc_add",
     "computed_masked_macc_add",
     "runtime_scalar_cmp_masked_macc_add",
+    "runtime_scalar_cmp_masked_macc_add_lmul_m2",
     "widening_macc_add",
     "widening_dot_reduce_add",
     "strided_input_widening_dot_reduce_add",
@@ -257,7 +258,7 @@ RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT = (
     "masked-macc-output-runtime-abi"
 )
 RUNTIME_SCALAR_COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1"
+    "rvv-v1-typed-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1"
 )
 RUNTIME_SCALAR_COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-"
@@ -267,8 +268,8 @@ RUNTIME_SCALAR_COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 RUNTIME_SCALAR_COMPUTED_MASKED_MACC_C_TYPE_MAPPING = (
-    "vl:size_t,cmp_lhs/lhs/rhs/acc:signed-e32m1,rhs_scalar:i32,mask:b32,"
-    "result:signed-e32m1"
+    "vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,"
+    "mask:typed-mask,result:typed-vector"
 )
 WIDENING_MACC_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 WIDENING_MACC_RESULT_LAYOUT = (
@@ -1437,6 +1438,10 @@ def runtime_scalar_computed_mask_standalone_reduce_base_kind(kind: str) -> str:
     return base
 
 
+def runtime_scalar_computed_masked_macc_base_kind(kind: str) -> str:
+    return kind.removesuffix("_lmul_m2")
+
+
 def is_runtime_scalar_computed_mask_standalone_reduce_kind(kind: str) -> bool:
     return runtime_scalar_computed_mask_standalone_reduce_base_kind(kind) in {
         "runtime_scalar_cmp_masked_standalone_reduce_add",
@@ -2074,6 +2079,8 @@ class OpExpectation:
             return runtime_scalar_computed_mask_standalone_reduce_base_kind(
                 self.kind
             )
+        if self.is_runtime_scalar_computed_masked_macc_add:
+            return runtime_scalar_computed_masked_macc_base_kind(self.kind)
         if self.is_i64_add or self.is_lmul_m2_add:
             return "add"
         if self.kind in {"cmp_select_sle", "cmp_select_i64", "cmp_select_lmul_m2"}:
@@ -2298,7 +2305,10 @@ class OpExpectation:
 
     @property
     def is_runtime_scalar_computed_masked_macc_add(self) -> bool:
-        return self.kind == "runtime_scalar_cmp_masked_macc_add"
+        return (
+            runtime_scalar_computed_masked_macc_base_kind(self.kind)
+            == "runtime_scalar_cmp_masked_macc_add"
+        )
 
     @property
     def is_widening_macc_add(self) -> bool:
@@ -4262,6 +4272,19 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pr_rt_scalar_masked_macc",
         function_name="tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc",
+    ),
+    "runtime_scalar_cmp_masked_macc_add_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_macc_add"
+        ],
+        kind="runtime_scalar_cmp_masked_macc_add_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pr_rt_scalar_masked_macc_m2",
+        function_name="tcrv_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "strided_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_add"],

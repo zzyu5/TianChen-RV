@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Review final diff against global stack, authority, and RVV stage constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, route planning/provider, route-control, statement-plan, target mirror, and fail-closed compliance."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains ABI/envelope-only and does not own RVV compute/dtype."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export stay neutral and consume provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/generated-bundle/ssh rvv evidence is sufficient and not status/report-only."}

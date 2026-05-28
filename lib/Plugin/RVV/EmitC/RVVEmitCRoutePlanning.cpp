@@ -2268,7 +2268,7 @@ constexpr llvm::StringLiteral
         "rvv-v1-typed-runtime-scalar-cmp-masked-load-store-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccTargetLeafProfile(
-        "rvv-v1-e32m1-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1");
+        "rvv-v1-typed-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccTargetLeafProfile(
     "rvv-v1-e32m1-computed-mask-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral
@@ -2349,7 +2349,7 @@ constexpr llvm::StringLiteral
         "vl:size_t,lhs/source/passthrough:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:masked-load-store");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary(
-        "vl:size_t,cmp_lhs/lhs/rhs/acc:signed-e32m1,rhs_scalar:i32,mask:b32,result:signed-e32m1");
+        "vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:typed-vector");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccCTypeMappingSummary(
     "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:signed-e32m1,mask:b32,result:signed-e32m1");
 constexpr llvm::StringLiteral kRVVComputedMaskUnitLoadStoreCTypeMappingSummary(
@@ -10554,11 +10554,17 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           "non-runtime-scalar standalone reduction typed config to be SEW32 "
           "LMUL m1 or SEW32 LMUL m2 with a separate LMUL m1 scalar reduction "
           "accumulator/result channel");
-  } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-             configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
+  } else if (isMAcc &&
+             (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+              configProfile.lmul != tcrv::rvv::getRVVLMULM1()) &&
+             !(isRuntimeScalarProducer &&
+               configProfile.lmul == tcrv::rvv::getRVVLMULM2())) {
     return makeRVVEmitCRouteProviderError(
-        "computed-mask accumulation route-family plan currently requires "
-        "masked macc config to be SEW32 LMUL m1");
+        isRuntimeScalarProducer
+            ? "computed-mask accumulation route-family plan requires runtime "
+              "scalar masked macc config to be SEW32 LMUL m1 or SEW32 LMUL m2"
+            : "computed-mask accumulation route-family plan currently "
+              "requires vector masked macc config to be SEW32 LMUL m1");
   }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||

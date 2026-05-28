@@ -1004,3 +1004,50 @@ Completed Stage2 standalone and computed-mask min/max reductions for SEW32 LMUL 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 289: Stage2 RVV runtime-scalar compare-masked MAcc typed route family
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV runtime-scalar cmp-masked MAcc typed route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed the runtime_scalar_cmp_masked_macc_add typed route-family movement from baseline SEW32 LMUL m1 to a bounded SEW32 LMUL m2 selected-boundary witness. The route now derives realization, provider statement leaves, ABI mirrors, and generated-bundle evidence from typed body/config/runtime facts; direct pre-realized route-entry remains fail-closed.
+
+### Main Changes
+
+- Extended RVV dialect verification and selected-body realization validation so runtime-scalar compare-produced masked MAcc accepts SEW32 LMUL m1 or m2 while vector computed-mask MAcc remains bounded to m1.
+- Threaded the pre-realized runtime-scalar MAcc body SEW/LMUL into runtime AVL/VL control derivation instead of hard-coding m1.
+- Updated computed-mask accumulation route-family planning so runtime-scalar MAcc may derive m2 setvl/load/splat/compare/macc/merge/store leaves; vector computed-mask MAcc stays m1-only.
+- Replaced runtime-scalar MAcc generated-bundle/target mirror wording from e32m1-specific profile/type mapping to typed vector/scalar/mask mirrors.
+- Added a pre-realized SEW32 LMUL m2 target fixture and generated-bundle expectation, plus provider unit coverage proving e32m2 intrinsic derivation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] Focused REALIZED/PLAN/HEADER FileCheck for the new `pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add-lmul-m2.mlir` fixture.
+- [OK] Baseline runtime-scalar MAcc and runtime-scalar standalone min/max LMUL m2 target artifact FileCheck non-regression.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Generated-bundle dry-run for `runtime_scalar_cmp_masked_macc_add_lmul_m2` over counts 0,1,8,9,257 and rhs scalars -3,0,5.
+- [OK] `ssh rvv` generated-bundle compile/run/correctness for `runtime_scalar_cmp_masked_macc_add_lmul_m2` over counts 0,1,8,9,257 and rhs scalars -3,0,5, including active/inactive masks, accumulator preservation, add/mul distinguishing data, and tail preservation.
+- [OK] Generated-bundle dry-run non-regression for baseline `runtime_scalar_cmp_masked_macc_add` and runtime-scalar standalone min/max LMUL m2.
+- [OK] Direct pre-realized route-entry failed closed for the LMUL m2 runtime-scalar MAcc witness.
+- [OK] `git diff --check`
+- [OK] Bounded touched-file authority scan found no new positive dependency on descriptor/source-front-door, old e32m1 runtime-scalar MAcc profile, route-id, artifact-name, script-derived, exact-intrinsic-as-authority, direct-route-entry-only, or legacy-i32-derived authority.
+- [OK] Clean single `cmake --build build --target check-tianchenrv -j2` passed 450/450.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

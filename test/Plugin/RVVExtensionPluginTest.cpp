@@ -17189,7 +17189,7 @@ module {
   auto expectComputedMaskAccumulationStatementPlan =
       [&](RVVSelectedBodyRouteAnalysis &analysis, mlir::ModuleOp module,
           llvm::StringRef kernelName, llvm::StringRef variantName,
-          bool runtimeScalar,
+          bool runtimeScalar, llvm::StringRef expectedSetVLIntrinsic,
           std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
     if (int result = expectSuccess(
             verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
@@ -17259,7 +17259,7 @@ module {
     if (int result = expect(
             statementPlan->preLoopSteps.size() == 1 &&
                 statementPlan->preLoopSteps.front().callee ==
-                    "__riscv_vsetvl_e32m1",
+                    expectedSetVLIntrinsic,
             "computed-mask accumulation statement plan owns full-chunk setvl"))
       return result;
     if (int result =
@@ -17319,7 +17319,7 @@ module {
     if (int result = expect(
             route.getCallOpaqueSteps().size() == 1 &&
                 route.getCallOpaqueSteps().front().callee ==
-                    "__riscv_vsetvl_e32m1" &&
+                    expectedSetVLIntrinsic &&
                 route.getForLoops().size() == 1 &&
                 route.getForLoops().front().bodySteps.size() ==
                     expectedBodyCallees.size(),
@@ -17338,6 +17338,7 @@ module {
   if (int result = expectComputedMaskAccumulationStatementPlan(
           *computedMaskedMAccAnalysis, *computedMaskedMAccModule,
           "cm_macc_provider_kernel", "rvv_cm_macc", false,
+          "__riscv_vsetvl_e32m1",
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
@@ -17649,11 +17650,60 @@ module {
   if (int result = expectComputedMaskAccumulationStatementPlan(
           *runtimeScalarMAccAnalysis, *runtimeScalarMAccModule,
           "rt_scalar_cm_macc_provider_kernel", "rvv_rt_scalar_cm_macc", true,
+          "__riscv_vsetvl_e32m1",
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmsle_vv_i32m1_b32", "__riscv_vmacc_vv_i32m1",
            "__riscv_vmerge_vvm_i32m1", "__riscv_vse32_v_i32m1"}))
+    return result;
+
+  auto replaceAll = [](std::string &text, llvm::StringRef from,
+                       llvm::StringRef to) {
+    std::size_t position = 0;
+    while ((position = text.find(from.str(), position)) != std::string::npos) {
+      text.replace(position, from.size(), to.str());
+      position += to.size();
+    }
+  };
+  std::string runtimeScalarMAccM2Source = runtimeScalarMAccSource.str();
+  replaceAll(runtimeScalarMAccM2Source, "rt_scalar_cm_macc_provider_kernel",
+             "rt_scalar_cm_macc_m2_provider_kernel");
+  replaceAll(runtimeScalarMAccM2Source, "rvv_rt_scalar_cm_macc",
+             "rvv_rt_scalar_cm_macc_m2");
+  replaceAll(runtimeScalarMAccM2Source, "lmul = \"m1\"",
+             "lmul = \"m2\"");
+  replaceAll(runtimeScalarMAccM2Source, "\"m1\">", "\"m2\">");
+  mlir::OwningOpRef<mlir::ModuleOp> runtimeScalarMAccM2Module =
+      parseModule(context, runtimeScalarMAccM2Source);
+  if (!runtimeScalarMAccM2Module)
+    return fail("failed to parse runtime-scalar computed-mask MAcc LMUL m2 "
+                "provider test module");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarMAccM2Analysis =
+      analyzeRouteInModule(*runtimeScalarMAccM2Module,
+                           "rt_scalar_cm_macc_m2_provider_kernel",
+                           "rvv_rt_scalar_cm_macc_m2");
+  if (!runtimeScalarMAccM2Analysis)
+    return fail("analyze runtime-scalar computed-mask MAcc LMUL m2 provider "
+                "route: " +
+                llvm::toString(runtimeScalarMAccM2Analysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              *runtimeScalarMAccM2Analysis,
+              "runtime-scalar computed-mask MAcc LMUL m2 provider unit test"),
+          "valid runtime-scalar computed-mask MAcc LMUL m2 accumulation "
+          "family provider plan"))
+    return result;
+  if (int result = expectComputedMaskAccumulationStatementPlan(
+          *runtimeScalarMAccM2Analysis, *runtimeScalarMAccM2Module,
+          "rt_scalar_cm_macc_m2_provider_kernel", "rvv_rt_scalar_cm_macc_m2",
+          true, "__riscv_vsetvl_e32m2",
+          {"__riscv_vsetvl_e32m2", "__riscv_vle32_v_i32m2",
+           "__riscv_vmv_v_x_i32m2", "__riscv_vle32_v_i32m2",
+           "__riscv_vle32_v_i32m2", "__riscv_vle32_v_i32m2",
+           "__riscv_vmsle_vv_i32m2_b16", "__riscv_vmacc_vv_i32m2",
+           "__riscv_vmerge_vvm_i32m2", "__riscv_vse32_v_i32m2"}))
     return result;
 
   stale = *runtimeScalarMAccAnalysis;

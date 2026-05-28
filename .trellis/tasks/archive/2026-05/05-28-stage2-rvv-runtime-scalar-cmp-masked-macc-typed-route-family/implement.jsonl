@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack boundary, RVV stage order, and descriptor/source-front-door prohibitions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, runtime ABI binding, dtype/SEW/LMUL policy, computed-mask MAcc provider, route-control, statement-plan, artifact mirror, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundary; compute/dtype stays in typed RVV body and plugin-owned provider."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC lowerable route boundary and mirror-only artifact restrictions."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck/C++/runtime evidence expectations for route-supported RVV changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-runtime-scalar-cmp-masked-standalone-minmax-scalar-channel/prd.md", "reason": "Immediate predecessor for runtime-scalar typed family derivation and min/max scalar-channel non-regression."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-runtime-scalar-macc-selected-realization/prd.md", "reason": "Prior runtime-scalar MAcc selected-boundary migration and direct route-entry demotion contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-runtime-scalar-computed-mask-macc-boundary/prd.md", "reason": "Original runtime-scalar computed-mask MAcc boundary, ABI roles, runtime scalar threshold, accumulator preservation, and ssh rvv evidence shape."}

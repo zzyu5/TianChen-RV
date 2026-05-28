@@ -984,6 +984,12 @@ bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyOpKind(
   return opKind == "runtime_scalar_cmp_masked_macc_add";
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return sew == getRVVFirstSliceSEWBits() &&
+         (lmul == getRVVLMULM1() || lmul == getRVVLMULM2());
+}
+
 bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "vector-rhs-load" ||
          memoryForm == "rhs-scalar-broadcast-macc";
@@ -5145,11 +5151,11 @@ TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp::verify() {
               "the bounded selected-body runtime scalar computed-mask macc "
               "realization hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
            << "requires bounded pre-realized runtime scalar computed-mask "
-              "macc config to be SEW32 LMUL m1";
+              "macc config to be SEW32 LMUL m1 or SEW32 LMUL m2";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
@@ -9317,11 +9323,20 @@ mlir::LogicalResult MaskedMAccOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for masked macc";
-  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
-                                 expectedLMUL.getValue()))
+  bool runtimeScalarMaskProducer =
+      compare.getRhs().getDefiningOp<SplatOp>() != nullptr;
+  if (runtimeScalarMaskProducer) {
+    if (!isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedConfig(
+            expectedSEW.getInt(), expectedLMUL.getValue()))
+      return emitOpError()
+             << "requires runtime-scalar compare-produced masked macc "
+                "config to be SEW32 LMUL m1 or SEW32 LMUL m2";
+  } else if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                        expectedLMUL.getValue())) {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
-              "LMUL m1 for the bounded masked macc route";
+              "LMUL m1 for the bounded vector masked macc route";
+  }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "

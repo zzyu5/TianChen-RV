@@ -3,39 +3,48 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 module {
-  tcrv.exec.kernel @pr_rt_scalar_masked_macc_kernel {
+  tcrv.exec.kernel @pr_rt_scalar_masked_macc_m2_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
-    tcrv.exec.variant @rvv_pr_rt_scalar_masked_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:rhs_scalar", role = "rhs-scalar-value"} : i32
-      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:lhs-payload", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:rhs-payload", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:accumulator", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc:n", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body %cmp_lhs, %rhs_scalar, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-unit-stride-macc", op_kind = "runtime_scalar_cmp_masked_macc_add", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    tcrv.exec.variant @rvv_pr_rt_scalar_masked_macc_m2 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:rhs_scalar", role = "rhs-scalar-value"} : i32
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:lhs-payload", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:rhs-payload", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:accumulator", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2:n", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body %cmp_lhs, %rhs_scalar, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m2", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-unit-stride-macc", op_kind = "runtime_scalar_cmp_masked_macc_add", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
     tcrv.exec.dispatch {
-      tcrv.exec.case @rvv_pr_rt_scalar_masked_macc {origin = "rvv-plugin", policy = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-case"}
-      tcrv.exec.fallback @pre_realized_body_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-fallback-envelope"}
+      tcrv.exec.case @rvv_pr_rt_scalar_masked_macc_m2 {origin = "rvv-plugin", policy = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2-case"}
+      tcrv.exec.fallback @pre_realized_body_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "pre-realized-selected-body-runtime-scalar-computed-mask-macc-m2-fallback-envelope"}
     }
   }
 }
 
 // REALIZED-NOT: tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl
+// REALIZED-SAME: lmul = "m2"
+// REALIZED-SAME: sew = 32
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @rvv_pr_rt_scalar_masked_macc
+// REALIZED-SAME: lmul = "m2"
+// REALIZED-SAME: selected_variant = @rvv_pr_rt_scalar_masked_macc_m2
 // REALIZED: %[[CMP_LHS:.*]] = tcrv_rvv.load
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
 // REALIZED: %[[RHS:.*]] = tcrv_rvv.splat
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
 // REALIZED: %[[LHS:.*]] = tcrv_rvv.load
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
 // REALIZED: %[[PAYLOAD_RHS:.*]] = tcrv_rvv.load
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
 // REALIZED: %[[ACC:.*]] = tcrv_rvv.load
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
 // REALIZED: %[[MASK:.*]] = tcrv_rvv.compare %[[CMP_LHS]], %[[RHS]], %[[VL]]
 // REALIZED-SAME: kind = "sle"
+// REALIZED-SAME: -> !tcrv_rvv.mask<i32, "m2">
 // REALIZED: %[[SUM:.*]] = tcrv_rvv.masked_macc %[[MASK]], %[[LHS]], %[[PAYLOAD_RHS]], %[[ACC]], %[[VL]]
 // REALIZED-SAME: accumulator_layout = "separate-i32-vector-accumulator-input"
 // REALIZED-SAME: kind = "add"
@@ -43,6 +52,7 @@ module {
 // REALIZED-SAME: mask_role = "predicate-mask-produced-by-compare"
 // REALIZED-SAME: mask_source = "compare-produced-mask-same-vl-scope"
 // REALIZED-SAME: result_layout = "store-multiply-accumulate-result-to-output-buffer"
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
 // REALIZED: tcrv_rvv.store
 // REALIZED-NOT: tcrv_rvv.macc
 // REALIZED-NOT: tcrv_rvv.binary
@@ -78,9 +88,9 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
-// PLAN-SAME: target = @rvv_pr_rt_scalar_masked_macc
+// PLAN-SAME: target = @rvv_pr_rt_scalar_masked_macc_m2
 
-// HEADER: tianchenrv.rvv.selected_variant: @rvv_pr_rt_scalar_masked_macc
+// HEADER: tianchenrv.rvv.selected_variant: @rvv_pr_rt_scalar_masked_macc_m2
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
@@ -103,4 +113,4 @@ module {
 // HEADER: tianchenrv.rvv.accumulation_result_contract: vector-macc-result-stored-to-output-buffer
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:typed-vector
-// HEADER: void tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);
+// HEADER: void tcrv_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);
