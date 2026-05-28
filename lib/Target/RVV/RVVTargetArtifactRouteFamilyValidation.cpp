@@ -357,6 +357,284 @@ bool isRVVPlainSegment2MemoryRouteFamilyOperation(
                  Segment2InterleaveUnitLoad;
 }
 
+bool isRVVBaseMemoryMovementRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 IndexedGatherUnitStore ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+}
+
+bool isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore;
+}
+
+plugin::rvv::RVVSelectedBodyMemoryForm
+getRVVBaseMemoryMovementExpectedMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::IndexedLoadUnitStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::UnitLoadIndexedStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::MaskedUnitLoadStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::MaskedUnitStore;
+  default:
+    llvm_unreachable("queried base memory movement memory form for non-base op");
+  }
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedRuntimeABIOrder(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return "src,out,n,stride_bytes";
+  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return "src,dst,n,dst_stride_bytes";
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return "data,index,out,n";
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return "src,index,dst,n";
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return "src,mask,dst,n";
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVBaseMemoryMovementOperationMnemonic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return plugin::rvv::stringifyRVVSelectedBodyOperationKind(operation);
+}
+
+std::string getRVVBaseMemoryMovementExpectedRouteOperandBindingPlan(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return (llvm::Twine("rvv-route-operand-binding:") +
+          getRVVBaseMemoryMovementOperationMnemonic(operation) + ".v1")
+      .str();
+}
+
+std::string getRVVBaseMemoryMovementExpectedProviderSupportedMirror(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  llvm::StringRef mnemonic = getRVVBaseMemoryMovementOperationMnemonic(operation);
+  std::string hyphenated = mnemonic.str();
+  for (char &character : hyphenated)
+    if (character == '_')
+      character = '-';
+  return (llvm::Twine("provider_supported_mirror:rvv-") + hyphenated +
+          "-plan-validated")
+      .str();
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedStridedLayout(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return "byte-strided-source-unit-stride-output-runtime-abi";
+  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return "unit-stride-source-byte-strided-destination-runtime-abi";
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedIndexedOrMaskedLayout(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return "element-indexed-data-index-unit-stride-output-runtime-abi";
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return "unit-stride-source-indexed-destination-index-runtime-abi";
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return "unit-stride-source-mask-old-destination-runtime-abi";
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return "unit-stride-source-mask-destination-masked-store-runtime-abi";
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedSourceStrideSource(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore)
+    return "runtime_abi:stride_bytes";
+  return {};
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedDestinationStrideSource(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore)
+    return "runtime_abi:dst_stride_bytes";
+  return {};
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedSourceMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return "strided-load";
+  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return "unit-stride-load";
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedDestinationMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return "indexed-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return "masked-unit-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return "strided-store";
+  default:
+    return "unit-stride-store";
+  }
+}
+
+int64_t getRVVBaseMemoryMovementExpectedIndexEEW(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVIndexedBaseMemoryMovementRouteFamilyOperation(operation) ? 32 : 0;
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedIndexSource(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVIndexedBaseMemoryMovementRouteFamilyOperation(operation)
+             ? llvm::StringRef("runtime_abi:index")
+             : llvm::StringRef();
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedOffsetUnit(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVIndexedBaseMemoryMovementRouteFamilyOperation(operation)
+             ? llvm::StringRef("element")
+             : llvm::StringRef();
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedIndexUniqueness(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad)
+    return "unique";
+  return {};
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedIndexedDataMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore)
+    return "indexed-load";
+  return {};
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedIndexedDestinationMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad)
+    return "indexed-store";
+  return {};
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedMaskRole(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVMaskedBaseMemoryMovementRouteFamilyOperation(operation)
+             ? llvm::StringRef("predicate-mask-input-buffer")
+             : llvm::StringRef();
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedMaskSource(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVMaskedBaseMemoryMovementRouteFamilyOperation(operation)
+             ? llvm::StringRef("runtime_abi:mask")
+             : llvm::StringRef();
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedMaskMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return isRVVMaskedBaseMemoryMovementRouteFamilyOperation(operation)
+             ? llvm::StringRef("unit-stride-mask-load")
+             : llvm::StringRef();
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedInactiveLaneContract(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return "masked-off-lanes-preserve-old-destination";
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return "masked-store-false-lanes-preserve-output-buffer";
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVBaseMemoryMovementExpectedMaskedPassthroughLayout(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return "old-destination-vector-preserves-inactive-lanes";
+  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return "masked-store-has-no-passthrough-load";
+  default:
+    return {};
+  }
+}
+
+llvm::Error requireRVVBaseMemoryMovementProviderField(
+    llvm::StringRef label, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  if (expected.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer rejects "
+                    "stale provider-derived ") +
+        label + " fact '" + actual + "'");
+  if (actual.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "provider-derived ") +
+        label + " '" + expected + "' before artifact export");
+  return makeRVVTargetRouteError(
+      llvm::Twine("base-memory-movement target artifact consumer requires "
+                  "provider-derived ") +
+      label + " '" + expected + "' but was '" + actual + "'");
+}
+
 bool isRVVRuntimeScalarSplatStoreRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   return operation ==
@@ -809,6 +1087,678 @@ const support::RuntimeABIParameter *findRuntimeElementCountABIParameter(
         support::RuntimeABIParameterRole::RuntimeElementCount)
       return &parameter;
   return nullptr;
+}
+
+llvm::Error validateRVVBaseMemoryMovementRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.requiredHeaderDeclarations.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-derived required_header_declarations before accepting the "
+        "route artifact");
+
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  if (headers.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires at least one "
+        "provider route header");
+
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (trimmed.empty())
+      return makeRVVTargetRouteError(
+          "base-memory-movement target artifact consumer saw an empty "
+          "provider route header declaration");
+    if (!routeHasHeader(route, trimmed))
+      return makeRVVTargetRouteError(
+          llvm::Twine("base-memory-movement target artifact consumer requires "
+                      "rebuilt provider route header '") +
+          trimmed + "' before artifact export");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVBaseMemoryMovementRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-derived VL, vector, and C type mapping facts before "
+        "artifact export");
+
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "rebuilt provider route type mapping '!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+
+  if (isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
+          description.operation)) {
+    if (description.indexVectorTypeName.empty() ||
+        description.indexVectorCType.empty())
+      return makeRVVTargetRouteError(
+          "indexed base-memory-movement target artifact consumer requires "
+          "provider-derived index vector type mapping facts before artifact "
+          "export");
+    if (!routeHasTypeMapping(route, description.indexVectorTypeName,
+                             description.indexVectorCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("indexed base-memory-movement target artifact consumer "
+                      "requires rebuilt provider route type mapping '") +
+          description.indexVectorTypeName + "' -> '" +
+          description.indexVectorCType + "'");
+  } else if (!description.indexVectorTypeName.empty() ||
+             !description.indexVectorCType.empty()) {
+    return makeRVVTargetRouteError(
+        "non-indexed base-memory-movement target artifact consumer rejects "
+        "stale index vector type mapping facts");
+  }
+
+  if (isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
+          description.operation)) {
+    if (description.maskTypeName.empty() || description.maskCType.empty())
+      return makeRVVTargetRouteError(
+          "masked base-memory-movement target artifact consumer requires "
+          "provider-derived mask type mapping facts before artifact export");
+    if (!routeHasTypeMapping(route, description.maskTypeName,
+                             description.maskCType))
+      return makeRVVTargetRouteError(
+          llvm::Twine("masked base-memory-movement target artifact consumer "
+                      "requires rebuilt provider route type mapping '") +
+          description.maskTypeName + "' -> '" + description.maskCType + "'");
+  } else if (!description.maskTypeName.empty() ||
+             !description.maskCType.empty()) {
+    return makeRVVTargetRouteError(
+        "non-masked base-memory-movement target artifact consumer rejects "
+        "stale mask type mapping facts");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVBaseMemoryMovementRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIOrder.empty() ||
+      description.runtimeABIParameters.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-derived runtime ABI order and ABI parameters before "
+        "artifact export");
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "rebuilt provider route ABI mapping count ") +
+        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine("base-memory-movement target artifact consumer requires "
+                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("base-memory-movement target artifact consumer requires "
+                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getCallOpaqueSteps().empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-built pre-loop setvl statement facts before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires rebuilt "
+        "provider route pre-loop setvl statement to define the full-chunk VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "base-memory-movement target artifact consumer requires pre-loop "
+          "statements to carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires exactly one "
+        "provider-built runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  const support::RuntimeABIParameter *runtimeN =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeN)
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires a "
+        "provider-derived runtime element count ABI parameter");
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeN->cName ||
+      loop.upperBound.cType != runtimeN->cType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeN->cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      loop.bodySteps.front().operands.empty() ||
+      loop.bodySteps.front().operands.front().expression !=
+          expectedRemainingAVL ||
+      loop.bodySteps.front().operands.front().cType != description.vlCType ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-built loop setvl to derive per-iteration VL from remaining "
+        "runtime AVL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "base-memory-movement target artifact consumer requires loop "
+          "statements to carry selected typed RVV source provenance");
+
+  auto requireLoopCallee = [&](llvm::StringRef callee,
+                               llvm::StringRef factLabel) -> llvm::Error {
+    if (callee.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine("base-memory-movement target artifact consumer requires "
+                      "provider-derived ") +
+          factLabel + " statement facts before artifact export");
+    if (routeLoopContainsCallee(loop, callee))
+      return llvm::Error::success();
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "provider-built ") +
+        factLabel + " statement callee '" + callee +
+        "' to mirror selected body route facts before artifact export");
+  };
+
+  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
+  switch (description.operation) {
+  case OperationKind::StridedLoadUnitStore:
+    if (llvm::Error error =
+            requireLoopCallee(description.stridedLoadIntrinsic,
+                              "strided load"))
+      return error;
+    return requireLoopCallee(description.storeIntrinsic, "unit store");
+  case OperationKind::UnitLoadStridedStore:
+    if (llvm::Error error =
+            requireLoopCallee(description.vectorLoadIntrinsic, "unit load"))
+      return error;
+    return requireLoopCallee(description.stridedStoreIntrinsic,
+                             "strided store");
+  case OperationKind::IndexedGatherUnitStore:
+    if (llvm::Error error =
+            requireLoopCallee(description.indexLoadIntrinsic, "index load"))
+      return error;
+    if (llvm::Error error =
+            requireLoopCallee(description.indexScaleIntrinsic, "index scale"))
+      return error;
+    if (llvm::Error error = requireLoopCallee(
+            description.indexedLoadIntrinsic, "indexed gather load"))
+      return error;
+    return requireLoopCallee(description.storeIntrinsic, "unit store");
+  case OperationKind::IndexedScatterUnitLoad:
+    if (llvm::Error error =
+            requireLoopCallee(description.vectorLoadIntrinsic, "unit load"))
+      return error;
+    if (llvm::Error error =
+            requireLoopCallee(description.indexLoadIntrinsic, "index load"))
+      return error;
+    if (llvm::Error error =
+            requireLoopCallee(description.indexScaleIntrinsic, "index scale"))
+      return error;
+    return requireLoopCallee(description.indexedStoreIntrinsic,
+                             "indexed scatter store");
+  case OperationKind::MaskedUnitLoadStore:
+    if (llvm::Error error =
+            requireLoopCallee(description.vectorLoadIntrinsic,
+                              "mask/passthrough load"))
+      return error;
+    if (llvm::Error error =
+            requireLoopCallee(description.compareIntrinsic,
+                              "mask predicate"))
+      return error;
+    if (llvm::Error error =
+            requireLoopCallee(description.maskedLoadIntrinsic, "masked load"))
+      return error;
+    return requireLoopCallee(description.storeIntrinsic, "unit store");
+  case OperationKind::MaskedUnitStore:
+    if (llvm::Error error =
+            requireLoopCallee(description.vectorLoadIntrinsic,
+                              "source/mask load"))
+      return error;
+    if (llvm::Error error =
+            requireLoopCallee(description.compareIntrinsic,
+                              "mask predicate"))
+      return error;
+    return requireLoopCallee(description.storeIntrinsic, "masked store");
+  default:
+    llvm_unreachable("validated non-base-memory operation as base memory");
+  }
+}
+
+llvm::Error validateRVVBaseMemoryMovementRouteLayoutFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const plugin::rvv::RVVSelectedBodyOperationKind operation =
+      description.operation;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "strided memory layout", description.stridedMemoryLayout,
+          getRVVBaseMemoryMovementExpectedStridedLayout(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "indexed or masked memory layout", description.indexedMemoryLayout,
+          getRVVBaseMemoryMovementExpectedIndexedOrMaskedLayout(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "lhs stride source", description.lhsStrideSource, ""))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "rhs stride source", description.rhsStrideSource, ""))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "source stride binding", description.sourceStrideSource,
+          getRVVBaseMemoryMovementExpectedSourceStrideSource(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "destination stride binding", description.outStrideSource,
+          getRVVBaseMemoryMovementExpectedDestinationStrideSource(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "source memory form", description.sourceMemoryForm,
+          getRVVBaseMemoryMovementExpectedSourceMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "destination memory form", description.destinationMemoryForm,
+          getRVVBaseMemoryMovementExpectedDestinationMemoryForm(operation)))
+    return error;
+
+  const int64_t expectedIndexEEW =
+      getRVVBaseMemoryMovementExpectedIndexEEW(operation);
+  if (description.indexEEW != expectedIndexEEW)
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "provider-derived index EEW ") +
+        llvm::Twine(expectedIndexEEW) + " but was " +
+        llvm::Twine(description.indexEEW));
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "index source", description.indexSource,
+          getRVVBaseMemoryMovementExpectedIndexSource(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "offset unit", description.offsetUnit,
+          getRVVBaseMemoryMovementExpectedOffsetUnit(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "index uniqueness", description.indexUniqueness,
+          getRVVBaseMemoryMovementExpectedIndexUniqueness(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "indexed data memory form", description.indexedDataMemoryForm,
+          getRVVBaseMemoryMovementExpectedIndexedDataMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "indexed destination memory form",
+          description.indexedDestinationMemoryForm,
+          getRVVBaseMemoryMovementExpectedIndexedDestinationMemoryForm(
+              operation)))
+    return error;
+
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "mask role", description.maskRole,
+          getRVVBaseMemoryMovementExpectedMaskRole(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "mask source", description.maskSource,
+          getRVVBaseMemoryMovementExpectedMaskSource(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "mask memory form", description.maskMemoryForm,
+          getRVVBaseMemoryMovementExpectedMaskMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "inactive lane contract", description.inactiveLaneContract,
+          getRVVBaseMemoryMovementExpectedInactiveLaneContract(operation)))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "masked passthrough layout", description.maskedPassthroughLayout,
+          getRVVBaseMemoryMovementExpectedMaskedPassthroughLayout(operation)))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+  const plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm =
+      getRVVBaseMemoryMovementExpectedMemoryForm(description.operation);
+  if (description.memoryForm != expectedMemoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "selected typed RVV memory form '") +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(expectedMemoryForm) +
+        "' before artifact export but saw '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+  if (description.routeOperandBindingSummary.empty() ||
+      description.targetLeafProfile.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-derived binding summary and target leaf profile facts before "
+        "artifact export");
+
+  const std::string expectedProviderSupportedMirror =
+      getRVVBaseMemoryMovementExpectedProviderSupportedMirror(
+          description.operation);
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "provider-supported mirror", description.providerSupportedMirror,
+          expectedProviderSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "route-family plan",
+          description.baseMemoryMovementRouteFamilyPlanID,
+          "rvv-base-memory-movement-route-family-plan.v1"))
+    return error;
+  const std::string expectedRouteOperandBindingPlan =
+      getRVVBaseMemoryMovementExpectedRouteOperandBindingPlan(
+          description.operation);
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "route operand binding plan", description.routeOperandBindingPlanID,
+          expectedRouteOperandBindingPlan))
+    return error;
+  if (!llvm::StringRef(description.routeOperandBindingSummary)
+           .starts_with(description.routeOperandBindingPlanID))
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "route operand binding summary to mirror provider binding "
+                    "plan '") +
+        description.routeOperandBindingPlanID + "' but was '" +
+        description.routeOperandBindingSummary + "'");
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "runtime AVL/VL control plan", description.runtimeControlPlanID,
+          "rvv-runtime-avl-vl-control-plan.v1"))
+    return error;
+
+  llvm::StringRef expectedRuntimeABIOrder =
+      getRVVBaseMemoryMovementExpectedRuntimeABIOrder(description.operation);
+  if (description.runtimeABIOrder != expectedRuntimeABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "provider-derived runtime ABI order '") +
+        expectedRuntimeABIOrder + "' but was '" + description.runtimeABIOrder +
+        "'");
+  if (description.sew == 0 || description.lmul.empty() ||
+      description.tailPolicy.empty() || description.maskPolicy.empty() ||
+      description.setVLIntrinsic.empty() || description.resultName.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-derived dtype, policy, setvl, and result facts before "
+        "artifact export");
+  if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.wideningDotProductRelation.empty())
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer rejects stale non-base "
+        "route-family facts");
+
+  if (llvm::Error error =
+          validateRVVBaseMemoryMovementRouteLayoutFacts(description))
+    return error;
+  if (llvm::Error error =
+          validateRVVBaseMemoryMovementRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVBaseMemoryMovementRouteTypeMappings(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVBaseMemoryMovementRouteABIMappings(route, description))
+    return error;
+  return validateRVVBaseMemoryMovementRouteStatementPlan(route, description);
+}
+
+llvm::Error validateRVVBaseMemoryMovementTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVBaseMemoryMovementRoutePayloadFacts(context.route,
+                                                        context.description);
+}
+
+llvm::Error requireEmptyBaseMemoryMovementStaleMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  return requireCandidateMetadataMirror(candidate, key, "", label);
+}
+
+llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          description.routeOperandBindingPlanID,
+          "selected typed RVV base-memory binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          description.routeOperandBindingSummary,
+          "selected typed RVV base-memory binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          description.providerSupportedMirror,
+          "selected typed RVV base-memory provider support"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.base_memory_movement_route_family_plan",
+          description.baseMemoryMovementRouteFamilyPlanID,
+          "selected typed RVV base-memory route-family plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              description.memoryForm),
+          "selected typed RVV base-memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.target_leaf_profile",
+          description.targetLeafProfile,
+          "selected typed RVV base-memory target leaf profile"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_control_plan",
+          description.runtimeControlPlanID,
+          "selected typed RVV base-memory runtime AVL/VL control plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order",
+          description.runtimeABIOrder,
+          "selected typed RVV base-memory runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.required_header_declarations",
+          description.requiredHeaderDeclarations,
+          "selected typed RVV base-memory route header requirements"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.c_type_mapping",
+          description.cTypeMappingSummary,
+          "selected typed RVV base-memory route type mapping summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_memory_form",
+          description.sourceMemoryForm,
+          "selected typed RVV base-memory source memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_memory_form",
+          description.destinationMemoryForm,
+          "selected typed RVV base-memory destination memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.strided_memory_layout",
+          description.stridedMemoryLayout,
+          "selected typed RVV base-memory strided layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_stride_source",
+          description.sourceStrideSource,
+          "selected typed RVV base-memory source stride binding"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_stride_source",
+          description.outStrideSource,
+          "selected typed RVV base-memory destination stride binding"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.indexed_memory_layout",
+          isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
+              description.operation)
+              ? description.indexedMemoryLayout
+              : llvm::StringRef(),
+          "selected typed RVV base-memory indexed layout"))
+    return error;
+
+  std::string indexEEWMirror =
+      description.indexEEW == 0 ? "" : llvm::Twine(description.indexEEW).str();
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.index_source", description.indexSource,
+          "selected typed RVV base-memory index source"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.index_eew", indexEEWMirror,
+          "selected typed RVV base-memory index EEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.offset_unit", description.offsetUnit,
+          "selected typed RVV base-memory offset unit"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.index_uniqueness",
+          description.indexUniqueness,
+          "selected typed RVV base-memory index uniqueness"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.indexed_data_memory_form",
+          description.indexedDataMemoryForm,
+          "selected typed RVV base-memory indexed data memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.indexed_destination_memory_form",
+          description.indexedDestinationMemoryForm,
+          "selected typed RVV base-memory indexed destination memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.masked_memory_layout",
+          isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
+              description.operation)
+              ? description.indexedMemoryLayout
+              : llvm::StringRef(),
+          "selected typed RVV base-memory masked layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_role", description.maskRole,
+          "selected typed RVV base-memory mask role"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_source", description.maskSource,
+          "selected typed RVV base-memory mask source"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_memory_form",
+          description.maskMemoryForm,
+          "selected typed RVV base-memory mask memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.inactive_lane_contract",
+          description.inactiveLaneContract,
+          "selected typed RVV base-memory inactive lane contract"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.masked_passthrough_layout",
+          description.maskedPassthroughLayout,
+          "selected typed RVV base-memory masked passthrough layout"))
+    return error;
+
+  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.mask_tail_policy_route_family_plan",
+      "tcrv_rvv.mask_tail_policy_owner",
+      "tcrv_rvv.widening_macc_relation",
+      "tcrv_rvv.widening_dot_relation"};
+  for (llvm::StringRef key : staleRouteFamilyMirrors)
+    if (llvm::Error error = requireEmptyBaseMemoryMovementStaleMirror(
+            candidate, key,
+            "selected typed RVV non-base-memory route-family mirror"))
+      return error;
+
+  return llvm::Error::success();
 }
 
 llvm::Error validateRVVWideningDotReductionRouteHeaders(
@@ -4543,6 +5493,11 @@ bool isRVVSegment2MemoryTargetArtifactRouteFamilyConsumer(
   return isRVVSegment2MemoryRouteFamilyOperation(description.operation);
 }
 
+bool isRVVBaseMemoryMovementTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVBaseMemoryMovementRouteFamilyOperation(description.operation);
+}
+
 bool isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVElementwiseArithmeticRouteFamilyDescription(description);
@@ -4579,6 +5534,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVSegment2MemoryTargetArtifactRouteFamilyConsumer,
        validateRVVSegment2MemoryTargetArtifactProviderFacts,
        validateRVVSegment2MemoryTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("base-memory-movement"),
+       isRVVBaseMemoryMovementTargetArtifactRouteFamilyConsumer,
+       validateRVVBaseMemoryMovementTargetArtifactProviderFacts,
+       validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("standalone-reduction-accumulation"),
        isRVVStandaloneReductionAccumulationTargetArtifactRouteFamilyConsumer,
        validateRVVStandaloneReductionAccumulationTargetArtifactProviderFacts,

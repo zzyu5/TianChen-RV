@@ -1594,3 +1594,39 @@ runtime-scalar splat-store provider facts and candidate mirrors are owned by
 ### Next Steps
 
 - None - task complete
+
+
+## Session 298: Stage2 RVV base memory movement artifact validator migration
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV base memory movement artifact validator migration
+**Branch**: `main`
+
+### Summary
+
+Migrated base-memory-movement artifact acceptance into the RVV target-owned route-family validator registry.
+
+### Main Changes
+
+- Added target-owned base-memory-movement artifact route-family validation in lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp.
+- Kept RVVTargetSupportBundle.cpp unchanged and neutral: route rebuild, generic verification, metadata mirrors, and registry dispatch only.
+- Extended TargetArtifactExportTest.cpp with explicit typed selected-body candidates and positive/negative coverage for strided, indexed, and masked/unit memory movement.
+- Verified focused build/test, related Target/RVV lit fixtures, git diff --check, bounded authority scan, and full check-tianchenrv.
+- Spec sync: no .trellis/spec update needed; existing RVV plugin, exec contract, EmitC route, and testing specs already require target-owned validation, mirror-only metadata, and support-bundle neutrality.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

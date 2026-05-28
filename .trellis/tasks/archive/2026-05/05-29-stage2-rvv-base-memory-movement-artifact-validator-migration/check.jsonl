@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and RVV Stage2 scope boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify base memory movement target artifact validation ownership and mirror-only metadata behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains ABI/runtime envelope rather than memory semantics owner."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and target export consumes provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused build, lit, C++ tests, and evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-base-memory-movement-artifact-validator-migration/prd.md", "reason": "Task-specific acceptance criteria and validation plan for final verification."}

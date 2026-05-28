@@ -648,6 +648,105 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  if (op == OperationKind::StridedLoadUnitStore ||
+      op == OperationKind::IndexedGatherUnitStore ||
+      op == OperationKind::MaskedUnitLoadStore) {
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    std::string indexVectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.index_vector<i32, \"m2\">"
+            : "!tcrv_rvv.index_vector<i32, \"m1\">";
+    std::string maskType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.mask<i32, \"m2\">"
+            : "!tcrv_rvv.mask<i32, \"m1\">";
+
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+)mlir";
+    if (op == OperationKind::StridedLoadUnitStore) {
+      os << R"mlir(
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-strided-load-unit-store:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-strided-load-unit-store:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-strided-load-unit-store:n", role = "runtime-element-count"} : index
+      %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-strided-load-unit-store:stride-bytes", role = "source-byte-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %loaded = tcrv_rvv.strided_load %src, %stride_bytes, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        tcrv_rvv.store %out, %moved, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    } else if (op == OperationKind::IndexedGatherUnitStore) {
+      os << R"mlir(
+      %data = tcrv_rvv.runtime_abi_value {c_name = "data", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:data", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:index", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << indexVectorType << R"mlir(
+        %loaded = tcrv_rvv.indexed_load %data, %indices, %vl {index_eew = 32 : i64, offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, )mlir"
+         << indexVectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        tcrv_rvv.store %out, %moved, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    } else {
+      os << R"mlir(
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %mask = tcrv_rvv.runtime_abi_value {c_name = "mask", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:mask", role = "mask-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %predicate = tcrv_rvv.mask_load %mask, %vl {mask_memory_form = "unit-stride-mask-load", mask_role = "predicate-mask-input-buffer"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << maskType << R"mlir(
+        %old = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %loaded = tcrv_rvv.masked_load %src, %predicate, %old, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", memory_form = "masked-unit-load"} : !tcrv_rvv.runtime_abi_value, )mlir"
+         << maskType << R"mlir(, )mlir" << vectorType
+         << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType
+         << R"mlir(
+        tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    }
+    os << R"mlir(
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   const bool useLegacyBody =
       op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
@@ -1315,6 +1414,379 @@ bool expectRVVTargetArtifactExporterShape(
           "candidate route-family mirror",
           {"must not carry",
            "selected typed RVV non-splat-store route-family plan"}))
+    return false;
+
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  auto expectBaseMemoryPositive =
+      [&](llvm::StringRef fixtureContext,
+          const RVVTargetArtifactCandidateFixture &fixture,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription &description) -> bool {
+    if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))
+      return false;
+    std::string validateContext =
+        (llvm::Twine("validate RVV base-memory target artifact candidate "
+                     "through exporter for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                           fixture.candidate, *exporter),
+                       validateContext))
+      return false;
+    std::string rebuildContext =
+        (llvm::Twine("rebuild RVV base-memory route validator inputs for ") +
+         fixtureContext)
+            .str();
+    if (!buildRVVRouteValidationInputs(
+            fixture, route, description, rebuildContext))
+      return false;
+
+    RVVRouteValidationContext context{fixture.candidate, route, description};
+    std::string providerContext =
+        (llvm::Twine("base-memory registry accepts provider facts for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(context),
+            providerContext))
+      return false;
+    std::string mirrorContext =
+        (llvm::Twine("base-memory registry accepts candidate mirrors for ") +
+         fixtureContext)
+            .str();
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(context),
+        mirrorContext);
+  };
+
+  RVVTargetArtifactCandidateFixture baseStridedFixture(
+      OperationKind::StridedLoadUnitStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute baseStridedRoute;
+  RVVRouteDescription baseStridedDescription;
+  if (!expectBaseMemoryPositive("strided load/unit store", baseStridedFixture,
+                                baseStridedRoute, baseStridedDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture baseIndexedFixture(
+      OperationKind::IndexedGatherUnitStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute baseIndexedRoute;
+  RVVRouteDescription baseIndexedDescription;
+  if (!expectBaseMemoryPositive("indexed gather/unit store", baseIndexedFixture,
+                                baseIndexedRoute, baseIndexedDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture baseMaskedFixture(
+      OperationKind::MaskedUnitLoadStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute baseMaskedRoute;
+  RVVRouteDescription baseMaskedDescription;
+  if (!expectBaseMemoryPositive("masked unit load/store", baseMaskedFixture,
+                                baseMaskedRoute, baseMaskedDescription))
+    return false;
+
+  auto expectBaseMemoryProviderFailure =
+      [&](const TargetArtifactCandidate &candidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{candidate, route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectBaseMemoryCandidateFailure =
+      [&](TargetArtifactCandidate mutated,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          const RVVRouteDescription &description,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{mutated, route, description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription wrongBaseFamilyPlan = baseStridedDescription;
+  wrongBaseFamilyPlan.baseMemoryMovementRouteFamilyPlanID =
+      "metadata-derived-base-memory-plan";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, wrongBaseFamilyPlan,
+          "base-memory registry rejects wrong route-family plan",
+          {"route-family plan", "rvv-base-memory-movement-route-family-plan.v1",
+           "metadata-derived-base-memory-plan"}))
+    return false;
+
+  RVVRouteDescription staleBaseNonFamily = baseStridedDescription;
+  staleBaseNonFamily.computedMaskMemoryRouteFamilyPlanID =
+      "metadata-derived-computed-mask-memory";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, staleBaseNonFamily,
+          "base-memory registry rejects stale non-base provider facts",
+          {"stale", "non-base", "route-family facts"}))
+    return false;
+
+  RVVRouteDescription wrongBaseMemoryForm = baseStridedDescription;
+  wrongBaseMemoryForm.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, wrongBaseMemoryForm,
+          "base-memory registry rejects wrong memory form",
+          {"memory form", "strided-load-unit-store"}))
+    return false;
+
+  RVVRouteDescription wrongBaseSourceForm = baseStridedDescription;
+  wrongBaseSourceForm.sourceMemoryForm = "metadata-derived-source-form";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, wrongBaseSourceForm,
+          "base-memory registry rejects wrong source memory form",
+          {"source memory form", "strided-load",
+           "metadata-derived-source-form"}))
+    return false;
+
+  RVVRouteDescription wrongBaseDestinationForm = baseStridedDescription;
+  wrongBaseDestinationForm.destinationMemoryForm =
+      "metadata-derived-destination-form";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute,
+          wrongBaseDestinationForm,
+          "base-memory registry rejects wrong destination memory form",
+          {"destination memory form", "unit-stride-store",
+           "metadata-derived-destination-form"}))
+    return false;
+
+  RVVRouteDescription wrongBaseStrideBinding = baseStridedDescription;
+  wrongBaseStrideBinding.sourceStrideSource = "metadata-derived-stride";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, wrongBaseStrideBinding,
+          "base-memory registry rejects wrong source stride binding",
+          {"source stride", "runtime_abi:stride_bytes",
+           "metadata-derived-stride"}))
+    return false;
+
+  RVVRouteDescription wrongBaseIndexBinding = baseIndexedDescription;
+  wrongBaseIndexBinding.indexSource = "metadata-derived-index";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute, wrongBaseIndexBinding,
+          "base-memory registry rejects wrong index binding",
+          {"index source", "runtime_abi:index", "metadata-derived-index"}))
+    return false;
+
+  RVVRouteDescription wrongBaseMaskBinding = baseMaskedDescription;
+  wrongBaseMaskBinding.maskSource = "metadata-derived-mask";
+  if (!expectBaseMemoryProviderFailure(
+          baseMaskedFixture.candidate, baseMaskedRoute, wrongBaseMaskBinding,
+          "base-memory registry rejects wrong mask binding",
+          {"mask source", "runtime_abi:mask", "metadata-derived-mask"}))
+    return false;
+
+  RVVRouteDescription staleBaseABIOrder = baseStridedDescription;
+  staleBaseABIOrder.runtimeABIOrder = "src,n,out,stride_bytes";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, staleBaseABIOrder,
+          "base-memory registry rejects wrong runtime ABI order",
+          {"runtime ABI order", "src,out,n,stride_bytes",
+           "src,n,out,stride_bytes"}))
+    return false;
+
+  RVVRouteDescription missingBaseProviderMirror = baseStridedDescription;
+  missingBaseProviderMirror.providerSupportedMirror = "";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute,
+          missingBaseProviderMirror,
+          "base-memory registry rejects missing provider-supported mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-strided-load-unit-store-plan-validated"}))
+    return false;
+
+  RVVRouteDescription metadataOnlyBaseProviderMirror = baseStridedDescription;
+  metadataOnlyBaseProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-base-memory";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute,
+          metadataOnlyBaseProviderMirror,
+          "base-memory registry rejects metadata-only support mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-strided-load-unit-store-plan-validated",
+           "metadata-only-base-memory"}))
+    return false;
+
+  RVVRouteDescription missingBaseHeaders = baseStridedDescription;
+  missingBaseHeaders.requiredHeaderDeclarations = "";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, missingBaseHeaders,
+          "base-memory registry rejects missing route headers",
+          {"required_header_declarations", "artifact"}))
+    return false;
+
+  RVVRouteDescription missingBaseTypeMapping = baseStridedDescription;
+  missingBaseTypeMapping.cTypeMappingSummary = "";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, missingBaseTypeMapping,
+          "base-memory registry rejects missing type mappings",
+          {"C type mapping", "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleBaseRouteID = baseStridedDescription;
+  staleBaseRouteID.emitCRouteID = "metadata-derived-base-memory-route";
+  if (!expectBaseMemoryProviderFailure(
+          baseStridedFixture.candidate, baseStridedRoute, staleBaseRouteID,
+          "base-memory registry rejects route-id-derived support",
+          {"route id", "metadata-derived-base-memory-route",
+           baseStridedRoute.getRouteID()}))
+    return false;
+
+  TargetArtifactCandidate missingBaseProviderMirrorCandidate =
+      baseStridedFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingBaseProviderMirrorCandidate,
+                                "tcrv_rvv.provider_supported_mirror")) {
+    llvm::errs() << "base-memory test fixture did not contain provider "
+                    "support mirror metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          missingBaseProviderMirrorCandidate, baseStridedRoute,
+          baseStridedDescription,
+          "base-memory registry rejects missing provider-supported mirror "
+          "metadata",
+          {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate wrongBasePlanMirror = baseStridedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongBasePlanMirror,
+          "tcrv_rvv.base_memory_movement_route_family_plan",
+          "metadata-derived-base-memory-plan")) {
+    llvm::errs() << "base-memory test fixture did not contain family plan "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongBasePlanMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale family plan mirror",
+          {"base_memory_movement_route_family_plan",
+           "rvv-base-memory-movement-route-family-plan.v1",
+           "metadata-derived-base-memory-plan"}))
+    return false;
+
+  TargetArtifactCandidate staleBaseNonFamilyMirror =
+      baseStridedFixture.candidate;
+  staleBaseNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.computed_mask_memory_route_family_plan",
+          "metadata-derived-computed-mask-memory"));
+  if (!expectBaseMemoryCandidateFailure(
+          staleBaseNonFamilyMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale non-base family mirror",
+          {"must not carry",
+           "selected typed RVV non-base-memory route-family mirror"}))
+    return false;
+
+  TargetArtifactCandidate wrongBaseSourceMirror = baseStridedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongBaseSourceMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "metadata-derived-source-form")) {
+    llvm::errs() << "base-memory test fixture did not contain source memory "
+                    "form metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongBaseSourceMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale source memory mirror",
+          {"source_memory_form", "strided-load",
+           "metadata-derived-source-form"}))
+    return false;
+
+  TargetArtifactCandidate wrongBaseDestinationMirror =
+      baseStridedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongBaseDestinationMirror,
+                                    "tcrv_rvv.destination_memory_form",
+                                    "metadata-derived-destination-form")) {
+    llvm::errs() << "base-memory test fixture did not contain destination "
+                    "memory form metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongBaseDestinationMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale destination memory mirror",
+          {"destination_memory_form", "unit-stride-store",
+           "metadata-derived-destination-form"}))
+    return false;
+
+  TargetArtifactCandidate wrongBaseStrideMirror = baseStridedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongBaseStrideMirror,
+                                    "tcrv_rvv.source_stride_source",
+                                    "metadata-derived-stride")) {
+    llvm::errs() << "base-memory test fixture did not contain source stride "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongBaseStrideMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale stride mirror",
+          {"source_stride_source", "runtime_abi:stride_bytes",
+           "metadata-derived-stride"}))
+    return false;
+
+  TargetArtifactCandidate wrongBaseIndexMirror = baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongBaseIndexMirror,
+                                    "tcrv_rvv.index_source",
+                                    "metadata-derived-index")) {
+    llvm::errs() << "base-memory test fixture did not contain index source "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongBaseIndexMirror, baseIndexedRoute, baseIndexedDescription,
+          "base-memory registry rejects stale index mirror",
+          {"index_source", "runtime_abi:index", "metadata-derived-index"}))
+    return false;
+
+  TargetArtifactCandidate wrongBaseMaskMirror = baseMaskedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongBaseMaskMirror,
+                                    "tcrv_rvv.mask_source",
+                                    "metadata-derived-mask")) {
+    llvm::errs() << "base-memory test fixture did not contain mask source "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongBaseMaskMirror, baseMaskedRoute, baseMaskedDescription,
+          "base-memory registry rejects stale mask mirror",
+          {"mask_source", "runtime_abi:mask", "metadata-derived-mask"}))
+    return false;
+
+  TargetArtifactCandidate staleBaseABIMirror = baseStridedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleBaseABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "src,n,out,stride_bytes")) {
+    llvm::errs() << "base-memory test fixture did not contain runtime ABI "
+                    "order metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          staleBaseABIMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale ABI mirror",
+          {"runtime_abi_order", "src,out,n,stride_bytes",
+           "src,n,out,stride_bytes"}))
+    return false;
+
+  TargetArtifactCandidate staleBaseTypeMirror = baseStridedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleBaseTypeMirror,
+                                    "tcrv_rvv.c_type_mapping",
+                                    "metadata-only-type-map")) {
+    llvm::errs() << "base-memory test fixture did not contain C type mapping "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          staleBaseTypeMirror, baseStridedRoute, baseStridedDescription,
+          "base-memory registry rejects stale type mirror",
+          {"c_type_mapping", baseStridedDescription.cTypeMappingSummary,
+           "metadata-only-type-map"}))
     return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(
