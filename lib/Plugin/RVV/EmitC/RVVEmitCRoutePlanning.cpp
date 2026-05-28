@@ -4728,28 +4728,12 @@ bool isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
 bool isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
     RVVSelectedBodyOperationKind op, RVVSelectedBodyMemoryForm memoryForm) {
   if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op))
-    return memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+    return memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad ||
+           memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
   if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(op))
     return memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
   return op == RVVSelectedBodyOperationKind::StridedAdd &&
          memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
-}
-
-RVVSelectedBodyMemoryForm
-getElementwiseArithmeticRouteFamilyMemoryForm(RVVSelectedBodyOperationKind op) {
-  switch (op) {
-  case RVVSelectedBodyOperationKind::Add:
-  case RVVSelectedBodyOperationKind::Sub:
-  case RVVSelectedBodyOperationKind::Mul:
-  case RVVSelectedBodyOperationKind::MaskedAdd:
-  case RVVSelectedBodyOperationKind::MaskedSub:
-  case RVVSelectedBodyOperationKind::MaskedMul:
-    return RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  case RVVSelectedBodyOperationKind::StridedAdd:
-    return RVVSelectedBodyMemoryForm::StridedLoadStore;
-  default:
-    llvm_unreachable("unsupported elementwise arithmetic route-family op");
-  }
 }
 
 llvm::StringRef
@@ -4829,8 +4813,8 @@ llvm::Error validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "elementwise arithmetic route-family plan has stale route consumer "
         "classification markers");
-  if (plan.memoryForm !=
-      getElementwiseArithmeticRouteFamilyMemoryForm(plan.operation))
+  if (!isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          plan.operation, plan.memoryForm))
     return makeRVVEmitCRouteProviderError(
         "elementwise arithmetic route-family plan requires matching typed "
         "body memory form");
@@ -5081,12 +5065,6 @@ deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "requested elementwise arithmetic route-family plan for "
         "non-elementwise RVV operation");
-  if (analysis.slice.memoryForm !=
-      getElementwiseArithmeticRouteFamilyMemoryForm(operation))
-    return makeRVVEmitCRouteProviderError(
-        "elementwise arithmetic route-family plan requires matching typed "
-        "body memory form");
-
   const bool isPlain =
       isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(operation);
   const bool isMasked =
@@ -5094,11 +5072,13 @@ deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
   const bool isStrided = operation == RVVSelectedBodyOperationKind::StridedAdd;
 
   if (isPlain &&
-      (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsGenericLoad ||
+      (!analysis.slice.lhsGenericLoad ||
+       (!analysis.slice.rhsGenericLoad && !analysis.slice.rhsBroadcastLoad) ||
        !analysis.slice.genericStore || !analysis.slice.arithmeticOp))
     return makeRVVEmitCRouteProviderError(
-        "plain elementwise arithmetic route-family plan requires lhs/rhs unit "
-        "loads, binary compute, and unit store body structure");
+        "plain elementwise arithmetic route-family plan requires lhs unit "
+        "load, rhs unit or broadcast load, binary compute, and unit store "
+        "body structure");
   if (isMasked &&
       (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsGenericLoad ||
        !analysis.slice.compareOp || !analysis.slice.maskedBinaryOp ||

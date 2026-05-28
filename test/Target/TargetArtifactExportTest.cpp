@@ -1210,6 +1210,45 @@ bool expectRVVTargetArtifactExporterShape(
   using RVVRouteValidationContext =
       tianchenrv::target::rvv::
           RVVTargetArtifactRouteFamilyValidationContext;
+  auto expectRouteFamilyValidationPositive =
+      [&](llvm::StringRef fixtureContext,
+          const RVVTargetArtifactCandidateFixture &fixture) -> bool {
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    RVVRouteDescription description;
+    std::string rebuildContext =
+        (llvm::Twine("rebuild RVV route-family validator inputs for ") +
+         fixtureContext)
+            .str();
+    if (!buildRVVRouteValidationInputs(
+            fixture, route, description, rebuildContext))
+      return false;
+
+    RVVRouteValidationContext context{fixture.candidate, route, description};
+    std::string providerContext =
+        (llvm::Twine("RVV route-family registry accepts provider facts for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(context),
+            providerContext))
+      return false;
+    std::string mirrorContext =
+        (llvm::Twine("RVV route-family registry accepts candidate mirrors for ") +
+         fixtureContext)
+            .str();
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(context),
+        mirrorContext);
+  };
+
+  if (!expectRouteFamilyValidationPositive("generic elementwise add", fixture))
+    return false;
+  if (!expectRouteFamilyValidationPositive("rhs broadcast-load add",
+                                           broadcastFixture))
+    return false;
+
   RVVTargetArtifactCandidateFixture runtimeSplatFixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
           RuntimeI32SplatStore);
@@ -1787,6 +1826,28 @@ bool expectRVVTargetArtifactExporterShape(
           "base-memory registry rejects stale type mirror",
           {"c_type_mapping", baseStridedDescription.cTypeMappingSummary,
            "metadata-only-type-map"}))
+    return false;
+
+  RVVRouteDescription unownedRouteFamilyDescription = baseStridedDescription;
+  unownedRouteFamilyDescription.operation = OperationKind::ScalarBroadcastSub;
+  RVVRouteValidationContext unownedProviderContext{
+      baseStridedFixture.candidate, baseStridedRoute,
+      unownedRouteFamilyDescription};
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  unownedProviderContext),
+          "RVV route-family registry rejects unowned provider facts",
+          {"no target artifact route-family validator", "scalar_broadcast_sub",
+           "rebuilt provider facts"}))
+    return false;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  unownedProviderContext),
+          "RVV route-family registry rejects unowned candidate mirrors",
+          {"no target artifact route-family validator", "scalar_broadcast_sub",
+           "candidate metadata mirrors"}))
     return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(

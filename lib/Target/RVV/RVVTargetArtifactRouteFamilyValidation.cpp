@@ -226,6 +226,10 @@ bool isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskLoadStore:
     return true;
   default:
     return false;
@@ -283,6 +287,30 @@ bool isRVVStridedElementwiseArithmeticRouteFamilyOperation(
   return operation == plugin::rvv::RVVSelectedBodyOperationKind::StridedAdd;
 }
 
+bool isRVVVectorReductionRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation == plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd;
+}
+
+bool isRVVWideningMAccContractionRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+         plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd;
+}
+
+bool isRVVRHSBroadcastLoadElementwiseArithmeticRouteFamilyDescription(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::Add:
+  case plugin::rvv::RVVSelectedBodyOperationKind::Sub:
+  case plugin::rvv::RVVSelectedBodyOperationKind::Mul:
+    return description.memoryForm ==
+           plugin::rvv::RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
+  default:
+    return false;
+  }
+}
+
 bool isRVVElementwiseArithmeticRouteFamilyDescription(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (!isRVVElementwiseArithmeticRouteFamilyOperation(description.operation))
@@ -291,6 +319,9 @@ bool isRVVElementwiseArithmeticRouteFamilyDescription(
           description.operation))
     return description.memoryForm ==
            plugin::rvv::RVVSelectedBodyMemoryForm::StridedLoadStore;
+  if (isRVVRHSBroadcastLoadElementwiseArithmeticRouteFamilyDescription(
+          description))
+    return true;
   if (isRVVScalarBroadcastElementwiseRouteFamilyOperation(
           description.operation))
     return description.memoryForm ==
@@ -3530,9 +3561,6 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
   if (llvm::Error error =
           requireLoopCallee(description.maskAndIntrinsic, "mask composition"))
     return error;
-  if (llvm::Error error =
-          requireLoopCallee(description.intrinsic, "primary compute"))
-    return error;
 
   using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
   const bool isComputedMaskUnitLoadStore =
@@ -3547,6 +3575,18 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
   const bool isComputedMaskIndexedScatterStoreUnitLoad =
       description.operation ==
       OperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
+  const bool isRuntimeScalarComputedMaskStore =
+      description.operation == OperationKind::RuntimeScalarComputedMaskStore;
+  const bool isRuntimeScalarComputedMaskLoadStore =
+      description.operation ==
+      OperationKind::RuntimeScalarComputedMaskLoadStore;
+
+  if (isRVVCompareSelectMaskProducerRouteFamilyOperation(
+          description.operation)) {
+    if (llvm::Error error =
+            requireLoopCallee(description.intrinsic, "primary compute"))
+      return error;
+  }
 
   if (llvm::Error error =
           requireLoopCallee(description.vectorLoadIntrinsic, "vector load"))
@@ -3570,7 +3610,8 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
   }
   if (isComputedMaskUnitLoadStore ||
       isComputedMaskStridedLoadUnitStore ||
-      isComputedMaskIndexedGatherLoadUnitStore) {
+      isComputedMaskIndexedGatherLoadUnitStore ||
+      isRuntimeScalarComputedMaskLoadStore) {
     if (llvm::Error error =
             requireLoopCallee(description.maskedLoadIntrinsic, "masked load"))
       return error;
@@ -3589,7 +3630,9 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
           description.operation) ||
       isComputedMaskUnitLoadStore ||
       isComputedMaskStridedLoadUnitStore ||
-      isComputedMaskIndexedGatherLoadUnitStore) {
+      isComputedMaskIndexedGatherLoadUnitStore ||
+      isRuntimeScalarComputedMaskStore ||
+      isRuntimeScalarComputedMaskLoadStore) {
     if (llvm::Error error =
             requireLoopCallee(description.storeIntrinsic, "store"))
       return error;
@@ -3614,6 +3657,13 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
   if (!isRVVCompareSelectMaskRouteFamilyOperation(description.operation))
     return llvm::Error::success();
 
+  const bool isCompareSelectProducer =
+      isRVVCompareSelectMaskProducerRouteFamilyOperation(
+          description.operation);
+  const bool isComputedMaskMemory =
+      isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+          description.operation);
+
   if (route.getRouteID() != description.emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine("compare/select mask target artifact consumer requires "
@@ -3635,7 +3685,8 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "compare/select mask target artifact consumer requires "
         "provider-derived runtime AVL/VL facts before artifact export");
   if (description.comparePredicateKind.empty() ||
-      description.compareIntrinsic.empty() || description.intrinsic.empty() ||
+      description.compareIntrinsic.empty() ||
+      (isCompareSelectProducer && description.intrinsic.empty()) ||
       description.maskName.empty() || description.maskRole.empty() ||
       description.maskSource.empty() || description.maskMemoryForm.empty())
     return makeRVVTargetRouteError(
@@ -3643,6 +3694,14 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "provider-derived compare predicate, compare/select or masked-memory "
         "callee, mask result, mask role, mask source, and mask memory-form "
         "facts before artifact export");
+  if (isComputedMaskMemory && description.maskedLoadIntrinsic.empty() &&
+      description.storeIntrinsic.empty() &&
+      description.stridedStoreIntrinsic.empty() &&
+      description.indexedStoreIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "compare-produced computed-mask memory target artifact consumer "
+        "requires provider-derived masked load or store callee facts before "
+        "artifact export");
 
   if (isRVVPlainCompareSelectMaskRouteFamilyOperation(description.operation)) {
     if (description.plainCompareSelectRouteFamilyPlanID.empty() ||
@@ -5063,6 +5122,9 @@ llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
   const bool isScalarBroadcast =
       isRVVScalarBroadcastElementwiseRouteFamilyOperation(
           description.operation);
+  const bool isRHSBroadcastLoad =
+      isRVVRHSBroadcastLoadElementwiseArithmeticRouteFamilyDescription(
+          description);
 
   if (isStrided) {
     if (!routeLoopContainsCallee(loop, description.stridedLoadIntrinsic) ||
@@ -5072,15 +5134,15 @@ llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
           "strided elementwise arithmetic target artifact consumer requires "
           "provider-built strided loads, elementwise compute, and strided "
           "store statements before artifact export");
-  } else if (isScalarBroadcast) {
+  } else if (isScalarBroadcast || isRHSBroadcastLoad) {
     if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
         !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic) ||
         !routeLoopContainsCallee(loop, description.intrinsic) ||
         !routeLoopContainsCallee(loop, description.storeIntrinsic))
       return makeRVVTargetRouteError(
-          "scalar-broadcast elementwise target artifact consumer requires "
-          "provider-built vector load, RHS scalar broadcast, elementwise "
-          "compute, and store statements before artifact export");
+          "broadcast elementwise target artifact consumer requires "
+          "provider-built vector load, RHS broadcast, elementwise compute, "
+          "and store statements before artifact export");
   } else {
     if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
         !routeLoopContainsCallee(loop, description.intrinsic) ||
@@ -5129,6 +5191,9 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
           description.operation);
   const bool isStrided = isRVVStridedElementwiseArithmeticRouteFamilyOperation(
       description.operation);
+  const bool isRHSBroadcastLoad =
+      isRVVRHSBroadcastLoadElementwiseArithmeticRouteFamilyDescription(
+          description);
   llvm::StringRef expectedRuntimeABIOrder =
       isStrided ? llvm::StringRef(
                       "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride")
@@ -5167,11 +5232,20 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
           "elementwise arithmetic target artifact consumer requires "
           "provider-derived elementwise route-family facts before artifact "
           "export");
-    if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
-        !description.rhsBroadcastIntrinsic.empty())
+    if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty())
       return makeRVVTargetRouteError(
           "elementwise arithmetic target artifact consumer rejects stale "
           "scalar-broadcast route facts");
+    if (isRHSBroadcastLoad) {
+      if (description.rhsBroadcastIntrinsic.empty())
+        return makeRVVTargetRouteError(
+            "broadcast-load elementwise target artifact consumer requires "
+            "provider-derived RHS broadcast facts before artifact export");
+    } else if (!description.rhsBroadcastIntrinsic.empty()) {
+      return makeRVVTargetRouteError(
+          "elementwise arithmetic target artifact consumer rejects stale RHS "
+          "broadcast route facts");
+    }
   }
   if (!description.wideningConversionRouteFamilyPlanID.empty() ||
       !description.sourceVectorTypeName.empty() ||
@@ -5468,6 +5542,603 @@ llvm::Error validateRVVElementwiseArithmeticTargetArtifactCandidateMirrors(
   return llvm::Error::success();
 }
 
+llvm::Error validateRVVTargetOwnedRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef familyLabel) {
+  if (description.runtimeABIOrder.empty() ||
+      description.runtimeABIParameters.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(familyLabel) +
+        " target artifact consumer requires provider-derived runtime ABI "
+        "order and ABI parameters before artifact export");
+  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(familyLabel) +
+        " target artifact consumer requires rebuilt provider route ABI "
+        "mapping count to match provider runtime ABI parameters");
+  for (size_t index = 0, count = description.runtimeABIParameters.size();
+       index < count; ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        description.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine(familyLabel) +
+          " target artifact consumer requires rebuilt provider route ABI "
+          "mapping to mirror provider runtime ABI parameters");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine(familyLabel) +
+          " target artifact consumer requires rebuilt provider route ABI "
+          "mapping value names to use provider runtime ABI parameter names");
+  }
+  return llvm::Error::success();
+}
+
+bool isRVVVectorReductionTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVVectorReductionRouteFamilyOperation(description.operation) &&
+         description.memoryForm ==
+             plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+}
+
+llvm::Error validateRVVVectorReductionRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty())
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider-derived "
+        "VL and vector type facts before artifact export");
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("vector reduction target artifact consumer requires "
+                    "rebuilt provider route type mapping '!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("vector reduction target artifact consumer requires "
+                    "rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVVectorReductionRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getCallOpaqueSteps().empty())
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider-built "
+        "pre-loop setvl statement facts before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires rebuilt provider "
+        "route pre-loop setvl statement to define the full-chunk VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "vector reduction target artifact consumer requires pre-loop "
+          "statements to carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires exactly one "
+        "provider-built runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  const support::RuntimeABIParameter *runtimeN =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeN)
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires a "
+        "provider-derived runtime element count ABI parameter");
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeN->cName ||
+      loop.upperBound.cType != runtimeN->cType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider-built "
+        "loop bounds and step to mirror runtime n/AVL/VL facts");
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeN->cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      loop.bodySteps.front().operands.size() != 1 ||
+      loop.bodySteps.front().operands.front().expression !=
+          expectedRemainingAVL ||
+      loop.bodySteps.front().operands.front().cType != description.vlCType ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider-built "
+        "loop setvl to derive per-iteration VL from remaining runtime AVL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "vector reduction target artifact consumer requires loop statements "
+          "to carry selected typed RVV source provenance");
+
+  if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
+      !routeLoopContainsCallee(loop, description.intrinsic) ||
+      !routeLoopContainsCallee(loop, description.storeIntrinsic))
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider-built "
+        "vector load, reduction, and store statements before artifact export");
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVVectorReductionRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("vector reduction target artifact consumer requires "
+                    "rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+  if (description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires provider route "
+        "operand binding facts before artifact export");
+  if (description.memoryForm !=
+          plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad ||
+      description.typedComputeOpName != "tcrv_rvv.reduce")
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires a selected "
+        "tcrv_rvv.reduce body with vector RHS-load memory form");
+  if (description.runtimeABIOrder.empty() || description.setVLIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires "
+        "provider-derived runtime AVL/VL facts before artifact export");
+  if (description.reductionAccumulatorLayout.empty() ||
+      description.reductionResultLayout.empty() ||
+      description.reductionStoreVL.empty() ||
+      description.vectorLoadIntrinsic.empty() ||
+      description.intrinsic.empty() || description.storeIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer requires "
+        "provider-derived reduction layout, vector load, reduction, and store "
+        "facts before artifact export");
+  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.wideningDotProductRelation.empty() ||
+      !description.scalarSeedSplatIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "vector reduction target artifact consumer rejects stale non-vector "
+        "reduction route-family facts");
+
+  if (llvm::Error error =
+          validateRVVVectorReductionRouteTypeMappings(route, description))
+    return error;
+  if (llvm::Error error = validateRVVTargetOwnedRouteABIMappings(
+          route, description, "vector reduction"))
+    return error;
+  return validateRVVVectorReductionRouteStatementPlan(route, description);
+}
+
+llvm::Error validateRVVVectorReductionTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVVectorReductionRoutePayloadFacts(context.route,
+                                                    context.description);
+}
+
+llvm::Error requireEmptyVectorReductionStaleMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  return requireCandidateMetadataMirror(candidate, key, "", label);
+}
+
+llvm::Error validateRVVVectorReductionTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          description.routeOperandBindingPlanID,
+          "selected typed RVV vector reduction binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          description.routeOperandBindingSummary,
+          "selected typed RVV vector reduction binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              description.memoryForm),
+          "selected typed RVV vector reduction memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order",
+          description.runtimeABIOrder,
+          "selected typed RVV vector reduction runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.reduction_accumulator_layout",
+          description.reductionAccumulatorLayout,
+          "selected typed RVV vector reduction accumulator layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.reduction_result_layout",
+          description.reductionResultLayout,
+          "selected typed RVV vector reduction result layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.reduction_store_vl",
+          description.reductionStoreVL,
+          "selected typed RVV vector reduction store VL"))
+    return error;
+
+  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan"};
+  for (llvm::StringRef key : staleRouteFamilyMirrors)
+    if (llvm::Error error = requireEmptyVectorReductionStaleMirror(
+            candidate, key,
+            "selected typed RVV non-vector-reduction route-family mirror"))
+      return error;
+  return llvm::Error::success();
+}
+
+bool isRVVWideningMAccContractionTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVWideningMAccContractionRouteFamilyOperation(
+             description.operation) &&
+         description.memoryForm ==
+             plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+}
+
+llvm::Error validateRVVWideningMAccContractionRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
+      description.vectorCType.empty() ||
+      description.sourceVectorTypeName.empty() ||
+      description.sourceVectorCType.empty())
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-derived VL, source vector, and accumulator/result vector "
+        "type facts before artifact export");
+  if (description.sourceSEW != 16 || description.sourceLMUL != "mf2" ||
+      description.sew != 32 || description.lmul != "m1")
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-derived i16mf2 source and i32m1 accumulator/result facts "
+        "before artifact export");
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires rebuilt provider route type mapping "
+                    "'!tcrv_rvv.vl' -> '") +
+        description.vlCType + "'");
+  if (!routeHasTypeMapping(route, description.vectorTypeName,
+                           description.vectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires rebuilt provider route type mapping '") +
+        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
+  if (!routeHasTypeMapping(route, description.sourceVectorTypeName,
+                           description.sourceVectorCType))
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires rebuilt provider route type mapping '") +
+        description.sourceVectorTypeName + "' -> '" +
+        description.sourceVectorCType + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningMAccContractionRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getCallOpaqueSteps().empty())
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-built pre-loop setvl statement facts before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps().front();
+  if (preLoopSetVL.callee != description.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires rebuilt "
+        "provider route pre-loop setvl statement to define the full-chunk VL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "widening MAcc contraction target artifact consumer requires "
+          "pre-loop statements to carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires exactly "
+        "one provider-built runtime AVL/VL loop before artifact export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  const support::RuntimeABIParameter *runtimeN =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeN)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires a "
+        "provider-derived runtime element count ABI parameter");
+  if (loop.inductionVarName != description.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeN->cName ||
+      loop.upperBound.cType != runtimeN->cType ||
+      loop.step.expression != description.emitCFullChunkVLName ||
+      loop.step.cType != description.vlCType)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeN->cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (loop.bodySteps.empty() ||
+      loop.bodySteps.front().callee != description.setVLIntrinsic ||
+      loop.bodySteps.front().operands.size() != 1 ||
+      loop.bodySteps.front().operands.front().expression !=
+          expectedRemainingAVL ||
+      loop.bodySteps.front().operands.front().cType != description.vlCType ||
+      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
+                     description.vlCType))
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-built loop setvl to derive per-iteration VL from remaining "
+        "runtime AVL");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "widening MAcc contraction target artifact consumer requires loop "
+          "statements to carry selected typed RVV source provenance");
+
+  if (!routeLoopContainsCallee(loop, description.sourceVectorLoadIntrinsic) ||
+      !routeLoopContainsCallee(loop, description.intrinsic) ||
+      !routeLoopContainsCallee(loop, description.storeIntrinsic))
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-built source load, widening MAcc, and store statements "
+        "before artifact export");
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (route.getRouteID() != description.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires rebuilt provider route id '") +
+        description.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
+  if (description.providerSupportedMirror.empty() ||
+      description.routeOperandBindingPlanID.empty() ||
+      description.routeOperandBindingSummary.empty() ||
+      description.contractionRouteFamilyPlanID.empty())
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider support, binding, and contraction route-family facts before "
+        "artifact export");
+  if (description.memoryForm !=
+          plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad ||
+      description.typedComputeOpName != "tcrv_rvv.widening_macc")
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires a "
+        "selected tcrv_rvv.widening_macc body with vector RHS-load memory "
+        "form");
+  if (description.runtimeControlPlanID.empty() ||
+      description.runtimeABIOrder.empty() || description.setVLIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-derived runtime AVL/VL facts before artifact export");
+  if (description.wideningMAccAccumulatorLayout.empty() ||
+      description.wideningMAccResultLayout.empty() ||
+      description.wideningMAccRelation.empty() ||
+      description.sourceVectorLoadIntrinsic.empty() ||
+      description.intrinsic.empty() || description.storeIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-derived accumulator/result layout, relation, source load, "
+        "widening MAcc, and store facts before artifact export");
+  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty() ||
+      !description.wideningDotProductRelation.empty() ||
+      !description.wideningProductIntrinsic.empty() ||
+      !description.scalarSeedSplatIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer rejects stale "
+        "non-widening-MAcc route-family facts");
+
+  if (llvm::Error error =
+          validateRVVWideningMAccContractionRouteTypeMappings(route,
+                                                              description))
+    return error;
+  if (llvm::Error error = validateRVVTargetOwnedRouteABIMappings(
+          route, description, "widening MAcc contraction"))
+    return error;
+  return validateRVVWideningMAccContractionRouteStatementPlan(route,
+                                                              description);
+}
+
+llvm::Error validateRVVWideningMAccContractionTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVWideningMAccContractionRoutePayloadFacts(
+      context.route, context.description);
+}
+
+llvm::Error requireEmptyWideningMAccContractionStaleMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  return requireCandidateMetadataMirror(candidate, key, "", label);
+}
+
+llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+  const std::string sourceSEW = llvm::Twine(description.sourceSEW).str();
+  const std::string resultSEW = llvm::Twine(description.sew).str();
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          description.routeOperandBindingPlanID,
+          "selected typed RVV widening MAcc binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          description.routeOperandBindingSummary,
+          "selected typed RVV widening MAcc binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          description.providerSupportedMirror,
+          "selected typed RVV widening MAcc provider support"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.contraction_route_family_plan",
+          description.contractionRouteFamilyPlanID,
+          "selected typed RVV widening MAcc contraction route-family plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              description.memoryForm),
+          "selected typed RVV widening MAcc memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_control_plan",
+          description.runtimeControlPlanID,
+          "selected typed RVV widening MAcc runtime AVL/VL control plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
+          "selected typed RVV widening MAcc runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.required_header_declarations",
+          description.requiredHeaderDeclarations,
+          "selected typed RVV widening MAcc route header requirements"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.c_type_mapping",
+          description.cTypeMappingSummary,
+          "selected typed RVV widening MAcc route type mapping summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_sew", sourceSEW,
+          "selected typed RVV widening MAcc source SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_lmul", description.sourceLMUL,
+          "selected typed RVV widening MAcc source LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.accumulator_sew", resultSEW,
+          "selected typed RVV widening MAcc accumulator SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.accumulator_lmul", description.lmul,
+          "selected typed RVV widening MAcc accumulator LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.result_sew", resultSEW,
+          "selected typed RVV widening MAcc result SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.result_lmul", description.lmul,
+          "selected typed RVV widening MAcc result LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_macc_accumulator_layout",
+          description.wideningMAccAccumulatorLayout,
+          "selected typed RVV widening MAcc accumulator layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_macc_result_layout",
+          description.wideningMAccResultLayout,
+          "selected typed RVV widening MAcc result layout"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_macc_relation",
+          description.wideningMAccRelation,
+          "selected typed RVV widening MAcc relation"))
+    return error;
+
+  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.widening_dot_relation"};
+  for (llvm::StringRef key : staleRouteFamilyMirrors)
+    if (llvm::Error error = requireEmptyWideningMAccContractionStaleMirror(
+            candidate, key,
+            "selected typed RVV non-widening-MAcc route-family mirror"))
+      return error;
+  return llvm::Error::success();
+}
+
 bool isRVVWideningDotReductionTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVWideningDotReductionRouteFamilyOperation(description.operation);
@@ -5542,6 +6213,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVStandaloneReductionAccumulationTargetArtifactRouteFamilyConsumer,
        validateRVVStandaloneReductionAccumulationTargetArtifactProviderFacts,
        validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("vector-reduction"),
+       isRVVVectorReductionTargetArtifactRouteFamilyConsumer,
+       validateRVVVectorReductionTargetArtifactProviderFacts,
+       validateRVVVectorReductionTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("elementwise-arithmetic"),
        isRVVElementwiseArithmeticTargetArtifactRouteFamilyConsumer,
        validateRVVElementwiseArithmeticTargetArtifactProviderFacts,
@@ -5554,6 +6229,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVMAccTargetArtifactRouteFamilyConsumer,
        validateRVVMAccTargetArtifactProviderFacts,
        validateRVVMAccTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("widening-macc-contraction"),
+       isRVVWideningMAccContractionTargetArtifactRouteFamilyConsumer,
+       validateRVVWideningMAccContractionTargetArtifactProviderFacts,
+       validateRVVWideningMAccContractionTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("widening-dot-reduction"),
        isRVVWideningDotReductionTargetArtifactRouteFamilyConsumer,
        validateRVVWideningDotReductionTargetArtifactProviderFacts,
@@ -5582,6 +6261,19 @@ llvm::Error selectRVVTargetArtifactRouteFamilyValidator(
   return llvm::Error::success();
 }
 
+llvm::Error makeMissingRVVTargetArtifactRouteFamilyValidatorError(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef validationKind) {
+  return makeRVVTargetRouteError(
+      llvm::Twine("no target artifact route-family validator owns selected "
+                  "typed RVV route operation '") +
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+          description.operation) +
+      "' with memory form '" +
+      plugin::rvv::stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
+      "' while checking " + validationKind);
+}
+
 } // namespace
 
 llvm::Error validateRVVTargetArtifactRouteFamilyProviderFacts(
@@ -5591,7 +6283,8 @@ llvm::Error validateRVVTargetArtifactRouteFamilyProviderFacts(
           context.description, "rebuilt provider facts", validator))
     return error;
   if (!validator)
-    return llvm::Error::success();
+    return makeMissingRVVTargetArtifactRouteFamilyValidatorError(
+        context.description, "rebuilt provider facts");
   if (!validator->validateProviderFacts)
     return makeRVVTargetRouteError(
         llvm::Twine("target artifact route-family validator '") +
@@ -5606,7 +6299,8 @@ llvm::Error validateRVVTargetArtifactRouteFamilyCandidateMirrors(
           context.description, "candidate metadata mirrors", validator))
     return error;
   if (!validator)
-    return llvm::Error::success();
+    return makeMissingRVVTargetArtifactRouteFamilyValidatorError(
+        context.description, "candidate metadata mirrors");
   if (!validator->validateCandidateMirrors)
     return makeRVVTargetRouteError(
         llvm::Twine("target artifact route-family validator '") +

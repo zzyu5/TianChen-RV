@@ -1630,3 +1630,48 @@ Migrated base-memory-movement artifact acceptance into the RVV target-owned rout
 ### Next Steps
 
 - None - task complete
+
+
+## Session 299: Stage2 RVV route-family validator coverage gate
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV route-family validator coverage gate
+**Branch**: `main`
+
+### Summary
+
+Closed RVV target artifact route-family validator coverage gaps, added fail-closed no-validator checks, covered reduce_add/widening_macc_add/runtime-scalar computed-mask artifact routes, and passed check-tianchenrv 456/456.
+
+### Main Changes
+
+- Made RVV target artifact route-family provider-fact and candidate-mirror
+  validation fail closed when no registered validator owns the selected typed
+  route description.
+- Added target-owned `vector-reduction` and `widening-macc-contraction`
+  validators for route-supported `reduce_add` and `widening_macc_add`
+  artifacts.
+- Routed runtime-scalar computed-mask store/load-store artifact validation
+  through the compare/select mask family.
+- Treated RHS broadcast-load `Add/Sub/Mul` as elementwise arithmetic consumers
+  and updated stale-plan negative test coverage accordingly.
+
+### Git Commits
+
+(Included in final round commit)
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] bounded scan for no-validator fail-closed paths and registered family
+  ownership.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

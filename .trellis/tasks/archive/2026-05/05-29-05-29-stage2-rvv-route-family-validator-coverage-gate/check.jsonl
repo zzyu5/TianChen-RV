@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the change preserves the RVV-first typed-body authority chain and does not introduce metadata authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV route-family validator ownership and plugin-local semantic authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and target artifact fail-closed behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry fail-closed behavior and absence of descriptor/source-front-door authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ coverage and no runtime claims without ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-base-memory-movement-artifact-validator-migration/prd.md", "reason": "Check that the current registry coverage gate builds on the completed validator migrations."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Focused build passed: cmake --build build --target TianChenRVRVVTarget tianchenrv-target-artifact-export-test -j2."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused target artifact exporter test passed, including direct provider-fact and candidate-mirror registry validation."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Focused RVV extension plugin smoke test passed after updating RHS broadcast-load elementwise consumer negative coverage."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Bounded scan confirmed no-validator provider/candidate validation paths now return targeted errors and new vector-reduction/widening-macc validators are registered."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Full check passed: cmake --build build --target check-tianchenrv -j2, 456/456 tests passed."}

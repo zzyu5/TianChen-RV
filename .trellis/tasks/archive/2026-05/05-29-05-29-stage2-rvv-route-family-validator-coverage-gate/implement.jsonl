@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage order, and mirror-only artifact authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed selected-body authority, plugin-owned route provider, and target artifact route-family validator boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/export neutrality and target artifact fail-closed handoff rules."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry orchestration rules and fail-closed inventory for route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ test expectations for non-textual compiler APIs and RVV artifact evidence boundaries."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected typed RVV route authority and metadata mirror-only constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-base-memory-movement-artifact-validator-migration/prd.md", "reason": "Immediate predecessor task and completed validator migration inventory."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-artifact-route-family-validator-boundary/prd.md", "reason": "Original route-family validator boundary and target-owned validator registry intent."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Implemented fail-closed no-validator registry dispatch, vector-reduction and widening-macc-contraction target validators, runtime-scalar computed-mask memory ownership, and RHS broadcast-load elementwise validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived RHS broadcast-load Add/Sub/Mul as elementwise route-family consumers from typed body facts instead of treating the route as unowned."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added direct route-family validation positives and no-validator negatives for provider facts and candidate mirrors."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Updated stale-plan negative coverage after RHS broadcast-load Add became a valid elementwise consumer."}

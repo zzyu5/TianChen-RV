@@ -11281,7 +11281,7 @@ int runElementwiseArithmeticRouteFamilyProviderPlanTest(
   RVVSelectedBodyRouteAnalysis staleBroadcastPlan;
   staleBroadcastPlan.description.operation = RVVSelectedBodyOperationKind::Add;
   staleBroadcastPlan.description.memoryForm =
-      RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
+      RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
   staleBroadcastPlan.elementwiseArithmeticRouteFamilyPlan.emplace();
   staleBroadcastPlan.elementwiseArithmeticRouteFamilyPlan->operation =
       RVVSelectedBodyOperationKind::Add;
