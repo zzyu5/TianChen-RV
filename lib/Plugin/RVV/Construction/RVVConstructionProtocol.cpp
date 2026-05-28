@@ -108,7 +108,9 @@ bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
 
 bool isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
     llvm::StringRef mnemonic) {
-  return mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_add";
+  return mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_add" ||
+         mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_min" ||
+         mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_max";
 }
 
 constexpr llvm::StringLiteral kEmitCLowerableRouteMetadataName(
@@ -447,6 +449,18 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi"},
+    {"runtime_scalar_cmp_masked_standalone_reduce_min",
+     "tcrv_rvv.masked_standalone_reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-emitc-route",
+     "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1",
+     "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi"},
+    {"runtime_scalar_cmp_masked_standalone_reduce_max",
+     "tcrv_rvv.masked_standalone_reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-emitc-route",
+     "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1",
+     "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi"},
     {"masked_add",
      "tcrv_rvv.masked_binary",
      "rvv.role.compute.generic_vector",
@@ -796,7 +810,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 52)
+          .size() != 54)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
@@ -809,6 +823,8 @@ llvm::Error verifySelectedBodyRoutes() {
         "computed_mask_standalone_reduce_min, "
         "computed_mask_standalone_reduce_max, "
         "runtime_scalar_cmp_masked_standalone_reduce_add, "
+        "runtime_scalar_cmp_masked_standalone_reduce_min, "
+        "runtime_scalar_cmp_masked_standalone_reduce_max, "
         "masked_add, masked_sub, masked_mul, "
         "macc_add, scalar_broadcast_macc_add, computed_masked_macc_add, "
         "runtime_scalar_cmp_masked_macc_add, widening_macc_add, "
@@ -1324,7 +1340,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
 	        "runtime_scalar_cmp_masked_store, or "
         "runtime_scalar_cmp_masked_load_store, or "
         "runtime_scalar_cmp_masked_macc_add, "
-        "runtime_scalar_cmp_masked_standalone_reduce_add in "
+        "runtime_scalar_cmp_masked_standalone_reduce_add/min/max in "
         "this bounded slice");
   if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
@@ -1427,7 +1443,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "computed_masked_segment2_store_unit_load, "
         "computed_masked_segment2_update_unit_load, "
         "computed_mask_standalone_reduce_add/min/max, "
-        "runtime_scalar_cmp_masked_standalone_reduce_add, "
+        "runtime_scalar_cmp_masked_standalone_reduce_add/min/max, "
         "computed_masked_macc_add, "
         "runtime_scalar_cmp_masked_macc_add, "
         "computed_masked_widening_dot_reduce_add, or "

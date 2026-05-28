@@ -285,7 +285,15 @@ bool isPreRealizedRuntimeScalarComputedMaskMAccPredicateKind(
 
 bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceOpKind(
     llvm::StringRef opKind) {
-  return opKind == "runtime_scalar_cmp_masked_standalone_reduce_add";
+  return opKind == "runtime_scalar_cmp_masked_standalone_reduce_add" ||
+         opKind == "runtime_scalar_cmp_masked_standalone_reduce_min" ||
+         opKind == "runtime_scalar_cmp_masked_standalone_reduce_max";
+}
+
+bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceMinMaxOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_standalone_reduce_min" ||
+         opKind == "runtime_scalar_cmp_masked_standalone_reduce_max";
 }
 
 bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceMemoryForm(
@@ -351,8 +359,12 @@ llvm::StringRef getPreRealizedComputedMaskStandaloneReduceDataflowKind(
     return "min";
   if (opKind == "computed_mask_standalone_reduce_max")
     return "max";
-  if (isPreRealizedRuntimeScalarComputedMaskStandaloneReduceOpKind(opKind))
+  if (opKind == "runtime_scalar_cmp_masked_standalone_reduce_add")
     return "add";
+  if (opKind == "runtime_scalar_cmp_masked_standalone_reduce_min")
+    return "min";
+  if (opKind == "runtime_scalar_cmp_masked_standalone_reduce_max")
+    return "max";
   return {};
 }
 
@@ -2697,7 +2709,9 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
         "reduction body currently supports only op_kind "
-        "'runtime_scalar_cmp_masked_standalone_reduce_add'");
+        "'runtime_scalar_cmp_masked_standalone_reduce_add', "
+        "'runtime_scalar_cmp_masked_standalone_reduce_min', or "
+        "'runtime_scalar_cmp_masked_standalone_reduce_max'");
   if (!isPreRealizedRuntimeScalarComputedMaskStandaloneReducePredicateKind(
           body.getPredicateKind()))
     return makeRVVPluginError(
@@ -2722,13 +2736,22 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
         "reduction body requires scalar accumulator seed and scalar output "
         "reduction layouts");
   std::int64_t sew = static_cast<std::int64_t>(body.getSew());
-  if (!isPreRealizedRuntimeScalarComputedMaskStandaloneReduceConfig(
-          sew, body.getLmul()))
+  if (isPreRealizedRuntimeScalarComputedMaskStandaloneReduceMinMaxOpKind(
+          body.getOpKind())) {
+    if (!isPreRealizedStandaloneReductionConfig(sew, body.getLmul()))
+      return makeRVVPluginError(
+          "pre-realized RVV selected runtime scalar computed-mask standalone "
+          "min/max reduction body requires SEW32 LMUL m1 or SEW32 LMUL m2 "
+          "config with a separate LMUL m1 scalar reduction "
+          "accumulator/result channel");
+  } else if (!isPreRealizedRuntimeScalarComputedMaskStandaloneReduceConfig(
+                 sew, body.getLmul())) {
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
         "reduction body requires SEW32 LMUL m1, SEW32 LMUL m2, or SEW64 "
         "LMUL m1 config with a separate LMUL m1 scalar reduction "
         "accumulator/result channel");
+  }
   if (!isPreRealizedStandaloneReduceAccumulatorLayoutForSEW(
           body.getAccumulatorLayout(), sew))
     return makeRVVPluginError(
@@ -6168,12 +6191,14 @@ createRealizedGenericMaskedStandaloneReduceCompute(
   if (!isPreRealizedComputedMaskStandaloneReduceOpKind(opKind) &&
       !isPreRealizedRuntimeScalarComputedMaskStandaloneReduceOpKind(opKind))
     return makeRVVPluginError(
-        "pre-realized RVV selected-body computed-mask standalone reduction "
-        "realization supports only op_kind "
-        "'computed_mask_standalone_reduce_add', "
-        "'computed_mask_standalone_reduce_min', or "
-        "'computed_mask_standalone_reduce_max', or "
-        "'runtime_scalar_cmp_masked_standalone_reduce_add'");
+      "pre-realized RVV selected-body computed-mask standalone reduction "
+      "realization supports only op_kind "
+      "'computed_mask_standalone_reduce_add', "
+      "'computed_mask_standalone_reduce_min', or "
+      "'computed_mask_standalone_reduce_max', or "
+      "'runtime_scalar_cmp_masked_standalone_reduce_add', "
+      "'runtime_scalar_cmp_masked_standalone_reduce_min', or "
+      "'runtime_scalar_cmp_masked_standalone_reduce_max'");
 
   mlir::OperationState state(loc, "tcrv_rvv.masked_standalone_reduce");
   state.addOperands({mask, input, accumulatorSeed, vl});

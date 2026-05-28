@@ -6346,6 +6346,10 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
                                                  ComputedMaskStandaloneReduceAdd) &&
               standaloneOwners[0].isConsumer(RVVSelectedBodyOperationKind::
                                                  RuntimeScalarComputedMaskStandaloneReduceAdd) &&
+              standaloneOwners[0].isConsumer(RVVSelectedBodyOperationKind::
+                                                 RuntimeScalarComputedMaskStandaloneReduceMin) &&
+              standaloneOwners[0].isConsumer(RVVSelectedBodyOperationKind::
+                                                 RuntimeScalarComputedMaskStandaloneReduceMax) &&
               !standaloneOwners[0].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
           "standalone reduction sub-owner covers plain and computed-mask "
@@ -6358,6 +6362,10 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
                                                  ComputedMaskStandaloneReduceAdd) &&
               standaloneOwners[1].isConsumer(RVVSelectedBodyOperationKind::
                                                  RuntimeScalarComputedMaskStandaloneReduceAdd) &&
+              standaloneOwners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                                 RuntimeScalarComputedMaskStandaloneReduceMin) &&
+              standaloneOwners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                                 RuntimeScalarComputedMaskStandaloneReduceMax) &&
               !standaloneOwners[1].isConsumer(
                   RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
           "computed-mask standalone accumulation sub-owner covers only the "
@@ -6367,7 +6375,11 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
        {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
         RVVSelectedBodyOperationKind::
-            RuntimeScalarComputedMaskStandaloneReduceAdd}) {
+            RuntimeScalarComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMin,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMax}) {
     if (int result = expect(
             isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer(
                 op),
@@ -6439,6 +6451,10 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
                                        ComputedMaskStandaloneReduceAdd) &&
               owners[2].isConsumer(RVVSelectedBodyOperationKind::
                                        RuntimeScalarComputedMaskStandaloneReduceAdd) &&
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskStandaloneReduceMin) &&
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskStandaloneReduceMax) &&
               !owners[2].isConsumer(
                   RVVSelectedBodyOperationKind::WideningDotReduceAdd) &&
               !owners[2].isConsumer(
@@ -6453,7 +6469,11 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
         RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::StandaloneReduceAdd,
         RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
-        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd}) {
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMin,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMax}) {
     if (int result = expect(
             isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
                 op),
@@ -16625,7 +16645,11 @@ int runStandaloneReductionRouteFamilyProviderPlanTest(
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin,
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax,
         RVVSelectedBodyOperationKind::
-            RuntimeScalarComputedMaskStandaloneReduceAdd}) {
+            RuntimeScalarComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMin,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMax}) {
     if (int result = expect(
             isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
                 op),
@@ -16665,6 +16689,18 @@ int runStandaloneReductionRouteFamilyProviderPlanTest(
               "standalone reduction provider unit test"),
           {"requires the standalone reduction route-family plan",
            "runtime_scalar_cmp_masked_standalone_reduce_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeScalarMinPlan;
+  missingRuntimeScalarMinPlan.description.operation =
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskStandaloneReduceMin;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              missingRuntimeScalarMinPlan,
+              "standalone reduction provider unit test"),
+          {"requires the standalone reduction route-family plan",
+           "runtime_scalar_cmp_masked_standalone_reduce_min"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleNonConsumer;
@@ -17034,7 +17070,11 @@ int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin,
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax,
         RVVSelectedBodyOperationKind::
-            RuntimeScalarComputedMaskStandaloneReduceAdd}) {
+            RuntimeScalarComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMin,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceMax}) {
     if (int result = expect(
             isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(op),
             "directly shared computed-mask standalone reductions must remain "

@@ -1187,7 +1187,7 @@ struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
   bool plansRuntimeScalarComputedMaskStandaloneReductionRoute = false;
   bool plansStandaloneReduceAdd = false;
   bool plansComputedMaskStandaloneReduceAdd = false;
-  bool plansRuntimeScalarComputedMaskStandaloneReduceAdd = false;
+  bool plansRuntimeScalarComputedMaskStandaloneReduction = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 3>
       preLoopSteps;

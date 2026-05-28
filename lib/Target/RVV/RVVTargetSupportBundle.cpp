@@ -167,6 +167,10 @@ bool isRVVStandaloneReductionAccumulationRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskStandaloneReduceAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMin:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMax:
     return true;
   default:
     return false;
@@ -186,7 +190,13 @@ bool isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
                  ComputedMaskStandaloneReduceMax ||
          operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::
-                 RuntimeScalarComputedMaskStandaloneReduceAdd;
+                 RuntimeScalarComputedMaskStandaloneReduceAdd ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceMin ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceMax;
 }
 
 bool isRVVComputedMaskStandaloneReductionAccumulationRouteFamilyOperation(
@@ -202,14 +212,26 @@ bool isRVVComputedMaskStandaloneReductionAccumulationRouteFamilyOperation(
                  ComputedMaskStandaloneReduceMax ||
          operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::
-                 RuntimeScalarComputedMaskStandaloneReduceAdd;
+                 RuntimeScalarComputedMaskStandaloneReduceAdd ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceMin ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceMax;
 }
 
 bool isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   return operation ==
-         plugin::rvv::RVVSelectedBodyOperationKind::
-             RuntimeScalarComputedMaskStandaloneReduceAdd;
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceAdd ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceMin ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskStandaloneReduceMax;
 }
 
 bool isRVVCompareSelectMaskProducerRouteFamilyOperation(

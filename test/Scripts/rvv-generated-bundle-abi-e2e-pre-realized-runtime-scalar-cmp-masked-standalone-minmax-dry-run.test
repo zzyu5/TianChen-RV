@@ -1,0 +1,103 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-minmax --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_min --op-kind runtime_scalar_cmp_masked_standalone_reduce_min_lmul_m2 --op-kind runtime_scalar_cmp_masked_standalone_reduce_max --op-kind runtime_scalar_cmp_masked_standalone_reduce_max_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/evidence.json
+# RUN: FileCheck %s --check-prefix=MIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/runtime_scalar_cmp_masked_standalone_reduce_min/evidence.json
+# RUN: FileCheck %s --check-prefix=MINM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/runtime_scalar_cmp_masked_standalone_reduce_min_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=MAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/runtime_scalar_cmp_masked_standalone_reduce_max/evidence.json
+# RUN: FileCheck %s --check-prefix=MAXM2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/runtime_scalar_cmp_masked_standalone_reduce_max_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESSMIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/runtime_scalar_cmp_masked_standalone_reduce_min/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_min_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESSMAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-minmax/runtime_scalar_cmp_masked_standalone_reduce_max/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_max_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_min"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_min_lmul_m2"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_max"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_max_lmul_m2"
+# ROOT-DAG: "rhs_scalar_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# MIN-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_min"
+# MIN-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-min.mlir"
+# MIN-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1"
+# MIN-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min"
+# MIN-DAG: "route_entry_realization": false
+# MIN-DAG: "pre_realized_body_consumed": true
+# MIN-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-emitc-route"
+# MIN-DAG: "value": "runtime_scalar_cmp_masked_standalone_reduce_min"
+# MIN-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1"
+# MIN-DAG: neutral-inactive
+# MIN-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# MIN-DAG: "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MIN-DAG: "reduction_kind": "min"
+# MIN-DAG: "__riscv_vredmin_vs_i32m1_i32m1"
+# MIN-DAG: "all_inactive_mask_behavior": "scalar result remains the seed in out[0]"
+# MIN-DAG: "status": "dry_run_success"
+
+# MINM2-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_min_lmul_m2"
+# MINM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-min-lmul-m2.mlir"
+# MINM2-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# MINM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# MINM2-DAG: "value": "vint32m2_t"
+# MINM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# MINM2-DAG: "value": "vint32m1_t"
+# MINM2-DAG: "__riscv_vredmin_vs_i32m2_i32m1"
+# MINM2-DAG: "reduction_kind": "min"
+# MINM2-DAG: "status": "dry_run_success"
+
+# MAX-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_max"
+# MAX-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-max.mlir"
+# MAX-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1"
+# MAX-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max"
+# MAX-DAG: "route_entry_realization": false
+# MAX-DAG: "pre_realized_body_consumed": true
+# MAX-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-emitc-route"
+# MAX-DAG: "value": "runtime_scalar_cmp_masked_standalone_reduce_max"
+# MAX-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1"
+# MAX-DAG: neutral-inactive
+# MAX-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# MAX-DAG: "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MAX-DAG: "reduction_kind": "max"
+# MAX-DAG: "__riscv_vredmax_vs_i32m1_i32m1"
+# MAX-DAG: "all_inactive_mask_behavior": "scalar result remains the seed in out[0]"
+# MAX-DAG: "status": "dry_run_success"
+
+# MAXM2-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_max_lmul_m2"
+# MAXM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-max-lmul-m2.mlir"
+# MAXM2-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# MAXM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# MAXM2-DAG: "value": "vint32m2_t"
+# MAXM2-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# MAXM2-DAG: "value": "vint32m1_t"
+# MAXM2-DAG: "__riscv_vredmax_vs_i32m2_i32m1"
+# MAXM2-DAG: "reduction_kind": "max"
+# MAXM2-DAG: "status": "dry_run_success"
+
+# HARNESSMIN: int32_t expected = seed;
+# HARNESSMIN: if (src[index] < expected)
+# HARNESSMIN: expected = src[index];
+# HARNESSMIN: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESSMIN: runtime_scalar_computed_mask_standalone_reduce
+# HARNESSMIN: all_inactive_mask
+# HARNESSMIN: tail_preserved
+# HARNESSMIN: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESSMIN: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESSMIN: seeds=-11,17
+
+# HARNESSMAX: int32_t expected = seed;
+# HARNESSMAX: if (src[index] > expected)
+# HARNESSMAX: expected = src[index];
+# HARNESSMAX: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESSMAX: runtime_scalar_computed_mask_standalone_reduce
+# HARNESSMAX: all_inactive_mask
+# HARNESSMAX: tail_preserved
+# HARNESSMAX: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESSMAX: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESSMAX: seeds=-11,17

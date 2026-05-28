@@ -112,7 +112,9 @@ bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
 
 bool isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
     llvm::StringRef mnemonic) {
-  return mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_add";
+  return mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_add" ||
+         mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_min" ||
+         mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_max";
 }
 
 class GateFailingPlugin final : public ExtensionPlugin {

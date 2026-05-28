@@ -69,6 +69,41 @@ real `ssh rvv` evidence, and preparing the Trellis task for archive and commit.
 
 - None - task complete
 
+## 2026-05-28 - Runtime-Scalar Compare-Masked Standalone Min/Max Scalar Channel
+
+### Trellis Task
+
+- `05-28-stage2-rvv-runtime-scalar-cmp-masked-standalone-minmax-scalar-channel`
+- Title: Stage2 RVV runtime-scalar compare-masked standalone minmax scalar channel
+
+### Implementation Notes
+
+- Extended runtime-scalar compare-masked standalone reduction support from add to min/max through RVV dialect verification, selected-body realization, construction protocol routes, provider route planning, provider materialization facts, target bundle ABI facts, and generated-bundle ABI support.
+- Selected-body realization now carries `rhs_scalar` through `tcrv_rvv.splat`, `tcrv_rvv.compare kind="sle"`, and `tcrv_rvv.masked_standalone_reduce kind="min|max"` into a scalar accumulator/result channel.
+- Provider facts now derive runtime ABI order, route operand binding plan, runtime-scalar mask producer source, neutral-inactive contract, reduction intrinsic, source LMUL m1/m2 work vector type, scalar LMUL m1 result channel, and route IDs from typed body/config/runtime facts.
+- Direct pre-realized route-entry remains unsupported for these selected-boundary-only fixtures.
+- Fixed construction-protocol common test coverage so runtime-scalar standalone reduction mnemonic classification is add/min/max, not add-only.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `ninja -C build tianchenrv-construction-protocol-common-test -j2`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] Focused lit 7/7 for dialect verifier, four target fixtures, generated-bundle dry-run, and direct route-entry fail-closed.
+- [OK] Generated-bundle dry-run: `artifacts/tmp/stage2_runtime_scalar_cmp_masked_standalone_minmax_scalar_channel/pre-realized-runtime-scalar-cmp-masked-standalone-minmax-dry`.
+- [OK] Direct pre-realized route-entry fail-closed for min/max m1/m2 with selected-boundary-only diagnostic.
+- [OK] `ssh rvv` generated-bundle compile/run/correctness for min/max m1/m2 over counts 0,1,16,23,257, thresholds -37/91, seeds -11/17, active/inactive/all-inactive masks, and tail preservation.
+- [OK] Runtime-scalar standalone add and standalone/computed-mask min/max non-regression focused lit.
+- [OK] Full low-concurrency lit site: 449/449.
+- [OK] `git diff --check`
+- [OK] Authority scan: no new positive route authority from descriptors, source-front-door, route ids, artifact names, scripts, common EmitC, RVVI32M1, rvv-i32m1, or `tcrv_rvv.i32_`; exact intrinsics are provider-derived mapping/evidence facts only.
+
+### Status
+
+[OK] Complete; ready for Trellis finish/archive and one coherent commit.
+
 
 ## Session 286: Stage2 RVV typed runtime-scalar compare-masked memory route-family derivation
 

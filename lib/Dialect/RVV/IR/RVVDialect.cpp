@@ -870,7 +870,11 @@ bool isSupportedTypedRuntimeScalarComputedMaskMemoryPreRealizedConfig(
 }
 
 bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
-    std::int64_t sew, llvm::StringRef lmul) {
+    llvm::StringRef opKind, std::int64_t sew, llvm::StringRef lmul) {
+  if (opKind == "runtime_scalar_cmp_masked_standalone_reduce_min" ||
+      opKind == "runtime_scalar_cmp_masked_standalone_reduce_max")
+    return sew == getRVVFirstSliceSEWBits() &&
+           (lmul == getRVVLMULM1() || lmul == getRVVLMULM2());
   if (sew == getRVVFirstSliceSEWBits())
     return lmul == getRVVLMULM1() || lmul == getRVVLMULM2();
   return sew == getRVVSEW64Bits() && lmul == getRVVLMULM1();
@@ -919,7 +923,9 @@ bool isSupportedTypedComputedMaskStandaloneReducePreRealizedBodyOpKind(
 
 bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "runtime_scalar_cmp_masked_standalone_reduce_add";
+  return opKind == "runtime_scalar_cmp_masked_standalone_reduce_add" ||
+         opKind == "runtime_scalar_cmp_masked_standalone_reduce_min" ||
+         opKind == "runtime_scalar_cmp_masked_standalone_reduce_max";
 }
 
 bool isSupportedTypedStandaloneReducePreRealizedMemoryForm(
@@ -4614,7 +4620,9 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
           getOpKind()))
     return emitOpError()
            << "currently supports only op_kind "
-              "\"runtime_scalar_cmp_masked_standalone_reduce_add\" for the "
+              "\"runtime_scalar_cmp_masked_standalone_reduce_add\", "
+              "\"runtime_scalar_cmp_masked_standalone_reduce_min\", or "
+              "\"runtime_scalar_cmp_masked_standalone_reduce_max\" for the "
               "bounded selected-body runtime scalar computed-mask standalone "
               "reduction hook";
   if (getPredicateKind() != "sle")
@@ -4660,11 +4668,12 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
 
   std::int64_t sew = static_cast<std::int64_t>(getSew());
   if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
-          sew, getLmul()))
+          getOpKind(), sew, getLmul()))
      return emitOpError()
              << "requires bounded pre-realized runtime scalar computed-mask "
-              "standalone reduction config to be SEW32 LMUL m1, SEW32 LMUL "
-              "m2, or SEW64 LMUL m1 with a separate LMUL m1 scalar "
+              "standalone reduction config to be SEW32 LMUL m1 or SEW32 "
+              "LMUL m2 for min/max, and SEW32 LMUL m1, SEW32 LMUL m2, or "
+              "SEW64 LMUL m1 for add, with a separate LMUL m1 scalar "
               "reduction accumulator/result channel";
   if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
           getAccumulatorLayout(), sew))
@@ -9088,13 +9097,17 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
            << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for masked standalone reduction";
   std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
+  std::string runtimeScalarReductionOpKind =
+      (llvm::Twine("runtime_scalar_cmp_masked_standalone_reduce_") +
+       getKind())
+          .str();
   if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
-          sew, expectedLMUL.getValue()))
+          runtimeScalarReductionOpKind, sew, expectedLMUL.getValue()))
     return emitOpError()
              << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
-              "LMUL m1, SEW32 LMUL m2, or SEW64 LMUL m1 for the bounded "
-              "masked standalone reduction route with a separate LMUL m1 "
-              "scalar reduction accumulator/result channel";
+              "LMUL m1 or SEW32 LMUL m2 for min/max, and SEW32 LMUL m1, "
+              "SEW32 LMUL m2, or SEW64 LMUL m1 for add, with a separate "
+              "LMUL m1 scalar reduction accumulator/result channel";
   if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
           getAccumulatorLayout(), sew))
     return emitOpError()

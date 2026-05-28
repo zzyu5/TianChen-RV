@@ -51,8 +51,12 @@ llvm::StringRef getRVVSelectedBodyMaskedStandaloneReductionInactiveNeutral(
       RuntimeScalarComputedMaskStandaloneReduceAdd:
     return "0";
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMin:
     return "2147483647";
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMax:
     return "(-2147483647-1)";
   default:
     return {};

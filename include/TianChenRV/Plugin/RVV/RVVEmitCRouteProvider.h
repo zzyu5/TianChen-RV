@@ -41,6 +41,8 @@ enum class RVVSelectedBodyOperationKind {
   ComputedMaskStandaloneReduceMin,
   ComputedMaskStandaloneReduceMax,
   RuntimeScalarComputedMaskStandaloneReduceAdd,
+  RuntimeScalarComputedMaskStandaloneReduceMin,
+  RuntimeScalarComputedMaskStandaloneReduceMax,
   MaskedAdd,
   MaskedSub,
   MaskedMul,

@@ -1,0 +1,20 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve global project boundaries and RVV-first authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local realization/provider ownership, scalar-channel reduction facts, fail-closed diagnostics, mirrors, and ssh rvv evidence."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains envelope/ABI-only and does not gain compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC and target export remain neutral consumers of provider-built routes."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check test mix and evidence level match changed compiler behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle mask/tail and runtime ssh rvv evidence for min/max correctness claims."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check route ids, artifact names, emission plans, and selected-path metadata remain mirrors only."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-runtime-scalar-cmp-masked-standalone-minmax-scalar-channel/prd.md", "reason": "Verify implementation and evidence against this task's acceptance criteria."}
+{"check": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py", "result": "passed"}
+{"check": "ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test -j2", "result": "passed via focused target rebuilds"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-construction-protocol-common-test", "result": "passed after extending the runtime-scalar standalone reduction mnemonic classifier to add/min/max"}
+{"check": "focused lit runtime-scalar standalone min/max verifier, target fixtures, generated-bundle dry-run, and direct route-entry fail-closed", "result": "passed 7/7"}
+{"check": "generated-bundle dry-run pre-realized runtime-scalar standalone min/max m1/m2", "result": "passed; artifact root artifacts/tmp/stage2_runtime_scalar_cmp_masked_standalone_minmax_scalar_channel/pre-realized-runtime-scalar-cmp-masked-standalone-minmax-dry"}
+{"check": "direct pre-realized route-entry runtime-scalar standalone min/max m1/m2", "result": "failed closed with selected-boundary-only diagnostic as expected"}
+{"check": "ssh rvv generated-bundle runtime-scalar standalone min/max m1/m2", "result": "passed counts 0,1,16,23,257 with rhs scalars -37,91, seeds -11,17, active/inactive/all-inactive masks, and tail preservation"}
+{"check": "runtime-scalar standalone add and standalone/computed-mask min/max non-regression lit", "result": "passed with --workers=1 / focused low-concurrency runs"}
+{"check": "full lit site", "result": "passed 449/449 with python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv -j2 . from build/test"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "authority scan", "result": "no new positive route authority from descriptors, source-front-door, route ids, artifact names, scripts, common EmitC, RVVI32M1, rvv-i32m1, or tcrv_rvv.i32_; exact intrinsics appear only as provider-derived mapping/evidence facts"}
