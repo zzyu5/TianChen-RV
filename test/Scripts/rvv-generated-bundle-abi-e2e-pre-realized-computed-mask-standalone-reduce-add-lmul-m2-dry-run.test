@@ -1,0 +1,58 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-standalone-reduce-add-lmul-m2 --overwrite --op-kind computed_mask_standalone_reduce_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-computed-mask-standalone-reduce-add-lmul-m2/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-standalone-reduce-add-lmul-m2/computed_mask_standalone_reduce_add_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=CPP < %t.artifacts/pre-realized-computed-mask-standalone-reduce-add-lmul-m2/computed_mask_standalone_reduce_add_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-standalone-reduce-add-lmul-m2/computed_mask_standalone_reduce_add_lmul_m2/rvv_generated_bundle_abi_computed_mask_standalone_reduce_add_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "computed_mask_standalone_reduce_add_lmul_m2"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "runtime_counts": [
+# ROOT-DAG: 257
+# ROOT-DAG: "status": "dry_run_success"
+
+# ADD-DAG: "op_kind": "computed_mask_standalone_reduce_add_lmul_m2"
+# ADD-DAG: "input_mode": "pre-realized-selected-body"
+# ADD-DAG: "expected_runtime_abi_name": "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1"
+# ADD-DAG: "expected_selected_variant": "rvv_pre_cm_standalone_reduce_add_lmul_m2"
+# ADD-DAG: "route_entry_realization": false
+# ADD-DAG: "pre_realized_body_consumed": true
+# ADD-DAG: "value": "computed_mask_standalone_reduce_add"
+# ADD-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# ADD-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"
+# ADD-DAG: "value": "scalar-horizontal-masked-standalone-reduction"
+# ADD-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_type"
+# ADD-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# ADD-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_c_type"
+# ADD-DAG: "value": "vint32m2_t"
+# ADD-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
+# ADD-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# ADD-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+# ADD-DAG: "value": "vint32m1_t"
+# ADD-DAG: "value": "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
+# ADD-DAG: "runtime_abi_order": "cmp_lhs,cmp_rhs,src,acc,out,n"
+# ADD-DAG: "store_vl": "1"
+# ADD-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
+# ADD-DAG: "status": "dry_run_success"
+
+# CPP-DAG: __riscv_vsetvl_e32m2
+# CPP-DAG: __riscv_vle32_v_i32m2
+# CPP-DAG: __riscv_vmsle_vv_i32m2_b16
+# CPP-DAG: __riscv_vmv_v_x_i32m2(0
+# CPP-DAG: __riscv_vmerge_vvm_i32m2
+# CPP-DAG: __riscv_vmv_v_x_i32m1
+# CPP-DAG: __riscv_vredsum_vs_i32m2_i32m1
+# CPP-DAG: __riscv_vse32_v_i32m1
+
+# HARNESS: int32_t expected = seed;
+# HARNESS: expected = (int32_t)(expected + src[index]);
+# HARNESS: active_lanes
+# HARNESS: inactive_lanes
+# HARNESS: all_inactive
+# HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESS: seeds=-11,17

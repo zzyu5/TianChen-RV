@@ -16890,13 +16890,13 @@ module {
       %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_cm_standalone_reduce, sew = 32 : i64, source_kernel = "rvv_cm_standalone_reduction_provider_kernel", status = "selected-lowering-boundary"} {
-        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %src_vec = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
-        %reduced = tcrv_rvv.masked_standalone_reduce %mask, %src_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_cm_standalone_reduce, sew = 32 : i64, source_kernel = "rvv_cm_standalone_reduction_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %src_vec = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m2">
+        %reduced = tcrv_rvv.masked_standalone_reduce %mask, %src_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
@@ -16942,6 +16942,16 @@ module {
                       ->scalarResultRuntimeBoundary ==
                   "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1" &&
               computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->sourceVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m2\">" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->sourceVectorCType == "vint32m2_t" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                      ->scalarResultVectorCType == "vint32m1_t" &&
+              computedMaskAnalysis->standaloneReductionRouteFamilyPlan
                       ->inactiveLaneZeroingRequirement ==
                   "masked-standalone-reduction-zero-inactive-lanes-before-reduction" &&
               computedMaskAnalysis->standaloneReductionRouteFamilyPlan
@@ -16954,8 +16964,9 @@ module {
                       .standaloneReductionScalarResultRuntimeBoundary ==
                   computedMaskAnalysis->standaloneReductionRouteFamilyPlan
                       ->scalarResultRuntimeBoundary,
-          "computed-mask standalone add plan must derive scalar result, "
-          "mask source, and zero-inactive facts from the family plan"))
+          "computed-mask standalone add m2 plan must derive source m2, scalar "
+          "result m1, mask source, and zero-inactive facts from the family "
+          "plan"))
     return result;
 
   stale = *computedMaskAnalysis;

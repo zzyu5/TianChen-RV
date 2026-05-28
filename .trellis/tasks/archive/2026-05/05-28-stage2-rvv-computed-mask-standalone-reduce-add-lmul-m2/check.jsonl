@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance check against global project invariants and RVV Stage order."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final compliance check for RVV typed selected-body realization, standalone reduction m2 facts, route provider, mirror metadata, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Final check that tcrv.exec remains envelope-only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC remains neutral and provider-built route authority is preserved."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check that focused MLIR/C++/runtime evidence matches task claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-vector-computed-mask-macc-typed-route-family/prd.md", "reason": "Adjacent route-family task used as non-regression and reporting context."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-mask-standalone-reduce-add-lmul-m2-dry-run.test", "reason": "Dry-run generated-bundle evidence for selected-boundary m2 reduce-add route facts and artifact mirrors."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-mask-standalone-reduce-add-lmul-m2-fail-closed.test", "reason": "Direct pre-realized route-entry remains fail-closed for selected-boundary-only computed-mask standalone reduce-add m2."}
+{"file": "artifacts/tmp/codex-computed-mask-standalone-reduce-add-m2/ssh-rvv/", "type": "directory", "reason": "ssh rvv correctness evidence for computed_mask_standalone_reduce_add_lmul_m2 counts 0,1,16,23,257 and seeds -11,17."}
+{"file": "artifacts/tmp/codex-computed-mask-standalone-reduce-add-m2/nonregression-dry-run/", "type": "directory", "reason": "Dry-run non-regression for computed_masked_macc_add_lmul_m2, runtime-scalar standalone reduce-add m2, and computed-mask standalone min/max m2."}

@@ -117,6 +117,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "standalone_reduce_min_lmul_m2",
     "standalone_reduce_max_lmul_m2",
     "computed_mask_standalone_reduce_add",
+    "computed_mask_standalone_reduce_add_lmul_m2",
     "computed_mask_standalone_reduce_min",
     "computed_mask_standalone_reduce_max",
     "computed_mask_standalone_reduce_min_lmul_m2",
@@ -4599,6 +4600,19 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce",
         function_name="tcrv_emitc_pre_cm_standalone_reduce_kernel_rvv_pre_cm_standalone_reduce",
+    ),
+    "computed_mask_standalone_reduce_add_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_mask_standalone_reduce_add"
+        ],
+        kind="computed_mask_standalone_reduce_add_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pre_cm_standalone_reduce_add_lmul_m2",
+        function_name="tcrv_emitc_pre_cm_standalone_reduce_add_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_add_lmul_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "runtime_scalar_cmp_masked_standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 order, and compiler stack red lines for this RVV task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, standalone reduction m2 scalar-result channel, provider facts, route-control, generated artifact mirror, and fail-closed rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Confirms tcrv.exec owns ABI/runtime envelope only and cannot infer RVV compute or dtype."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and TCRVEmitCLowerableRoute authority boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Expected lit/FileCheck/C++/runtime evidence policy for MLIR and RVV runtime claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-vector-computed-mask-macc-typed-route-family/prd.md", "reason": "Adjacent completed m2 typed route-family PRD pattern and non-goal boundaries."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Add computed_mask_standalone_reduce_add_lmul_m2 pre-realized selected-body op kind and typed m2 expectation."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add-lmul-m2.mlir", "reason": "New selected-boundary fixture proving computed-mask standalone reduce-add source m2 and scalar-result m1 realization/provider/header facts."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Extend provider route-family smoke coverage to assert source m2 and scalar-result m1 typed facts for computed-mask standalone reduce-add."}
