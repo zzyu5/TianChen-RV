@@ -869,6 +869,12 @@ bool isSupportedTypedRuntimeScalarComputedMaskMemoryPreRealizedConfig(
   return isSupportedTypedComputedMaskSelectPreRealizedConfig(sew, lmul);
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return (sew == getRVVFirstSliceSEWBits() || sew == getRVVSEW64Bits()) &&
+         lmul == getRVVLMULM1();
+}
+
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "reduce_add";
 }
@@ -933,6 +939,22 @@ bool isSupportedTypedStandaloneReducePreRealizedAccumulatorRole(
 bool isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
     llvm::StringRef layout) {
   return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
+llvm::StringRef getTypedStandaloneReduceAccumulatorLayoutForSEW(
+    std::int64_t sew) {
+  if (sew == getRVVFirstSliceSEWBits())
+    return "scalar-i32-seed-lane0-from-accumulator-input";
+  if (sew == getRVVSEW64Bits())
+    return "scalar-i64-seed-lane0-from-accumulator-input";
+  return {};
+}
+
+bool isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
+    llvm::StringRef layout, std::int64_t sew) {
+  llvm::StringRef expectedLayout =
+      getTypedStandaloneReduceAccumulatorLayoutForSEW(sew);
+  return !expectedLayout.empty() && layout == expectedLayout;
 }
 
 bool isSupportedTypedStandaloneReducePreRealizedResultLayout(
@@ -1428,6 +1450,12 @@ bool isSupportedGenericMaskedStandaloneReduceKind(llvm::StringRef kind) {
 bool isSupportedGenericStandaloneReduceAccumulatorLayout(
     llvm::StringRef layout) {
   return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
+bool isSupportedGenericMaskedStandaloneReduceAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "scalar-i32-seed-lane0-from-accumulator-input" ||
+         layout == "scalar-i64-seed-lane0-from-accumulator-input";
 }
 
 bool isSupportedGenericStandaloneReduceResultLayout(llvm::StringRef layout) {
@@ -4561,13 +4589,6 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
            << "currently supports only accumulator_role "
               "\"accumulator-input-buffer\" for the bounded selected-body "
               "runtime scalar computed-mask standalone reduction hook";
-  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
-          getAccumulatorLayout()))
-    return emitOpError()
-           << "currently supports only accumulator_layout "
-              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
-              "bounded selected-body runtime scalar computed-mask standalone "
-              "reduction hook";
   if (!isSupportedTypedStandaloneReducePreRealizedResultLayout(
           getResultLayout()))
     return emitOpError()
@@ -4576,16 +4597,36 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
               "bounded selected-body runtime scalar computed-mask standalone "
               "reduction hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(getSew());
+  if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
+          sew, getLmul()))
+     return emitOpError()
+             << "requires bounded pre-realized runtime scalar computed-mask "
+              "standalone reduction config to be SEW32 LMUL m1 or SEW64 "
+              "LMUL m1; SEW32 LMUL m2 requires a separate LMUL m1 scalar "
+              "reduction accumulator/result channel and fails closed in this "
+              "bounded route family";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
+          getAccumulatorLayout(), sew))
     return emitOpError()
-           << "requires bounded pre-realized runtime scalar computed-mask "
-              "standalone reduction config to be SEW32 LMUL m1";
+           << "requires accumulator_layout \""
+           << getTypedStandaloneReduceAccumulatorLayoutForSEW(sew)
+           << "\" to match the typed runtime scalar computed-mask standalone "
+              "reduction accumulator dtype";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
               "selected-body runtime scalar computed-mask standalone "
               "reduction hook";
+
+  std::string expectedScalarType =
+      (llvm::Twine("i") + llvm::Twine(sew)).str();
+  llvm::StringRef expectedScalarCType =
+      sew == getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedScalarCType) + " *").str();
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getCompareLhs(), "compare lhs",
@@ -4593,6 +4634,7 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getRhsScalar(), "rhs scalar threshold",
+          {sew}, expectedScalarType,
           {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
@@ -4617,29 +4659,36 @@ TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
       getSource().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
-  if (!compareLHSBinding || compareLHSBinding.getCType() != "const int32_t *")
+  if (!compareLHSBinding ||
+      compareLHSBinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires compare lhs operand C type 'const int32_t *' to "
+           << "requires compare lhs operand C type '" << expectedConstPointer
+           << "' to "
               "match typed runtime scalar computed-mask standalone reduction "
               "predicate dtype";
-  if (!rhsScalarBinding || rhsScalarBinding.getCType() != "int32_t")
+  if (!rhsScalarBinding ||
+      rhsScalarBinding.getCType() != expectedScalarCType)
     return emitOpError()
-           << "requires rhs scalar threshold operand C type 'int32_t' to "
+           << "requires rhs scalar threshold operand C type '"
+           << expectedScalarCType << "' to "
               "match typed runtime scalar computed-mask standalone reduction "
               "predicate dtype";
-  if (!sourceBinding || sourceBinding.getCType() != "const int32_t *")
+  if (!sourceBinding || sourceBinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires source operand C type 'const int32_t *' to match "
+           << "requires source operand C type '" << expectedConstPointer
+           << "' to match "
               "typed runtime scalar computed-mask standalone reduction "
               "payload dtype";
-  if (!accBinding || accBinding.getCType() != "const int32_t *")
+  if (!accBinding || accBinding.getCType() != expectedConstPointer)
     return emitOpError()
-           << "requires accumulator seed operand C type 'const int32_t *' to "
+           << "requires accumulator seed operand C type '"
+           << expectedConstPointer << "' to "
               "match typed runtime scalar computed-mask standalone reduction "
               "accumulator dtype";
-  if (!outBinding || outBinding.getCType() != "int32_t *")
+  if (!outBinding || outBinding.getCType() != expectedMutablePointer)
     return emitOpError()
-           << "requires scalar output operand C type 'int32_t *' to match "
+           << "requires scalar output operand C type '" << expectedMutablePointer
+           << "' to match "
               "typed runtime scalar computed-mask standalone reduction result "
               "dtype";
 
@@ -8910,11 +8959,12 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
            << "currently supports only mask_memory_form "
               "\"compare-produced-mask\" for the bounded Stage 2 masked "
               "standalone reduction route";
-  if (!isSupportedGenericStandaloneReduceAccumulatorLayout(
+  if (!isSupportedGenericMaskedStandaloneReduceAccumulatorLayout(
           getAccumulatorLayout()))
     return emitOpError()
            << "currently supports only accumulator_layout "
-              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" or "
+              "\"scalar-i64-seed-lane0-from-accumulator-input\" for the "
               "bounded Stage 2 masked standalone reduction route";
   if (!isSupportedGenericStandaloneReduceResultLayout(getResultLayout()))
     return emitOpError()
@@ -8931,12 +8981,6 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
     return emitOpError()
            << "requires input and result to have the same generic RVV vector "
               "type";
-  if (!isGenericRVVVectorI32M1(getInput().getType()) ||
-      !isGenericRVVVectorI32M1(getResult().getType()))
-    return emitOpError()
-           << "requires input and result vectors to have type "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded masked "
-              "standalone reduction route";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
@@ -8948,10 +8992,11 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
     return mlir::failure();
   RuntimeABIValueOp seedBinding =
       getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>();
-  if (!seedBinding || seedBinding.getCType() != "const int32_t *")
+  if (!seedBinding)
     return emitOpError()
-           << "requires accumulator seed operand C type 'const int32_t *' for "
-              "the bounded masked standalone reduction route";
+           << "requires accumulator seed operand to be bound by "
+              "tcrv_rvv.runtime_abi_value for the bounded masked standalone "
+              "reduction route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -8992,11 +9037,31 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for masked standalone reduction";
-  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
-                                 expectedLMUL.getValue()))
+  std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
+  if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConfig(
+          sew, expectedLMUL.getValue()))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
-              "LMUL m1 for the bounded masked standalone reduction route";
+             << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
+              "LMUL m1 or SEW64 LMUL m1 for the bounded masked standalone "
+              "reduction route; SEW32 LMUL m2 requires a separate LMUL m1 "
+              "scalar reduction accumulator/result channel and fails closed";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
+          getAccumulatorLayout(), sew))
+    return emitOpError()
+           << "requires accumulator_layout \""
+           << getTypedStandaloneReduceAccumulatorLayoutForSEW(sew)
+           << "\" to match the enclosing typed masked standalone reduction "
+              "config";
+  llvm::StringRef expectedScalarCType =
+      sew == getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  if (seedBinding.getCType() != expectedConstPointer)
+    return emitOpError()
+           << "requires accumulator seed operand C type '"
+           << expectedConstPointer
+           << "' to match the enclosing typed masked standalone reduction "
+              "config";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "

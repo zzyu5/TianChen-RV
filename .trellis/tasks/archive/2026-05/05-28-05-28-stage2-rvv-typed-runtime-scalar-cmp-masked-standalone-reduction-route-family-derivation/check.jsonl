@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve global RVV-first authority and compiler-stack invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify typed body/config/runtime authority, selected-boundary standalone reduction facts, provider consumption, route-control/math-binding boundaries, target mirrors, and fail-closed route-entry behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Final check must confirm tcrv.exec remains ABI/envelope-only and mirrors are not route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must confirm common EmitC consumes provider-built routes neutrally."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must confirm focused generated-bundle, direct route-entry, and ssh rvv evidence standards."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-cmp-masked-memory-route-family-derivation/prd.md", "reason": "Non-regression comparison for the adjacent completed typed masked-memory family."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-boundary/prd.md", "reason": "Baseline standalone reduction boundary and selected-boundary-only behavior to preserve while adding typed witnesses."}

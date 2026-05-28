@@ -6,6 +6,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
 #include <tuple>
 
 namespace tianchenrv::tcrv::rvv {
@@ -792,26 +793,35 @@ getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
-getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters() {
+buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
+    llvm::StringRef elementCType) {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  std::string constPointer = (llvm::Twine("const ") + elementCType + " *").str();
+  std::string mutablePointer = (llvm::Twine(elementCType) + " *").str();
   parameters.push_back(support::makeTargetExportABIParameter(
-      "cmp_lhs", "const int32_t *",
+      "cmp_lhs", constPointer,
       support::RuntimeABIParameterRole::LHSInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "rhs_scalar", "int32_t",
+      "rhs_scalar", elementCType,
       support::RuntimeABIParameterRole::RHSScalarValue));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "src", "const int32_t *",
+      "src", constPointer,
       support::RuntimeABIParameterRole::SourceInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "acc", "const int32_t *",
+      "acc", constPointer,
       support::RuntimeABIParameterRole::AccumulatorInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+      "out", mutablePointer, support::RuntimeABIParameterRole::OutputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
       kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
       support::RuntimeABIParameterRole::RuntimeElementCount));
   return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters() {
+  return buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
+      "int32_t");
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 7>
@@ -1542,6 +1552,14 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(
           parameters, runtimeScalarComputedMaskStandaloneReductionExpected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      runtimeScalarComputedMaskStandaloneReductionI64Expected =
+          buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
+              "int64_t");
+  if (support::runtimeABIParametersEqual(
+          parameters, runtimeScalarComputedMaskStandaloneReductionI64Expected))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 7>

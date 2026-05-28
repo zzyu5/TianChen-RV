@@ -252,6 +252,13 @@ bool isPreRealizedRuntimeScalarComputedMaskMemoryConfig(std::int64_t sew,
   return isPreRealizedComputedMaskSelectConfig(sew, lmul);
 }
 
+bool isPreRealizedRuntimeScalarComputedMaskStandaloneReduceConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return (sew == tcrv::rvv::getRVVFirstSliceSEWBits() ||
+          sew == tcrv::rvv::getRVVSEW64Bits()) &&
+         lmul == tcrv::rvv::getRVVLMULM1();
+}
+
 bool isPreRealizedRuntimeScalarComputedMaskMAccOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_macc_add";
@@ -355,6 +362,22 @@ bool isPreRealizedStandaloneReduceAccumulatorRole(llvm::StringRef role) {
 
 bool isPreRealizedStandaloneReduceAccumulatorLayout(llvm::StringRef layout) {
   return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
+llvm::StringRef getPreRealizedStandaloneReduceAccumulatorLayoutForSEW(
+    std::int64_t sew) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return "scalar-i32-seed-lane0-from-accumulator-input";
+  if (sew == tcrv::rvv::getRVVSEW64Bits())
+    return "scalar-i64-seed-lane0-from-accumulator-input";
+  return {};
+}
+
+bool isPreRealizedStandaloneReduceAccumulatorLayoutForSEW(
+    llvm::StringRef layout, std::int64_t sew) {
+  llvm::StringRef expectedLayout =
+      getPreRealizedStandaloneReduceAccumulatorLayoutForSEW(sew);
+  return !expectedLayout.empty() && layout == expectedLayout;
 }
 
 bool isPreRealizedStandaloneReduceResultLayout(llvm::StringRef layout) {
@@ -2686,21 +2709,28 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
         "reduction body requires compare-produced mask role/source/form");
-  if (!isPreRealizedStandaloneReduceAccumulatorRole(
-          body.getAccumulatorRole()) ||
-      !isPreRealizedStandaloneReduceAccumulatorLayout(
-          body.getAccumulatorLayout()) ||
+  if (!isPreRealizedStandaloneReduceAccumulatorRole(body.getAccumulatorRole()) ||
       !isPreRealizedStandaloneReduceResultLayout(body.getResultLayout()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
         "reduction body requires scalar accumulator seed and scalar output "
         "reduction layouts");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+  if (!isPreRealizedRuntimeScalarComputedMaskStandaloneReduceConfig(
+          sew, body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
-        "reduction body requires SEW32 LMUL m1 config");
+        "reduction body requires SEW32 LMUL m1 or SEW64 LMUL m1 config; "
+        "SEW32 LMUL m2 requires a separate LMUL m1 scalar reduction "
+        "accumulator/result channel and fails closed in this bounded route "
+        "family");
+  if (!isPreRealizedStandaloneReduceAccumulatorLayoutForSEW(
+          body.getAccumulatorLayout(), sew))
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected runtime scalar computed-mask "
+                    "standalone reduction body requires accumulator_layout '") +
+        getPreRealizedStandaloneReduceAccumulatorLayoutForSEW(sew) +
+        "' to match the typed accumulator dtype");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
@@ -2754,15 +2784,21 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
-  if ((*compareLHS).getCType() != "const int32_t *" ||
-      (*rhsScalar).getCType() != "int32_t" ||
-      (*source).getCType() != "const int32_t *" ||
-      (*acc).getCType() != "const int32_t *" ||
-      (*out).getCType() != "int32_t *")
+  llvm::StringRef expectedScalarCType =
+      sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedScalarCType) + " *").str();
+  if ((*compareLHS).getCType() != expectedConstPointer ||
+      (*rhsScalar).getCType() != expectedScalarCType ||
+      (*source).getCType() != expectedConstPointer ||
+      (*acc).getCType() != expectedConstPointer ||
+      (*out).getCType() != expectedMutablePointer)
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
-        "reduction body requires compare lhs/source/acc const int32_t *, "
-        "rhs_scalar int32_t, and out int32_t * runtime ABI bindings");
+        "reduction body requires runtime ABI bindings to match the typed "
+        "SEW-derived scalar, pointer, accumulator, and output C types");
 
   for (mlir::Operation &op : request.getVariant().getBody().front()) {
     if (&op == body.getOperation())
@@ -6883,8 +6919,9 @@ realizePreRealizedRVVStandaloneReductionOwner(
     llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
         deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
             variant, runtimeScalarMaskedStandaloneReduceBody.getN(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1(),
+            static_cast<std::int64_t>(
+                runtimeScalarMaskedStandaloneReduceBody.getSew()),
+            runtimeScalarMaskedStandaloneReduceBody.getLmul(),
             runtimeScalarMaskedStandaloneReduceBody.getPolicy(),
             "cmp_lhs,rhs_scalar,src,acc,out,n",
             "pre-realized RVV runtime scalar computed-mask standalone "

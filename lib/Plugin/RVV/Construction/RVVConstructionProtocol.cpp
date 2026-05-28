@@ -4473,6 +4473,17 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters,
           runtimeScalarDualCompareMaskAndSelectI64Parameters);
+    } else if (route->operationMnemonic ==
+               "runtime_scalar_cmp_masked_standalone_reduce_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          runtimeScalarStandaloneReductionI64Parameters =
+              tcrv::rvv::
+                  buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
+                      "int64_t");
+      acceptsTypedI64Parameters =
+          support::runtimeABIParametersEqual(
+              facts.runtimeABIParameters,
+              runtimeScalarStandaloneReductionI64Parameters);
     }
     if (!acceptsTypedI64Parameters)
       return makeRVVConstructionError(

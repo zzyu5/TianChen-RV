@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, RVV-first authority chain, and Stage1/Stage2 boundary for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, standalone reduction selected-boundary-only rule, typed config/runtime/provider facts, route-control/math-binding boundaries, target artifact mirrors, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and mem_window/runtime_param ABI role boundary; no RVV dtype or compute authority in core."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence, mask/tail/reduction evidence quality, and ssh rvv runtime claim requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-typed-runtime-scalar-cmp-masked-memory-route-family-derivation/prd.md", "reason": "Immediate previous typed runtime-scalar compare-masked memory derivation pattern and evidence witness set."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-boundary/prd.md", "reason": "Baseline standalone reduction selected-boundary executable evidence, direct route-entry fail-closed handling, and evidence command shape."}

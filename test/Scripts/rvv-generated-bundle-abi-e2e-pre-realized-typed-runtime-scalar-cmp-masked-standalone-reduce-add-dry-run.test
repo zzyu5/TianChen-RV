@@ -1,0 +1,52 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --op-kind runtime_scalar_cmp_masked_standalone_reduce_add_i64 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add/evidence.json
+# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_i64/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_add_i64_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_add"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_add_i64"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# I64-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_add_i64"
+# I64-DAG: "input_mode": "pre-realized-selected-body"
+# I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-i64.mlir"
+# I64-DAG: "prototype": "void tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64(const int64_t *cmp_lhs, int64_t rhs_scalar, const int64_t *src, const int64_t *acc, int64_t *out, size_t n);"
+# I64-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64"
+# I64-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce_i64"
+# I64-DAG: "route_entry_realization": false
+# I64-DAG: "pre_realized_body_consumed": true
+# I64-DAG: "typed_compute_op": "tcrv_rvv.masked_standalone_reduce"
+# I64-DAG: "memory_form": "runtime-scalar-computed-mask-unit-stride-standalone-reduction"
+# I64-DAG: "value": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
+# I64-DAG: "value": "i64"
+# I64-DAG: "__riscv_vsetvl_e64m1"
+# I64-DAG: "__riscv_vle64_v_i64m1"
+# I64-DAG: "__riscv_vmsle_vv_i64m1_b64"
+# I64-DAG: "__riscv_vmerge_vvm_i64m1"
+# I64-DAG: "__riscv_vredsum_vs_i64m1_i64m1"
+# I64-DAG: "__riscv_vse64_v_i64m1"
+# I64-DAG: "value": "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
+# I64-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
+# I64-DAG: "runtime_scalar_operand": "rhs_scalar"
+# I64-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# I64-DAG: "reduction_kind": "add"
+# I64-DAG: "accumulator_layout": "scalar-i64-seed-lane0-from-accumulator-input"
+# I64-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,src,acc,out,n"
+# I64-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
+# I64-DAG: "status": "dry_run_success"
+
+# HARNESS64: int64_t expected = seed;
+# HARNESS64: expected = (int64_t)(expected + src[index]);
+# HARNESS64: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESS64: runtime_scalar_computed_mask_standalone_reduce
+# HARNESS64: inactive_nonzero
+# HARNESS64: tail_preserved
+# HARNESS64: const int64_t rhs_scalar_values[] = {(int64_t)-37LL, (int64_t)91LL};

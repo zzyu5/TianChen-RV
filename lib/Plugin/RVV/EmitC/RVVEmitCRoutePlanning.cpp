@@ -1878,6 +1878,8 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVReductionStoreVL("1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionAccumulatorLayout(
     "scalar-i32-seed-lane0-from-accumulator-input");
+constexpr llvm::StringLiteral kRVVStandaloneReductionI64AccumulatorLayout(
+    "scalar-i64-seed-lane0-from-accumulator-input");
 constexpr llvm::StringLiteral kRVVStandaloneReductionResultLayout(
     "store-standalone-reduction-lane0-to-output-scalar");
 constexpr llvm::StringLiteral kRVVStandaloneReductionStoreVL("1");
@@ -1919,6 +1921,16 @@ constexpr llvm::StringLiteral kRVVContractionRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVContractionCTypeMappingSummary(
     "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32");
+
+llvm::StringRef getRVVStandaloneReductionAccumulatorLayoutForSEW(
+    std::int64_t sew) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return kRVVStandaloneReductionAccumulatorLayout;
+  if (sew == tcrv::rvv::getRVVSEW64Bits())
+    return kRVVStandaloneReductionI64AccumulatorLayout;
+  return {};
+}
+
 constexpr llvm::StringLiteral
     kRVVContractionMaskedInactiveLaneZeroingRequirement(
         "masked-widening-products-zero-inactive-lanes-before-reduction");
@@ -2083,7 +2095,7 @@ constexpr llvm::StringLiteral
         "rvv-v1-e32m1-computed-mask-standalone-reduction-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStandaloneReductionTargetLeafProfile(
-        "rvv-v1-e32m1-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1");
+        "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionProviderSupportedMirror(
     "provider_supported_mirror:rvv-standalone-reduction-plan-validated");
 constexpr llvm::StringLiteral
@@ -2101,7 +2113,7 @@ constexpr llvm::StringLiteral
         "vl:size_t,compare/source:signed-e32m1,mask:b32,seed:i32,result:signed-e32m1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStandaloneReductionCTypeMappingSummary(
-        "vl:size_t,cmp_lhs/source:signed-e32m1,rhs_scalar:i32,mask:b32,seed:i32,result:signed-e32m1");
+        "vl:size_t,cmp_lhs/source:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-vector");
 constexpr llvm::StringLiteral
     kRVVStandaloneReductionMaskedInactiveLaneZeroingRequirement(
         "masked-standalone-reduction-zero-inactive-lanes-before-reduction");
@@ -2626,6 +2638,13 @@ bool isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
        lmul == tcrv::rvv::getRVVLMULM2()))
     return true;
   return sew == tcrv::rvv::getRVVSEW64Bits() &&
+         lmul == tcrv::rvv::getRVVLMULM1();
+}
+
+bool isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return (sew == tcrv::rvv::getRVVFirstSliceSEWBits() ||
+          sew == tcrv::rvv::getRVVSEW64Bits()) &&
          lmul == tcrv::rvv::getRVVLMULM1();
 }
 
@@ -3837,6 +3856,21 @@ getRVVSelectedBodyReductionIntrinsic(llvm::StringRef lmul) {
   return {};
 }
 
+llvm::StringRef
+getRVVSelectedBodyReductionIntrinsic(
+    const RVVSelectedBodyConfigProfile &config) {
+  if (config.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      config.lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vredsum_vs_i32m1_i32m1";
+  if (config.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      config.lmul == tcrv::rvv::getRVVLMULM2())
+    return "__riscv_vredsum_vs_i32m2_i32m1";
+  if (config.sew == tcrv::rvv::getRVVSEW64Bits() &&
+      config.lmul == tcrv::rvv::getRVVLMULM1())
+    return "__riscv_vredsum_vs_i64m1_i64m1";
+  return {};
+}
+
 llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
     RVVSelectedBodyOperationKind operation, llvm::StringRef lmul) {
   if (lmul != tcrv::rvv::getRVVLMULM1())
@@ -3855,6 +3889,18 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
   default:
     return {};
   }
+}
+
+llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
+    RVVSelectedBodyOperationKind operation,
+    const RVVSelectedBodyConfigProfile &config) {
+  if (operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd)
+    return getRVVSelectedBodyReductionIntrinsic(config);
+  if (config.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+    return {};
+  return getRVVSelectedBodyStandaloneReductionIntrinsic(operation,
+                                                       config.lmul);
 }
 
 llvm::StringRef
@@ -10098,10 +10144,27 @@ validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           ? llvm::StringRef(
                 kRVVComputedMaskAccumulationReductionScalarCarryContract)
           : llvm::StringRef();
-  llvm::StringRef expectedRHSSplatLeaf =
-      isRuntimeScalarProducer ? "__riscv_vmv_v_x_i32m1" : "";
   llvm::StringRef expectedPredicate =
       isMAcc && !isRuntimeScalarProducer ? "slt" : "sle";
+  RVVSelectedBodyEmitCRouteDescription expectedConfigDescription;
+  expectedConfigDescription.operation = plan.operation;
+  expectedConfigDescription.memoryForm = plan.memoryForm;
+  expectedConfigDescription.sew = plan.runtimeControlPlan.sew;
+  expectedConfigDescription.lmul = plan.runtimeControlPlan.lmul;
+  expectedConfigDescription.tailPolicy = plan.runtimeControlPlan.tailPolicy;
+  expectedConfigDescription.maskPolicy = plan.runtimeControlPlan.maskPolicy;
+  llvm::Expected<RVVSelectedBodyConfigProfile> expectedConfig =
+      deriveRVVSelectedBodyConfigProfile(expectedConfigDescription);
+  if (!expectedConfig)
+    return expectedConfig.takeError();
+  llvm::StringRef expectedRHSSplatLeaf =
+      isRuntimeScalarProducer ? expectedConfig->rhsBroadcastIntrinsic : "";
+  llvm::StringRef expectedCompareLeaf =
+      getRVVSelectedBodyCompareIntrinsic(expectedPredicate, *expectedConfig);
+  if (expectedCompareLeaf.empty())
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires a "
+        "provider-derived compare leaf for the selected typed config");
 
   if (plan.memoryForm != expectedMemoryForm)
     return makeRVVEmitCRouteProviderError(
@@ -10166,30 +10229,31 @@ validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "vector type", plan.vectorTypeName,
-              "!tcrv_rvv.vector<i32, \"m1\">"))
+              expectedConfig->vectorTypeName))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
-              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+              plan, "vector C type", plan.vectorCType,
+              expectedConfig->vectorCType))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "mask type", plan.maskTypeName,
-              "!tcrv_rvv.mask<i32, \"m1\">"))
+              expectedConfig->maskTypeName))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
-              plan, "mask C type", plan.maskCType, "vbool32_t"))
+              plan, "mask C type", plan.maskCType, expectedConfig->maskCType))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "setvl leaf", plan.setVLIntrinsic,
-              "__riscv_vsetvl_e32m1"))
+              expectedConfig->setVLIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-              "__riscv_vle32_v_i32m1"))
+              expectedConfig->vectorLoadIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
@@ -10199,13 +10263,12 @@ validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "compare leaf", plan.compareIntrinsic,
-              getRVVSelectedBodyCompareIntrinsic(
-                  expectedPredicate, tcrv::rvv::getRVVLMULM1())))
+              expectedCompareLeaf))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
               plan, "store leaf", plan.storeIntrinsic,
-              "__riscv_vse32_v_i32m1"))
+              expectedConfig->storeIntrinsic))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskAccumulationPlanField(
@@ -10281,6 +10344,7 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
       operation == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
       operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
+  const bool isStandaloneReduction = !isMAcc;
   const bool isRuntimeScalarProducer =
       operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
@@ -10317,11 +10381,21 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
         "computed-mask accumulation route-family plan requires typed compare "
         "loads or runtime scalar splat producer, compare-produced mask, "
         "accumulator/result body structure, and route-specific payload suffix");
-  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+  if (isRuntimeScalarProducer && isStandaloneReduction) {
+    if (!isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
+            configProfile.sew, configProfile.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask accumulation route-family plan requires runtime-"
+          "scalar standalone reduction typed config to be SEW32 LMUL m1 or "
+          "SEW64 LMUL m1; SEW32 LMUL m2 requires a separate LMUL m1 scalar "
+          "reduction accumulator/result channel and fails closed in this "
+          "bounded route family");
+  } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+             configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
-        "computed-mask accumulation route-family plan currently "
-        "requires SEW32 LMUL m1 typed config");
+        "computed-mask accumulation route-family plan currently requires "
+        "non-runtime-scalar-standalone config to be SEW32 LMUL m1");
+  }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       analysis.slice.rhsABI.role !=
@@ -10579,11 +10653,20 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
         "' requires runtime ABI order '" + plan.runtimeABIOrder +
         "' with exactly " + llvm::Twine(expectedSize) + " parameters");
 
+  llvm::StringRef expectedScalarCType =
+      plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW64Bits()
+          ? "int64_t"
+          : "int32_t";
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedScalarCType) + " *").str();
+
   if (isComputedMask) {
     if (llvm::Error error =
             requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
                 plan, 0, "compare lhs input", "cmp_lhs",
-                "const int32_t *",
+                expectedConstPointer,
                 support::RuntimeABIParameterRole::LHSInputBuffer,
                 support::RuntimeABIParameterOwnership::TargetExportABIOwned))
       return error;
@@ -10591,14 +10674,15 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
             plan.operation)) {
       if (llvm::Error error =
               requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
-                  plan, 1, "runtime scalar threshold", "rhs_scalar", "int32_t",
+                  plan, 1, "runtime scalar threshold", "rhs_scalar",
+                  expectedScalarCType,
                   support::RuntimeABIParameterRole::RHSScalarValue,
                   support::RuntimeABIParameterOwnership::TargetExportABIOwned))
         return error;
     } else if (llvm::Error error =
-                   requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
+            requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
                        plan, 1, "compare rhs input", "cmp_rhs",
-                       "const int32_t *",
+                       expectedConstPointer,
                        support::RuntimeABIParameterRole::RHSInputBuffer,
                        support::RuntimeABIParameterOwnership::
                            TargetExportABIOwned)) {
@@ -10607,14 +10691,14 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
     if (llvm::Error error =
             requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
                 plan, 2, "standalone reduction source input", "src",
-                "const int32_t *",
+                expectedConstPointer,
                 support::RuntimeABIParameterRole::SourceInputBuffer,
                 support::RuntimeABIParameterOwnership::TargetExportABIOwned))
       return error;
   } else {
     if (llvm::Error error =
             requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
-                plan, 0, "source input", "lhs", "const int32_t *",
+                plan, 0, "source input", "lhs", expectedConstPointer,
                 support::RuntimeABIParameterRole::LHSInputBuffer,
                 support::RuntimeABIParameterOwnership::TargetExportABIOwned))
       return error;
@@ -10626,13 +10710,13 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
   if (llvm::Error error =
           requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
               plan, accumulatorIndex, "scalar seed accumulator", "acc",
-              "const int32_t *",
+              expectedConstPointer,
               support::RuntimeABIParameterRole::AccumulatorInputBuffer,
               support::RuntimeABIParameterOwnership::TargetExportABIOwned))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
-              plan, outputIndex, "scalar output", "out", "int32_t *",
+              plan, outputIndex, "scalar output", "out", expectedMutablePointer,
               support::RuntimeABIParameterRole::OutputBuffer,
               support::RuntimeABIParameterOwnership::TargetExportABIOwned))
     return error;
@@ -10689,9 +10773,27 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
                      : kRVVStandaloneReductionCTypeMappingSummary;
   llvm::StringRef expectedResultName =
       getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  RVVSelectedBodyEmitCRouteDescription expectedConfigDescription;
+  expectedConfigDescription.operation = plan.operation;
+  expectedConfigDescription.memoryForm = plan.memoryForm;
+  expectedConfigDescription.sew = plan.runtimeControlPlan.sew;
+  expectedConfigDescription.lmul = plan.runtimeControlPlan.lmul;
+  expectedConfigDescription.tailPolicy = plan.runtimeControlPlan.tailPolicy;
+  expectedConfigDescription.maskPolicy = plan.runtimeControlPlan.maskPolicy;
+  llvm::Expected<RVVSelectedBodyConfigProfile> expectedConfig =
+      deriveRVVSelectedBodyConfigProfile(expectedConfigDescription);
+  if (!expectedConfig)
+    return expectedConfig.takeError();
   llvm::StringRef expectedReductionIntrinsic =
       getRVVSelectedBodyStandaloneReductionIntrinsic(
-          plan.operation, tcrv::rvv::getRVVLMULM1());
+          plan.operation, *expectedConfig);
+  llvm::StringRef expectedCompareIntrinsic =
+      isComputedMask ? getRVVSelectedBodyCompareIntrinsic("sle",
+                                                          *expectedConfig)
+                     : llvm::StringRef();
+  llvm::StringRef expectedMaskedMergeIntrinsic =
+      isComputedMask ? getRVVSelectedBodySelectIntrinsic(*expectedConfig)
+                     : llvm::StringRef();
   if (!isRVVSelectedBodyStandaloneReductionRouteOperation(plan.operation))
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan currently supports only "
@@ -10752,25 +10854,28 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "vector type", plan.vectorTypeName,
-          "!tcrv_rvv.vector<i32, \"m1\">"))
+          expectedConfig->vectorTypeName))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
-          plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+          plan, "vector C type", plan.vectorCType,
+          expectedConfig->vectorCType))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
-          plan, "setvl leaf", plan.setVLIntrinsic, "__riscv_vsetvl_e32m1"))
+          plan, "setvl leaf", plan.setVLIntrinsic,
+          expectedConfig->setVLIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-          "__riscv_vle32_v_i32m1"))
+          expectedConfig->vectorLoadIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
-          "__riscv_vmv_v_x_i32m1"))
+          expectedConfig->rhsBroadcastIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic,
-          isRuntimeScalarComputedMask ? "__riscv_vmv_v_x_i32m1" : ""))
+          isRuntimeScalarComputedMask ? expectedConfig->rhsBroadcastIntrinsic
+                                      : ""))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "reduction leaf", plan.reductionIntrinsic,
@@ -10785,12 +10890,11 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
             : kRVVStandaloneReductionMaskedInactiveLaneNeutralRequirement;
     if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
             plan, "compare leaf", plan.compareIntrinsic,
-            getRVVSelectedBodyCompareIntrinsic("sle",
-                                               tcrv::rvv::getRVVLMULM1())))
+            expectedCompareIntrinsic))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
             plan, "masked merge leaf", plan.maskedMergeIntrinsic,
-            getRVVSelectedBodySelectIntrinsic(tcrv::rvv::getRVVLMULM1())))
+            expectedMaskedMergeIntrinsic))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
             plan, "inactive-lane zeroing requirement",
@@ -10829,11 +10933,19 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       return error;
   }
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
-          plan, "store leaf", plan.storeIntrinsic, "__riscv_vse32_v_i32m1"))
+          plan, "store leaf", plan.storeIntrinsic,
+          expectedConfig->storeIntrinsic))
     return error;
+  llvm::StringRef expectedAccumulatorLayout =
+      getRVVStandaloneReductionAccumulatorLayoutForSEW(
+          plan.runtimeControlPlan.sew);
+  if (expectedAccumulatorLayout.empty())
+    return makeRVVEmitCRouteProviderError(
+        "standalone reduction route-family plan requires a supported typed "
+        "scalar accumulator layout for the selected SEW");
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "accumulator layout", plan.accumulatorLayout,
-          kRVVStandaloneReductionAccumulatorLayout))
+          expectedAccumulatorLayout))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "result layout", plan.resultLayout,
@@ -10904,11 +11016,21 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires explicit typed input "
         "load(s), reduction compute, and scalar-output store body structure");
-  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+  if (isRuntimeScalarComputedMask) {
+    if (!isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
+            configProfile.sew, configProfile.lmul))
+      return makeRVVEmitCRouteProviderError(
+          "standalone reduction route-family plan requires runtime-scalar "
+          "computed-mask standalone reduction typed config to be SEW32 LMUL "
+          "m1 or SEW64 LMUL m1; SEW32 LMUL m2 requires a separate LMUL m1 "
+          "scalar reduction accumulator/result channel and fails closed in "
+          "this bounded route family");
+  } else if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+             configProfile.lmul != tcrv::rvv::getRVVLMULM1()) {
     return makeRVVEmitCRouteProviderError(
-        "standalone reduction route-family plan currently requires SEW32 LMUL "
-        "m1 typed config");
+        "standalone reduction route-family plan currently requires non-"
+        "runtime-scalar standalone reduction config to be SEW32 LMUL m1");
+  }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       (isRuntimeScalarComputedMask
@@ -11109,13 +11231,20 @@ deriveRVVSelectedBodyTargetLeafProfile(
         description.memoryForm ==
             RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore &&
         configProfile.lmul == tcrv::rvv::getRVVLMULM1();
+    const bool supportsRuntimeScalarI64ComputedMaskStandaloneReduction =
+        description.operation == RVVSelectedBodyOperationKind::
+                                     RuntimeScalarComputedMaskStandaloneReduceAdd &&
+        description.memoryForm == RVVSelectedBodyMemoryForm::
+                                      RuntimeScalarComputedMaskUnitStrideStandaloneReduction &&
+        configProfile.lmul == tcrv::rvv::getRVVLMULM1();
     if (!supportsPlainI64Add && !supportsMaskedI64Arithmetic &&
         !supportsPlainI64CompareSelect &&
         !supportsComputedMaskI64CompareSelect &&
         !supportsRuntimeScalarI64CompareSelect &&
         !supportsRuntimeScalarI64DualCompareMaskAndSelect &&
         !supportsRuntimeScalarI64ComputedMaskStore &&
-        !supportsRuntimeScalarI64ComputedMaskLoadStore)
+        !supportsRuntimeScalarI64ComputedMaskLoadStore &&
+        !supportsRuntimeScalarI64ComputedMaskStandaloneReduction)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
@@ -11263,16 +11392,16 @@ deriveRVVSelectedBodyTargetLeafProfile(
         (isStandalone || isComputedMaskStandalone ||
          isRuntimeScalarComputedMaskStandalone)
             ? getRVVSelectedBodyStandaloneReductionIntrinsic(
-                  description.operation, configProfile.lmul)
+                  description.operation, configProfile)
             : getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
     llvm::StringRef compareIntrinsic =
         (isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone)
             ? getRVVSelectedBodyCompareIntrinsic(
-                  description.comparePredicateKind, configProfile.lmul)
+                  description.comparePredicateKind, configProfile)
             : llvm::StringRef();
     llvm::StringRef maskedMergeIntrinsic =
         (isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone)
-            ? getRVVSelectedBodySelectIntrinsic(configProfile.lmul)
+            ? getRVVSelectedBodySelectIntrinsic(configProfile)
             : llvm::StringRef();
     if (reductionIntrinsic.empty())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
@@ -15223,7 +15352,9 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
   if (!reductionKind)
     return reductionKind.takeError();
   if (standaloneReduce.getAccumulatorLayout() !=
-      kRVVStandaloneReductionAccumulatorLayout)
+          kRVVStandaloneReductionAccumulatorLayout &&
+      standaloneReduce.getAccumulatorLayout() !=
+          kRVVStandaloneReductionI64AccumulatorLayout)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce "
                     "accumulator_layout '") +
@@ -15277,7 +15408,9 @@ llvm::Error recordRVVSelectedBodyMaskedStandaloneReduction(
         maskedStandaloneReduce.getMaskMemoryForm() +
         "' for bounded RVV computed-mask standalone reduction route");
   if (maskedStandaloneReduce.getAccumulatorLayout() !=
-      kRVVStandaloneReductionAccumulatorLayout)
+          kRVVStandaloneReductionAccumulatorLayout &&
+      maskedStandaloneReduce.getAccumulatorLayout() !=
+          kRVVStandaloneReductionI64AccumulatorLayout)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.masked_standalone_reduce "
                     "accumulator_layout '") +
@@ -33622,6 +33755,8 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
 
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
+  llvm::StringRef scalarCType =
+      description.sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
   llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
       makeRVVStandaloneReductionStatementPlanStep(
           slice.setvl.getOperation(), "configure",
@@ -33642,7 +33777,7 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           materializationFacts.scalarSeedSplatLeaf,
           {TCRVEmitCCallOpaqueOperand{
                (llvm::StringRef(accumulatorABI->cName) + "[0]").str(),
-               "int32_t"},
+               scalarCType.str()},
            TCRVEmitCCallOpaqueOperand{reductionPlan.reductionStoreVL.str(),
                                       materializationFacts.vlCType.str()}},
           description, context,
@@ -33782,7 +33917,8 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
     if (llvm::Error error = addRVVStandaloneReductionStatementPlanLoopStep(
             plan, slice.arithmeticOp, "compute",
             materializationFacts.scalarSeedSplatLeaf,
-            {TCRVEmitCCallOpaqueOperand{inactiveNeutral.str(), "int32_t"},
+            {TCRVEmitCCallOpaqueOperand{inactiveNeutral.str(),
+                                        scalarCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         materializationFacts.vlCType.str()}},
             description, context,
@@ -33815,7 +33951,8 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
           plan, slice.arithmeticOp, "compute",
           materializationFacts.scalarSeedSplatLeaf,
           {TCRVEmitCCallOpaqueOperand{
-               (llvm::StringRef(outABI->cName) + "[0]").str(), "int32_t"},
+               (llvm::StringRef(outABI->cName) + "[0]").str(),
+               scalarCType.str()},
            TCRVEmitCCallOpaqueOperand{reductionPlan.reductionStoreVL.str(),
                                       materializationFacts.vlCType.str()}},
           description, context,
@@ -39801,10 +39938,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             kRVVReductionStoreVL))
       return error;
   } else if (isStandaloneReductionRoute) {
+    llvm::StringRef expectedAccumulatorLayout =
+        getRVVStandaloneReductionAccumulatorLayoutForSEW(description.sew);
+    if (expectedAccumulatorLayout.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " requires a supported typed scalar accumulator layout for the "
+          "selected standalone reduction SEW");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "reduction accumulator layout",
             description.reductionAccumulatorLayout,
-            kRVVStandaloneReductionAccumulatorLayout))
+            expectedAccumulatorLayout))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "reduction result layout",

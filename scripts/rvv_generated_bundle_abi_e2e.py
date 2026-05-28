@@ -116,6 +116,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_mask_standalone_reduce_min",
     "computed_mask_standalone_reduce_max",
     "runtime_scalar_cmp_masked_standalone_reduce_add",
+    "runtime_scalar_cmp_masked_standalone_reduce_add_i64",
     "runtime_i32_splat_store",
     "i64_add",
     "lmul_m2_add",
@@ -304,14 +305,14 @@ COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING = (
     "vl:size_t,compare/source:signed-e32m1,mask:b32,seed:i32,result:signed-e32m1"
 )
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
+    "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
 )
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
 )
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING = (
-    "vl:size_t,cmp_lhs/source:signed-e32m1,rhs_scalar:i32,mask:b32,"
-    "seed:i32,result:signed-e32m1"
+    "vl:size_t,cmp_lhs/source:typed-vector,rhs_scalar:typed-scalar,"
+    "mask:typed-mask,seed:typed-scalar,result:typed-vector"
 )
 COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING = (
     "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
@@ -1549,6 +1550,29 @@ class OpExpectation:
         return f"__riscv_{op_leaf}_vv_{self.element_type}{self.lmul}"
 
     @property
+    def standalone_reduction_intrinsic(self) -> str:
+        if self.sew == "32" and self.lmul == "m1":
+            return "__riscv_vredsum_vs_i32m1_i32m1"
+        if self.sew == "64" and self.lmul == "m1":
+            return "__riscv_vredsum_vs_i64m1_i64m1"
+        raise EvidenceError(
+            f"{self.kind} has no supported standalone reduction intrinsic "
+            f"for SEW{self.sew} LMUL {self.lmul}"
+        )
+
+    @property
+    def standalone_reduction_accumulator_layout(self) -> str:
+        if self.element_type in {"i32", "i64"}:
+            return (
+                f"scalar-{self.element_type}-seed-lane0-from-"
+                "accumulator-input"
+            )
+        raise EvidenceError(
+            f"{self.kind} has no supported standalone reduction accumulator "
+            f"layout for element type {self.element_type}"
+        )
+
+    @property
     def macc_compute_intrinsic(self) -> str:
         if not (self.is_macc_add or self.is_scalar_broadcast_macc_add):
             raise EvidenceError(
@@ -1730,9 +1754,11 @@ class OpExpectation:
             )
         if self.is_runtime_scalar_computed_mask_standalone_reduce:
             return (
-                f"void {self.function_name}(const int32_t *cmp_lhs, "
-                "int32_t rhs_scalar, const int32_t *src, "
-                "const int32_t *acc, int32_t *out, size_t n);"
+                f"void {self.function_name}(const {self.element_c_type} *cmp_lhs, "
+                f"{self.element_c_type} rhs_scalar, "
+                f"const {self.element_c_type} *src, "
+                f"const {self.element_c_type} *acc, "
+                f"{self.element_c_type} *out, size_t n);"
             )
         if self.is_macc_add:
             return (
@@ -1844,7 +1870,9 @@ class OpExpectation:
         if self.is_computed_mask_standalone_reduce:
             return EXPECTED_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_computed_mask_standalone_reduce:
-            return EXPECTED_RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS
+            return runtime_scalar_computed_mask_standalone_reduce_runtime_parameters(
+                self.element_c_type
+            )
         if self.is_widen_i32_to_i64:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
@@ -1901,6 +1929,8 @@ class OpExpectation:
             "runtime_scalar_cmp_masked_load_store_lmul_m2",
         }:
             return "runtime_scalar_cmp_masked_load_store"
+        if self.kind == "runtime_scalar_cmp_masked_standalone_reduce_add_i64":
+            return "runtime_scalar_cmp_masked_standalone_reduce_add"
         return self.kind
 
     @property
@@ -2238,7 +2268,10 @@ class OpExpectation:
 
     @property
     def is_runtime_scalar_computed_mask_standalone_reduce(self) -> bool:
-        return self.kind == "runtime_scalar_cmp_masked_standalone_reduce_add"
+        return self.kind in {
+            "runtime_scalar_cmp_masked_standalone_reduce_add",
+            "runtime_scalar_cmp_masked_standalone_reduce_add_i64",
+        }
 
     @property
     def is_i64_add(self) -> bool:
@@ -4290,6 +4323,37 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce",
         function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_kernel_rvv_pre_rt_scalar_cm_standalone_reduce",
     ),
+    "runtime_scalar_cmp_masked_standalone_reduce_add_i64": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_standalone_reduce_add"
+        ],
+        kind="runtime_scalar_cmp_masked_standalone_reduce_add_i64",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-add-i64.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pre_rt_scalar_cm_standalone_reduce_i64",
+        function_name="tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64",
+        lhs_initializer=(
+            "(int64_t)(((index % 6) == 0) ? -9000000000LL : "
+            "((index % 6) == 1) ? -37LL : "
+            "((index % 6) == 2) ? -11LL : "
+            "((index % 6) == 3) ? 0LL : "
+            "((index % 6) == 4) ? 91LL : 9000000000LL)"
+        ),
+        source_initializer=(
+            "(int64_t)(((index % 4) == 0) ? (int64_t)(index + 5000000000LL) : "
+            "((index % 4) == 1) ? (int64_t)(-((int64_t)index + 7000000000LL)) : "
+            "((index % 4) == 2) ? (int64_t)(3700000000LL + (int64_t)index) : "
+            "(int64_t)(-1900000000LL - (int64_t)index))"
+        ),
+        out_initializer=I64_OUT_SENTINEL,
+        expected_expression=(
+            "(int64_t)(acc[0] + sum_i(cmp_lhs[i] <= rhs_scalar ? src[i] : 0))"
+        ),
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
     "computed_mask_standalone_reduce_min": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
             "computed_mask_standalone_reduce_min"
@@ -4972,6 +5036,49 @@ def runtime_scalar_cmp_masked_store_runtime_parameters(
     )
 
 
+def runtime_scalar_computed_mask_standalone_reduce_runtime_parameters(
+    element_c_type: str,
+) -> tuple[dict[str, str], ...]:
+    return (
+        {
+            "c_name": "cmp_lhs",
+            "c_type": f"const {element_c_type} *",
+            "role": "lhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "rhs_scalar",
+            "c_type": element_c_type,
+            "role": "rhs-scalar-value",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "src",
+            "c_type": f"const {element_c_type} *",
+            "role": "source-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "acc",
+            "c_type": f"const {element_c_type} *",
+            "role": "accumulator-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "out",
+            "c_type": f"{element_c_type} *",
+            "role": "output-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "n",
+            "c_type": "size_t",
+            "role": "runtime-element-count",
+            "ownership": "target-export-abi-owned",
+        },
+    )
+
+
 EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
     {
@@ -5174,22 +5281,9 @@ EXPECTED_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
 EXPECTED_RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS = (
-    {
-        "c_name": "cmp_lhs",
-        "c_type": "const int32_t *",
-        "role": "lhs-input-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS[1],
-    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[2],
-    {
-        "c_name": "acc",
-        "c_type": "const int32_t *",
-        "role": "accumulator-input-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    EXPECTED_RUNTIME_PARAMETERS[2],
-    EXPECTED_RUNTIME_PARAMETERS[3],
+    runtime_scalar_computed_mask_standalone_reduce_runtime_parameters(
+        "int32_t"
+    )
 )
 EXPECTED_MACC_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
@@ -6289,7 +6383,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING
                 ),
                 "tcrv_rvv.reduction_accumulator_layout": (
-                    STANDALONE_REDUCE_ACCUMULATOR_LAYOUT
+                    expectation.standalone_reduction_accumulator_layout
                 ),
                 "tcrv_rvv.reduction_result_layout": (
                     STANDALONE_REDUCE_RESULT_LAYOUT
@@ -8243,7 +8337,7 @@ def verify_emitted_rvv_cpp(
             expectation.scalar_splat_intrinsic,
             expectation.compare_intrinsic,
             expectation.select_intrinsic,
-            "__riscv_vredsum_vs_i32m1_i32m1",
+            expectation.standalone_reduction_intrinsic,
             expectation.unit_store_intrinsic,
         ]
         require_contains(
@@ -8583,7 +8677,7 @@ def extract_standalone_reduction_emitc_boundary(
         code,
         rf"const {element_c_type} (?P<seed_scalar>v[0-9]+) = {acc}\[0\];\s*"
         rf"{vector_c_type} (?P<seed_vector>v[0-9]+) = "
-        rf"__riscv_vmv_v_x_i32m1\((?P=seed_scalar), "
+        rf"{re.escape(expectation.scalar_splat_intrinsic)}\((?P=seed_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);\s*"
         rf"{re.escape(expectation.unit_store_intrinsic)}"
         rf"\({out}, (?P=seed_vector), {STANDALONE_REDUCE_STORE_VL}\);",
@@ -8716,7 +8810,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         code,
         rf"const {element_c_type} (?P<seed_scalar>v[0-9]+) = {acc}\[0\];\s*"
         rf"{vector_c_type} (?P<seed_vector>v[0-9]+) = "
-        rf"__riscv_vmv_v_x_i32m1\((?P=seed_scalar), "
+        rf"{re.escape(expectation.scalar_splat_intrinsic)}\((?P=seed_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);\s*"
         rf"{re.escape(expectation.unit_store_intrinsic)}"
         rf"\({out}, (?P=seed_vector), {STANDALONE_REDUCE_STORE_VL}\);",
@@ -8780,7 +8874,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     neutral = require_regex(
         code,
         rf"{vector_c_type} (?P<neutral_vec>v[0-9]+) = "
-        rf"__riscv_vmv_v_x_i32m1\(0, {loop_vl}\);",
+        rf"{re.escape(expectation.scalar_splat_intrinsic)}\(0, {loop_vl}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction inactive neutral",
     )
     neutral_vec = neutral.group("neutral_vec")
@@ -8796,7 +8890,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         code,
         rf"{element_c_type} (?P<acc_scalar>v[0-9]+) = {out}\[0\];\s*"
         rf"{vector_c_type} (?P<acc_vec>v[0-9]+) = "
-        rf"__riscv_vmv_v_x_i32m1\((?P=acc_scalar), "
+        rf"{re.escape(expectation.scalar_splat_intrinsic)}\((?P=acc_scalar), "
         rf"{STANDALONE_REDUCE_STORE_VL}\);",
         "emitted RVV C/C++ runtime scalar standalone reduction accumulator splat",
     )
@@ -8805,7 +8899,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
     reduction = require_regex(
         code,
         rf"{vector_c_type} (?P<result_vec>v[0-9]+) = "
-        r"__riscv_vredsum_vs_i32m1_i32m1"
+        rf"{re.escape(expectation.standalone_reduction_intrinsic)}"
         rf"\({masked_source}, {acc_vec}, {loop_vl}\);\s*"
         rf"{re.escape(expectation.unit_store_intrinsic)}"
         rf"\({out}, (?P=result_vec), {STANDALONE_REDUCE_STORE_VL}\);",
@@ -8849,16 +8943,16 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         "reduction_kind": "add",
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "runtime_scalar_realization_op": "tcrv_rvv.splat",
-        "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+        "accumulator_layout": expectation.standalone_reduction_accumulator_layout,
         "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
         "store_vl": STANDALONE_REDUCE_STORE_VL,
         "setvl_intrinsic": expectation.setvl_intrinsic,
         "source_load_intrinsic": expectation.unit_load_intrinsic,
         "scalar_splat_intrinsic": expectation.scalar_splat_intrinsic,
         "compare_intrinsic": expectation.compare_intrinsic,
-        "inactive_neutral_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "inactive_neutral_splat_intrinsic": expectation.scalar_splat_intrinsic,
         "masked_source_merge_intrinsic": expectation.select_intrinsic,
-        "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+        "standalone_reduce_intrinsic": expectation.standalone_reduction_intrinsic,
         "store_intrinsic": expectation.unit_store_intrinsic,
         "seed_store_initializes_empty_count_result": True,
         "compare_uses_runtime_scalar_splat": True,
@@ -11663,7 +11757,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            f'accumulator_layout = "{STANDALONE_REDUCE_ACCUMULATOR_LAYOUT}"',
+            f'accumulator_layout = "{expectation.standalone_reduction_accumulator_layout}"',
             "materialized selected-body MLIR runtime scalar standalone accumulator layout",
         )
         require_contains(
@@ -11707,7 +11801,7 @@ def verify_materialized_selected_body(
             "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
             "inactive_lane_contract": COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING,
             "source_vector_type": expectation.rvv_vector_type,
-            "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+            "accumulator_layout": expectation.standalone_reduction_accumulator_layout,
             "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
@@ -11720,7 +11814,7 @@ def verify_materialized_selected_body(
             "source_element_type": expectation.element_type,
             "accumulator_element_type": expectation.element_type,
             "result_element_type": expectation.element_type,
-            "accumulator_layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+            "accumulator_layout": expectation.standalone_reduction_accumulator_layout,
             "result_layout": STANDALONE_REDUCE_RESULT_LAYOUT,
             "selected_source_abi": {
                 "cmp_lhs": "lhs-input-buffer",
@@ -16162,7 +16256,7 @@ static int run_case(size_t n, int32_t seed) {{
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
-    out[index] = {OUT_SENTINEL};
+    out[index] = {expectation.out_initializer};
 
   {expectation.function_name}(lhs, acc, out, n);
 
@@ -16181,7 +16275,7 @@ static int run_case(size_t n, int32_t seed) {{
     return 13;
   }}
   for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
-    if (out[index] != {OUT_SENTINEL}) {{
+    if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
               "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
               n, seed, index, out[index], {OUT_SENTINEL});
@@ -16282,7 +16376,7 @@ static int run_case(size_t n, int32_t seed) {{
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
-    out[index] = {OUT_SENTINEL};
+    out[index] = {expectation.out_initializer};
 
   {expectation.function_name}(cmp_lhs, cmp_rhs, src, acc, out, n);
 
@@ -16305,7 +16399,7 @@ static int run_case(size_t n, int32_t seed) {{
     return 13;
   }}
   for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
-    if (out[index] != {OUT_SENTINEL}) {{
+    if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
               "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
               n, seed, index, out[index], {OUT_SENTINEL});
@@ -16356,7 +16450,7 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
-    out[index] = {OUT_SENTINEL};
+    out[index] = {expectation.out_initializer};
 
   {expectation.function_name}(cmp_lhs, cmp_rhs, src, acc, out, n);
 
@@ -16379,7 +16473,7 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
     return 23;
   }}
   for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
-    if (out[index] != {OUT_SENTINEL}) {{
+    if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
               "{expectation.kind} all_inactive_mask touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
               n, seed, index, out[index], {OUT_SENTINEL});
@@ -16422,6 +16516,7 @@ int main(void) {{
         active_expression = expectation.compare_predicate_c_expression(
             "cmp_lhs[index]", "rhs_scalar"
         )
+        value_type = expectation.element_c_type
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -16430,30 +16525,34 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int32_t make_cmp_lhs_value(size_t index) {{
+static long long printable_value({value_type} value) {{
+  return (long long)value;
+}}
+
+static {value_type} make_cmp_lhs_value(size_t index) {{
   return {expectation.lhs_initializer};
 }}
 
-static int32_t make_src_value(size_t index) {{
+static {value_type} make_src_value(size_t index) {{
   return {expectation.source_initializer};
 }}
 
-static int run_case(size_t n, int32_t rhs_scalar, int32_t seed) {{
+static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
-  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t acc[1];
-  int32_t out[4];
+  {value_type} *cmp_lhs = ({value_type} *)malloc(sizeof({value_type}) * alloc_n);
+  {value_type} *src = ({value_type} *)malloc(sizeof({value_type}) * alloc_n);
+  {value_type} acc[1];
+  {value_type} out[4];
   if (!cmp_lhs || !src) {{
-    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d\\n",
-            n, rhs_scalar);
+    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%lld\\n",
+            n, printable_value(rhs_scalar));
     free(cmp_lhs);
     free(src);
     return 11;
   }}
 
-  int32_t expected = seed;
+  {value_type} expected = seed;
   size_t active_lanes = 0;
   size_t inactive_lanes = 0;
   size_t active_positive = 0;
@@ -16465,7 +16564,7 @@ static int run_case(size_t n, int32_t rhs_scalar, int32_t seed) {{
     if (index < n) {{
       int active = {active_expression};
       if (active) {{
-        expected = (int32_t)(expected + src[index]);
+        expected = ({value_type})(expected + src[index]);
         ++active_lanes;
         if (src[index] > 0)
           ++active_positive;
@@ -16480,14 +16579,15 @@ static int run_case(size_t n, int32_t rhs_scalar, int32_t seed) {{
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
-    out[index] = {OUT_SENTINEL};
+    out[index] = {expectation.out_initializer};
 
   {expectation.function_name}(cmp_lhs, rhs_scalar, src, acc, out, n);
 
   if (out[0] != expected) {{
     fprintf(stderr,
-            "{expectation.kind} mismatch n=%zu rhs_scalar=%d seed=%d got=%d expected=%d active_lanes=%zu inactive_lanes=%zu\\n",
-            n, rhs_scalar, seed, out[0], expected, active_lanes,
+            "{expectation.kind} mismatch n=%zu rhs_scalar=%lld seed=%lld got=%lld expected=%lld active_lanes=%zu inactive_lanes=%zu\\n",
+            n, printable_value(rhs_scalar), printable_value(seed),
+            printable_value(out[0]), printable_value(expected), active_lanes,
             inactive_lanes);
     free(cmp_lhs);
     free(src);
@@ -16495,17 +16595,19 @@ static int run_case(size_t n, int32_t rhs_scalar, int32_t seed) {{
   }}
   if (acc[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} mutated seed input n=%zu rhs_scalar=%d got=%d expected=%d\\n",
-            n, rhs_scalar, acc[0], seed);
+            "{expectation.kind} mutated seed input n=%zu rhs_scalar=%lld got=%lld expected=%lld\\n",
+            n, printable_value(rhs_scalar), printable_value(acc[0]),
+            printable_value(seed));
     free(cmp_lhs);
     free(src);
     return 13;
   }}
   for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
-    if (out[index] != {OUT_SENTINEL}) {{
+    if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched scalar-output sentinel n=%zu rhs_scalar=%d seed=%d index=%zu got=%d sentinel=%d\\n",
-              n, rhs_scalar, seed, index, out[index], {OUT_SENTINEL});
+              "{expectation.kind} touched scalar-output sentinel n=%zu rhs_scalar=%lld seed=%lld index=%zu got=%lld sentinel=%lld\\n",
+              n, printable_value(rhs_scalar), printable_value(seed), index,
+              printable_value(out[index]), printable_value({expectation.out_initializer}));
       free(cmp_lhs);
       free(src);
       return 14;
@@ -16513,24 +16615,24 @@ static int run_case(size_t n, int32_t rhs_scalar, int32_t seed) {{
   }}
   if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar=%d active_lanes=%zu inactive_lanes=%zu\\n",
-            n, rhs_scalar, active_lanes, inactive_lanes);
+            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar=%lld active_lanes=%zu inactive_lanes=%zu\\n",
+            n, printable_value(rhs_scalar), active_lanes, inactive_lanes);
     free(cmp_lhs);
     free(src);
     return 15;
   }}
   if (n > 1 && (active_positive == 0 || active_negative == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} payload-sign coverage missing n=%zu rhs_scalar=%d active_positive=%zu active_negative=%zu\\n",
-            n, rhs_scalar, active_positive, active_negative);
+            "{expectation.kind} payload-sign coverage missing n=%zu rhs_scalar=%lld active_positive=%zu active_negative=%zu\\n",
+            n, printable_value(rhs_scalar), active_positive, active_negative);
     free(cmp_lhs);
     free(src);
     return 16;
   }}
   if (n > 1 && inactive_nonzero == 0) {{
     fprintf(stderr,
-            "{expectation.kind} inactive exclusion coverage missing n=%zu rhs_scalar=%d\\n",
-            n, rhs_scalar);
+            "{expectation.kind} inactive exclusion coverage missing n=%zu rhs_scalar=%lld\\n",
+            n, printable_value(rhs_scalar));
     free(cmp_lhs);
     free(src);
     return 17;
@@ -16538,16 +16640,17 @@ static int run_case(size_t n, int32_t rhs_scalar, int32_t seed) {{
 
   free(cmp_lhs);
   free(src);
-  printf("{expectation.kind} case n=%zu rhs_scalar=%d seed=%d ok runtime_scalar_computed_mask_standalone_reduce scalar_out=%d active_lanes=%zu inactive_lanes=%zu active_positive=%zu active_negative=%zu inactive_nonzero=%zu tail_preserved\\n",
-         n, rhs_scalar, seed, out[0], active_lanes, inactive_lanes,
+  printf("{expectation.kind} case n=%zu rhs_scalar=%lld seed=%lld ok runtime_scalar_computed_mask_standalone_reduce scalar_out=%lld active_lanes=%zu inactive_lanes=%zu active_positive=%zu active_negative=%zu inactive_nonzero=%zu tail_preserved\\n",
+         n, printable_value(rhs_scalar), printable_value(seed),
+         printable_value(out[0]), active_lanes, inactive_lanes,
          active_positive, active_negative, inactive_nonzero);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
-  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
-  const int32_t seeds[] = {{(int32_t)-11, (int32_t)17}};
+  const {value_type} rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const {value_type} seeds[] = {{({value_type})-11, ({value_type})17}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
   const size_t seed_count = sizeof(seeds) / sizeof(seeds[0]);
@@ -20202,10 +20305,10 @@ def reduction_accumulation_boundary_summary(
             [
                 expectation.unit_load_intrinsic,
                 expectation.compare_intrinsic,
-                "__riscv_vmv_v_x_i32m1",
+                expectation.scalar_splat_intrinsic,
                 expectation.select_intrinsic,
-                "__riscv_vmv_v_x_i32m1",
-                "__riscv_vredsum_vs_i32m1_i32m1",
+                expectation.scalar_splat_intrinsic,
+                expectation.standalone_reduction_intrinsic,
                 expectation.unit_store_intrinsic,
             ]
         )
@@ -20217,7 +20320,7 @@ def reduction_accumulation_boundary_summary(
             ),
             "pre_loop_callees": [
                 expectation.setvl_intrinsic,
-                "__riscv_vmv_v_x_i32m1",
+                expectation.scalar_splat_intrinsic,
                 expectation.unit_store_intrinsic,
             ],
             "loop_callees": loop_callees,
@@ -20275,7 +20378,7 @@ def reduction_accumulation_boundary_summary(
             "accumulator_type_policy": {
                 "element_type": expectation.element_type,
                 "element_c_type": expectation.element_c_type,
-                "layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
+                "layout": expectation.standalone_reduction_accumulator_layout,
                 "abi_role": "accumulator-input-buffer",
             },
             "result_type_policy": {
@@ -21375,8 +21478,9 @@ def run_one_op_e2e(
                 "mask lanes"
             )
             evidence["harness"]["reduction_contract"] = (
-                "only active masked lanes contribute signed i32 source payload "
-                "values to the scalar add reduction with the i32 scalar seed"
+                "only active masked lanes contribute signed "
+                f"{expectation.element_c_type} source payload values to the "
+                "scalar add reduction with the typed scalar seed"
             )
             evidence["harness"]["inactive_lane_contract"] = (
                 "inactive lanes must be excluded from the horizontal sum even "

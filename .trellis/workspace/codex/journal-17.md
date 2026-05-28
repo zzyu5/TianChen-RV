@@ -856,3 +856,36 @@ Completed typed runtime_scalar_dual_cmp_mask_and_select i64 and LMUL m2 derivati
 ### Next Steps
 
 - None - task complete
+
+
+## Session 286: Stage2 RVV typed runtime-scalar compare-masked standalone reduction route-family derivation
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV typed runtime-scalar compare-masked standalone reduction route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Completed typed runtime_scalar_cmp_masked_standalone_reduce_add derivation for baseline SEW32 LMUL m1 and SEW64 LMUL m1; SEW32 LMUL m2 remains targeted fail-closed on missing separate LMUL m1 scalar reduction accumulator/result channel; direct pre-realized route-entry remains fail-closed; py_compile, self-test, focused FileCheck, ssh rvv correctness, non-regression dry-runs, git diff --check, authority scan, and check-tianchenrv 436/436 passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
