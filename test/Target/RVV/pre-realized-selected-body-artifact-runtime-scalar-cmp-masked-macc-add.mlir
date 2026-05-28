@@ -1,6 +1,13 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-validated/s//provider_supported_mirror:rvv-script-derived-runtime-scalar-macc/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1/s//rvv-route-operand-binding:script-derived-runtime-scalar-macc.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n/s//cmp_lhs,lhs,rhs_scalar,rhs,acc,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/runtime-scalar-splat-compare-rhs/s//script-derived-runtime-scalar-mask-producer/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-SCALAR
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"/s//tcrv_rvv.macc_result_layout", value = "script-derived-result-layout"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RT-MACC-LAYOUT
 
 module {
   tcrv.exec.kernel @pr_rt_scalar_masked_macc_kernel {
@@ -104,3 +111,36 @@ module {
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:typed-vector
 // HEADER: void tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);
+
+// STALE-RT-MACC-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
+// STALE-RT-MACC-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-runtime-scalar-macc
+
+// STALE-RT-MACC-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
+// STALE-RT-MACC-BINDING-SAME: rvv-route-operand-binding:script-derived-runtime-scalar-macc.v1
+
+// STALE-RT-MACC-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-ABI: tcrv_rvv.runtime_abi_order
+// STALE-RT-MACC-ABI-SAME: must mirror
+// STALE-RT-MACC-ABI-SAME: cmp_lhs,lhs,rhs_scalar,rhs,acc,out,n
+
+// STALE-RT-MACC-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-HEADER: tcrv_rvv.required_header_declarations
+// STALE-RT-MACC-HEADER-SAME: must mirror
+// STALE-RT-MACC-HEADER-SAME: stddef.h,stdint.h
+
+// STALE-RT-MACC-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-TYPE: tcrv_rvv.c_type_mapping
+// STALE-RT-MACC-TYPE-SAME: must mirror
+// STALE-RT-MACC-TYPE-SAME: vl:uint64_t
+
+// STALE-RT-MACC-SCALAR: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-SCALAR: tcrv_rvv.accumulation_mask_producer_source
+// STALE-RT-MACC-SCALAR-SAME: must mirror
+// STALE-RT-MACC-SCALAR-SAME: script-derived-runtime-scalar-mask-producer
+
+// STALE-RT-MACC-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-RT-MACC-LAYOUT: tcrv_rvv.macc_result_layout
+// STALE-RT-MACC-LAYOUT-SAME: must mirror
+// STALE-RT-MACC-LAYOUT-SAME: script-derived-result-layout

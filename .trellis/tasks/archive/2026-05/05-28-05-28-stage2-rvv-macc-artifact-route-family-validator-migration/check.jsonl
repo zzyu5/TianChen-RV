@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes stay inside TianChen-RV project boundary, RVV-first stage order, and compiler stack constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify MAcc artifact validation is RVV target/plugin owned, provider-fact based, fail-closed, and does not rely on mirror metadata or central bridge semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and does not acquire MAcc or RVV semantic authority."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify route/artifact checks do not move compute, dtype, route, or artifact authority into tcrv.exec."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-stage2-rvv-artifact-route-family-validator-boundary/prd.md", "reason": "Verify widening-dot route-family validator boundary remains non-regressed while MAcc is migrated."}
+{"command": "rtk cmake --build build --target TianChenRVTarget tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"command": "rtk build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed", "stdout": "RVV extension plugin smoke test passed"}
+{"command": "rtk /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv -sv --filter 'pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add\\\\.mlir' /home/kingdom/phdworks/TianchenRV/build/test", "result": "passed 1/1"}
+{"command": "rtk /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv -sv --filter 'runtime-scalar-cmp-masked-macc-add' /home/kingdom/phdworks/TianchenRV/build/test", "result": "passed 6/6 after correcting runtime-scalar MAcc validator fact requirements"}
+{"command": "rtk git diff --check", "result": "passed"}
+{"command": "rtk cmake --build build --target check-tianchenrv", "result": "passed 456/456 after cleaning generated lit output directories from duplicate concurrent check collision"}
+{"command": "rtk rg -n \"validateRVVMAcc|isRVVMAcc|MAcc target artifact consumer\" lib/Target/RVV/RVVTargetSupportBundle.cpp lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "result": "MAcc validator diagnostics and helpers are only in RVVTargetArtifactRouteFamilyValidation.cpp"}
+{"command": "rtk rg -n \"source-front-door|source-export|descriptor|direct-C|artifact-name|script-derived|rvv-i32m1|RVVI32M1|tcrv_rvv\\\\.i32_|__riscv_.*_i32m1\" lib/Target/RVV/RVVTargetSupportBundle.cpp lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir", "result": "only intentional runtime-scalar negative-test script-derived substitutions and existing generic descriptor/direct-C/source-export residue rejection in the bridge"}
