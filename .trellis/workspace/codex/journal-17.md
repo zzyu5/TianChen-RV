@@ -1463,3 +1463,69 @@ Migrated segment2 memory target artifact validation into the target-owned RVV ro
 ### Next Steps
 
 - None - task complete
+
+
+## Session 298: Stage2 RVV standalone reduction/accumulation artifact validator migration
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV standalone reduction accumulation artifact validator migration
+**Branch**: `main`
+
+### Summary
+
+Migrated standalone reduction/accumulation target artifact validation into the
+target-owned RVV route-family validator registry. `RVVTargetSupportBundle.cpp`
+now keeps neutral selected-body route rebuild, artifact mechanics, residue
+rejection, metadata evidence listing, runtime-scalar splat-store validation, and
+registry dispatch for this area; standalone reduction provider facts and
+candidate mirrors are owned by `RVVTargetArtifactRouteFamilyValidation.cpp`.
+
+### Main Changes
+
+- Registered the `standalone-reduction-accumulation` route-family validator in
+  `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Moved standalone reduction/accumulation provider-fact checks into the
+  validator, including route id agreement, provider support, operand binding,
+  headers, type mappings, ABI order/mapping, runtime AVL/VL loop, scalar seed
+  splat, reduction/store facts, scalar-result channel facts, computed-mask
+  compare/merge facts, accumulation/scalar-carry facts, and runtime-scalar RHS
+  broadcast facts.
+- Moved standalone reduction/accumulation candidate mirror checks into the
+  validator for provider support, binding, family plan, source/scalar-result
+  vector types, runtime control/ABI order, headers, type mapping,
+  reduction/result/store-VL layout, mask facts, and accumulation/scalar-carry
+  facts.
+- Removed standalone reduction/accumulation semantic helper ownership, direct
+  provider-fact validation call, and candidate mirror branch from
+  `RVVTargetSupportBundle.cpp`.
+- No `.trellis/spec/**` update was needed: this implementation follows the
+  existing route-family validator boundary already captured in
+  `extension-plugins/rvv-plugin.md`; it did not introduce a new durable
+  contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: migrate standalone reduction artifact validation` |
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] Bounded authority scan: no standalone reduction/accumulation semantic
+  helper or validator owner remains in central support; registry entry and
+  validators are in `RVVTargetArtifactRouteFamilyValidation.cpp`; descriptor
+  and route-id hits are fail-closed diagnostics or PRD constraints, not support
+  authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stage-order invariants for RVV artifact work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, standalone reduction/accumulation, provider facts, artifact mirrors, and route-family validator boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec runtime ABI role boundary and diagnostic mirror constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, route-provider handoff, target artifact, and fail-closed evidence requirements."}
+{"file": ".trellis/tasks/05-28-05-28-stage2-rvv-standalone-reduction-accumulation-artifact-validator-migration/prd.md", "reason": "Current task requirements, boundaries, acceptance criteria, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-segment2-memory-artifact-validator-migration/prd.md", "reason": "Previous route-family artifact validator migration pattern and validation plan."}

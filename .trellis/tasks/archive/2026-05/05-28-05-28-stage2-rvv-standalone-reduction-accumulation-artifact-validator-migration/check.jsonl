@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture invariants for final verification."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route-family validator, artifact mirror, and standalone reduction/accumulation authority checks."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and target artifact authority verification."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Runtime ABI and mirror-only diagnostics verification."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused test/evidence policy for changed target artifact behavior."}
+{"file": ".trellis/tasks/05-28-05-28-stage2-rvv-standalone-reduction-accumulation-artifact-validator-migration/prd.md", "reason": "Acceptance criteria for self-check."}
