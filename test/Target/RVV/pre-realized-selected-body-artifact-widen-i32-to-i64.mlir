@@ -3,6 +3,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-widening-conversion-route-family-plan.v1/s//rvv-script-derived-widening-conversion-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONVERSION-PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.conversion_relation\", value = \"signed-i32m1-to-i64m2/s//tcrv_rvv.conversion_relation\", value = \"script-derived-relation/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONVERSION-RELATION
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated/s//provider_supported_mirror:rvv-script-derived-widening-conversion/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONVERSION-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_conversion_route_family_plan\", value = \"rvv-widening-conversion-route-family-plan.v1\"}/s//&, {key = \"tcrv_rvv.elementwise_arithmetic_route_family_plan\", value = \"script-derived-elementwise-plan\"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEMENTWISE-RESIDUE
 
 // Pre-realized selected-body input for one bounded Stage 2 signed widening
 // conversion slice. The RVV plugin must derive source i32/m1, destination
@@ -104,3 +106,12 @@ module {
 // STALE-CONVERSION-RELATION: tcrv_rvv.conversion_relation
 // STALE-CONVERSION-RELATION-SAME: must mirror
 // STALE-CONVERSION-RELATION-SAME: script-derived-relation
+
+// STALE-CONVERSION-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-CONVERSION-PROVIDER: tcrv_rvv.provider_supported_mirror
+// STALE-CONVERSION-PROVIDER-SAME: must mirror
+// STALE-CONVERSION-PROVIDER-SAME: rvv-script-derived-widening-conversion
+
+// STALE-ELEMENTWISE-RESIDUE: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEMENTWISE-RESIDUE: must not carry
+// STALE-ELEMENTWISE-RESIDUE-SAME: tcrv_rvv.elementwise_arithmetic_route_family_plan

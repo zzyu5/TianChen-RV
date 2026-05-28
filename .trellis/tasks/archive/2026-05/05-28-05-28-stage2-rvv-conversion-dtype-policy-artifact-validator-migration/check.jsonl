@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Final quality gate for global architecture and RVV authority-chain compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final quality gate for conversion dtype-policy target artifact validator ownership, provider facts, mirror-only metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final quality gate that common EmitC remains neutral and target export consumes provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final quality gate for focused lit/C++ evidence and no unclaimed runtime evidence."}
+{"file": ".trellis/tasks/05-28-05-28-stage2-rvv-conversion-dtype-policy-artifact-validator-migration/prd.md", "reason": "Task-specific acceptance criteria and validation plan."}
+{"command": "rtk cmake --build build --target TianChenRVRVVTarget -j2", "result": "passed"}
+{"command": "rtk cmake --build build --target tcrv-opt tcrv-translate -j2", "result": "passed"}
+{"command": "rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2", "result": "passed"}
+{"command": "rtk build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed: RVV extension plugin smoke test passed"}
+{"command": "rtk proxy bash -lc 'cd build/test && python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter \"pre-realized-selected-body-artifact-widen-i32-to-i64\\.mlir|pre-realized-selected-body-artifact-widen-i16-to-i32\\.mlir|explicit-selected-body-artifact-widen-i32-to-i64\\.mlir\"'", "result": "passed: 3/3 focused conversion artifact tests after repairing one FileCheck SAME ordering expectation"}
+{"command": "rtk git diff --check", "result": "passed"}
+{"command": "bounded authority-leak scan over touched production and test files", "result": "passed: production has no conversion semantic helpers left in RVVTargetSupportBundle; script-derived only appears in negative lit metadata injections; descriptor hits are existing residue rejection"}
+{"command": "rtk cmake --build build --target check-tianchenrv -j2", "result": "passed: 456/456"}

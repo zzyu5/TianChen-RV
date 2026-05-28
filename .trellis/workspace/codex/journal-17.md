@@ -1362,3 +1362,60 @@ Migrated compare/select mask and compare-produced computed-mask memory target ar
 ### Next Steps
 
 - None - task complete
+
+
+## Session 296: Stage2 RVV conversion dtype-policy artifact validator migration
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV conversion dtype-policy artifact validator migration
+**Branch**: `main`
+
+### Summary
+
+Migrated widening conversion dtype-policy target artifact validation into the
+target-owned RVV route-family validator registry; kept the central support
+bundle on neutral rebuild/runtime/residue/metadata/registry-dispatch mechanics;
+verified focused conversion artifact consumers, C++ target/plugin checks,
+authority scan, and check-tianchenrv 456/456.
+
+### Main Changes
+
+- Registered the `conversion-dtype-policy` route-family validator in
+  `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Moved conversion provider-fact checks for route operand binding, runtime
+  control, ABI order, dtype/SEW/LMUL relation, headers, type mappings, source
+  load, widening conversion, and store statement facts into the validator.
+- Moved conversion candidate mirror checks for provider support, family plan,
+  source/dest SEW/LMUL, conversion relation, memory form, runtime plan, ABI
+  order, headers, and C type mappings into the validator.
+- Removed conversion-specific semantic helper ownership and candidate mirror
+  branch from `RVVTargetSupportBundle.cpp`.
+- Added focused negative coverage for stale conversion provider-support mirror
+  and stale unrelated elementwise route-family residue in the widening
+  conversion artifact fixture.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | `rvv: migrate conversion artifact validation` |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target TianChenRVRVVTarget -j2`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused conversion lit for explicit/pre-realized widening artifacts passed 3/3 after one FileCheck expectation repair
+- [OK] `rtk git diff --check`
+- [OK] Bounded authority scan: no conversion semantic helper left in central support; no production source-front-door, route-id, exact-intrinsic, script, artifact-name, common-EmitC, or legacy-i32 authority
+- [OK] `rtk cmake --build build --target check-tianchenrv -j2` passed 456/456
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

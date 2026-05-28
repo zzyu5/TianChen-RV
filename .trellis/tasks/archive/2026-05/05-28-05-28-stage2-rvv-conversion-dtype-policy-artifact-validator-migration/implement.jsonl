@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV authority-chain invariants before implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV conversion dtype-policy owner boundary, target artifact validator ownership, mirror-only metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute handoff rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ evidence requirements and RVV runtime evidence boundary."}
+{"file": ".trellis/tasks/05-28-05-28-stage2-rvv-conversion-dtype-policy-artifact-validator-migration/prd.md", "reason": "Task-specific requirements, acceptance criteria, non-goals, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-elementwise-arithmetic-artifact-validator-migration/prd.md", "reason": "Immediate prior migration pattern for route-family artifact validator ownership."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Production registry and destination for conversion dtype-policy target artifact provider/mirror validation."}
+{"file": "include/TianChenRV/Target/RVV/RVVTargetArtifactRouteFamilyValidation.h", "reason": "Route-family validation API surface; expected to remain unchanged unless implementation requires it."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Central bridge currently owning conversion dtype-policy validation that must be migrated out."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widen-i32-to-i64.mlir", "reason": "Focused conversion artifact positive and stale-mirror fail-closed coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widen-i16-to-i32.mlir", "reason": "Focused second conversion dtype/LMUL artifact consumer."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widen-i32-to-i64.mlir", "reason": "Explicit selected-body conversion artifact non-regression coverage."}
