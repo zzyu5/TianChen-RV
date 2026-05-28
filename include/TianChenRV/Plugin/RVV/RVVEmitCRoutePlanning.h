@@ -1182,6 +1182,9 @@ struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
       *standaloneReductionPlan = nullptr;
 
   bool plansStandaloneReductionRoute = false;
+  bool plansPlainStandaloneReductionRoute = false;
+  bool plansComputedMaskStandaloneReductionRoute = false;
+  bool plansRuntimeScalarComputedMaskStandaloneReductionRoute = false;
   bool plansStandaloneReduceAdd = false;
   bool plansComputedMaskStandaloneReduceAdd = false;
   bool plansRuntimeScalarComputedMaskStandaloneReduceAdd = false;

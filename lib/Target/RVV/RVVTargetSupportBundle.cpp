@@ -196,6 +196,12 @@ bool isRVVComputedMaskStandaloneReductionAccumulationRouteFamilyOperation(
                  ComputedMaskStandaloneReduceAdd ||
          operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskStandaloneReduceMin ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskStandaloneReduceMax ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
                  RuntimeScalarComputedMaskStandaloneReduceAdd;
 }
 

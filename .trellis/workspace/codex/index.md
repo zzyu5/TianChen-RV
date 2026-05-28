@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~924 | Active |
+| `journal-17.md` | ~990 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 288 | 2026-05-28 | Stage2 RVV standalone min/max scalar-channel reduction family | pending-final-session-commit | `main` |
 | 287 | 2026-05-28 | Stage2 RVV standalone reduction scalar channel | pending | `main` |
 | 286 | 2026-05-28 | Stage2 RVV typed runtime-scalar compare-masked standalone reduction route-family derivation | pending-final-session-commit | `main` |
 | 285 | 2026-05-28 | Stage2 RVV typed runtime-scalar dual compare-mask/select route-family derivation | pending-final-session-commit | `main` |

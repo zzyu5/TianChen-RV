@@ -922,3 +922,50 @@ Added a typed scalar accumulator/result channel for runtime-scalar masked standa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 288: Stage2 RVV standalone min/max scalar-channel reduction family
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV standalone min/max scalar-channel reduction family
+**Branch**: `main`
+
+### Summary
+
+Completed Stage2 standalone and computed-mask min/max reductions for SEW32 LMUL m2 source vectors with an LMUL m1 scalar accumulator/result channel, including provider-derived route facts, generated-bundle evidence, direct-route fail-closed checks, ssh rvv correctness, reduce-add non-regression, and check-tianchenrv 443/443.
+
+### Main Changes
+
+- Extended RVV dialect verifier and selected-body realization so pre-realized plain and computed-mask standalone min/max can realize typed SEW32 LMUL m2 source/work vectors while preserving a separate LMUL m1 scalar seed/result vector and lane-0 output store channel.
+- Generalized route planning/provider facts from add-only standalone scalar-channel behavior to min/max: reduction kind, source vector type/C type, scalar result vector type/C type, runtime AVL/VL, ABI order, computed-mask inactive-lane neutral values, and m2-to-m1 reduction intrinsics are derived from typed body/config/runtime facts.
+- Updated target/script boundary mirrors from e32m1-only labels to typed standalone reduction profiles, added generated-bundle expectations for four LMUL m2 min/max op kinds, and kept direct pre-realized route-entry fail-closed.
+- Added positive target fixtures and script lit coverage for plain standalone min/max and computed-mask standalone min/max LMUL m2, plus direct pre-realized route-entry fail-closed coverage.
+- Spec-update judgment: no `.trellis/spec/**` edit needed; existing RVV plugin, tcrv.exec, EmitC route, and testing specs already encode the durable scalar-channel authority, neutral common EmitC, mirror-only metadata, and ssh rvv evidence requirements.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/standalone-reduction-dataflow.mlir --split-input-file --verify-diagnostics`
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/computed-mask-standalone-reduction-dataflow.mlir --split-input-file --verify-diagnostics`
+- [OK] Four new LMUL m2 target fixtures passed selected-body realization, emission-plan, and target-header FileCheck.
+- [OK] Generated-bundle dry-run passed for `standalone_reduce_min_lmul_m2`, `standalone_reduce_max_lmul_m2`, `computed_mask_standalone_reduce_min_lmul_m2`, and `computed_mask_standalone_reduce_max_lmul_m2`.
+- [OK] Direct pre-realized route-entry failed closed for all four LMUL m2 min/max selected-boundary-only witnesses.
+- [OK] `ssh rvv` generated-bundle compile/run/correctness passed for all four LMUL m2 min/max op kinds over counts 0,1,16,23,257 with signed seeds -11/17 and computed-mask active/inactive/all-inactive cases.
+- [OK] `ssh rvv` reduce-add LMUL m2 non-regression passed for counts 0,1,16,23,257 and RHS scalars -37/91.
+- [OK] `git diff --check`
+- [OK] Bounded production added-line authority scan found no new descriptor/source-front-door/direct-C/source-export, route-id, artifact-name, metadata/script-derived, exact-intrinsic-as-authority, RVVI32M1, rvv-i32m1, or `tcrv_rvv.i32_` authority.
+- [OK] `ninja -C build check-tianchenrv` passed 443/443.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

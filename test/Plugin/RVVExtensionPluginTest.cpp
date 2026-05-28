@@ -17031,6 +17031,8 @@ int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
   }
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin,
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax,
         RVVSelectedBodyOperationKind::
             RuntimeScalarComputedMaskStandaloneReduceAdd}) {
     if (int result = expect(

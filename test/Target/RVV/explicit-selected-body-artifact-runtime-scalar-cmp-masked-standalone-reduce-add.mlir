@@ -42,7 +42,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulation_route_family_plan", value = "rvv-computed-mask-accumulation-route-family-plan.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.accumulation_compute_suffix", value = "scalar-horizontal-masked-standalone-reduce-add"}
+// PLAN-SAME: {key = "tcrv_rvv.accumulation_compute_suffix", value = "scalar-horizontal-masked-standalone-reduction"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulation_mask_producer_source", value = "runtime-scalar-splat-compare-rhs"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulation_accumulator_contract", value = "scalar-seed-input-feeds-masked-horizontal-reduction"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulation_result_contract", value = "scalar-horizontal-reduction-lane0-stored-to-output"}
@@ -71,7 +71,7 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER: tianchenrv.rvv.standalone_reduction_route_family_plan: rvv-standalone-reduction-route-family-plan.v1
 // HEADER: tianchenrv.rvv.accumulation_route_family_plan: rvv-computed-mask-accumulation-route-family-plan.v1
-// HEADER: tianchenrv.rvv.accumulation_compute_suffix: scalar-horizontal-masked-standalone-reduce-add
+// HEADER: tianchenrv.rvv.accumulation_compute_suffix: scalar-horizontal-masked-standalone-reduction
 // HEADER: tianchenrv.rvv.accumulation_mask_producer_source: runtime-scalar-splat-compare-rhs
 // HEADER: tianchenrv.rvv.accumulation_accumulator_contract: scalar-seed-input-feeds-masked-horizontal-reduction
 // HEADER: tianchenrv.rvv.accumulation_result_contract: scalar-horizontal-reduction-lane0-stored-to-output

@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR architecture and RVV-first authority chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, standalone reduction scalar-channel, route provider, target artifact, and fail-closed contracts"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on compute/dtype authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality contract"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required testing and RVV hardware evidence expectations"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, C++ API, generated-bundle, and ssh rvv evidence rules"}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-standalone-reduction-scalar-channel/prd.md", "reason": "Prior reduce-add scalar-channel task boundary and evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-boundary/prd.md", "reason": "Prior runtime-scalar computed-mask standalone reduce-add executable evidence boundary"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Allowed SEW32 LMUL m2 standalone min/max source vectors while requiring an LMUL m1 scalar accumulator/result channel and targeted fail-closed diagnostics."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realized pre-realized plain and computed-mask standalone min/max bodies from typed SEW/LMUL facts into m2 source vectors and m1 scalar result vectors."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Extended standalone reduction route/provider planning to min/max scalar-channel facts, m2-to-m1 reduction intrinsics, computed-mask neutral inactive lanes, and typed target mirrors."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Taught target bundle mirror validation that computed-mask standalone min/max share the scalar-horizontal standalone reduction accumulation boundary."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added generated-bundle expectations for pre-realized standalone and computed-mask min/max LMUL m2 op kinds with base route ids and scalar result LMUL m1 facts."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-min-lmul-m2.mlir", "reason": "Added positive selected-body, route-plan, and header fixture for plain standalone min LMUL m2 source to LMUL m1 scalar result."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-max-lmul-m2.mlir", "reason": "Added positive selected-body, route-plan, and header fixture for plain standalone max LMUL m2 source to LMUL m1 scalar result."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-min-lmul-m2.mlir", "reason": "Added positive computed-mask standalone min LMUL m2 fixture with compare-produced mask and neutral inactive lanes."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-max-lmul-m2.mlir", "reason": "Added positive computed-mask standalone max LMUL m2 fixture with compare-produced mask and neutral inactive lanes."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-standalone-minmax-lmul-m2-dry-run.test", "reason": "Added persistent generated-bundle dry-run coverage for all four min/max LMUL m2 op kinds and provider-derived scalar-channel facts."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-standalone-minmax-lmul-m2-fail-closed.test", "reason": "Added direct pre-realized route-entry fail-closed coverage for the min/max LMUL m2 selected-boundary-only witnesses."}

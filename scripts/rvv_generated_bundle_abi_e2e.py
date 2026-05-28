@@ -112,9 +112,13 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "standalone_reduce_add",
     "standalone_reduce_min",
     "standalone_reduce_max",
+    "standalone_reduce_min_lmul_m2",
+    "standalone_reduce_max_lmul_m2",
     "computed_mask_standalone_reduce_add",
     "computed_mask_standalone_reduce_min",
     "computed_mask_standalone_reduce_max",
+    "computed_mask_standalone_reduce_min_lmul_m2",
+    "computed_mask_standalone_reduce_max_lmul_m2",
     "runtime_scalar_cmp_masked_standalone_reduce_add",
     "runtime_scalar_cmp_masked_standalone_reduce_add_i64",
     "runtime_scalar_cmp_masked_standalone_reduce_add_lmul_m2",
@@ -220,7 +224,7 @@ COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN = (
 )
 COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX = "vector-masked-macc-add"
 COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX = (
-    "scalar-horizontal-masked-standalone-reduce-add"
+    "scalar-horizontal-masked-standalone-reduction"
 )
 COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE = "vector-compare-rhs-load"
 COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE = (
@@ -289,21 +293,21 @@ STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN = (
 )
 RUNTIME_AVL_VL_CONTROL_PLAN = "rvv-runtime-avl-vl-control-plan.v1"
 STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-standalone-reduction-leaf-profile.v1"
+    "rvv-v1-typed-standalone-reduction-leaf-profile.v1"
 )
 STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
 )
 STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
-STANDALONE_REDUCE_C_TYPE_MAPPING = "vl:size_t,input:signed-e32m1,seed:i32,result:signed-e32m1"
+STANDALONE_REDUCE_C_TYPE_MAPPING = "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector"
 COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-computed-mask-standalone-reduction-leaf-profile.v1"
+    "rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1"
 )
 COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"
 )
 COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING = (
-    "vl:size_t,compare/source:signed-e32m1,mask:b32,seed:i32,result:signed-e32m1"
+    "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"
 )
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
     "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
@@ -1331,8 +1335,12 @@ EXPECTED_OBJECT_KIND = "riscv-elf-relocatable-object"
 EXPECTED_HEADER_KIND = "runtime-callable-c-header"
 
 
+def standalone_reduce_base_kind(kind: str) -> str:
+    return kind.removesuffix("_lmul_m2")
+
+
 def is_standalone_reduce_kind(kind: str) -> bool:
-    return kind in {
+    return standalone_reduce_base_kind(kind) in {
         "standalone_reduce_add",
         "standalone_reduce_min",
         "standalone_reduce_max",
@@ -1342,25 +1350,29 @@ def is_standalone_reduce_kind(kind: str) -> bool:
 def standalone_reduce_dataflow_kind(kind: str) -> str:
     if not is_standalone_reduce_kind(kind):
         raise ValueError(f"not a standalone reduction kind: {kind}")
-    return kind.removeprefix("standalone_reduce_")
+    return standalone_reduce_base_kind(kind).removeprefix("standalone_reduce_")
 
 
 def standalone_reduce_route_operand_binding_plan(kind: str) -> str:
     if not is_standalone_reduce_kind(kind):
         raise ValueError(f"not a standalone reduction kind: {kind}")
-    return f"rvv-route-operand-binding:{kind}.v1"
+    return f"rvv-route-operand-binding:{standalone_reduce_base_kind(kind)}.v1"
 
 
 def standalone_reduce_route_operand_binding_operands(kind: str) -> str:
     if not is_standalone_reduce_kind(kind):
         raise ValueError(f"not a standalone reduction kind: {kind}")
     return STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE.format(
-        kind=kind
+        kind=standalone_reduce_base_kind(kind)
     )
 
 
+def computed_mask_standalone_reduce_base_kind(kind: str) -> str:
+    return kind.removesuffix("_lmul_m2")
+
+
 def is_computed_mask_standalone_reduce_kind(kind: str) -> bool:
-    return kind in {
+    return computed_mask_standalone_reduce_base_kind(kind) in {
         "computed_mask_standalone_reduce_add",
         "computed_mask_standalone_reduce_min",
         "computed_mask_standalone_reduce_max",
@@ -1370,13 +1382,18 @@ def is_computed_mask_standalone_reduce_kind(kind: str) -> bool:
 def computed_mask_standalone_reduce_dataflow_kind(kind: str) -> str:
     if not is_computed_mask_standalone_reduce_kind(kind):
         raise ValueError(f"not a computed-mask standalone reduction kind: {kind}")
-    return kind.removeprefix("computed_mask_standalone_reduce_")
+    return computed_mask_standalone_reduce_base_kind(kind).removeprefix(
+        "computed_mask_standalone_reduce_"
+    )
 
 
 def computed_mask_standalone_reduce_route_operand_binding_plan(kind: str) -> str:
     if not is_computed_mask_standalone_reduce_kind(kind):
         raise ValueError(f"not a computed-mask standalone reduction kind: {kind}")
-    return f"rvv-route-operand-binding:{kind}.v1"
+    return (
+        "rvv-route-operand-binding:"
+        f"{computed_mask_standalone_reduce_base_kind(kind)}.v1"
+    )
 
 
 def computed_mask_standalone_reduce_inactive_use(kind: str) -> str:
@@ -1397,7 +1414,7 @@ def computed_mask_standalone_reduce_route_operand_binding_operands(kind: str) ->
     if not is_computed_mask_standalone_reduce_kind(kind):
         raise ValueError(f"not a computed-mask standalone reduction kind: {kind}")
     return COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE.format(
-        kind=kind,
+        kind=computed_mask_standalone_reduce_base_kind(kind),
         inactive_use=computed_mask_standalone_reduce_inactive_use(kind),
     )
 
@@ -1552,12 +1569,28 @@ class OpExpectation:
 
     @property
     def standalone_reduction_intrinsic(self) -> str:
-        if self.sew == "32" and self.lmul == "m1":
-            return "__riscv_vredsum_vs_i32m1_i32m1"
-        if self.sew == "32" and self.lmul == "m2":
-            return "__riscv_vredsum_vs_i32m2_i32m1"
-        if self.sew == "64" and self.lmul == "m1":
-            return "__riscv_vredsum_vs_i64m1_i64m1"
+        if self.is_standalone_reduce:
+            reduction_kind = self.standalone_reduction_kind
+        elif self.is_computed_mask_standalone_reduce:
+            reduction_kind = self.computed_mask_standalone_reduction_kind
+        elif self.is_runtime_scalar_computed_mask_standalone_reduce:
+            reduction_kind = "add"
+        else:
+            raise EvidenceError(
+                f"{self.kind} has no standalone reduction intrinsic expectation"
+            )
+        op_leaf = {"add": "vredsum", "min": "vredmin", "max": "vredmax"}.get(
+            reduction_kind
+        )
+        if (
+            op_leaf
+            and self.sew in {"32", "64"}
+            and self.standalone_reduction_scalar_result_lmul == "m1"
+        ):
+            return (
+                f"__riscv_{op_leaf}_vs_{self.element_type}{self.lmul}_"
+                f"{self.element_type}m1"
+            )
         raise EvidenceError(
             f"{self.kind} has no supported standalone reduction intrinsic "
             f"for SEW{self.sew} LMUL {self.lmul}"
@@ -1585,7 +1618,11 @@ class OpExpectation:
 
     @property
     def standalone_reduction_scalar_result_lmul(self) -> str:
-        if self.is_runtime_scalar_computed_mask_standalone_reduce:
+        if (
+            self.is_standalone_reduce
+            or self.is_computed_mask_standalone_reduce
+            or self.is_runtime_scalar_computed_mask_standalone_reduce
+        ):
             return "m1"
         return self.lmul
 
@@ -1943,6 +1980,10 @@ class OpExpectation:
     def selected_body_operation(self) -> str:
         if self.is_masked_elementwise:
             return masked_elementwise_base_kind(self.kind)
+        if self.is_standalone_reduce:
+            return standalone_reduce_base_kind(self.kind)
+        if self.is_computed_mask_standalone_reduce:
+            return computed_mask_standalone_reduce_base_kind(self.kind)
         if self.is_i64_add or self.is_lmul_m2_add:
             return "add"
         if self.kind in {"cmp_select_sle", "cmp_select_i64", "cmp_select_lmul_m2"}:
@@ -2275,15 +2316,15 @@ class OpExpectation:
 
     @property
     def is_standalone_reduce_add(self) -> bool:
-        return self.kind == "standalone_reduce_add"
+        return self.is_standalone_reduce and self.standalone_reduction_kind == "add"
 
     @property
     def is_standalone_reduce_min(self) -> bool:
-        return self.kind == "standalone_reduce_min"
+        return self.is_standalone_reduce and self.standalone_reduction_kind == "min"
 
     @property
     def is_standalone_reduce_max(self) -> bool:
-        return self.kind == "standalone_reduce_max"
+        return self.is_standalone_reduce and self.standalone_reduction_kind == "max"
 
     @property
     def is_standalone_reduce(self) -> bool:
@@ -2295,15 +2336,24 @@ class OpExpectation:
 
     @property
     def is_computed_mask_standalone_reduce_add(self) -> bool:
-        return self.kind == "computed_mask_standalone_reduce_add"
+        return (
+            self.is_computed_mask_standalone_reduce
+            and self.computed_mask_standalone_reduction_kind == "add"
+        )
 
     @property
     def is_computed_mask_standalone_reduce_min(self) -> bool:
-        return self.kind == "computed_mask_standalone_reduce_min"
+        return (
+            self.is_computed_mask_standalone_reduce
+            and self.computed_mask_standalone_reduction_kind == "min"
+        )
 
     @property
     def is_computed_mask_standalone_reduce_max(self) -> bool:
-        return self.kind == "computed_mask_standalone_reduce_max"
+        return (
+            self.is_computed_mask_standalone_reduce
+            and self.computed_mask_standalone_reduction_kind == "max"
+        )
 
     @property
     def is_computed_mask_standalone_reduce(self) -> bool:
@@ -4345,6 +4395,17 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_standalone_reduce_min",
         function_name="tcrv_emitc_pre_realized_body_standalone_reduce_min_kernel_pre_realized_body_rvv_standalone_reduce_min",
     ),
+    "standalone_reduce_min_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_min"],
+        kind="standalone_reduce_min_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-min-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_standalone_reduce_min_lmul_m2",
+        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_min_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_min_lmul_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
+    ),
     "standalone_reduce_max": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_max"],
         kind="standalone_reduce_max",
@@ -4352,6 +4413,17 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_max",
         function_name="tcrv_emitc_pre_realized_body_standalone_reduce_max_kernel_pre_realized_body_rvv_standalone_reduce_max",
+    ),
+    "standalone_reduce_max_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_max"],
+        kind="standalone_reduce_max_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-max-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_standalone_reduce_max_lmul_m2",
+        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_max_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_max_lmul_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "computed_mask_standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -4424,6 +4496,19 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="rvv_pre_cm_standalone_reduce_min",
         function_name="tcrv_emitc_pre_cm_standalone_reduce_min_kernel_rvv_pre_cm_standalone_reduce_min",
     ),
+    "computed_mask_standalone_reduce_min_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_mask_standalone_reduce_min"
+        ],
+        kind="computed_mask_standalone_reduce_min_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-min-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pre_cm_standalone_reduce_min_lmul_m2",
+        function_name="tcrv_emitc_pre_cm_standalone_reduce_min_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_min_lmul_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
+    ),
     "computed_mask_standalone_reduce_max": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
             "computed_mask_standalone_reduce_max"
@@ -4432,6 +4517,19 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="rvv_pre_cm_standalone_reduce_max",
         function_name="tcrv_emitc_pre_cm_standalone_reduce_max_kernel_rvv_pre_cm_standalone_reduce_max",
+    ),
+    "computed_mask_standalone_reduce_max_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_mask_standalone_reduce_max"
+        ],
+        kind="computed_mask_standalone_reduce_max_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-max-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pre_cm_standalone_reduce_max_lmul_m2",
+        function_name="tcrv_emitc_pre_cm_standalone_reduce_max_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_max_lmul_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "i64_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -6419,7 +6517,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-        if expectation.is_computed_mask_standalone_reduce_add:
+        if expectation.is_computed_mask_standalone_reduce:
             per_op_metadata.update(
                 {
                     "tcrv_rvv.accumulation_route_family_plan": (

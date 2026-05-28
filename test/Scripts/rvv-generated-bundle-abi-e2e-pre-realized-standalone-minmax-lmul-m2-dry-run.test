@@ -1,0 +1,134 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-minmax-lmul-m2 --overwrite --op-kind standalone_reduce_min_lmul_m2 --op-kind standalone_reduce_max_lmul_m2 --op-kind computed_mask_standalone_reduce_min_lmul_m2 --op-kind computed_mask_standalone_reduce_max_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/evidence.json
+# RUN: FileCheck %s --check-prefix=SMIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/standalone_reduce_min_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=SMAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/standalone_reduce_max_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=CMMIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/computed_mask_standalone_reduce_min_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=CMMAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/computed_mask_standalone_reduce_max_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=SMIN-CPP --implicit-check-not="__riscv_vredsum_vs_i32m2_i32m1" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/standalone_reduce_min_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=SMAX-CPP --implicit-check-not="__riscv_vredsum_vs_i32m2_i32m1" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/standalone_reduce_max_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=CMMIN-CPP < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/computed_mask_standalone_reduce_min_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=CMMAX-CPP < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/computed_mask_standalone_reduce_max_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=SMIN-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/standalone_reduce_min_lmul_m2/rvv_generated_bundle_abi_standalone_reduce_min_lmul_m2_harness.c
+# RUN: FileCheck %s --check-prefix=SMAX-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/standalone_reduce_max_lmul_m2/rvv_generated_bundle_abi_standalone_reduce_max_lmul_m2_harness.c
+# RUN: FileCheck %s --check-prefix=CMMIN-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/computed_mask_standalone_reduce_min_lmul_m2/rvv_generated_bundle_abi_computed_mask_standalone_reduce_min_lmul_m2_harness.c
+# RUN: FileCheck %s --check-prefix=CMMAX-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-minmax-lmul-m2/computed_mask_standalone_reduce_max_lmul_m2/rvv_generated_bundle_abi_computed_mask_standalone_reduce_max_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "standalone_reduce_min_lmul_m2"
+# ROOT-DAG: "standalone_reduce_max_lmul_m2"
+# ROOT-DAG: "computed_mask_standalone_reduce_min_lmul_m2"
+# ROOT-DAG: "computed_mask_standalone_reduce_max_lmul_m2"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "runtime_counts": [
+# ROOT-DAG: 257
+# ROOT-DAG: "status": "dry_run_success"
+
+# SMIN-DAG: "op_kind": "standalone_reduce_min_lmul_m2"
+# SMIN-DAG: "input_mode": "pre-realized-selected-body"
+# SMIN-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-min-callable-c-abi.v1"
+# SMIN-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_min_lmul_m2"
+# SMIN-DAG: "route_entry_realization": false
+# SMIN-DAG: "pre_realized_body_consumed": true
+# SMIN-DAG: "value": "standalone_reduce_min"
+# SMIN-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# SMIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1"
+# SMIN-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_type"
+# SMIN-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# SMIN-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_c_type"
+# SMIN-DAG: "value": "vint32m2_t"
+# SMIN-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
+# SMIN-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# SMIN-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+# SMIN-DAG: "value": "vint32m1_t"
+# SMIN-DAG: "reduction_kind": "min"
+# SMIN-DAG: "store_vl": "1"
+# SMIN-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
+# SMIN-DAG: "status": "dry_run_success"
+
+# SMAX-DAG: "op_kind": "standalone_reduce_max_lmul_m2"
+# SMAX-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-max-callable-c-abi.v1"
+# SMAX-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_max_lmul_m2"
+# SMAX-DAG: "route_entry_realization": false
+# SMAX-DAG: "value": "standalone_reduce_max"
+# SMAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1"
+# SMAX-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# SMAX-DAG: "value": "vint32m2_t"
+# SMAX-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# SMAX-DAG: "value": "vint32m1_t"
+# SMAX-DAG: "reduction_kind": "max"
+# SMAX-DAG: "store_vl": "1"
+# SMAX-DAG: "status": "dry_run_success"
+
+# CMMIN-DAG: "op_kind": "computed_mask_standalone_reduce_min_lmul_m2"
+# CMMIN-DAG: "expected_runtime_abi_name": "rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi.v1"
+# CMMIN-DAG: "expected_selected_variant": "rvv_pre_cm_standalone_reduce_min_lmul_m2"
+# CMMIN-DAG: "route_entry_realization": false
+# CMMIN-DAG: "value": "computed_mask_standalone_reduce_min"
+# CMMIN-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1"
+# CMMIN-DAG: "value": "scalar-horizontal-masked-standalone-reduction"
+# CMMIN-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# CMMIN-DAG: "value": "vint32m2_t"
+# CMMIN-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# CMMIN-DAG: "value": "vint32m1_t"
+# CMMIN-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# CMMIN-DAG: "runtime_abi_order": "cmp_lhs,cmp_rhs,src,acc,out,n"
+# CMMIN-DAG: "status": "dry_run_success"
+
+# CMMAX-DAG: "op_kind": "computed_mask_standalone_reduce_max_lmul_m2"
+# CMMAX-DAG: "expected_runtime_abi_name": "rvv-generic-computed-mask-standalone-reduce-max-callable-c-abi.v1"
+# CMMAX-DAG: "expected_selected_variant": "rvv_pre_cm_standalone_reduce_max_lmul_m2"
+# CMMAX-DAG: "route_entry_realization": false
+# CMMAX-DAG: "value": "computed_mask_standalone_reduce_max"
+# CMMAX-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_max.v1"
+# CMMAX-DAG: "value": "scalar-horizontal-masked-standalone-reduction"
+# CMMAX-DAG: "value": "!tcrv_rvv.vector<i32, \"m2\">"
+# CMMAX-DAG: "value": "vint32m2_t"
+# CMMAX-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# CMMAX-DAG: "value": "vint32m1_t"
+# CMMAX-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# CMMAX-DAG: "runtime_abi_order": "cmp_lhs,cmp_rhs,src,acc,out,n"
+# CMMAX-DAG: "status": "dry_run_success"
+
+# SMIN-CPP-DAG: __riscv_vsetvl_e32m2
+# SMIN-CPP-DAG: __riscv_vle32_v_i32m2
+# SMIN-CPP-DAG: __riscv_vmv_v_x_i32m1
+# SMIN-CPP-DAG: __riscv_vredmin_vs_i32m2_i32m1
+# SMIN-CPP-DAG: __riscv_vse32_v_i32m1
+# SMAX-CPP-DAG: __riscv_vredmax_vs_i32m2_i32m1
+# SMAX-CPP-DAG: __riscv_vse32_v_i32m1
+# CMMIN-CPP-DAG: __riscv_vmsle_vv_i32m2_b16
+# CMMIN-CPP-DAG: __riscv_vmv_v_x_i32m2(2147483647
+# CMMIN-CPP-DAG: __riscv_vmerge_vvm_i32m2
+# CMMIN-CPP-DAG: __riscv_vredmin_vs_i32m2_i32m1
+# CMMAX-CPP-DAG: __riscv_vmsle_vv_i32m2_b16
+# CMMAX-CPP-DAG: __riscv_vmv_v_x_i32m2((-2147483647-1)
+# CMMAX-CPP-DAG: __riscv_vmerge_vvm_i32m2
+# CMMAX-CPP-DAG: __riscv_vredmax_vs_i32m2_i32m1
+
+# SMIN-HARNESS: int32_t expected = seed;
+# SMIN-HARNESS: expected = (expected < lhs[index]) ? expected : lhs[index];
+# SMIN-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# SMIN-HARNESS: seeds=-11,17
+# SMAX-HARNESS: int32_t expected = seed;
+# SMAX-HARNESS: expected = (expected > lhs[index]) ? expected : lhs[index];
+# SMAX-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# SMAX-HARNESS: seeds=-11,17
+# CMMIN-HARNESS: int32_t expected = seed;
+# CMMIN-HARNESS: expected = (expected < src[index]) ? expected : src[index];
+# CMMIN-HARNESS: active_lanes
+# CMMIN-HARNESS: inactive_lanes
+# CMMIN-HARNESS: all_inactive
+# CMMIN-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# CMMIN-HARNESS: seeds=-11,17
+# CMMAX-HARNESS: int32_t expected = seed;
+# CMMAX-HARNESS: expected = (expected > src[index]) ? expected : src[index];
+# CMMAX-HARNESS: active_lanes
+# CMMAX-HARNESS: inactive_lanes
+# CMMAX-HARNESS: all_inactive
+# CMMAX-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# CMMAX-HARNESS: seeds=-11,17

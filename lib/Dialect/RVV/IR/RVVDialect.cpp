@@ -876,6 +876,12 @@ bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReductionPreRealizedConf
   return sew == getRVVSEW64Bits() && lmul == getRVVLMULM1();
 }
 
+bool isSupportedTypedStandaloneReductionPreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return sew == getRVVFirstSliceSEWBits() &&
+         (lmul == getRVVLMULM1() || lmul == getRVVLMULM2());
+}
+
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "reduce_add";
 }
@@ -935,11 +941,6 @@ bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedMemoryF
 bool isSupportedTypedStandaloneReducePreRealizedAccumulatorRole(
     llvm::StringRef role) {
   return role == "accumulator-input-buffer";
-}
-
-bool isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
-    llvm::StringRef layout) {
-  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
 }
 
 llvm::StringRef getTypedStandaloneReduceAccumulatorLayoutForSEW(
@@ -4369,23 +4370,24 @@ mlir::LogicalResult TypedStandaloneReducePreRealizedBodyOp::verify() {
            << "currently supports only accumulator_role "
               "\"accumulator-input-buffer\" for the bounded selected-body "
               "standalone reduction hook";
-  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
-          getAccumulatorLayout()))
+  const std::int64_t sew = static_cast<std::int64_t>(getSew());
+  if (!isSupportedTypedStandaloneReductionPreRealizedConfig(sew, getLmul()))
     return emitOpError()
-           << "currently supports only accumulator_layout "
-              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
-              "bounded selected-body standalone reduction hook";
+           << "requires bounded pre-realized standalone reduction config to be "
+              "SEW32 LMUL m1 or SEW32 LMUL m2 with a separate LMUL m1 scalar "
+              "reduction accumulator/result channel";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
+          getAccumulatorLayout(), sew))
+    return emitOpError()
+           << "currently supports only accumulator_layout \""
+           << getTypedStandaloneReduceAccumulatorLayoutForSEW(sew)
+           << "\" for the bounded selected-body standalone reduction hook";
   if (!isSupportedTypedStandaloneReducePreRealizedResultLayout(getResultLayout()))
     return emitOpError()
            << "currently supports only result_layout "
               "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
               "bounded selected-body standalone reduction hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
-    return emitOpError()
-           << "requires bounded pre-realized standalone reduction config to be "
-              "SEW32 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
@@ -4501,12 +4503,19 @@ TypedComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
            << "currently supports only accumulator_role "
               "\"accumulator-input-buffer\" for the bounded selected-body "
               "computed-mask standalone reduction hook";
-  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
-          getAccumulatorLayout()))
+  const std::int64_t sew = static_cast<std::int64_t>(getSew());
+  if (!isSupportedTypedStandaloneReductionPreRealizedConfig(sew, getLmul()))
     return emitOpError()
-           << "currently supports only accumulator_layout "
-              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
-              "bounded selected-body computed-mask standalone reduction hook";
+           << "requires bounded pre-realized computed-mask standalone "
+              "reduction config to be SEW32 LMUL m1 or SEW32 LMUL m2 with a "
+              "separate LMUL m1 scalar reduction accumulator/result channel";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayoutForSEW(
+          getAccumulatorLayout(), sew))
+    return emitOpError()
+           << "currently supports only accumulator_layout \""
+           << getTypedStandaloneReduceAccumulatorLayoutForSEW(sew)
+           << "\" for the bounded selected-body computed-mask standalone "
+              "reduction hook";
   if (!isSupportedTypedStandaloneReducePreRealizedResultLayout(
           getResultLayout()))
     return emitOpError()
@@ -4514,11 +4523,6 @@ TypedComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
               "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
               "bounded selected-body computed-mask standalone reduction hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
-    return emitOpError()
-           << "requires bounded pre-realized computed-mask standalone "
-              "reduction config to be SEW32 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
@@ -8917,16 +8921,6 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
            << "requires one input generic RVV vector operand, one scalar "
               "accumulator seed runtime ABI operand, one !tcrv_rvv.vl operand, "
               "and one generic RVV vector result";
-  if (getInput().getType() != getResult().getType())
-    return emitOpError()
-           << "requires input and result to have the same generic RVV vector "
-              "type";
-  if (!isGenericRVVVectorI32M1(getInput().getType()) ||
-      !isGenericRVVVectorI32M1(getResult().getType()))
-    return emitOpError()
-           << "requires input and result vectors to have type "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded standalone "
-              "reduction route";
   if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
     return emitOpError()
            << "requires accumulator seed operand to have "
@@ -8959,19 +8953,23 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
       (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (!expectedSEW || !expectedLMUL)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit source "
               "SEW/LMUL metadata for standalone reduction";
-  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
-                                 expectedLMUL.getValue()))
+  std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
+  if (!isSupportedTypedStandaloneReductionPreRealizedConfig(
+          sew, expectedLMUL.getValue()))
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
-              "LMUL m1 for the bounded standalone reduction route";
+           << "requires enclosing tcrv_rvv.with_vl source/work config to be "
+              "SEW32 LMUL m1 or SEW32 LMUL m2 for the bounded standalone "
+              "reduction route with a separate LMUL m1 scalar reduction "
+              "accumulator/result channel";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for standalone reduction";
 
-  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+  return verifyStandaloneReductionScalarResultVectorForWithVL(
+      op, getResult(), "result");
 }
 
 mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
