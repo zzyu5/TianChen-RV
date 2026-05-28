@@ -273,6 +273,13 @@ bool isPreRealizedRuntimeScalarComputedMaskMAccOpKind(
   return opKind == "runtime_scalar_cmp_masked_macc_add";
 }
 
+bool isPreRealizedComputedMaskMAccConfig(std::int64_t sew,
+                                         llvm::StringRef lmul) {
+  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == tcrv::rvv::getRVVLMULM1() ||
+          lmul == tcrv::rvv::getRVVLMULM2());
+}
+
 bool isPreRealizedRuntimeScalarComputedMaskMAccMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "runtime-scalar-computed-mask-unit-stride-macc";
@@ -3024,12 +3031,11 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask macc body currently supports "
         "only result_layout 'store-multiply-accumulate-result-to-output-buffer'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  if (!isPreRealizedComputedMaskMAccConfig(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask macc body requires SEW32 "
-        "LMUL m1");
+        "LMUL m1 or SEW32 LMUL m2");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask macc body requires tail "
@@ -8827,36 +8833,45 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
     mlir::Location loc = maskedMAccBody->getLoc();
     builder.setInsertionPoint(maskedMAccBody.getOperation());
 
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, maskedMAccBody.getN(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1(),
-        maskedMAccBody.getPolicy()));
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, maskedMAccBody.getN(),
+            static_cast<std::int64_t>(maskedMAccBody.getSew()),
+            maskedMAccBody.getLmul(), maskedMAccBody.getPolicy(),
+            "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+            "pre-realized RVV computed-mask macc selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, runtimeControlPlan->runtimeAVLValue,
+                            runtimeControlPlan->sew, runtimeControlPlan->lmul,
+                            runtimeControlPlan->policy));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             tcrv::rvv::getRVVFirstSliceSEWBits(),
-                             tcrv::rvv::getRVVLMULM1(),
-                             maskedMAccBody.getPolicy());
+                             request.getRole(), requires, runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto cmpLHSLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, maskedMAccBody.getCompareLhs(), setvl.getVl(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+            runtimeControlPlan->sew, runtimeControlPlan->lmul));
     auto cmpRHSLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, maskedMAccBody.getCompareRhs(), setvl.getVl(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+            runtimeControlPlan->sew, runtimeControlPlan->lmul));
     auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, maskedMAccBody.getLhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+        runtimeControlPlan->sew, runtimeControlPlan->lmul));
     auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, maskedMAccBody.getRhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+        runtimeControlPlan->sew, runtimeControlPlan->lmul));
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, maskedMAccBody.getAcc(), setvl.getVl(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+            runtimeControlPlan->sew, runtimeControlPlan->lmul));
     auto compare = llvm::cast<tcrv::rvv::CompareOp>(
         createRealizedGenericCompare(
             builder, loc, cmpLHSLoad.getLoaded(), cmpRHSLoad.getLoaded(),

@@ -2270,7 +2270,7 @@ constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccTargetLeafProfile(
         "rvv-v1-typed-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccTargetLeafProfile(
-    "rvv-v1-e32m1-computed-mask-macc-add-leaf-profile.v1");
+    "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreProviderSupportedMirror(
         "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-store-plan-validated");
@@ -2351,7 +2351,7 @@ constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary(
         "vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:typed-vector");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccCTypeMappingSummary(
-    "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:signed-e32m1,mask:b32,result:signed-e32m1");
+    "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector");
 constexpr llvm::StringLiteral kRVVComputedMaskUnitLoadStoreCTypeMappingSummary(
     "vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-load-store");
 constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreCTypeMappingSummary(
@@ -2666,6 +2666,13 @@ bool isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
 
 bool isRVVSelectedBodyStandaloneReductionScalarChannelConfig(
     std::int64_t sew, llvm::StringRef lmul) {
+  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         (lmul == tcrv::rvv::getRVVLMULM1() ||
+          lmul == tcrv::rvv::getRVVLMULM2());
+}
+
+bool isRVVSelectedBodyComputedMaskMAccConfig(std::int64_t sew,
+                                             llvm::StringRef lmul) {
   return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
          (lmul == tcrv::rvv::getRVVLMULM1() ||
           lmul == tcrv::rvv::getRVVLMULM2());
@@ -10555,16 +10562,14 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           "LMUL m1 or SEW32 LMUL m2 with a separate LMUL m1 scalar reduction "
           "accumulator/result channel");
   } else if (isMAcc &&
-             (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-              configProfile.lmul != tcrv::rvv::getRVVLMULM1()) &&
-             !(isRuntimeScalarProducer &&
-               configProfile.lmul == tcrv::rvv::getRVVLMULM2())) {
+             !isRVVSelectedBodyComputedMaskMAccConfig(configProfile.sew,
+                                                      configProfile.lmul)) {
     return makeRVVEmitCRouteProviderError(
         isRuntimeScalarProducer
             ? "computed-mask accumulation route-family plan requires runtime "
               "scalar masked macc config to be SEW32 LMUL m1 or SEW32 LMUL m2"
-            : "computed-mask accumulation route-family plan currently "
-              "requires vector masked macc config to be SEW32 LMUL m1");
+            : "computed-mask accumulation route-family plan requires vector "
+              "masked macc config to be SEW32 LMUL m1 or SEW32 LMUL m2");
   }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||

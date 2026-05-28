@@ -2944,9 +2944,9 @@ module {
           "store-multiply-accumulate-result-to-output-buffer"));
 
   negativeComputedMaskMAccBody->setAttr("lmul",
-                                        attrBuilder.getStringAttr("m2"));
+                                        attrBuilder.getStringAttr("m4"));
   if (int result = expectComputedMaskMAccOwnerError(
-          {"computed-mask macc body requires SEW32 LMUL m1"}))
+          {"computed-mask macc body requires SEW32 LMUL m1 or SEW32 LMUL m2"}))
     return result;
   negativeComputedMaskMAccBody->setAttr("lmul",
                                         attrBuilder.getStringAttr("m1"));

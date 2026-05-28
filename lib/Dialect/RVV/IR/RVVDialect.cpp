@@ -979,6 +979,12 @@ bool isSupportedTypedComputedMaskMAccPreRealizedBodyOpKind(
   return opKind == "computed_masked_macc_add";
 }
 
+bool isSupportedTypedComputedMaskMAccPreRealizedConfig(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  return sew == getRVVFirstSliceSEWBits() &&
+         (lmul == getRVVLMULM1() || lmul == getRVVLMULM2());
+}
+
 bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_macc_add";
@@ -4984,11 +4990,11 @@ mlir::LogicalResult TypedComputedMaskMAccPreRealizedBodyOp::verify() {
               "\"store-multiply-accumulate-result-to-output-buffer\" for "
               "the bounded selected-body computed-mask macc realization hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedComputedMaskMAccPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
            << "requires bounded pre-realized computed-mask macc config to be "
-              "SEW32 LMUL m1";
+              "SEW32 LMUL m1 or SEW32 LMUL m2";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
@@ -9331,11 +9337,12 @@ mlir::LogicalResult MaskedMAccOp::verify() {
       return emitOpError()
              << "requires runtime-scalar compare-produced masked macc "
                 "config to be SEW32 LMUL m1 or SEW32 LMUL m2";
-  } else if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
-                                        expectedLMUL.getValue())) {
+  } else if (!isSupportedTypedComputedMaskMAccPreRealizedConfig(
+                 expectedSEW.getInt(), expectedLMUL.getValue())) {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
-              "LMUL m1 for the bounded vector masked macc route";
+              "LMUL m1 or SEW32 LMUL m2 for the bounded vector masked macc "
+              "route";
   }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()

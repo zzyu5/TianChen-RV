@@ -85,6 +85,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "macc_add",
     "scalar_broadcast_macc_add",
     "computed_masked_macc_add",
+    "computed_masked_macc_add_lmul_m2",
     "runtime_scalar_cmp_masked_macc_add",
     "runtime_scalar_cmp_masked_macc_add_lmul_m2",
     "widening_macc_add",
@@ -212,7 +213,7 @@ COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT = (
     "accumulator-vector-preserves-inactive-lanes"
 )
 COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-computed-mask-macc-add-leaf-profile.v1"
+    "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1"
 )
 COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated"
@@ -221,8 +222,8 @@ COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 COMPUTED_MASKED_MACC_C_TYPE_MAPPING = (
-    "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:signed-e32m1,mask:b32,"
-    "result:signed-e32m1"
+    "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,"
+    "result:typed-vector"
 )
 COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN = (
     "rvv-computed-mask-accumulation-route-family-plan.v1"
@@ -1442,6 +1443,10 @@ def runtime_scalar_computed_masked_macc_base_kind(kind: str) -> str:
     return kind.removesuffix("_lmul_m2")
 
 
+def computed_masked_macc_base_kind(kind: str) -> str:
+    return kind.removesuffix("_lmul_m2")
+
+
 def is_runtime_scalar_computed_mask_standalone_reduce_kind(kind: str) -> bool:
     return runtime_scalar_computed_mask_standalone_reduce_base_kind(kind) in {
         "runtime_scalar_cmp_masked_standalone_reduce_add",
@@ -2079,6 +2084,8 @@ class OpExpectation:
             return runtime_scalar_computed_mask_standalone_reduce_base_kind(
                 self.kind
             )
+        if self.is_computed_masked_macc_add:
+            return computed_masked_macc_base_kind(self.kind)
         if self.is_runtime_scalar_computed_masked_macc_add:
             return runtime_scalar_computed_masked_macc_base_kind(self.kind)
         if self.is_i64_add or self.is_lmul_m2_add:
@@ -2301,7 +2308,7 @@ class OpExpectation:
 
     @property
     def is_computed_masked_macc_add(self) -> bool:
-        return self.kind == "computed_masked_macc_add"
+        return computed_masked_macc_base_kind(self.kind) == "computed_masked_macc_add"
 
     @property
     def is_runtime_scalar_computed_masked_macc_add(self) -> bool:
@@ -4263,6 +4270,17 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_macc_add",
         function_name="tcrv_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add",
+    ),
+    "computed_masked_macc_add_lmul_m2": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_masked_macc_add"],
+        kind="computed_masked_macc_add_lmul_m2",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-macc-add-lmul-m2.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_masked_macc_add_m2",
+        function_name="tcrv_emitc_pre_realized_body_computed_masked_macc_add_m2_kernel_pre_realized_body_rvv_computed_masked_macc_add_m2",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "runtime_scalar_cmp_masked_macc_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[

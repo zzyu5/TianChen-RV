@@ -1051,3 +1051,41 @@ Completed the runtime_scalar_cmp_masked_macc_add typed route-family movement fro
 ### Next Steps
 
 - None - task complete
+
+
+## Session 290: Stage2 RVV vector computed-mask MAcc m2 route
+
+**Date**: 2026-05-28
+**Task**: Stage2 RVV vector computed-mask MAcc m2 route
+**Branch**: `main`
+
+### Summary
+
+Completed the vector computed-mask MAcc typed route-family m2 witness and archived the Trellis task.
+
+### Main Changes
+
+- Extended vector computed_masked_macc_add selected-boundary support from SEW32/LMUL m1 to a bounded SEW32/LMUL m2 witness while preserving m1.
+- Realization now derives setvl/with_vl/load/compare/masked_macc/store facts from typed body/config/runtime facts instead of hardcoded m1.
+- Route planning/provider facts now accept typed vector computed-mask MAcc m1/m2 and emit typed-vector/typed-mask mirrors.
+- Added generated-bundle m2 fixture and script expectation; direct pre-realized route-entry remains fail-closed.
+- Evidence: focused lit/C++ tests, generated-bundle dry-run, ssh rvv correctness counts 0,1,16,17,257, authority scan, git diff --check, check-tianchenrv 451/451.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
