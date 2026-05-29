@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work preserves RVV-first authority chain and project-level stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify base memory-movement validation consumes provider-derived statement-plan facts and keeps metadata mirror-only."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no tcrv.exec/core drift into RVV compute, dtype, policy, or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and target artifacts consume provider-built route facts only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused target/export, generated-bundle, non-regression, authority-scan, and runtime evidence scope is sufficient."}
+{"command": "cmake --build build --target tianchenrv-target-artifact-export-test -j2", "reason": "Build focused target artifact export validator tests."}
+{"command": "./build/bin/tianchenrv-target-artifact-export-test", "reason": "Run focused target/export positive and negative route-clone tests."}
+{"command": "cmake --build build --target tcrv-opt tcrv-translate -j2", "reason": "Refresh tools needed by generated-bundle dry-run evidence if generated-bundle checks are run."}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body ...", "reason": "Run bounded generated-bundle dry-run evidence for affected base memory selected-boundary routes."}
+{"command": "focused widening_macc_add and widening_dot_reduce_add generated-bundle dry-run non-regression", "reason": "Verify adjacent completed statement-plan validators remain non-regressed."}
+{"command": "git diff --check", "reason": "Whitespace and patch hygiene gate."}
+{"command": "cmake --build build --target check-tianchenrv -j2", "reason": "Full project regression gate or exact blocker."}

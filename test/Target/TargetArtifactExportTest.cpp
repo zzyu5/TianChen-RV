@@ -1090,8 +1090,11 @@ module {
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
   if (op == OperationKind::StridedLoadUnitStore ||
+      op == OperationKind::UnitLoadStridedStore ||
       op == OperationKind::IndexedGatherUnitStore ||
-      op == OperationKind::MaskedUnitLoadStore) {
+      op == OperationKind::IndexedScatterUnitLoad ||
+      op == OperationKind::MaskedUnitLoadStore ||
+      op == OperationKind::MaskedUnitStore) {
     std::string vectorType =
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.vector<i32, \"m2\">"
@@ -1104,13 +1107,18 @@ module {
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.mask<i32, \"m2\">"
             : "!tcrv_rvv.mask<i32, \"m1\">";
+    std::string policy =
+        op == OperationKind::MaskedUnitStore
+            ? "#tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>"
+            : "#tcrv_rvv.policy<tail = agnostic, mask = agnostic>";
 
     os << R"mlir(
 module {
   tcrv.exec.kernel @rvv_i32_body_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @)mlir"
-       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = )mlir"
+       << policy << R"mlir(} {
 )mlir";
     if (op == OperationKind::StridedLoadUnitStore) {
       os << R"mlir(
@@ -1119,9 +1127,11 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-strided-load-unit-store:n", role = "runtime-element-count"} : index
       %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-strided-load-unit-store:stride-bytes", role = "source-byte-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
-         << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+         << lmul << R"mlir(", policy = )mlir" << policy
+         << R"mlir(, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
-         << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = )mlir"
+         << policy << R"mlir(, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
          << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
         %loaded = tcrv_rvv.strided_load %src, %stride_bytes, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> )mlir"
          << vectorType << R"mlir(
@@ -1132,6 +1142,28 @@ module {
          << vectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
 )mlir";
+    } else if (op == OperationKind::UnitLoadStridedStore) {
+      os << R"mlir(
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-unit-load-strided-store:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-unit-load-strided-store:dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-unit-load-strided-store:n", role = "runtime-element-count"} : index
+      %dst_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "dst_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-unit-load-strided-store:dst-stride-bytes", role = "destination-byte-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul << R"mlir(", policy = )mlir" << policy
+         << R"mlir(, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = )mlir"
+         << policy << R"mlir(, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %loaded = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        tcrv_rvv.strided_store %dst, %moved, %dst_stride_bytes, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, index, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
     } else if (op == OperationKind::IndexedGatherUnitStore) {
       os << R"mlir(
       %data = tcrv_rvv.runtime_abi_value {c_name = "data", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:data", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1139,9 +1171,11 @@ module {
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-gather-unit-store:n", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
-         << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+         << lmul << R"mlir(", policy = )mlir" << policy
+         << R"mlir(, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
-         << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = )mlir"
+         << policy << R"mlir(, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
          << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
         %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
          << indexVectorType << R"mlir(
@@ -1155,16 +1189,43 @@ module {
          << vectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
 )mlir";
-    } else {
+    } else if (op == OperationKind::IndexedScatterUnitLoad) {
+      os << R"mlir(
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-scatter-unit-load:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-scatter-unit-load:index", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-scatter-unit-load:dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-indexed-scatter-unit-load:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul << R"mlir(", policy = )mlir" << policy
+         << R"mlir(, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = )mlir"
+         << policy << R"mlir(, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %loaded = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << indexVectorType << R"mlir(
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        tcrv_rvv.indexed_store %dst, %indices, %moved, %vl {index_eew = 32 : i64, index_uniqueness = "unique", offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, )mlir"
+         << indexVectorType << R"mlir(, )mlir" << vectorType
+         << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    } else if (op == OperationKind::MaskedUnitLoadStore) {
       os << R"mlir(
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %mask = tcrv_rvv.runtime_abi_value {c_name = "mask", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:mask", role = "mask-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-load-store:n", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
-         << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+         << lmul << R"mlir(", policy = )mlir" << policy
+         << R"mlir(, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
-         << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = )mlir"
+         << policy << R"mlir(, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
          << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
         %predicate = tcrv_rvv.mask_load %mask, %vl {mask_memory_form = "unit-stride-mask-load", mask_role = "predicate-mask-input-buffer"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
          << maskType << R"mlir(
@@ -1176,6 +1237,28 @@ module {
          << R"mlir(
         tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
          << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    } else {
+      os << R"mlir(
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-store:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %mask = tcrv_rvv.runtime_abi_value {c_name = "mask", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-store:mask", role = "mask-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-store:dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-masked-unit-store:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul << R"mlir(", policy = )mlir" << policy
+         << R"mlir(, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul << R"mlir(", origin = "rvv-plugin", policy = )mlir"
+         << policy << R"mlir(, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %predicate = tcrv_rvv.mask_load %mask, %vl {mask_memory_form = "unit-stride-mask-load", mask_role = "predicate-mask-input-buffer"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << maskType << R"mlir(
+        %payload = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        tcrv_rvv.masked_store %dst, %predicate, %payload, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", memory_form = "masked-unit-store"} : !tcrv_rvv.runtime_abi_value, )mlir"
+         << maskType << R"mlir(, )mlir" << vectorType
+         << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
 )mlir";
     }
@@ -1872,6 +1955,25 @@ cloneRVVEmitCLowerableRouteWithLoopResult(
       if (!resultCType.empty())
         loop.bodySteps[stepIndex].result->cType = resultCType.str();
     }
+    cloned.addForLoop(loop);
+  }
+  return cloned;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t loopIndex, std::size_t stepIndex,
+    llvm::StringRef opInterface) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  copyRVVEmitCLowerableRouteWithoutLoops(route, cloned);
+  for (std::size_t currentLoop = 0; currentLoop < route.getForLoops().size();
+       ++currentLoop) {
+    tianchenrv::conversion::emitc::TCRVEmitCForLoop loop =
+        route.getForLoops()[currentLoop];
+    if (currentLoop == loopIndex && stepIndex < loop.bodySteps.size())
+      loop.bodySteps[stepIndex].sourceOp.opInterface = opInterface.str();
     cloned.addForLoop(loop);
   }
   return cloned;
@@ -6727,12 +6829,32 @@ bool expectRVVTargetArtifactExporterShape(
                                 baseStridedRoute, baseStridedDescription))
     return false;
 
+  RVVTargetArtifactCandidateFixture baseUnitStridedFixture(
+      OperationKind::UnitLoadStridedStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute baseUnitStridedRoute;
+  RVVRouteDescription baseUnitStridedDescription;
+  if (!expectBaseMemoryPositive("unit load/strided store",
+                                baseUnitStridedFixture, baseUnitStridedRoute,
+                                baseUnitStridedDescription))
+    return false;
+
   RVVTargetArtifactCandidateFixture baseIndexedFixture(
       OperationKind::IndexedGatherUnitStore);
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute baseIndexedRoute;
   RVVRouteDescription baseIndexedDescription;
   if (!expectBaseMemoryPositive("indexed gather/unit store", baseIndexedFixture,
                                 baseIndexedRoute, baseIndexedDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture baseIndexedScatterFixture(
+      OperationKind::IndexedScatterUnitLoad);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      baseIndexedScatterRoute;
+  RVVRouteDescription baseIndexedScatterDescription;
+  if (!expectBaseMemoryPositive("indexed scatter/unit load",
+                                baseIndexedScatterFixture,
+                                baseIndexedScatterRoute,
+                                baseIndexedScatterDescription))
     return false;
 
   RVVTargetArtifactCandidateFixture baseMaskedFixture(
@@ -6743,12 +6865,34 @@ bool expectRVVTargetArtifactExporterShape(
                                 baseMaskedRoute, baseMaskedDescription))
     return false;
 
+  RVVTargetArtifactCandidateFixture baseMaskedStoreFixture(
+      OperationKind::MaskedUnitStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute baseMaskedStoreRoute;
+  RVVRouteDescription baseMaskedStoreDescription;
+  if (!expectBaseMemoryPositive("masked unit store", baseMaskedStoreFixture,
+                                baseMaskedStoreRoute,
+                                baseMaskedStoreDescription))
+    return false;
+
   auto expectBaseMemoryProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
           RVVRouteDescription mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
     RVVRouteValidationContext mutatedContext{candidate, route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectBaseMemoryRouteFailure =
+      [&](const TargetArtifactCandidate &candidate,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute mutatedRoute,
+          const RVVRouteDescription &description,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{candidate, mutatedRoute,
+                                             description};
     return expectErrorContains(
         tianchenrv::target::rvv::
             validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
@@ -6895,6 +7039,254 @@ bool expectRVVTargetArtifactExporterShape(
           "base-memory registry rejects route-id-derived support",
           {"route id", "metadata-derived-base-memory-route",
            baseStridedRoute.getRouteID()}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              baseStridedRoute, /*stepIndex=*/0, /*operandIndex=*/0,
+              "metadata_derived_n"),
+          baseStridedDescription,
+          "base-memory registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl", "operand[0]", "metadata_derived_n"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseUnitStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseUnitStridedRoute, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "metadata_derived_remaining_avl"),
+          baseUnitStridedDescription,
+          "base-memory registry rejects stale loop setvl remaining AVL",
+          {"loop setvl", "operand[0]", "metadata_derived_remaining_avl"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseStridedRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "metadata_derived_strided_source"),
+          baseStridedDescription,
+          "base-memory registry rejects stale strided load pointer",
+          {"strided load", "operand[0]", "metadata_derived_strided_source"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseStridedRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/1, "metadata_derived_stride"),
+          baseStridedDescription,
+          "base-memory registry rejects stale strided load stride operand",
+          {"strided load", "operand[1]", "metadata_derived_stride"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseUnitStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseUnitStridedRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "metadata_derived_unit_source"),
+          baseUnitStridedDescription,
+          "base-memory registry rejects stale unit load pointer",
+          {"unit load", "operand[0]", "metadata_derived_unit_source"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseUnitStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseUnitStridedRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "metadata_derived_strided_destination"),
+          baseUnitStridedDescription,
+          "base-memory registry rejects stale strided store pointer",
+          {"strided store", "operand[0]",
+           "metadata_derived_strided_destination"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseUnitStridedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseUnitStridedRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/1, "metadata_derived_dst_stride"),
+          baseUnitStridedDescription,
+          "base-memory registry rejects stale destination stride operand",
+          {"strided store", "operand[1]", "metadata_derived_dst_stride"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "metadata_derived_index_pointer"),
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather index load pointer",
+          {"index load", "operand[0]", "metadata_derived_index_pointer"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/1, "metadata_derived_index_scale"),
+          baseIndexedDescription,
+          "base-memory registry rejects stale index scale operand",
+          {"index scale", "operand[1]", "metadata_derived_index_scale"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/0, "metadata_derived_gather_base"),
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather base pointer",
+          {"indexed gather load", "operand[0]", "metadata_derived_gather_base"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              baseIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              "metadata_derived_gather_result"),
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather result",
+          {"indexed gather load", "result", "metadata_derived_gather_result"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedScatterFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              baseIndexedScatterRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              "metadata_derived_unit_load_result"),
+          baseIndexedScatterDescription,
+          "base-memory registry rejects stale indexed scatter unit-load result",
+          {"unit load", "result", "metadata_derived_unit_load_result"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedScatterFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseIndexedScatterRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/0, "metadata_derived_scatter_base"),
+          baseIndexedScatterDescription,
+          "base-memory registry rejects stale indexed scatter base pointer",
+          {"indexed scatter store", "operand[0]",
+           "metadata_derived_scatter_base"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseIndexedScatterFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseIndexedScatterRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/2, "metadata_derived_scatter_value"),
+          baseIndexedScatterDescription,
+          "base-memory registry rejects stale indexed scatter store value",
+          {"indexed scatter store", "operand[2]",
+           "metadata_derived_scatter_value"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "metadata_derived_mask_pointer"),
+          baseMaskedDescription,
+          "base-memory registry rejects stale masked load/store mask pointer",
+          {"mask vector load", "operand[0]", "metadata_derived_mask_pointer"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              baseMaskedRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              "metadata_derived_mask_result"),
+          baseMaskedDescription,
+          "base-memory registry rejects stale masked load/store mask result",
+          {"mask predicate", "result", "metadata_derived_mask_result"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/0, "metadata_derived_passthrough_pointer"),
+          baseMaskedDescription,
+          "base-memory registry rejects stale masked load passthrough pointer",
+          {"passthrough load", "operand[0]",
+           "metadata_derived_passthrough_pointer"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/2, "metadata_derived_masked_load_source"),
+          baseMaskedDescription,
+          "base-memory registry rejects stale masked load source pointer",
+          {"masked load", "operand[2]",
+           "metadata_derived_masked_load_source"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/2, "metadata_derived_masked_store_vl"),
+          baseMaskedDescription,
+          "base-memory registry rejects stale masked load/store final store VL",
+          {"unit store", "operand[2]", "metadata_derived_masked_store_vl"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedStoreFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              baseMaskedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              "metadata_derived_source_load_result"),
+          baseMaskedStoreDescription,
+          "base-memory registry rejects stale masked store source-load result",
+          {"source load", "result", "metadata_derived_source_load_result"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedStoreFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "metadata_derived_store_mask_pointer"),
+          baseMaskedStoreDescription,
+          "base-memory registry rejects stale masked store mask pointer",
+          {"mask vector load", "operand[0]",
+           "metadata_derived_store_mask_pointer"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedStoreFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/0, "metadata_derived_masked_store_mask"),
+          baseMaskedStoreDescription,
+          "base-memory registry rejects stale masked store mask operand",
+          {"masked store", "operand[0]",
+           "metadata_derived_masked_store_mask"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedStoreFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              baseMaskedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/2, "metadata_derived_masked_store_value"),
+          baseMaskedStoreDescription,
+          "base-memory registry rejects stale masked store value operand",
+          {"masked store", "operand[2]",
+           "metadata_derived_masked_store_value"}))
+    return false;
+
+  if (!expectBaseMemoryRouteFailure(
+          baseMaskedStoreFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+              baseMaskedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              "metadata-derived-route-source"),
+          baseMaskedStoreDescription,
+          "base-memory registry rejects stale loop statement source provenance",
+          {"loop statements", "selected typed RVV source provenance"}))
     return false;
 
   TargetArtifactCandidate missingBaseProviderMirrorCandidate =

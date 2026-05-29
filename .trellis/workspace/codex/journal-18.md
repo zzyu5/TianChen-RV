@@ -518,7 +518,11 @@ Extended runtime-scalar computed-mask standalone reduce_add target artifact vali
 
 ### Main Changes
 
-(Add details)
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so base memory-movement validation consumes exact provider-built statement plans for strided load/unit store, unit load/strided store, indexed gather/unit store, indexed scatter/unit load, masked unit load/store, and masked unit store.
+- Replaced base-memory payload callee-presence acceptance with exact checks for runtime ABI order/roles, pre-loop and loop setvl operands/results, loop AVL/VL facts, pointer expressions, stride/index/mask operands, result names/types, per-iteration VL use, memory form, and selected typed RVV provenance.
+- Extended `test/Target/TargetArtifactExportTest.cpp` with missing positive selected-body fixtures for the six-route owner set plus route-clone negative mutations for stale operands, pointers, results, VL, stride, index, mask, masked load/store, and provenance facts.
+- Archived `.trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-base-memory-artifact-abi-statement-plan-closure`.
+- Spec update judgment: no `.trellis/spec/` change was needed because this applies the existing provider-built statement-plan and mirror-only metadata contract without adding new route APIs, dialect semantics, or durable conventions.
 
 ### Git Commits
 
@@ -528,7 +532,14 @@ Extended runtime-scalar computed-mask standalone reduce_add target artifact vali
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] generated-bundle dry-run for all six base memory-movement routes at `artifacts/tmp/stage2_rvv_base_memory_statement_plan_closure/pre-realized-base-memory-dry`
+- [OK] widening MAcc and widening dot statement-plan non-regression dry-run at `artifacts/tmp/stage2_rvv_base_memory_statement_plan_closure/widening-macc-dot-nonregression-dry`
+- [OK] production added-line authority scan: no new forbidden authority; test-file `metadata_derived_*` hits are intentional stale route-clone negatives
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 459/459
 
 ### Status
 
@@ -595,6 +606,39 @@ Closed signed standalone_reduce_min/max and computed_mask_standalone_reduce_min/
 - Archived `.trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-standalone-min-max-artifact-abi-closure`.
 - Evidence: target artifact export test passed; selected-boundary generated-bundle min/max dry-run passed; direct pre-realized route-entry failed closed as expected; ssh rvv generated-bundle correctness passed for counts 0,1,16,23,257 with signed seeds -11 and 17, duplicate extrema, active/inactive mask lanes, all-inactive-mask cases, and tail preservation; standalone add and runtime-scalar computed-mask reductions passed non-regression dry-run; diff-level authority scan found no new metadata/route-id/descriptor/exact-intrinsic authority; git diff --check passed; check-tianchenrv passed 459/459.
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 314: Stage2 RVV base memory-movement artifact ABI statement-plan closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV base memory-movement artifact ABI statement-plan closure
+**Branch**: `main`
+
+### Summary
+
+Closed base memory-movement target artifact ABI statement-plan validation through exact provider-built route facts, focused C++ route-clone negatives, generated-bundle dry-runs, and check-tianchenrv 459/459.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

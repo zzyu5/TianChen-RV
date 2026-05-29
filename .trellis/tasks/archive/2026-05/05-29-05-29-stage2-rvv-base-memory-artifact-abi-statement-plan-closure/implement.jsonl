@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, RVV-first authority chain, Stage1/Stage2 route authority rules, and stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV base memory-movement statement-plan boundary, provider route construction, selected-body provenance, artifact ABI consumers, mirror metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on core-owned compute or RVV dtype semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute authority, common EmitC neutrality, and target artifact handoff rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/generated-bundle/RVV evidence requirements and claim boundaries."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-widening-macc-artifact-abi-statement-plan-closure/prd.md", "reason": "Adjacent exact target artifact statement-plan validation pattern and evidence shape."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-widening-dot-reduction-artifact-abi-statement-plan-closure/prd.md", "reason": "Multi-subfamily statement-plan hardening pattern and focused negative route-clone validation shape."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Production owner for base memory-movement target artifact route-family validation."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target/export positive and negative route-clone coverage for rebuilt provider route statement facts."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run evidence harness for affected selected-boundary RVV routes, if needed."}
