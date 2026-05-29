@@ -1,9 +1,9 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-standalone-reduce-min --overwrite --op-kind computed_mask_standalone_reduce_min --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-standalone-reduce-max --overwrite --op-kind computed_mask_standalone_reduce_max --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-computed-mask-standalone-reduce-min --overwrite --op-kind computed_mask_standalone_reduce_min --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-computed-mask-standalone-reduce-max --overwrite --op-kind computed_mask_standalone_reduce_max --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-standalone-reduce-min --overwrite --op-kind computed_mask_standalone_reduce_min --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-standalone-reduce-max --overwrite --op-kind computed_mask_standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-computed-mask-standalone-reduce-min --overwrite --op-kind computed_mask_standalone_reduce_min --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-computed-mask-standalone-reduce-max --overwrite --op-kind computed_mask_standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=MIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/computed-mask-standalone-reduce-min/computed_mask_standalone_reduce_min/evidence.json
 # RUN: FileCheck %s --check-prefix=MAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/computed-mask-standalone-reduce-max/computed_mask_standalone_reduce_max/evidence.json
 # RUN: FileCheck %s --check-prefix=PREMIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-computed-mask-standalone-reduce-min/computed_mask_standalone_reduce_min/evidence.json
@@ -26,6 +26,14 @@
 # MIN-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
 # MIN-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MIN-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MIN-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"
+# MIN-DAG: "reduction_accumulation_boundary": {
+# MIN-DAG: "reduction_kind": "min"
+# MIN-DAG: "seed_source": "acc[0]"
+# MIN-DAG: "loop_accumulator_source": "out[0]"
+# MIN-DAG: "compare_operand_order": "cmp_lhs,cmp_rhs,vl"
+# MIN-DAG: "mask_false_lane_source": "operation-specific neutral"
+# MIN-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # MIN-DAG: "reduction_contract": "active lanes contribute signed i32 source values to the signed min reduction with the i32 scalar seed while inactive lanes use the operation-specific neutral element"
 # MIN-DAG: "status": "dry_run_success"
 
@@ -40,6 +48,14 @@
 # MAX-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
 # MAX-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_max.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MAX-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MAX-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"
+# MAX-DAG: "reduction_accumulation_boundary": {
+# MAX-DAG: "reduction_kind": "max"
+# MAX-DAG: "seed_source": "acc[0]"
+# MAX-DAG: "loop_accumulator_source": "out[0]"
+# MAX-DAG: "compare_operand_order": "cmp_lhs,cmp_rhs,vl"
+# MAX-DAG: "mask_false_lane_source": "operation-specific neutral"
+# MAX-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # MAX-DAG: "reduction_contract": "active lanes contribute signed i32 source values to the signed max reduction with the i32 scalar seed while inactive lanes use the operation-specific neutral element"
 # MAX-DAG: "status": "dry_run_success"
 
@@ -50,6 +66,10 @@
 # PREMIN-DAG: "value": "computed_mask_standalone_reduce_min"
 # PREMIN-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1"
 # PREMIN-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# PREMIN-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"
+# PREMIN-DAG: "reduction_accumulation_boundary": {
+# PREMIN-DAG: "reduction_kind": "min"
+# PREMIN-DAG: "mask_false_lane_source": "operation-specific neutral"
 # PREMIN-DAG: "status": "dry_run_success"
 
 # PREMAX-DAG: "op_kind": "computed_mask_standalone_reduce_max"
@@ -59,6 +79,10 @@
 # PREMAX-DAG: "value": "computed_mask_standalone_reduce_max"
 # PREMAX-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_max.v1"
 # PREMAX-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# PREMAX-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"
+# PREMAX-DAG: "reduction_accumulation_boundary": {
+# PREMAX-DAG: "reduction_kind": "max"
+# PREMAX-DAG: "mask_false_lane_source": "operation-specific neutral"
 # PREMAX-DAG: "status": "dry_run_success"
 
 # MIN-HARNESS: int32_t expected = seed;

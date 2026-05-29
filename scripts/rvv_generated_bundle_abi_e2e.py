@@ -21801,7 +21801,7 @@ def reduction_accumulation_boundary_summary(
     runtime_counts: list[int],
 ) -> dict[str, Any]:
     if (
-        expectation.is_computed_mask_standalone_reduce_add
+        expectation.is_computed_mask_standalone_reduce
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
     ):
         is_runtime_scalar = (
@@ -23001,8 +23001,9 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_standalone_reduce or (
-            expectation.is_computed_mask_standalone_reduce_add
+        if (
+            expectation.is_standalone_reduce
+            or expectation.is_computed_mask_standalone_reduce
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         ):
             evidence["reduction_accumulation_boundary"] = (

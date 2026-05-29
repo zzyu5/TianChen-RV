@@ -170,6 +170,18 @@ bool isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
   }
 }
 
+bool isRVVVectorComputedMaskStandaloneReductionRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -3446,15 +3458,49 @@ constexpr llvm::StringLiteral kRVVStandaloneReductionTargetLeafProfile(
     "rvv-v1-typed-standalone-reduction-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionProviderSupportedMirror(
     "provider_supported_mirror:rvv-standalone-reduction-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStandaloneReductionProviderSupportedMirror(
+        "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated");
 constexpr llvm::StringLiteral kRVVStandaloneReductionHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVStandaloneReductionCTypeMappingSummary(
     "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionCTypeMappingSummary(
+    "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector");
 constexpr llvm::StringLiteral kRVVStandaloneReductionAccumulatorLayout(
     "scalar-i32-seed-lane0-from-accumulator-input");
 constexpr llvm::StringLiteral kRVVStandaloneReductionResultLayout(
     "store-standalone-reduction-lane0-to-output-scalar");
 constexpr llvm::StringLiteral kRVVStandaloneReductionStoreVL("1");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionTargetLeafProfile(
+    "rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,src,acc,out,n");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionMaskRole(
+    "predicate-mask-produced-by-compare");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionMaskSource(
+    "compare-produced-mask-same-vl-scope");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionMaskMemoryForm(
+    "compare-produced-mask");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStandaloneReductionInactiveLaneNeutralRequirement(
+        "masked-standalone-reduction-neutral-inactive-lanes-before-reduction");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionComparePredicate(
+    "sle");
+constexpr llvm::StringLiteral kRVVComputedMaskAccumulationRouteFamilyPlanID(
+    "rvv-computed-mask-accumulation-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionComputeSuffix(
+    "scalar-horizontal-masked-standalone-reduction");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionProducerSource(
+    "vector-compare-rhs-load");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStandaloneReductionAccumulatorContract(
+        "scalar-seed-input-feeds-masked-horizontal-reduction");
+constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionResultContract(
+    "scalar-horizontal-reduction-lane0-stored-to-output");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStandaloneReductionScalarCarryContract(
+        "scalar-result-carries-across-runtime-vl-chunks");
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedBindingPlanID(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
@@ -3484,6 +3530,44 @@ std::string getRVVPlainStandaloneReductionExpectedBindingSummary(
       .str();
 }
 
+llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedBindingPlanID(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+    return "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+    return "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+    return "rvv-route-operand-binding:computed_mask_standalone_reduce_max.v1";
+  default:
+    return {};
+  }
+}
+
+std::string getRVVComputedMaskStandaloneReductionExpectedBindingSummary(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  llvm::StringRef planID =
+      getRVVComputedMaskStandaloneReductionExpectedBindingPlanID(operation);
+  if (planID.empty())
+    return {};
+  const llvm::StringRef inactiveUse =
+      operation ==
+              plugin::rvv::RVVSelectedBodyOperationKind::
+                  ComputedMaskStandaloneReduceAdd
+          ? llvm::StringRef("zero-inactive")
+          : llvm::StringRef("neutral-inactive");
+  return (llvm::Twine(planID) +
+          ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+          "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
+          "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
+          inactiveUse +
+          "|hdr;"
+          "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+          "out=output-buffer:out:abi|acc-state|store-base|hdr;"
+          "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+      .str();
+}
+
 llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorTypeName(
     int64_t sew, llvm::StringRef lmul) {
   if (sew != 32)
@@ -3503,6 +3587,28 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorCType(
     return "vint32m1_t";
   if (lmul == "m2")
     return "vint32m2_t";
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMaskTypeName(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "!tcrv_rvv.mask<i32, \"m1\">";
+  if (lmul == "m2")
+    return "!tcrv_rvv.mask<i32, \"m2\">";
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMaskCType(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "vbool32_t";
+  if (lmul == "m2")
+    return "vbool16_t";
   return {};
 }
 
@@ -3534,6 +3640,40 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedStoreIntrinsic(
   return {};
 }
 
+llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedCompareIntrinsic(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "__riscv_vmsle_vv_i32m1_b32";
+  if (lmul == "m2")
+    return "__riscv_vmsle_vv_i32m2_b16";
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMergeIntrinsic(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "__riscv_vmerge_vvm_i32m1";
+  if (lmul == "m2")
+    return "__riscv_vmerge_vvm_i32m2";
+  return {};
+}
+
+llvm::StringRef
+getRVVComputedMaskStandaloneReductionExpectedInactiveLaneRequirement(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+                 plugin::rvv::RVVSelectedBodyOperationKind::
+                     ComputedMaskStandaloneReduceAdd
+             ? llvm::StringRef(
+                   "masked-standalone-reduction-zero-inactive-lanes-before-reduction")
+             : llvm::StringRef(
+                   kRVVComputedMaskStandaloneReductionInactiveLaneNeutralRequirement);
+}
+
 llvm::StringRef getRVVPlainStandaloneReductionExpectedIntrinsic(
     plugin::rvv::RVVSelectedBodyOperationKind operation, int64_t sew,
     llvm::StringRef lmul) {
@@ -3550,6 +3690,29 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedIntrinsic(
     return usesM2 ? "__riscv_vredmin_vs_i32m2_i32m1"
                   : "__riscv_vredmin_vs_i32m1_i32m1";
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return usesM2 ? "__riscv_vredmax_vs_i32m2_i32m1"
+                  : "__riscv_vredmax_vs_i32m1_i32m1";
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation, int64_t sew,
+    llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  const bool usesM2 = lmul == "m2";
+  if (lmul != "m1" && !usesM2)
+    return {};
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+    return usesM2 ? "__riscv_vredsum_vs_i32m2_i32m1"
+                  : "__riscv_vredsum_vs_i32m1_i32m1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+    return usesM2 ? "__riscv_vredmin_vs_i32m2_i32m1"
+                  : "__riscv_vredmin_vs_i32m1_i32m1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
     return usesM2 ? "__riscv_vredmax_vs_i32m2_i32m1"
                   : "__riscv_vredmax_vs_i32m1_i32m1";
   default:
@@ -3594,6 +3757,58 @@ llvm::Error validateRVVPlainStandaloneReductionRuntimeABIFacts(
       return makeRVVTargetRouteError(
           llvm::Twine("plain standalone reduction target artifact consumer "
                       "requires provider-derived runtime ABI parameter ") +
+          std::to_string(index) + " to bind " + expected[index].cName +
+          " as " +
+          support::stringifyRuntimeABIParameterRole(expected[index].role) +
+          " with C type '" + expected[index].cType +
+          "' before artifact export");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskStandaloneReductionRuntimeABIFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIOrder !=
+      kRVVComputedMaskStandaloneReductionRuntimeABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived runtime ABI order '") +
+        kRVVComputedMaskStandaloneReductionRuntimeABIOrder + "' but was '" +
+        description.runtimeABIOrder + "'");
+  if (description.runtimeABIParameters.size() != 6)
+    return makeRVVTargetRouteError(
+        "computed-mask standalone reduction target artifact consumer requires "
+        "provider-derived runtime ABI parameters for cmp_lhs, cmp_rhs, src, "
+        "acc scalar seed, out scalar result, and n before artifact export");
+
+  struct ExpectedRuntimeABIParameter {
+    llvm::StringRef cName;
+    llvm::StringRef cType;
+    support::RuntimeABIParameterRole role;
+  };
+  const ExpectedRuntimeABIParameter expected[] = {
+      {"cmp_lhs", "const int32_t *",
+       support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"cmp_rhs", "const int32_t *",
+       support::RuntimeABIParameterRole::RHSInputBuffer},
+      {"src", "const int32_t *",
+       support::RuntimeABIParameterRole::SourceInputBuffer},
+      {"acc", "const int32_t *",
+       support::RuntimeABIParameterRole::AccumulatorInputBuffer},
+      {"out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer},
+      {"n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount},
+  };
+  constexpr size_t expectedCount = sizeof(expected) / sizeof(expected[0]);
+  for (size_t index = 0; index < expectedCount; ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    if (actual.cName != expected[index].cName ||
+        actual.cType != expected[index].cType ||
+        actual.role != expected[index].role)
+      return makeRVVTargetRouteError(
+          llvm::Twine("computed-mask standalone reduction target artifact "
+                      "consumer requires provider-derived runtime ABI "
+                      "parameter ") +
           std::to_string(index) + " to bind " + expected[index].cName +
           " as " +
           support::stringifyRuntimeABIParameterRole(expected[index].role) +
@@ -3731,6 +3946,203 @@ llvm::Error validateRVVPlainStandaloneReductionRoutePayloadFacts(
         expectedSeedSplat + "', signed min/max/add reduction intrinsic '" +
         expectedReduction + "', and scalar result store '" + expectedStore +
         "' before artifact export");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVVectorComputedMaskStandaloneReductionRouteFamilyOperation(
+          description.operation))
+    return llvm::Error::success();
+
+  if (description.typedComputeOpName != "tcrv_rvv.masked_standalone_reduce" ||
+      description.memoryForm !=
+          plugin::rvv::RVVSelectedBodyMemoryForm::
+              ComputedMaskUnitStrideStandaloneReduction)
+    return makeRVVTargetRouteError(
+        "computed-mask standalone reduction target artifact consumer requires "
+        "a selected tcrv_rvv.masked_standalone_reduce body with "
+        "computed-mask unit-stride standalone reduction memory form");
+  if (description.elementTypeName != "i32" || description.sew != 32 ||
+      (description.lmul != "m1" && description.lmul != "m2"))
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived signed i32 SEW32 "
+                    "LMUL m1/m2 dtype/config facts but saw element '") +
+        description.elementTypeName + "', SEW " +
+        llvm::Twine(description.sew) + ", LMUL '" + description.lmul + "'");
+  if (description.tailPolicy != "agnostic" ||
+      description.maskPolicy != "agnostic")
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived agnostic tail/mask "
+                    "policy but saw tail '") +
+        description.tailPolicy + "', mask '" + description.maskPolicy + "'");
+
+  llvm::StringRef expectedVectorType =
+      getRVVPlainStandaloneReductionExpectedVectorTypeName(description.sew,
+                                                          description.lmul);
+  llvm::StringRef expectedVectorCType =
+      getRVVPlainStandaloneReductionExpectedVectorCType(description.sew,
+                                                       description.lmul);
+  llvm::StringRef expectedScalarResultVectorType =
+      getRVVPlainStandaloneReductionExpectedScalarResultVectorTypeName(
+          description.sew, description.lmul);
+  llvm::StringRef expectedScalarResultVectorCType =
+      getRVVPlainStandaloneReductionExpectedScalarResultVectorCType(
+          description.sew, description.lmul);
+  llvm::StringRef expectedMaskType =
+      getRVVComputedMaskStandaloneReductionExpectedMaskTypeName(
+          description.sew, description.lmul);
+  llvm::StringRef expectedMaskCType =
+      getRVVComputedMaskStandaloneReductionExpectedMaskCType(description.sew,
+                                                            description.lmul);
+  if (description.vectorTypeName != expectedVectorType ||
+      description.vectorCType != expectedVectorCType ||
+      description.standaloneReductionSourceVectorTypeName !=
+          expectedVectorType ||
+      description.standaloneReductionSourceVectorCType !=
+          expectedVectorCType ||
+      description.standaloneReductionScalarResultVectorTypeName !=
+          expectedScalarResultVectorType ||
+      description.standaloneReductionScalarResultVectorCType !=
+          expectedScalarResultVectorCType ||
+      description.maskTypeName != expectedMaskType ||
+      description.maskCType != expectedMaskCType)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived source vector type '") +
+        expectedVectorType + "' / '" + expectedVectorCType +
+        "', scalar-result vector type '" + expectedScalarResultVectorType +
+        "' / '" + expectedScalarResultVectorCType + "', and mask type '" +
+        expectedMaskType + "' / '" + expectedMaskCType +
+        "' before artifact export");
+
+  if (description.providerSupportedMirror !=
+          kRVVComputedMaskStandaloneReductionProviderSupportedMirror ||
+      description.targetLeafProfile !=
+          kRVVComputedMaskStandaloneReductionTargetLeafProfile ||
+      description.standaloneReductionRouteFamilyPlanID !=
+          kRVVStandaloneReductionRouteFamilyPlanID ||
+      description.standaloneReductionScalarResultRuntimeBoundary !=
+          kRVVStandaloneReductionScalarResultBoundary ||
+      description.requiredHeaderDeclarations !=
+          kRVVStandaloneReductionHeaderDeclarations ||
+      description.cTypeMappingSummary !=
+          kRVVComputedMaskStandaloneReductionCTypeMappingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider mirror '") +
+        kRVVComputedMaskStandaloneReductionProviderSupportedMirror +
+        "', target leaf '" +
+        kRVVComputedMaskStandaloneReductionTargetLeafProfile +
+        "', standalone route-family plan '" +
+        kRVVStandaloneReductionRouteFamilyPlanID +
+        "', scalar-result boundary '" +
+        kRVVStandaloneReductionScalarResultBoundary + "', headers '" +
+        kRVVStandaloneReductionHeaderDeclarations + "', and C type mapping '" +
+        kRVVComputedMaskStandaloneReductionCTypeMappingSummary +
+        "' before artifact export");
+
+  llvm::StringRef expectedBindingPlan =
+      getRVVComputedMaskStandaloneReductionExpectedBindingPlanID(
+          description.operation);
+  std::string expectedBindingSummary =
+      getRVVComputedMaskStandaloneReductionExpectedBindingSummary(
+          description.operation);
+  if (description.routeOperandBindingPlanID != expectedBindingPlan ||
+      description.routeOperandBindingSummary != expectedBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived route operand binding "
+                    "plan '") +
+        expectedBindingPlan +
+        "' with cmp_lhs, cmp_rhs, src, acc seed, out scalar result, and n "
+        "bindings but provider carried plan '" +
+        description.routeOperandBindingPlanID + "'");
+
+  if (llvm::Error error =
+          validateRVVComputedMaskStandaloneReductionRuntimeABIFacts(
+              description))
+    return error;
+
+  if (description.reductionAccumulatorLayout !=
+          kRVVStandaloneReductionAccumulatorLayout ||
+      description.reductionResultLayout != kRVVStandaloneReductionResultLayout ||
+      description.reductionStoreVL != kRVVStandaloneReductionStoreVL)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires scalar seed accumulator layout '") +
+        kRVVStandaloneReductionAccumulatorLayout + "', result layout '" +
+        kRVVStandaloneReductionResultLayout + "', and store VL '" +
+        kRVVStandaloneReductionStoreVL + "' before artifact export");
+
+  llvm::StringRef expectedSeedSplat =
+      getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(description.sew,
+                                                              description.lmul);
+  llvm::StringRef expectedStore =
+      getRVVPlainStandaloneReductionExpectedStoreIntrinsic(description.sew,
+                                                          description.lmul);
+  llvm::StringRef expectedReduction =
+      getRVVComputedMaskStandaloneReductionExpectedIntrinsic(
+          description.operation, description.sew, description.lmul);
+  llvm::StringRef expectedCompare =
+      getRVVComputedMaskStandaloneReductionExpectedCompareIntrinsic(
+          description.sew, description.lmul);
+  llvm::StringRef expectedMerge =
+      getRVVComputedMaskStandaloneReductionExpectedMergeIntrinsic(
+          description.sew, description.lmul);
+  if (description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
+      description.storeIntrinsic != expectedStore ||
+      description.intrinsic != expectedReduction ||
+      description.compareIntrinsic != expectedCompare ||
+      description.maskedMergeIntrinsic != expectedMerge)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived scalar seed splat '") +
+        expectedSeedSplat + "', signed min/max/add reduction intrinsic '" +
+        expectedReduction + "', compare intrinsic '" + expectedCompare +
+        "', inactive neutral merge '" + expectedMerge +
+        "', and scalar result store '" + expectedStore +
+        "' before artifact export");
+
+  llvm::StringRef expectedInactiveRequirement =
+      getRVVComputedMaskStandaloneReductionExpectedInactiveLaneRequirement(
+          description.operation);
+  if (description.maskRole != kRVVComputedMaskStandaloneReductionMaskRole ||
+      description.maskSource != kRVVComputedMaskStandaloneReductionMaskSource ||
+      description.maskMemoryForm !=
+          kRVVComputedMaskStandaloneReductionMaskMemoryForm ||
+      description.inactiveLaneZeroingRequirement != expectedInactiveRequirement ||
+      description.comparePredicateKind !=
+          kRVVComputedMaskStandaloneReductionComparePredicate)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask standalone reduction target artifact "
+                    "consumer requires provider-derived mask role/source/form, "
+                    "operation-specific inactive-lane requirement '") +
+        expectedInactiveRequirement +
+        "', and compare predicate '" +
+        kRVVComputedMaskStandaloneReductionComparePredicate +
+        "' before artifact export");
+
+  if (description.accumulationRouteFamilyPlanID !=
+          kRVVComputedMaskAccumulationRouteFamilyPlanID ||
+      description.accumulationComputeSuffix !=
+          kRVVComputedMaskStandaloneReductionComputeSuffix ||
+      description.accumulationMaskProducerSource !=
+          kRVVComputedMaskStandaloneReductionProducerSource ||
+      description.accumulationAccumulatorContract !=
+          kRVVComputedMaskStandaloneReductionAccumulatorContract ||
+      description.accumulationResultContract !=
+          kRVVComputedMaskStandaloneReductionResultContract ||
+      description.accumulationScalarCarryContract !=
+          kRVVComputedMaskStandaloneReductionScalarCarryContract)
+    return makeRVVTargetRouteError(
+        "computed-mask standalone reduction target artifact consumer requires "
+        "provider-derived computed-mask accumulation plan, scalar horizontal "
+        "reduction suffix, vector compare producer, scalar seed/result "
+        "contracts, and scalar carry contract before artifact export");
 
   return llvm::Error::success();
 }
@@ -4019,6 +4431,10 @@ llvm::Error validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
   if (llvm::Error error =
           validateRVVPlainStandaloneReductionRoutePayloadFacts(description))
     return error;
+  if (llvm::Error error =
+          validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
+              description))
+    return error;
 
   if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
           description.operation)) {
@@ -4274,6 +4690,12 @@ validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
             "selected typed RVV computed-mask standalone reduction inactive "
             "lane neutral requirement"))
       return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind",
+            description.comparePredicateKind,
+            "selected typed RVV computed-mask standalone reduction compare "
+            "predicate"))
+      return error;
   } else {
     constexpr llvm::StringLiteral staleComputedMaskMirrors[] = {
         "tcrv_rvv.accumulation_route_family_plan",
@@ -4285,7 +4707,8 @@ validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
         "tcrv_rvv.mask_role",
         "tcrv_rvv.mask_source",
         "tcrv_rvv.mask_memory_form",
-        "tcrv_rvv.inactive_lane_zeroing_requirement"};
+        "tcrv_rvv.inactive_lane_zeroing_requirement",
+        "tcrv_rvv.compare_predicate_kind"};
     for (llvm::StringRef key : staleComputedMaskMirrors)
       if (llvm::Error error =
               requireEmptyStandaloneReductionAccumulationStaleMirror(

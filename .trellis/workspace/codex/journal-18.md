@@ -213,3 +213,36 @@ Hardened plain standalone reduce_min/reduce_max target artifact validation, expo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 310: Stage2 RVV computed-mask standalone min/max ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV computed-mask standalone min/max ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed computed-mask standalone reduce_min/reduce_max target artifact runtime ABI validation, generated-bundle reduction accumulation evidence, ssh rvv runtime proof, and task archive.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
