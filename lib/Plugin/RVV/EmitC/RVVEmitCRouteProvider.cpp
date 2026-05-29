@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
@@ -439,45 +440,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return withVLSource.takeError();
   route.addSourceOpProvenance(std::move(*withVLSource));
 
-  llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
-      migratedStatementPlanOrError = getRVVSelectedBodyMigratedRouteStatementPlan(
-          analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
-          memoryOperandBindingFacts, mathOperandBindingFacts,
-          residualOperandBindingFacts, "selected RVV EmitC route construction");
-  if (!migratedStatementPlanOrError)
-    return migratedStatementPlanOrError.takeError();
-  RVVSelectedBodyMigratedRouteStatementPlan migratedStatementPlan =
-      std::move(*migratedStatementPlanOrError);
-  if (migratedStatementPlan.plansMigratedRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         migratedStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(migratedStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-
-  llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-      directContractionStatementPlanOrError =
-          getRVVSelectedBodyDirectContractionRouteStatementPlan(
-              analysis, directContractionProviderPlan,
+  llvm::Expected<RVVSelectedBodyRouteStatementPlanOwnerSelection>
+      statementPlanOwnerSelection =
+          getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+              analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+              memoryOperandBindingFacts, mathOperandBindingFacts,
+              residualOperandBindingFacts, directContractionProviderPlan,
               "selected RVV EmitC route construction");
-  if (!directContractionStatementPlanOrError)
-    return directContractionStatementPlanOrError.takeError();
-  RVVSelectedBodyDirectContractionRouteStatementPlan
-      directContractionStatementPlan =
-          std::move(*directContractionStatementPlanOrError);
-  if (directContractionStatementPlan.plansDirectContractionRoute) {
-    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         directContractionStatementPlan.preLoopSteps)
-      route.addCallOpaqueStep(std::move(step));
-    route.addForLoop(std::move(directContractionStatementPlan.loop));
-    out = std::move(route);
-    return llvm::Error::success();
-  }
-
-  return diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner(
-      description, "selected RVV EmitC route construction");
+  if (!statementPlanOwnerSelection)
+    return statementPlanOwnerSelection.takeError();
+  if (llvm::Error error = attachRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          route, std::move(*statementPlanOwnerSelection),
+          "selected RVV EmitC route construction"))
+    return error;
+  out = std::move(route);
+  return llvm::Error::success();
 }
 
 } // namespace
@@ -497,18 +474,6 @@ describeRVVSelectedBodyEmitCRoute(
       return std::move(error);
 
   return analysis->description;
-}
-
-llvm::Error diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef context) {
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) +
-      " requires an explicit migrated or direct-contraction statement-plan "
-      "owner before provider-local route statement construction for operation '" +
-      stringifyRVVSelectedBodyOperationKind(description.operation) +
-      "', memory_form '" +
-      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
 }
 
 llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage2 selected-body realization scope, typed tcrv_rvv body authority, and mirror-only metadata constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route materialization facts boundary, operand-binding facts boundaries, migrated statement-plan provider consumption boundary, direct-contraction route-provider boundary, exact-one owner classification, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec remains an execution envelope and ABI/runtime role owner, not RVV compute, dtype, schedule, intrinsic, or selected-route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and common EmitC neutrality; invalid RVV route inputs and mirror-only emission metadata."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ route-provider tests, generated-bundle dry-run evidence, authority scans, and ssh rvv requirement policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for keeping statement-plan ownership and RVV-specific mapping plugin-local."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Checklist for keeping typed body/config/capability/runtime facts as authority rather than names or mirrors."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for keeping compute semantics in RVV extension-family bodies and out of core/common EmitC."}
+{"file": ".trellis/tasks/05-30-stage2-rvv-statement-plan-owner-boundary/prd.md", "reason": "Task-specific goal, requirements, acceptance criteria, non-goals, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-selected-body-statement-plan-fallback-retirement/prd.md", "reason": "Immediate predecessor evidence and boundary state after provider-local statement fallback retirement."}

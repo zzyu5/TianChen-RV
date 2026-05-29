@@ -61,6 +61,59 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 325: Stage2 RVV selected-body statement-plan owner boundary
+
+**Date**: 2026-05-30
+**Task**: Switch: Stage2 RVV selected-body statement-plan owner module boundary
+**Branch**: `main`
+
+### Summary
+
+Made the selected-body RVV statement-plan owner boundary a first-class
+plugin-local module surface. The provider now consumes one owner-selection API
+for provider-ready statements instead of sequencing migrated and
+direct-contraction statement-plan aggregates itself.
+
+### Main Changes
+
+- Created Trellis task `.trellis/tasks/05-30-stage2-rvv-statement-plan-owner-boundary`
+  from the Hermes Direction Brief and repaired the PRD/context before source
+  edits.
+- Added `RVVEmitCStatementPlanOwners.h/cpp` as the provider-facing
+  statement-plan owner module.
+- Moved missing-owner diagnostics into the owner module and added exact-one
+  owner selection across migrated and direct-contraction statement plans.
+- Updated `RVVEmitCRouteProvider.cpp` to build the neutral route, then attach
+  statements through the new owner module.
+- Extended C++ plugin tests for missing owner diagnostics, migrated
+  `reduce_add` selection, direct-contraction selection, and provider
+  consumption.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Representative selected-boundary generated-bundle dry-run for
+  `reduce_add` and `widening_dot_reduce_add`; both evidence files report
+  `local_bundle_generation.route_entry_realization: false`.
+- [OK] Bounded provider scan found no direct migrated/direct statement getter
+  calls in `RVVEmitCRouteProvider.cpp`, no selected-body statement fallback, and
+  no provider-local family statement switches.
+- [OK] Bounded authority scan over touched files found no new production
+  authority drift; test hits are existing negative/stale-mirror checks.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 324: Stage2 RVV selected-body statement-plan fallback retirement
 
 **Date**: 2026-05-30

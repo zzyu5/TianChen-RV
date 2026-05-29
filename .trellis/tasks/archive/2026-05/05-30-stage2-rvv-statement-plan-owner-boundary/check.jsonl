@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Quality gate must preserve the RVV-first authority chain and Stage2 typed selected-body realization boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Quality gate must verify migrated/direct-contraction statement-plan owner boundaries, exact-one owner classification, provider consumption, and fail-closed unowned route diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Quality gate must verify tcrv.exec remains envelope/ABI authority only and does not acquire RVV compute or route semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Quality gate must verify TCRVEmitCLowerableRoute remains provider-built and common EmitC stays neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Quality gate must verify focused C++ tests, generated-bundle dry-runs, authority scans, and ssh rvv evidence policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review provider/planning split for plugin-local statement-plan ownership rather than core/common semantic selection."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review for name-, route-id-, ABI-string-, metadata-, artifact-, or exact-intrinsic-derived authority drift."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review for accidental high-level compute or common EmitC semantic branches."}
+{"file": ".trellis/tasks/05-30-stage2-rvv-statement-plan-owner-boundary/prd.md", "reason": "Task-specific acceptance criteria, non-goals, and validation checklist."}

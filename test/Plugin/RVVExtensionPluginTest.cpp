@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -4355,6 +4356,8 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      RVVSelectedBodyDirectContractionRouteProviderPlan;
+  using tianchenrv::plugin::rvv::
       RVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
@@ -6901,6 +6904,8 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      RVVSelectedBodyDirectContractionRouteProviderPlan;
+  using tianchenrv::plugin::rvv::
       RVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
@@ -6915,6 +6920,10 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
       getRVVSelectedBodyMigratedRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMigratedRouteStatementPlanOwners;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyRouteStatementPlanOwnerConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyMigratedRouteStatementPlanConsumer;
 
@@ -7074,6 +7083,29 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
            "statement-plan owner",
            "widening_dot_reduce_add",
            "computed-mask-unit-stride-widening-dot-reduce"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis unownedAnalysis;
+  unownedAnalysis.description = makeDescription(
+      RVVSelectedBodyOperationKind::Add,
+      RVVSelectedBodyMemoryForm::RHSScalarBroadcast);
+  RVVSelectedBodyDirectContractionRouteProviderPlan emptyDirectProviderPlan;
+  if (int result =
+          expect(!isRVVSelectedBodyRouteStatementPlanOwnerConsumer(
+                     unownedAnalysis.description),
+                 "statement-plan owner module reports no provider-facing owner "
+                 "for unrelated operation and memory-form combinations"))
+    return result;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+              unownedAnalysis, emptyMaterializationFacts, emptyElementwiseFacts,
+              emptyMemoryFacts, emptyMathFacts, emptyResidualFacts,
+              emptyDirectProviderPlan,
+              "statement-plan owner module unit test")
+              .takeError(),
+          {"requires an explicit migrated or direct-contraction "
+           "statement-plan owner",
+           "add", "rhs-scalar-broadcast"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingElementwisePlan;
@@ -13650,8 +13682,12 @@ int runReductionStatementPlanBoundaryTest(mlir::MLIRContext &context) {
       getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyReductionRouteStatementPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyDirectContractionRouteProviderPlan;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
@@ -13660,6 +13696,8 @@ int runReductionStatementPlanBoundaryTest(mlir::MLIRContext &context) {
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteStatementPlanOwnerKind;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
@@ -13747,6 +13785,28 @@ module {
               migratedStatementPlan->loop.bodySteps.size() == 5,
           "migrated statement-plan boundary exposes reduce_add as one "
           "provider-neutral plan"))
+    return result;
+  RVVSelectedBodyDirectContractionRouteProviderPlan emptyDirectProviderPlan;
+  auto selectedStatementPlan =
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          *analysis, *materializationFacts, emptyElementwiseFacts,
+          emptyMemoryFacts, *mathFacts, emptyResidualFacts,
+          emptyDirectProviderPlan,
+          "selected statement-plan owner reduction unit test");
+  if (!selectedStatementPlan)
+    return fail("selected statement-plan owner reduction construction: " +
+                llvm::toString(selectedStatementPlan.takeError()));
+  if (int result = expect(
+          selectedStatementPlan->plansSelectedBodyRoute &&
+              selectedStatementPlan->ownerKind ==
+                  RVVSelectedBodyRouteStatementPlanOwnerKind::Migrated &&
+              selectedStatementPlan->migratedFamily ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::Reduction &&
+              selectedStatementPlan->ownerName == "reduction" &&
+              selectedStatementPlan->preLoopSteps.size() == 1 &&
+              selectedStatementPlan->loop.bodySteps.size() == 5,
+          "statement-plan owner module selects the migrated reduction owner "
+          "and preserves provider-ready statements"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -14803,6 +14863,8 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyDirectContractionRouteProviderConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer;
@@ -14811,8 +14873,16 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteStatementPlanOwnerKind;
 
   llvm::ArrayRef<tianchenrv::plugin::rvv::
                      RVVSelectedBodyDirectContractionRouteProviderOwner>
@@ -15198,8 +15268,36 @@ module {
     if (int result = expect(
             directStatementPlan->preLoopSteps.size() ==
                 (expectedDotReduction ? 3u : 1u),
-            "direct contraction owner preserves pre-loop setvl and "
-            "dot-reduction seed/store ordering"))
+              "direct contraction owner preserves pre-loop setvl and "
+              "dot-reduction seed/store ordering"))
+      return result;
+    RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        emptyElementwiseFacts;
+    RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+    RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+    auto selectedStatementPlan =
+        getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+            analysis, *materializationFacts, emptyElementwiseFacts,
+            emptyMemoryFacts, *mathFacts, emptyResidualFacts,
+            *directProviderPlan, label);
+    if (!selectedStatementPlan)
+      return fail((llvm::Twine(label) +
+                   " statement-plan owner module selection: " +
+                   llvm::toString(selectedStatementPlan.takeError()))
+                      .str());
+    if (int result = expect(
+            selectedStatementPlan->plansSelectedBodyRoute &&
+                selectedStatementPlan->ownerKind ==
+                    RVVSelectedBodyRouteStatementPlanOwnerKind::
+                        DirectContraction &&
+                selectedStatementPlan->ownerName ==
+                    "direct-provider contraction" &&
+                selectedStatementPlan->preLoopSteps.size() ==
+                    directStatementPlan->preLoopSteps.size() &&
+                selectedStatementPlan->loop.bodySteps.size() ==
+                    directStatementPlan->loop.bodySteps.size(),
+            "statement-plan owner module selects the direct-contraction owner "
+            "and preserves provider-ready statements"))
       return result;
 
     auto containsCallee = [](const auto &steps, llvm::StringRef callee) {
