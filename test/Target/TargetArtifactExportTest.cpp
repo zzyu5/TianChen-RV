@@ -2882,6 +2882,42 @@ bool expectRVVTargetArtifactExporterShape(
            "segment-field0-output-buffer"}))
     return false;
 
+  RVVRouteDescription wrongSegment2SourceMemory =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2SourceMemory.sourceMemoryForm =
+      "segment2-interleaved-unit-stride-load";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2SourceMemory,
+          "computed-mask segment2 registry rejects wrong update source "
+          "memory form",
+          {"source memory form", "unit-stride-load",
+           "segment2-interleaved-unit-stride-load"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2DestinationMemory =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2DestinationMemory.destinationMemoryForm = "unit-stride-store";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2DestinationMemory,
+          "computed-mask segment2 registry rejects wrong update destination "
+          "memory form",
+          {"destination memory form",
+           "segment2-interleaved-unit-stride-store", "unit-stride-store"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2RouteOperandBinding =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2RouteOperandBinding.routeOperandBindingSummary =
+      "metadata-derived-binding";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2RouteOperandBinding,
+          "computed-mask segment2 registry rejects wrong update route operand "
+          "binding summary",
+          {"route operand binding summary",
+           "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+           "metadata-derived-binding"}))
+    return false;
+
   RVVRouteDescription wrongSegment2Passthrough =
       computedMaskSegment2UpdateDescription;
   wrongSegment2Passthrough.inactiveLaneContract =
@@ -3030,6 +3066,58 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider_supported_mirror",
            "provider_supported_mirror:rvv-computed-mask-segment2-update-add-plan-validated",
            "metadata-only-segment2-update"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2BindingMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongSegment2BindingMirror, "tcrv_rvv.route_operand_binding_operands",
+          "metadata-derived-binding")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "route operand binding metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2BindingMirror,
+          "computed-mask segment2 registry rejects stale update binding "
+          "mirror",
+          {"route_operand_binding_operands",
+           "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+           "metadata-derived-binding"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2SourceMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2SourceMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "metadata-derived-source")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "source memory form metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2SourceMirror,
+          "computed-mask segment2 registry rejects stale update source "
+          "memory mirror",
+          {"source_memory_form", "unit-stride-load",
+           "metadata-derived-source"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2DestinationMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2DestinationMirror,
+                                    "tcrv_rvv.destination_memory_form",
+                                    "unit-stride-store")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "destination memory form metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2DestinationMirror,
+          "computed-mask segment2 registry rejects stale update destination "
+          "memory mirror",
+          {"destination_memory_form",
+           "segment2-interleaved-unit-stride-store", "unit-stride-store"}))
     return false;
 
   TargetArtifactCandidate wrongSegment2HeaderMirror =

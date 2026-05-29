@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global source-of-truth, RVV stage order, and authority boundary for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-boundary-only segment2 update behavior, provider construction, target artifact consumers, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Confirm tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirm common EmitC/export remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-computed-mask-segment2-update-runtime-abi-closure/prd.md", "reason": "Previous update runtime ABI closure scope and acceptance evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-computed-mask-segment2-load-store-runtime-abi-closure/prd.md", "reason": "Adjacent load/store closure and non-regression expectations."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Verify update remains selected-boundary-only and direct route-entry is not reintroduced."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify provider-derived update route operand binding, memory form, arithmetic, ABI, and statement-plan facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify common route provider consumes RVV-owned plans before EmitC materialization."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verify target validator already checks update source/destination memory form, binding, provider mirror, and stale facts."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Verify artifact metadata mirrors include update arithmetic/provider facts only as mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Add focused update-specific target validator stale-fact negatives for source/destination memory form and route binding mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify generated-bundle explicit/pre-realized update runtime ABI and ssh correctness evidence."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Verify explicit selected-body artifact mirrors and stale-fact rejection remain correct."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Verify pre-realized selected-boundary realization and artifact mirrors remain correct."}

@@ -59,3 +59,56 @@ Spec update judgment:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 307: Stage2 RVV computed-mask segment2 update-unit-load runtime ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV computed-mask segment2 update-unit-load runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed the Hermes-requested update-unit-load follow-up by adding focused update-specific target artifact stale-fact validation and rerunning selected-boundary, artifact, generated-bundle, ssh rvv, and full check evidence.
+
+### Main Changes
+
+Completed task: 05-29-stage2-rvv-computed-mask-segment2-update-unit-load-runtime-abi-closure.
+
+Implementation:
+- Confirmed current production selected-body/provider/target path already carries computed_masked_segment2_update_unit_load closure from the previous update task.
+- Added focused TargetArtifactExportTest coverage so the update validator rejects stale provider source memory form, destination memory form, route operand binding summary, candidate route operand binding mirror, source memory mirror, and destination memory mirror.
+- Archived the Trellis PRD and check evidence for this bounded closure.
+
+Evidence:
+- tianchenrv-target-artifact-export-test passed.
+- Focused lit filter for computed-mask segment2 update passed 5/5.
+- Generated-bundle explicit and pre-realized update dry-runs passed for counts 0,1,7,16,17,23,257.
+- Direct pre-realized update route-entry remained fail-closed with selected-boundary-only diagnostic.
+- ssh rvv explicit and pre-realized update runs passed for counts 0,1,7,16,17,23,257 with active update values, inactive preservation, tail preservation, and source preservation.
+- Computed-mask segment2 load/store explicit and pre-realized dry-run non-regressions passed.
+- Added-line authority scan found only negative metadata-derived stale mirror injections.
+- git diff --check passed.
+- check-tianchenrv passed 459/459.
+
+Spec update judgment:
+- No .trellis/spec update was needed. Existing RVV plugin, EmitC route, emission runtime, and testing specs already require selected-boundary-only segment2 behavior, provider-derived route authority, mirror-only metadata, fail-closed stale facts, and ssh rvv evidence for runtime claims.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
