@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage2 typed selected-body route-provider boundary, common EmitC neutrality, and no descriptor/source-front-door/metadata authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Direct contraction route-provider owner boundary, route-control/provider-plan boundaries, statement-plan owner rules, fail-closed diagnostics, and provider neutrality requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC neutrality; invalid RVV route inputs and metadata mirror constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ plugin testing, generated-bundle dry-run evidence, authority scans, and ssh rvv evidence policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for keeping direct-contraction statement ownership plugin-local and out of core/common code."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Checklist for keeping typed body/config/capability/runtime facts as authority rather than names, ABI strings, route ids, mirrors, or artifacts."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for keeping compute semantics in RVV extension-family bodies and out of tcrv.exec/common EmitC."}
+{"file": ".trellis/tasks/05-30-05-30-stage2-rvv-direct-contraction-statement-plan-owner-boundary/prd.md", "reason": "Task-specific goal, scope, requirements, acceptance criteria, non-goals, technical approach, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-statement-plan-owner-registry-extraction/prd.md", "reason": "Immediate predecessor boundary state: owner registry/selection moved, direct-contraction statement construction remained in planning as the next bottleneck."}

@@ -15574,8 +15574,7 @@ module {
               *computedStridedMathFacts,
               "computed-mask strided direct contraction missing leaf")
               .takeError(),
-          {"direct contraction route-provider owner requires compare vector "
-           "load leaf",
+          {"direct contraction provider plan requires compare vector load leaf",
            "computed_masked_strided_input_widening_dot_reduce_add"}))
     return result;
 

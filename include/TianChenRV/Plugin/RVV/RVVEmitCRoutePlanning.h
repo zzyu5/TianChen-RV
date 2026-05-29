@@ -1986,12 +1986,6 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
-llvm::Error buildRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
-    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
-    llvm::StringRef context);
-
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 
 llvm::Expected<const support::RuntimeABIParameter *>

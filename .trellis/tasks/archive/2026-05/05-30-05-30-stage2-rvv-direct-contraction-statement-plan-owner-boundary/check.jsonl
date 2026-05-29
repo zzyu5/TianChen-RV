@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Final review must preserve the RVV-first selected-body authority chain and reject descriptor/source-front-door/metadata authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final review must verify direct-contraction statement construction is owner-boundary owned, provider-plan fact collection remains planning-owned, and provider/common EmitC stay neutral."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final review must verify TCRVEmitCLowerableRoute remains provider-built and common EmitC remains neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final review must verify focused C++ tests, representative dry-runs, authority scans, and ssh rvv non-requirement for this non-runtime round."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review owner-boundary extraction for plugin-locality and no leakage into core/common code."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review for name-, route-id-, ABI-string-, exact-intrinsic-, artifact-, or metadata-derived authority drift."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review that the change does not create high-level compute or common EmitC semantic branching."}
+{"file": ".trellis/tasks/05-30-05-30-stage2-rvv-direct-contraction-statement-plan-owner-boundary/prd.md", "reason": "Task-specific acceptance criteria, non-goals, validation checklist, and completion evidence target."}

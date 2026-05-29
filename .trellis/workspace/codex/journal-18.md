@@ -61,6 +61,61 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 325: Stage2 RVV direct-contraction statement-plan builder boundary extraction
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV direct-contraction statement-plan builder boundary extraction
+**Branch**: `main`
+
+### Summary
+
+Moved direct-contraction provider-ready statement construction for widening
+MAcc and widening dot-reduce selected-body routes from
+`RVVEmitCRoutePlanning.cpp` into `RVVEmitCStatementPlanOwners.cpp`, while
+leaving direct-contraction provider-plan fact collection in planning.
+`RVVEmitCRouteProvider.cpp` stayed unchanged and neutral.
+
+### Main Changes
+
+- Added an owner-local direct-contraction statement builder in
+  `RVVEmitCStatementPlanOwners.cpp` and pointed the direct-contraction owner
+  registry at that builder.
+- Removed the provider-facing direct-contraction statement-builder declaration
+  from `RVVEmitCRoutePlanning.h`.
+- Removed direct-contraction statement assembly helpers and the old planning
+  builder wrapper from `RVVEmitCRoutePlanning.cpp`.
+- Renamed the remaining planning-local direct-contraction validation helpers to
+  provider-plan terminology.
+- Updated the focused C++ diagnostic expectation for missing direct-contraction
+  provider-plan leaves.
+- Spec update review: no `.trellis/spec/**` edits were needed because
+  `extension-plugins/rvv-plugin.md` already contains the direct-contraction
+  owner-boundary contract used by this implementation.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Representative generated-bundle dry-run for `macc_add`,
+  `scalar_broadcast_macc_add`, and `widening_dot_reduce_add`; all reported
+  `local_bundle_generation.route_entry_realization: false`
+- [OK] Bounded provider/planning/owner scans for direct-contraction statement
+  construction authority
+- [OK] Diff-only authority scan found no legacy-i32/source-front-door/
+  descriptor/route-id/exact-intrinsic/common-EmitC authority drift
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 325: Stage2 RVV selected-body statement-plan owner boundary
 
 **Date**: 2026-05-30
