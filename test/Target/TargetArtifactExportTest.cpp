@@ -2744,6 +2744,308 @@ bool expectRVVTargetArtifactExporterShape(
         computedMaskSegment2UpdateRoute, computedMaskSegment2UpdateDescription,
         mutated, mutationContext, fragments);
   };
+  auto expectPlainDeinterleaveProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(segment2DeinterleaveFixture,
+                                         segment2DeinterleaveRoute, mutated,
+                                         mutationContext, fragments);
+  };
+  auto expectPlainDeinterleaveCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2CandidateFailure(
+        segment2DeinterleaveRoute, segment2DeinterleaveDescription, mutated,
+        mutationContext, fragments);
+  };
+  auto expectPlainInterleaveProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(segment2InterleaveFixture,
+                                         segment2InterleaveRoute, mutated,
+                                         mutationContext, fragments);
+  };
+  auto expectPlainInterleaveCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2CandidateFailure(
+        segment2InterleaveRoute, segment2InterleaveDescription, mutated,
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription wrongDeinterleaveRuntimeABIOrder =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveRuntimeABIOrder.runtimeABIOrder = "out0,src,out1,n";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveRuntimeABIOrder,
+          "plain segment2 deinterleave validator rejects wrong ABI order",
+          {"runtime ABI order", "src,out0,out1,n", "out0,src,out1,n"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveFieldRole =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveFieldRole.field0Role = "segment-field0-input-buffer";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveFieldRole,
+          "plain segment2 deinterleave validator rejects wrong tuple field role",
+          {"field0 role", "segment-field0-output-buffer",
+           "segment-field0-input-buffer"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveSourceMemory =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveSourceMemory.sourceMemoryForm = "unit-stride-load";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveSourceMemory,
+          "plain segment2 deinterleave validator rejects wrong source memory "
+          "form",
+          {"source memory form", "segment2-interleaved-unit-stride-load",
+           "unit-stride-load"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveDestinationMemory =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveDestinationMemory.destinationMemoryForm =
+      "segment2-interleaved-unit-stride-store";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveDestinationMemory,
+          "plain segment2 deinterleave validator rejects wrong destination "
+          "memory form",
+          {"destination memory form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveProviderMirror =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-segment2-deinterleave";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveProviderMirror,
+          "plain segment2 deinterleave validator rejects metadata-only provider "
+          "mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated",
+           "metadata-only-segment2-deinterleave"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveRouteOperandBinding =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveRouteOperandBinding.routeOperandBindingSummary =
+      "metadata-derived-binding";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveRouteOperandBinding,
+          "plain segment2 deinterleave validator rejects wrong route operand "
+          "binding summary",
+          {"route operand binding summary",
+           "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+           "metadata-derived-binding"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveProviderMirrorCandidate =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongDeinterleaveProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:metadata-only-segment2-deinterleave")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "provider mirror metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveProviderMirrorCandidate,
+          "plain segment2 deinterleave validator rejects stale provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated",
+           "metadata-only-segment2-deinterleave"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveBindingMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongDeinterleaveBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          "metadata-derived-binding")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "route operand binding metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveBindingMirror,
+          "plain segment2 deinterleave validator rejects stale binding mirror",
+          {"route_operand_binding_operands",
+           "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+           "metadata-derived-binding"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveSourceMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveSourceMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "unit-stride-load")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "source memory form metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveSourceMirror,
+          "plain segment2 deinterleave validator rejects stale source memory "
+          "mirror",
+          {"source_memory_form", "segment2-interleaved-unit-stride-load",
+           "unit-stride-load"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveDestinationMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveDestinationMirror,
+                                    "tcrv_rvv.destination_memory_form",
+                                    "segment2-interleaved-unit-stride-store")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "destination memory form metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveDestinationMirror,
+          "plain segment2 deinterleave validator rejects stale destination "
+          "memory mirror",
+          {"destination_memory_form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveRuntimeABIOrder =
+      segment2InterleaveDescription;
+  wrongInterleaveRuntimeABIOrder.runtimeABIOrder = "src0,dst,src1,n";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveRuntimeABIOrder,
+          "plain segment2 interleave validator rejects wrong ABI order",
+          {"runtime ABI order", "src0,src1,dst,n", "src0,dst,src1,n"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveFieldRole = segment2InterleaveDescription;
+  wrongInterleaveFieldRole.field0Role = "segment-field0-output-buffer";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveFieldRole,
+          "plain segment2 interleave validator rejects wrong tuple field role",
+          {"field0 role", "segment-field0-input-buffer",
+           "segment-field0-output-buffer"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveSourceMemory =
+      segment2InterleaveDescription;
+  wrongInterleaveSourceMemory.sourceMemoryForm =
+      "segment2-interleaved-unit-stride-load";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveSourceMemory,
+          "plain segment2 interleave validator rejects wrong source memory form",
+          {"source memory form", "unit-stride-load",
+           "segment2-interleaved-unit-stride-load"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveDestinationMemory =
+      segment2InterleaveDescription;
+  wrongInterleaveDestinationMemory.destinationMemoryForm = "unit-stride-store";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveDestinationMemory,
+          "plain segment2 interleave validator rejects wrong destination memory "
+          "form",
+          {"destination memory form", "segment2-interleaved-unit-stride-store",
+           "unit-stride-store"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveProviderMirror =
+      segment2InterleaveDescription;
+  wrongInterleaveProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-segment2-interleave";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveProviderMirror,
+          "plain segment2 interleave validator rejects metadata-only provider "
+          "mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-segment2-interleave-plan-validated",
+           "metadata-only-segment2-interleave"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveRouteOperandBinding =
+      segment2InterleaveDescription;
+  wrongInterleaveRouteOperandBinding.routeOperandBindingSummary =
+      "metadata-derived-binding";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveRouteOperandBinding,
+          "plain segment2 interleave validator rejects wrong route operand "
+          "binding summary",
+          {"route operand binding summary",
+           "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+           "metadata-derived-binding"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveProviderMirrorCandidate =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongInterleaveProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:metadata-only-segment2-interleave")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "provider mirror metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveProviderMirrorCandidate,
+          "plain segment2 interleave validator rejects stale provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-segment2-interleave-plan-validated",
+           "metadata-only-segment2-interleave"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveBindingMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongInterleaveBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          "metadata-derived-binding")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "route operand binding metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveBindingMirror,
+          "plain segment2 interleave validator rejects stale binding mirror",
+          {"route_operand_binding_operands",
+           "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+           "metadata-derived-binding"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveSourceMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveSourceMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "segment2-interleaved-unit-stride-load")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "source memory form metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveSourceMirror,
+          "plain segment2 interleave validator rejects stale source memory "
+          "mirror",
+          {"source_memory_form", "unit-stride-load",
+           "segment2-interleaved-unit-stride-load"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveDestinationMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveDestinationMirror,
+                                    "tcrv_rvv.destination_memory_form",
+                                    "unit-stride-store")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "destination memory form metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveDestinationMirror,
+          "plain segment2 interleave validator rejects stale destination memory "
+          "mirror",
+          {"destination_memory_form", "segment2-interleaved-unit-stride-store",
+           "unit-stride-store"}))
+    return false;
 
   RVVRouteDescription wrongLoadRuntimeABIOrder =
       computedMaskSegment2LoadDescription;

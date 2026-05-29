@@ -112,3 +112,61 @@ Spec update judgment:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 308: Stage2 RVV plain segment2 runtime ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV plain segment2 runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed plain segment2 deinterleave/interleave runtime ABI closure with production target artifact validator hardening, focused stale-fact negatives, generated-bundle dry-runs, ssh rvv correctness, and check-tianchenrv 459/459.
+
+### Main Changes
+
+Completed task: 05-29-05-29-stage2-rvv-plain-segment2-runtime-abi-closure.
+
+Implementation:
+- Confirmed selected-body realization and RVV EmitC provider already keep plain segment2 deinterleave/interleave selected-boundary-only and provider-derived.
+- Hardened the production RVV target artifact consumer so plain segment2 deinterleave/interleave provider facts are checked against hardcoded expected typed op, runtime ABI order, route operand binding, provider mirror, source/destination memory forms, tuple field roles, field memory forms, segment count, tuple C type, headers, C type mapping, and segment route-family plan.
+- Added TargetArtifactExportTest stale-fact negatives for both plain paths across ABI order, tuple field roles, source/destination memory forms, provider mirror, route operand binding summary, and candidate metadata mirrors.
+- Archived the Trellis PRD/check context for the bounded closure.
+
+Evidence:
+- tianchenrv-target-artifact-export-test passed.
+- Generated-bundle explicit and pre-realized dry-runs passed for segment2_deinterleave_unit_store and segment2_interleave_unit_load over counts 0,1,7,16,17,23,257.
+- Direct pre-realized route-entry remained fail-closed with selected-boundary-only diagnostics for both plain segment2 paths.
+- ssh rvv explicit and pre-realized runs passed for both plain paths over counts 0,1,7,16,17,23,257 with field-order distinguishing lanes and tail preservation.
+- Computed-mask segment2 load/store/update explicit and pre-realized dry-run non-regressions passed.
+- Production diff authority scan had no matches; full touched diff matches were only deliberate negative metadata-derived/provider-mirror stale injections.
+- git diff --check passed.
+- check-tianchenrv passed 459/459.
+
+Spec update judgment:
+- No .trellis/spec update was needed. Existing RVV plugin, EmitC route, target artifact, and runtime evidence specs already require selected-boundary-only segment2 behavior, provider-derived route authority, mirror-only metadata, fail-closed stale facts, and ssh rvv evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] tianchenrv-target-artifact-export-test
+- [OK] explicit/pre-realized generated-bundle dry-runs for both plain segment2 paths
+- [OK] direct route-entry fail-closed check for both plain segment2 paths
+- [OK] ssh rvv explicit/pre-realized generated-bundle runs for both plain segment2 paths
+- [OK] computed-mask segment2 load/store/update dry-run non-regressions
+- [OK] git diff --check
+- [OK] check-tianchenrv 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

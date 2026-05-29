@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global source-of-truth, RVV stage order, and authority boundary for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-boundary-only segment2 behavior, provider construction, target artifact consumers, fail-closed diagnostics, and mirror metadata rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Confirm tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirm common EmitC/export remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-computed-mask-segment2-update-unit-load-runtime-abi-closure/prd.md", "reason": "Adjacent completed computed-mask update runtime ABI closure scope and evidence pattern."}
+{"file": ".trellis/workspace/codex/journal-18.md", "reason": "Recent segment2 closure journal context and next-owner handoff."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Inspected selected-boundary-only plain segment2 realization owner and direct route-entry fail-closed boundary; no production change required."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Inspected plain segment2 provider facts, route operand binding plans, runtime ABI order, memory forms, field roles, and statement plans; no production change required."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Inspected provider construction to confirm lowerable route consumes RVV-owned segment2 plan facts before common EmitC materialization; no production change required."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Changed production target artifact consumer to hardcode-validate plain segment2 provider facts for typed op, ABI order, operand binding, provider mirror, memory forms, tuple fields, segment count, headers, C type mapping, and route-family plan."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added plain deinterleave/interleave provider and candidate stale-fact negatives for ABI order, tuple field roles, source/destination memory forms, provider mirrors, and route operand binding mirrors."}
