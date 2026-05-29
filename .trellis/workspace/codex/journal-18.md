@@ -61,6 +61,63 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 315: Stage2 RVV MAcc artifact ABI statement-plan validation closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV MAcc artifact ABI statement-plan validation closure
+**Branch**: `main`
+
+### Summary
+
+Closed non-widening MAcc target artifact ABI validation for `macc_add`,
+`scalar_broadcast_macc_add`, `computed_masked_macc_add`, and
+`runtime_scalar_computed_masked_macc_add` through exact provider-built
+statement-plan checks, focused C++ route-clone negatives, and check-tianchenrv
+459/459.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so MAcc
+  target artifact acceptance validates exact provider facts for runtime ABI
+  order, operand binding plan, target leaf profile, provider mirror, headers,
+  C type mapping, MAcc layouts, family plan mirrors, computed-mask/pass-through
+  facts, selected typed RVV provenance, and per-statement operands/results.
+- Replaced MAcc loop-payload `routeLoopContainsCallee` acceptance with exact
+  statement sequences for plain/scalar-broadcast MAcc and computed-mask/runtime
+  scalar computed-mask MAcc.
+- Added `test/Target/TargetArtifactExportTest.cpp` fixture support and positive
+  coverage for the four non-widening MAcc forms, plus fail-closed mutations for
+  stale setvl, loads, scalar splats, MAcc operands, masked merge, stores,
+  provider mirrors, route-family facts, runtime ABI mirrors, and provenance.
+- No spec update was needed; this round applied existing RVV plugin, EmitC
+  route, core dialect, and testing contracts.
+- Evidence: target artifact export test passed; diff-level authority scan found
+  no new descriptor/source-front-door/artifact-name/route-id/exact-intrinsic/
+  pre-realized-fixture/callee-presence/legacy-i32 route authority; `git diff
+  --check` passed; check-tianchenrv passed 459/459.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `ninja -C build bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 314: Stage2 RVV widening MAcc artifact ABI statement-plan closure
 
 **Date**: 2026-05-29

@@ -3683,21 +3683,240 @@ llvm::Error validateRVVMAccRouteABIMappings(
   return llvm::Error::success();
 }
 
+constexpr llvm::StringLiteral kRVVMAccRuntimeABIOrder("lhs,rhs,acc,out,n");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccRuntimeABIOrder(
+    "lhs,rhs_scalar,acc,out,n");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n");
+constexpr llvm::StringLiteral kRVVRuntimeScalarComputedMaskedMAccRuntimeABIOrder(
+    "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n");
+constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
+    "rvv-route-operand-binding:macc_add.v1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingPlanID(
+    "rvv-route-operand-binding:scalar_broadcast_macc_add.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccOperandBindingPlanID(
+    "rvv-route-operand-binding:computed_masked_macc_add.v1");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID(
+        "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1");
+constexpr llvm::StringLiteral kRVVPlainMAccRouteFamilyPlanID(
+    "rvv-plain-macc-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccRouteFamilyPlanID(
+    "rvv-scalar-broadcast-macc-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVMAccComputedMaskAccumulationRouteFamilyPlanID(
+    "rvv-computed-mask-accumulation-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVPlainMAccTargetLeafProfile(
+    "rvv-v1-e32m1-plain-macc-add-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccTargetLeafProfile(
+    "rvv-v1-e32m1-scalar-broadcast-macc-add-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccTargetLeafProfile(
+    "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskedMAccTargetLeafProfile(
+        "rvv-v1-typed-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVPlainMAccProviderSupportedMirror(
+    "provider_supported_mirror:rvv-plain-macc-add-plan-validated");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccProviderSupportedMirror(
+    "provider_supported_mirror:rvv-scalar-broadcast-macc-add-composition-plan-validated");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccProviderSupportedMirror(
+    "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskedMAccProviderSupportedMirror(
+        "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-validated");
+constexpr llvm::StringLiteral kRVVMAccRequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVPlainMAccCTypeMappingSummary(
+    "vl:size_t,lhs/rhs/acc:signed-e32m1,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccCTypeMappingSummary(
+    "vl:size_t,lhs/acc:signed-e32m1,rhs_scalar:i32,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccCTypeMappingSummary(
+    "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary(
+        "vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:typed-vector");
+constexpr llvm::StringLiteral kRVVMAccAccumulatorLayout(
+    "separate-i32-vector-accumulator-input");
+constexpr llvm::StringLiteral kRVVMAccResultLayout(
+    "store-multiply-accumulate-result-to-output-buffer");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccComputeSuffix(
+    "vector-masked-macc-add");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccMaskProducerSource(
+    "vector-compare-rhs-load");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskedMAccMaskProducerSource(
+        "runtime-scalar-splat-compare-rhs");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccAccumulatorContract(
+    "vector-accumulator-input-preserves-inactive-lanes");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccResultContract(
+    "vector-macc-result-stored-to-output-buffer");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccMaskRole(
+    "predicate-mask-produced-by-compare");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccMaskSource(
+    "compare-produced-mask-same-vl-scope");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccMaskMemoryForm(
+    "compare-produced-mask");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccInactiveLaneContract(
+    "masked-macc-false-lanes-preserve-accumulator");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccPassthroughLayout(
+    "accumulator-vector-preserves-inactive-lanes");
+
+llvm::StringRef getRVVMAccExpectedRuntimeABIOrder(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return kRVVMAccRuntimeABIOrder;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return kRVVScalarBroadcastMAccRuntimeABIOrder;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccRuntimeABIOrder;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd:
+    return kRVVRuntimeScalarComputedMaskedMAccRuntimeABIOrder;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVMAccExpectedOperandBindingPlanID(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return kRVVMAccOperandBindingPlanID;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return kRVVScalarBroadcastMAccOperandBindingPlanID;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccOperandBindingPlanID;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd:
+    return kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVMAccExpectedTargetLeafProfile(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return kRVVPlainMAccTargetLeafProfile;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return kRVVScalarBroadcastMAccTargetLeafProfile;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccTargetLeafProfile;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd:
+    return kRVVRuntimeScalarComputedMaskedMAccTargetLeafProfile;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVMAccExpectedProviderSupportedMirror(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return kRVVPlainMAccProviderSupportedMirror;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return kRVVScalarBroadcastMAccProviderSupportedMirror;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccProviderSupportedMirror;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd:
+    return kRVVRuntimeScalarComputedMaskedMAccProviderSupportedMirror;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVMAccExpectedCTypeMappingSummary(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return kRVVPlainMAccCTypeMappingSummary;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return kRVVScalarBroadcastMAccCTypeMappingSummary;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccCTypeMappingSummary;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd:
+    return kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary;
+  default:
+    return {};
+  }
+}
+
 llvm::Error validateRVVMAccRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getCallOpaqueSteps().empty())
+  constexpr llvm::StringLiteral consumerLabel("MAcc target artifact consumer");
+  const bool isScalarBroadcast =
+      isRVVScalarBroadcastMAccRouteFamilyOperation(description.operation);
+  const bool isComputedMask =
+      isRVVComputedMaskMAccRouteFamilyOperation(description.operation);
+  const bool isRuntimeScalarComputedMask =
+      isRVVRuntimeScalarComputedMaskMAccRouteFamilyOperation(
+          description.operation);
+  const size_t expectedABIParameterCount = isComputedMask ? 7 : 5;
+  if (description.runtimeABIParameters.size() != expectedABIParameterCount)
     return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires provider-built pre-loop setvl "
-        "statement facts before artifact export");
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived runtime ABI parameters before validating "
+        "route statements");
+  if (description.resultName.empty() || description.vectorCType.empty() ||
+      description.vlCType.empty() || description.setVLIntrinsic.empty() ||
+      description.vectorLoadIntrinsic.empty() || description.intrinsic.empty() ||
+      description.storeIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived result, vector C type, VL C type, setvl, "
+        "load, MAcc, and store facts before validating route statements");
+  if (isScalarBroadcast && description.rhsBroadcastIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "scalar-broadcast MAcc target artifact consumer requires "
+        "provider-derived RHS scalar broadcast facts before validating route "
+        "statements");
+  if (isComputedMask &&
+      (description.maskName.empty() || description.maskCType.empty() ||
+       description.compareIntrinsic.empty() ||
+       description.maskedMergeIntrinsic.empty()))
+    return makeRVVTargetRouteError(
+        "computed-mask MAcc target artifact consumer requires provider-derived "
+        "mask, compare, and masked-merge facts before validating route "
+        "statements");
+  if (isRuntimeScalarComputedMask && description.rhsBroadcastIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "runtime-scalar computed-mask MAcc target artifact consumer requires "
+        "provider-derived RHS scalar splat facts before validating route "
+        "statements");
+
+  const support::RuntimeABIParameter *runtimeElementCount =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeElementCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires a provider-derived runtime n/AVL ABI parameter before "
+        "artifact export");
+
+  const support::RuntimeABIParameter &runtimeNABI =
+      description.runtimeABIParameters.back();
+  if (runtimeElementCount != &runtimeNABI)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI role to match provider runtime ABI order "
+        "before validating route statements");
+
+  if (route.getCallOpaqueSteps().size() != 1)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exactly one provider-built pre-loop setvl statement before "
+        "artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != description.setVLIntrinsic ||
-      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires rebuilt provider route "
-        "pre-loop setvl statement to define the full-chunk VL");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSetVL, consumerLabel, "pre-loop setvl",
+          description.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
+          description.emitCFullChunkVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -3713,67 +3932,171 @@ llvm::Error validateRVVMAccRouteStatementPlan(
   if (loop.inductionVarName != description.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
       loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeNABI.cName ||
+      loop.upperBound.cType != runtimeNABI.cType ||
       loop.step.expression != description.emitCFullChunkVLName ||
       loop.step.cType != description.vlCType)
     return makeRVVTargetRouteError(
         "MAcc target artifact consumer requires provider-built loop bounds "
         "and step to mirror runtime AVL/VL route facts");
-  const support::RuntimeABIParameter *runtimeElementCount =
-      findRuntimeElementCountABIParameter(description);
-  if (!runtimeElementCount)
+  const size_t expectedLoopBodyStepCount = isComputedMask ? 10 : 6;
+  if (loop.bodySteps.size() != expectedLoopBodyStepCount)
     return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires a provider-derived runtime "
-        "n/AVL ABI parameter before artifact export");
-  if (loop.upperBound.expression != runtimeElementCount->cName ||
-      loop.upperBound.cType != runtimeElementCount->cType)
-    return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires provider-built loop upper "
-        "bound to use the runtime n/AVL ABI parameter");
-  if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != description.setVLIntrinsic ||
-      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires provider-built loop setvl "
-        "statement to define per-iteration VL");
+        llvm::Twine(consumerLabel) +
+        " requires exact provider-built MAcc loop statement count " +
+        llvm::Twine(expectedLoopBodyStepCount) + " before artifact export");
+
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeNABI.cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          description.setVLIntrinsic, {{expectedRemainingAVL, description.vlCType}},
+          description.emitCLoopVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
       return makeRVVTargetRouteError(
           "MAcc target artifact consumer requires loop statements to carry "
           "selected typed RVV source provenance");
 
-  if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-      !routeLoopContainsCallee(loop, description.intrinsic) ||
-      !routeLoopContainsCallee(loop, description.storeIntrinsic))
-    return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires provider-built vector load, "
-        "MAcc arithmetic, and store statements before artifact export");
+  auto advancedPointer = [&](const support::RuntimeABIParameter &abi) {
+    return (llvm::StringRef(abi.cName) + " + " +
+            description.emitCLoopInductionName)
+        .str();
+  };
+  auto validateVectorLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi, llvm::StringRef resultName,
+          llvm::StringRef stepLabel) -> llvm::Error {
+    const std::string pointer = advancedPointer(abi);
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.vectorLoadIntrinsic,
+        {{pointer, abi.cType}, {description.emitCLoopVLName, description.vlCType}},
+        resultName, description.vectorCType);
+  };
+  auto validateOutputStore =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &outABI) -> llvm::Error {
+    const std::string pointer = advancedPointer(outABI);
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, "output store", description.storeIntrinsic,
+        {{pointer, outABI.cType},
+         {description.resultName, description.vectorCType},
+         {description.emitCLoopVLName, description.vlCType}});
+  };
 
-  if (isRVVScalarBroadcastMAccRouteFamilyOperation(description.operation) &&
-      !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic))
-    return makeRVVTargetRouteError(
-        "scalar-broadcast MAcc target artifact consumer requires "
-        "provider-built RHS scalar broadcast statement facts before artifact "
-        "export");
+  if (!isComputedMask) {
+    const support::RuntimeABIParameter &lhsABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &rhsOrScalarABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &accumulatorABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &outABI =
+        description.runtimeABIParameters[3];
 
-  if (isRVVComputedMaskMAccRouteFamilyOperation(description.operation)) {
-    if (!routeLoopContainsCallee(loop, description.compareIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask MAcc target artifact consumer requires "
-          "provider-built compare statement facts before artifact export");
-    if (description.maskedMergeIntrinsic.empty() ||
-        !routeLoopContainsCallee(loop, description.maskedMergeIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask MAcc target artifact consumer requires "
-          "provider-built masked-merge statement facts before artifact export");
-    if (isRVVRuntimeScalarComputedMaskMAccRouteFamilyOperation(
-            description.operation) &&
-        !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic))
-      return makeRVVTargetRouteError(
-          "runtime-scalar computed-mask MAcc target artifact consumer requires "
-          "provider-built RHS scalar splat statement facts before artifact "
-          "export");
+    if (llvm::Error error =
+            validateVectorLoad(loop.bodySteps[1], lhsABI, "lhs_vec",
+                               "lhs load"))
+      return error;
+    if (isScalarBroadcast) {
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[2], consumerLabel, "RHS scalar splat",
+              description.rhsBroadcastIntrinsic,
+              {{rhsOrScalarABI.cName, rhsOrScalarABI.cType},
+               {description.emitCLoopVLName, description.vlCType}},
+              "rhs_vec", description.vectorCType))
+        return error;
+    } else if (llvm::Error error =
+                   validateVectorLoad(loop.bodySteps[2], rhsOrScalarABI,
+                                      "rhs_vec", "rhs load")) {
+      return error;
+    }
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[3], accumulatorABI, "acc_vec", "accumulator load"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[4], consumerLabel, "MAcc compute",
+            description.intrinsic,
+            {{"acc_vec", description.vectorCType},
+             {"lhs_vec", description.vectorCType},
+             {"rhs_vec", description.vectorCType},
+             {description.emitCLoopVLName, description.vlCType}},
+            description.resultName, description.vectorCType))
+      return error;
+    return validateOutputStore(loop.bodySteps[5], outABI);
   }
+
+  const support::RuntimeABIParameter &compareLhsABI =
+      description.runtimeABIParameters[0];
+  const support::RuntimeABIParameter &compareRhsOrScalarABI =
+      description.runtimeABIParameters[1];
+  const support::RuntimeABIParameter &lhsABI =
+      description.runtimeABIParameters[2];
+  const support::RuntimeABIParameter &rhsABI =
+      description.runtimeABIParameters[3];
+  const support::RuntimeABIParameter &accumulatorABI =
+      description.runtimeABIParameters[4];
+  const support::RuntimeABIParameter &outABI =
+      description.runtimeABIParameters[5];
+
+  if (llvm::Error error = validateVectorLoad(
+          loop.bodySteps[1], compareLhsABI, "lhs_vec", "compare lhs load"))
+    return error;
+  if (isRuntimeScalarComputedMask) {
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[2], consumerLabel, "RHS scalar splat",
+            description.rhsBroadcastIntrinsic,
+            {{compareRhsOrScalarABI.cName, compareRhsOrScalarABI.cType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "rhs_vec", description.vectorCType))
+      return error;
+  } else if (llvm::Error error = validateVectorLoad(
+                 loop.bodySteps[2], compareRhsOrScalarABI, "rhs_vec",
+                 "compare rhs load")) {
+    return error;
+  }
+  if (llvm::Error error =
+          validateVectorLoad(loop.bodySteps[3], lhsABI, "macc_lhs_vec",
+                             "MAcc lhs load"))
+    return error;
+  if (llvm::Error error =
+          validateVectorLoad(loop.bodySteps[4], rhsABI, "macc_rhs_vec",
+                             "MAcc rhs load"))
+    return error;
+  if (llvm::Error error = validateVectorLoad(
+          loop.bodySteps[5], accumulatorABI, "acc_vec", "accumulator load"))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[6], consumerLabel, "compare mask",
+          description.compareIntrinsic,
+          {{"lhs_vec", description.vectorCType},
+           {"rhs_vec", description.vectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.maskName, description.maskCType))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[7], consumerLabel, "active MAcc",
+          description.intrinsic,
+          {{"acc_vec", description.vectorCType},
+           {"macc_lhs_vec", description.vectorCType},
+           {"macc_rhs_vec", description.vectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "active_macc_vec", description.vectorCType))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[8], consumerLabel, "masked merge",
+          description.maskedMergeIntrinsic,
+          {{"acc_vec", description.vectorCType},
+           {"active_macc_vec", description.vectorCType},
+           {description.maskName, description.maskCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.resultName, description.vectorCType))
+    return error;
+  if (llvm::Error error = validateOutputStore(loop.bodySteps[9], outABI))
+    return error;
 
   return llvm::Error::success();
 }
@@ -3803,19 +4126,86 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
         "MAcc target artifact consumer requires provider-derived accumulator "
         "and result layout facts before artifact export");
 
+  const llvm::StringRef expectedRuntimeABIOrder =
+      getRVVMAccExpectedRuntimeABIOrder(description.operation);
+  const llvm::StringRef expectedOperandBindingPlanID =
+      getRVVMAccExpectedOperandBindingPlanID(description.operation);
+  const llvm::StringRef expectedTargetLeafProfile =
+      getRVVMAccExpectedTargetLeafProfile(description.operation);
+  const llvm::StringRef expectedProviderSupportedMirror =
+      getRVVMAccExpectedProviderSupportedMirror(description.operation);
+  const llvm::StringRef expectedCTypeMappingSummary =
+      getRVVMAccExpectedCTypeMappingSummary(description.operation);
+  if (expectedRuntimeABIOrder.empty() || expectedOperandBindingPlanID.empty() ||
+      expectedTargetLeafProfile.empty() ||
+      expectedProviderSupportedMirror.empty() ||
+      expectedCTypeMappingSummary.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires a known provider MAcc route "
+        "family before artifact export");
+  if (description.runtimeABIOrder != expectedRuntimeABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires provider-derived "
+                    "runtime ABI order '") +
+        expectedRuntimeABIOrder + "' but was '" + description.runtimeABIOrder +
+        "'");
+  if (description.routeOperandBindingPlanID != expectedOperandBindingPlanID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires provider route "
+                    "operand binding plan '") +
+        expectedOperandBindingPlanID + "' but was '" +
+        description.routeOperandBindingPlanID + "'");
+  if (description.targetLeafProfile != expectedTargetLeafProfile)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires target leaf profile "
+                    "'") +
+        expectedTargetLeafProfile + "' but was '" +
+        description.targetLeafProfile + "'");
+  if (description.providerSupportedMirror != expectedProviderSupportedMirror)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires provider-supported "
+                    "mirror '") +
+        expectedProviderSupportedMirror + "' but was '" +
+        description.providerSupportedMirror + "'");
+  if (description.requiredHeaderDeclarations != kRVVMAccRequiredHeaderDeclarations)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires required header "
+                    "declarations '") +
+        kRVVMAccRequiredHeaderDeclarations + "' but was '" +
+        description.requiredHeaderDeclarations + "'");
+  if (description.cTypeMappingSummary != expectedCTypeMappingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires C type mapping "
+                    "summary '") +
+        expectedCTypeMappingSummary + "' but was '" +
+        description.cTypeMappingSummary + "'");
+  if (description.maccAccumulatorLayout != kRVVMAccAccumulatorLayout ||
+      description.maccResultLayout != kRVVMAccResultLayout)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires accumulator layout "
+                    "'") +
+        kRVVMAccAccumulatorLayout + "' and result layout '" +
+        kRVVMAccResultLayout + "' but saw accumulator '" +
+        description.maccAccumulatorLayout + "' and result '" +
+        description.maccResultLayout + "'");
+
   if (description.operation ==
       plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
-    if (description.plainMAccRouteFamilyPlanID.empty())
+    if (description.plainMAccRouteFamilyPlanID != kRVVPlainMAccRouteFamilyPlanID)
       return makeRVVTargetRouteError(
-          "plain MAcc target artifact consumer requires a provider-derived "
-          "plain MAcc route-family plan mirror before artifact export");
+          llvm::Twine("plain MAcc target artifact consumer requires provider "
+                      "route-family plan '") +
+          kRVVPlainMAccRouteFamilyPlanID + "' but was '" +
+          description.plainMAccRouteFamilyPlanID + "'");
   } else if (isRVVScalarBroadcastMAccRouteFamilyOperation(
                  description.operation)) {
-    if (description.scalarBroadcastMAccRouteFamilyPlanID.empty())
+    if (description.scalarBroadcastMAccRouteFamilyPlanID !=
+        kRVVScalarBroadcastMAccRouteFamilyPlanID)
       return makeRVVTargetRouteError(
-          "scalar-broadcast MAcc target artifact consumer requires a "
-          "provider-derived scalar-broadcast MAcc route-family plan mirror "
-          "before artifact export");
+          llvm::Twine("scalar-broadcast MAcc target artifact consumer requires "
+                      "provider route-family plan '") +
+          kRVVScalarBroadcastMAccRouteFamilyPlanID + "' but was '" +
+          description.scalarBroadcastMAccRouteFamilyPlanID + "'");
     if (description.rhsBroadcastIntrinsic.empty())
       return makeRVVTargetRouteError(
           "scalar-broadcast MAcc target artifact consumer requires a "
@@ -3823,25 +4213,38 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
           "export");
   } else if (isRVVComputedMaskMAccRouteFamilyOperation(
                  description.operation)) {
-    if (description.accumulationRouteFamilyPlanID.empty())
+    if (description.accumulationRouteFamilyPlanID !=
+        kRVVMAccComputedMaskAccumulationRouteFamilyPlanID)
       return makeRVVTargetRouteError(
-          "computed-mask MAcc target artifact consumer requires a "
-          "provider-derived accumulation route-family plan mirror before "
-          "artifact export");
-    if (description.accumulationComputeSuffix.empty() ||
-        description.accumulationMaskProducerSource.empty() ||
-        description.accumulationAccumulatorContract.empty() ||
-        description.accumulationResultContract.empty() ||
-        description.maskRole.empty() || description.maskSource.empty() ||
-        description.maskMemoryForm.empty() ||
-        description.inactiveLaneContract.empty() ||
-        description.maskedPassthroughLayout.empty() ||
+          llvm::Twine("computed-mask MAcc target artifact consumer requires "
+                      "provider accumulation route-family plan '") +
+          kRVVMAccComputedMaskAccumulationRouteFamilyPlanID + "' but was '" +
+          description.accumulationRouteFamilyPlanID + "'");
+    const llvm::StringRef expectedMaskProducer =
+        isRVVRuntimeScalarComputedMaskMAccRouteFamilyOperation(
+            description.operation)
+            ? llvm::StringRef(kRVVRuntimeScalarComputedMaskedMAccMaskProducerSource)
+            : llvm::StringRef(kRVVComputedMaskedMAccMaskProducerSource);
+    if (description.accumulationComputeSuffix !=
+            kRVVComputedMaskedMAccComputeSuffix ||
+        description.accumulationMaskProducerSource != expectedMaskProducer ||
+        description.accumulationAccumulatorContract !=
+            kRVVComputedMaskedMAccAccumulatorContract ||
+        description.accumulationResultContract !=
+            kRVVComputedMaskedMAccResultContract ||
+        description.maskRole != kRVVComputedMaskedMAccMaskRole ||
+        description.maskSource != kRVVComputedMaskedMAccMaskSource ||
+        description.maskMemoryForm != kRVVComputedMaskedMAccMaskMemoryForm ||
+        description.inactiveLaneContract !=
+            kRVVComputedMaskedMAccInactiveLaneContract ||
+        description.maskedPassthroughLayout !=
+            kRVVComputedMaskedMAccPassthroughLayout ||
         description.comparePredicateKind.empty() ||
         description.compareIntrinsic.empty() ||
         description.maskedMergeIntrinsic.empty())
       return makeRVVTargetRouteError(
           "computed-mask MAcc target artifact consumer requires "
-          "provider-derived mask, passthrough, compare, accumulator, "
+          "provider-derived exact mask, passthrough, compare, accumulator, "
           "and result facts before artifact export");
     if (isRVVRuntimeScalarComputedMaskMAccRouteFamilyOperation(
             description.operation) &&

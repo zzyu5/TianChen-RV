@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project red lines and RVV-first route authority chain for final compliance check."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check MAcc target artifact validation consumes provider-built statement plans and mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime roles remain organizational and not compute/dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-built route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ target artifact tests and evidence boundaries."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Final RVV route/artifact/testing checklist."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-base-memory-artifact-abi-statement-plan-closure/prd.md", "reason": "Compare against previous base-memory closure evidence and checks."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-widening-macc-artifact-abi-statement-plan-closure/prd.md", "reason": "Compare against adjacent widening MAcc exact statement validation pattern."}
+{"command": "rtk ninja -C build bin/tianchenrv-target-artifact-export-test", "result": "passed", "notes": "Focused target artifact test binary rebuilt after validator/test changes."}
+{"command": "rtk ./build/bin/tianchenrv-target-artifact-export-test", "result": "passed", "notes": "Focused C++ target artifact validation passed with new MAcc positive and fail-closed coverage."}
+{"command": "rtk git diff --check", "result": "passed", "notes": "Whitespace/diff check passed."}
+{"command": "rtk git diff -U0 -- lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp test/Target/TargetArtifactExportTest.cpp | rg -n \"routeLoopContainsCallee|routeStepsContainCallee|descriptor|source-front-door|artifact name|route id|callee presence|metadata-only|script-derived|legacy-i32|direct-route-entry|pre-realized-fixture|exact __riscv\"", "result": "passed", "notes": "Bounded touched-file authority scan showed MAcc callee-presence acceptance removed; metadata-only strings are negative tests only."}
+{"command": "rtk cmake --build build --target check-tianchenrv -j2", "result": "passed", "notes": "Full check-tianchenrv passed: 459/459 tests."}

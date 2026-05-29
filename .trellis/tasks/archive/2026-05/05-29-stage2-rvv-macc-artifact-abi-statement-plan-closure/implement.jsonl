@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, MAcc statement-plan boundary, target artifact route-family validator contract, mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary; no compute/dtype/route authority from mem_window/runtime_param strings."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Target artifact and generated-bundle evidence requirements for computed-mask MAcc and RVV routes."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing checklist for RVV route, lowering, artifact, and testing changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-base-memory-artifact-abi-statement-plan-closure/prd.md", "reason": "Immediate target artifact statement-plan closure precedent for replacing callee-presence acceptance."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-widening-macc-artifact-abi-statement-plan-closure/prd.md", "reason": "Adjacent widening MAcc target artifact validator precedent for exact route statement validation."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Implemented exact non-widening MAcc target artifact provider fact and statement-plan validation for plain, scalar-broadcast, computed-mask, and runtime-scalar computed-mask MAcc routes."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added positive fixtures and fail-closed provider, candidate mirror, and route-clone mutations for the four non-widening MAcc artifact validation forms."}

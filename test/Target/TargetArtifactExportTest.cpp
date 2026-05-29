@@ -475,7 +475,11 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.masked_binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "tcrv_rvv.macc";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return "tcrv_rvv.macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return "tcrv_rvv.masked_macc";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
     return "tcrv_rvv.masked_macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd:
     return "tcrv_rvv.widening_macc";
@@ -551,8 +555,12 @@ llvm::StringRef getRVVTestBinaryKind(
     return "masked_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "macc_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return "scalar_broadcast_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
     return "computed_masked_macc_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
+    return "runtime_scalar_cmp_masked_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd:
     return "widening_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
@@ -1259,6 +1267,125 @@ module {
         tcrv_rvv.masked_store %dst, %predicate, %payload, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", memory_form = "masked-unit-store"} : !tcrv_rvv.runtime_abi_value, )mlir"
          << maskType << R"mlir(, )mlir" << vectorType
          << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    }
+    os << R"mlir(
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (op == OperationKind::ScalarBroadcastMAccAdd ||
+      op == OperationKind::ComputedMaskedMAccAdd ||
+      op == OperationKind::RuntimeScalarComputedMaskedMAccAdd) {
+    const bool isScalarBroadcastMAcc =
+        op == OperationKind::ScalarBroadcastMAccAdd;
+    const bool isRuntimeScalarComputedMaskMAcc =
+        op == OperationKind::RuntimeScalarComputedMaskedMAccAdd;
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    std::string maskType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.mask<i32, \"m2\">"
+            : "!tcrv_rvv.mask<i32, \"m1\">";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+)mlir";
+    if (isScalarBroadcastMAcc) {
+      os << R"mlir(
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-scalar-broadcast-macc:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-scalar-broadcast-macc:rhs-scalar", role = "rhs-scalar-value"} : i32
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-scalar-broadcast-macc:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-scalar-broadcast-macc:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-scalar-broadcast-macc:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul
+         << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul
+         << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant
+         << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %result = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : )mlir"
+         << vectorType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType
+         << R"mlir(
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+)mlir";
+    } else {
+      os << R"mlir(
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:cmp-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+)mlir";
+      if (isRuntimeScalarComputedMaskMAcc)
+        os << R"mlir(
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:rhs-scalar", role = "rhs-scalar-value"} : i32
+)mlir";
+      else
+        os << R"mlir(
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:cmp-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+)mlir";
+      os << R"mlir(
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:lhs", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:rhs", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-macc:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+         << lmul
+         << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+         << lmul
+         << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+         << variant
+         << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+)mlir";
+      if (isRuntimeScalarComputedMaskMAcc)
+        os << R"mlir(
+        %cmp_rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> )mlir"
+           << vectorType << R"mlir(
+)mlir";
+      else
+        os << R"mlir(
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+           << vectorType << R"mlir(
+)mlir";
+      os << R"mlir(
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = ")mlir"
+         << (isRuntimeScalarComputedMaskMAcc ? "sle" : "slt")
+         << R"mlir("} : )mlir" << vectorType << R"mlir(, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir" << maskType
+         << R"mlir(
+        %result = tcrv_rvv.masked_macc %mask, %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : )mlir"
+         << maskType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
+         << vectorType << R"mlir(, )mlir" << vectorType
+         << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
 )mlir";
     }
@@ -5115,9 +5242,334 @@ bool expectRVVTargetArtifactExporterShape(
            "selected typed RVV non-widening-MAcc route-family mirror"}))
     return false;
 
-  auto expectWideningDotPositive =
+  auto expectMAccPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription &description) -> bool {
+    if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))
+      return false;
+    std::string validateContext =
+        (llvm::Twine("validate RVV MAcc target artifact candidate through "
+                     "exporter for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                           fixture.candidate, *exporter),
+                       validateContext))
+      return false;
+    std::string rebuildContext =
+        (llvm::Twine("rebuild RVV MAcc route validator inputs for ") +
+         fixtureContext)
+            .str();
+    if (!buildRVVRouteValidationInputs(fixture, route, description,
+                                       rebuildContext))
+      return false;
+
+    RVVRouteValidationContext context{fixture.candidate, route, description};
+    std::string providerContext =
+        (llvm::Twine("MAcc registry accepts provider facts for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(context),
+            providerContext))
+      return false;
+    std::string mirrorContext =
+        (llvm::Twine("MAcc registry accepts candidate mirrors for ") +
+         fixtureContext)
+            .str();
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(context),
+        mirrorContext);
+  };
+
+  RVVTargetArtifactCandidateFixture maccFixture(OperationKind::MAccAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute maccRoute;
+  RVVRouteDescription maccDescription;
+  if (!expectMAccPositive("plain macc_add", maccFixture, maccRoute,
+                          maccDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture scalarBroadcastMAccFixture(
+      OperationKind::ScalarBroadcastMAccAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      scalarBroadcastMAccRoute;
+  RVVRouteDescription scalarBroadcastMAccDescription;
+  if (!expectMAccPositive("scalar_broadcast_macc_add",
+                          scalarBroadcastMAccFixture,
+                          scalarBroadcastMAccRoute,
+                          scalarBroadcastMAccDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture computedMaskedMAccFixture(
+      OperationKind::ComputedMaskedMAccAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute computedMaskedMAccRoute;
+  RVVRouteDescription computedMaskedMAccDescription;
+  if (!expectMAccPositive("computed_masked_macc_add",
+                          computedMaskedMAccFixture, computedMaskedMAccRoute,
+                          computedMaskedMAccDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture runtimeScalarComputedMAccFixture(
+      OperationKind::RuntimeScalarComputedMaskedMAccAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      runtimeScalarComputedMAccRoute;
+  RVVRouteDescription runtimeScalarComputedMAccDescription;
+  if (!expectMAccPositive("runtime_scalar_computed_masked_macc_add",
+                          runtimeScalarComputedMAccFixture,
+                          runtimeScalarComputedMAccRoute,
+                          runtimeScalarComputedMAccDescription))
+    return false;
+
+  auto expectMAccProviderFailure =
+      [&](const TargetArtifactCandidate &candidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{candidate, route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectMAccRouteFailure =
+      [&](const TargetArtifactCandidate &candidate,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute mutatedRoute,
+          const RVVRouteDescription &description,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{candidate, mutatedRoute,
+                                             description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectMAccCandidateFailure =
+      [&](TargetArtifactCandidate mutated,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          const RVVRouteDescription &description,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{mutated, route, description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleMAccProviderMirror = maccDescription;
+  staleMAccProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-macc";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccProviderMirror,
+          "MAcc registry rejects metadata-only provider support mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-plain-macc-add-plan-validated",
+           "metadata-only-macc"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastMAccBinding =
+      scalarBroadcastMAccDescription;
+  staleScalarBroadcastMAccBinding.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:metadata-only-scalar-macc.v1";
+  if (!expectMAccProviderFailure(
+          scalarBroadcastMAccFixture.candidate, scalarBroadcastMAccRoute,
+          staleScalarBroadcastMAccBinding,
+          "MAcc registry rejects stale scalar-broadcast binding plan",
+          {"operand binding plan",
+           "rvv-route-operand-binding:scalar_broadcast_macc_add.v1",
+           "metadata-only-scalar-macc"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskedMAccAccumulation =
+      computedMaskedMAccDescription;
+  staleComputedMaskedMAccAccumulation.accumulationRouteFamilyPlanID =
+      "metadata-derived-computed-mask-macc-plan";
+  if (!expectMAccProviderFailure(
+          computedMaskedMAccFixture.candidate, computedMaskedMAccRoute,
+          staleComputedMaskedMAccAccumulation,
+          "MAcc registry rejects stale computed-mask accumulation plan",
+          {"accumulation route-family plan",
+           "rvv-computed-mask-accumulation-route-family-plan.v1",
+           "metadata-derived-computed-mask-macc-plan"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMAccMaskProducer =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccMaskProducer.accumulationMaskProducerSource =
+      "metadata-derived-runtime-scalar-mask-producer";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute, staleRuntimeScalarMAccMaskProducer,
+          "MAcc registry rejects stale runtime-scalar mask producer",
+          {"provider-derived exact mask", "passthrough"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          maccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              maccRoute, /*stepIndex=*/0, /*operandIndex=*/0, "metadata_n"),
+          maccDescription, "MAcc registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl operand[0]", "n", "metadata_n"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          maccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              maccRoute, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "metadata_remaining_avl"),
+          maccDescription, "MAcc registry rejects stale loop setvl AVL",
+          {"loop setvl operand[0]", "n - offset",
+           "metadata_remaining_avl"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          maccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              maccRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "rhs + offset"),
+          maccDescription, "MAcc registry rejects stale lhs load pointer",
+          {"lhs load operand[0]", "lhs + offset", "rhs + offset"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          maccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              maccRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/1, "rhs_vec"),
+          maccDescription, "MAcc registry rejects stale MAcc lhs operand",
+          {"MAcc compute operand[1]", "lhs_vec", "rhs_vec"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          maccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              maccRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/1, "acc_vec"),
+          maccDescription, "MAcc registry rejects stale output store value",
+          {"output store operand[1]", maccDescription.resultName, "acc_vec"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          scalarBroadcastMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              scalarBroadcastMAccRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "metadata_rhs_scalar"),
+          scalarBroadcastMAccDescription,
+          "MAcc registry rejects stale scalar-broadcast RHS splat operand",
+          {"RHS scalar splat operand[0]", "rhs_scalar",
+           "metadata_rhs_scalar"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          computedMaskedMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskedMAccRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "cmp_lhs + offset"),
+          computedMaskedMAccDescription,
+          "MAcc registry rejects stale computed-mask compare rhs load pointer",
+          {"compare rhs load operand[0]", "cmp_rhs + offset",
+           "cmp_lhs + offset"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          computedMaskedMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskedMAccRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              /*operandIndex=*/1, "macc_rhs_vec"),
+          computedMaskedMAccDescription,
+          "MAcc registry rejects stale active MAcc payload operand",
+          {"active MAcc operand[1]", "macc_lhs_vec", "macc_rhs_vec"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          computedMaskedMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskedMAccRoute, /*loopIndex=*/0, /*stepIndex=*/8,
+              /*operandIndex=*/2, "metadata_mask"),
+          computedMaskedMAccDescription,
+          "MAcc registry rejects stale masked-merge mask operand",
+          {"masked merge operand[2]", computedMaskedMAccDescription.maskName,
+           "metadata_mask"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarComputedMAccRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "metadata_rhs_scalar"),
+          runtimeScalarComputedMAccDescription,
+          "MAcc registry rejects stale runtime-scalar RHS splat operand",
+          {"RHS scalar splat operand[0]", "rhs_scalar",
+           "metadata_rhs_scalar"}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarComputedMAccRoute, /*loopIndex=*/0, /*stepIndex=*/9,
+              /*operandIndex=*/2,
+              runtimeScalarComputedMAccDescription.emitCFullChunkVLName),
+          runtimeScalarComputedMAccDescription,
+          "MAcc registry rejects stale runtime-scalar output store VL",
+          {"output store operand[2]",
+           runtimeScalarComputedMAccDescription.emitCLoopVLName,
+           runtimeScalarComputedMAccDescription.emitCFullChunkVLName}))
+    return false;
+
+  if (!expectMAccRouteFailure(
+          computedMaskedMAccFixture.candidate,
+          cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+              computedMaskedMAccRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              "metadata-derived-route-source"),
+          computedMaskedMAccDescription,
+          "MAcc registry rejects stale selected-body statement provenance",
+          {"loop statements", "selected typed RVV source provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleScalarBroadcastMAccABIMirror =
+      scalarBroadcastMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleScalarBroadcastMAccABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,acc,rhs_scalar,out,n")) {
+    llvm::errs() << "scalar-broadcast MAcc test fixture did not contain runtime "
+                    "ABI order metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleScalarBroadcastMAccABIMirror, scalarBroadcastMAccRoute,
+          scalarBroadcastMAccDescription,
+          "MAcc registry rejects stale scalar-broadcast runtime ABI mirror",
+          {"runtime_abi_order", "lhs,rhs_scalar,acc,out,n",
+           "lhs,acc,rhs_scalar,out,n"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskedMAccMirror =
+      computedMaskedMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleComputedMaskedMAccMirror,
+          "tcrv_rvv.accumulation_mask_producer_source",
+          "metadata-derived-computed-mask-producer")) {
+    llvm::errs() << "computed-mask MAcc test fixture did not contain mask "
+                    "producer metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleComputedMaskedMAccMirror, computedMaskedMAccRoute,
+          computedMaskedMAccDescription,
+          "MAcc registry rejects stale computed-mask producer mirror",
+          {"accumulation_mask_producer_source",
+           "metadata-derived-computed-mask-producer"}))
+    return false;
+
+	  auto expectWideningDotPositive =
+	      [&](llvm::StringRef fixtureContext,
+	          const RVVTargetArtifactCandidateFixture &fixture,
           tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
           RVVRouteDescription &description) -> bool {
     if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))
