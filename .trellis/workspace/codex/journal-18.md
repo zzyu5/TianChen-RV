@@ -61,6 +61,71 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 314: Stage2 RVV vector reduction artifact ABI statement-plan closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV vector reduction artifact ABI statement-plan closure
+**Branch**: `main`
+
+### Summary
+
+Closed vector `reduce_add` target artifact ABI statement-plan validation by
+making the production validator consume rebuilt provider route statement
+operands/results, with focused C++ fail-closed coverage, generated-bundle
+evidence, real `ssh rvv` correctness, and check-tianchenrv 459/459.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so the
+  vector reduction consumer validates pre-loop setvl, loop setvl, lhs load,
+  RHS seed/accumulator load, reduce_add intrinsic, output store, store VL `1`,
+  runtime ABI role/order, result C type, loop bounds, and selected typed RVV
+  provenance from the rebuilt provider route.
+- Improved provider-built statement diagnostics so result mismatches report the
+  stale actual result name/C type.
+- Added `test/Target/TargetArtifactExportTest.cpp` route-clone mutations
+  proving fail-closed behavior for stale vector reduction AVL, load,
+  reduction operand/result, store pointer/VL, runtime `n` role, stale typed-op
+  mirror, stale candidate mirrors, and exact-intrinsic-as-authority.
+- Created and completed Trellis task
+  `.trellis/tasks/05-29-05-29-stage2-rvv-vector-reduction-artifact-abi-statement-plan-closure`
+  from the Hermes direction brief.
+- Evidence: target artifact export test passed; selected-boundary vector
+  `reduce_add` generated-bundle dry-run passed; direct pre-realized route-entry
+  failed closed as selected-boundary-only; `ssh rvv` generated-bundle
+  correctness passed for counts `0,1,16,23,257`; standalone reduction
+  non-regression dry-run passed; production added-line authority scan found no
+  new metadata/route-id/descriptor/exact-intrinsic authority; git diff --check
+  passed; check-tianchenrv passed 459/459.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind reduce_add ...`
+- [OK] direct pre-realized route-entry probe failed closed for `reduce_add`
+- [OK] `ssh rvv` generated-bundle correctness for `reduce_add` counts `0,1,16,23,257`
+- [OK] standalone reduction non-regression dry-run
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (459/459)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 307: Stage2 RVV computed-mask segment2 update-unit-load runtime ABI closure
 
 **Date**: 2026-05-29

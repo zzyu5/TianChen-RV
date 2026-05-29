@@ -1766,6 +1766,73 @@ cloneRVVEmitCLowerableRouteWithLoopOperand(
   return cloned;
 }
 
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithCallOperand(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t stepIndex, std::size_t operandIndex, llvm::StringRef expression,
+    llvm::StringRef cType = {}) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    cloned.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    cloned.addTypeMapping(mapping.sourceType, mapping.cType);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping
+           &mapping : route.getABIMappings())
+    cloned.addABIValueMapping(mapping.parameter, mapping.valueName);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCFunctionDeclaration
+           &declaration : route.getFunctionDeclarations()) {
+    llvm::SmallVector<llvm::StringRef, 4> parameterCTypes;
+    for (const std::string &parameterCType : declaration.parameterCTypes)
+      parameterCTypes.push_back(parameterCType);
+    cloned.addFunctionDeclaration(declaration.name, declaration.resultCType,
+                                  parameterCTypes);
+  }
+  for (const tianchenrv::conversion::emitc::TCRVEmitCSourceOpProvenance
+           &provenance : route.getSourceOpProvenance())
+    cloned.addSourceOpProvenance(provenance);
+  for (std::size_t currentStep = 0;
+       currentStep < route.getCallOpaqueSteps().size(); ++currentStep) {
+    tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep step =
+        route.getCallOpaqueSteps()[currentStep];
+    if (currentStep == stepIndex && operandIndex < step.operands.size()) {
+      step.operands[operandIndex].expression = expression.str();
+      if (!cType.empty())
+        step.operands[operandIndex].cType = cType.str();
+    }
+    cloned.addCallOpaqueStep(std::move(step));
+  }
+  for (const tianchenrv::conversion::emitc::TCRVEmitCForLoop &loop :
+       route.getForLoops())
+    cloned.addForLoop(loop);
+  return cloned;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithLoopResult(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t loopIndex, std::size_t stepIndex, llvm::StringRef resultName,
+    llvm::StringRef resultCType = {}) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  copyRVVEmitCLowerableRouteWithoutLoops(route, cloned);
+  for (std::size_t currentLoop = 0; currentLoop < route.getForLoops().size();
+       ++currentLoop) {
+    tianchenrv::conversion::emitc::TCRVEmitCForLoop loop =
+        route.getForLoops()[currentLoop];
+    if (currentLoop == loopIndex && stepIndex < loop.bodySteps.size() &&
+        loop.bodySteps[stepIndex].result) {
+      loop.bodySteps[stepIndex].result->name = resultName.str();
+      if (!resultCType.empty())
+        loop.bodySteps[stepIndex].result->cType = resultCType.str();
+    }
+    cloned.addForLoop(loop);
+  }
+  return cloned;
+}
+
 bool expectRVVTargetArtifactExporterShape(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
   const tianchenrv::plugin::rvv::RVVConstructionManifest &manifest =
@@ -2135,6 +2202,19 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+  auto expectVectorReductionRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        vectorReductionFixture.candidate, mutatedRoute,
+        vectorReductionDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
 
   RVVRouteDescription staleVectorReductionABIOrder =
       vectorReductionDescription;
@@ -2161,6 +2241,16 @@ bool expectRVVTargetArtifactExporterShape(
           {"operand binding", "rhs seed/accumulator"}))
     return false;
 
+  RVVRouteDescription staleVectorReductionRuntimeRole =
+      vectorReductionDescription;
+  staleVectorReductionRuntimeRole.runtimeABIParameters[3].role =
+      tianchenrv::support::RuntimeABIParameterRole::OutputBuffer;
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionRuntimeRole,
+          "vector-reduction reduce_add registry rejects stale runtime n role",
+          {"parameter 3", "n", "runtime-element-count"}))
+    return false;
+
   RVVRouteDescription staleVectorReductionLayout = vectorReductionDescription;
   staleVectorReductionLayout.reductionAccumulatorLayout =
       "metadata-derived-accumulator-layout";
@@ -2178,6 +2268,131 @@ bool expectRVVTargetArtifactExporterShape(
           staleVectorReductionStoreVL,
           "vector-reduction reduce_add registry rejects stale scalar store VL",
           {"reduce_add layout facts", "store VL '1'", "full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription vectorReductionExactIntrinsicAuthority =
+      vectorReductionDescription;
+  vectorReductionExactIntrinsicAuthority.intrinsic = "__riscv_vadd_vv_i32m1";
+  if (!expectVectorReductionProviderFailure(
+          vectorReductionExactIntrinsicAuthority,
+          "vector-reduction reduce_add registry rejects exact-intrinsic "
+          "provider authority",
+          {"reduce_add intrinsic", "__riscv_vadd_vv_i32m1"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionPreLoopAVL =
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              vectorReductionRoute, /*stepIndex=*/0, /*operandIndex=*/0,
+              "metadata_n");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionPreLoopAVL,
+          "vector-reduction reduce_add registry rejects stale pre-loop setvl "
+          "AVL",
+          {"pre-loop setvl operand[0]", "n", "metadata_n"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionLoopAVL =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "metadata_remaining_avl");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionLoopAVL,
+          "vector-reduction reduce_add registry rejects stale loop setvl AVL",
+          {"loop setvl operand[0]", "n - offset", "metadata_remaining_avl"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionLHSLoad =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "rhs + offset");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionLHSLoad,
+          "vector-reduction reduce_add registry rejects stale lhs load "
+          "operand",
+          {"lhs source vector load operand[0]", "lhs + offset",
+           "rhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionRHSLoad =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "lhs + offset");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionRHSLoad,
+          "vector-reduction reduce_add registry rejects stale RHS seed/"
+          "accumulator load operand",
+          {"RHS seed/accumulator vector load operand[0]", "rhs + offset",
+           "lhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionIntrinsicOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/1, "lhs_vec");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionIntrinsicOperand,
+          "vector-reduction reduce_add registry rejects stale reduction "
+          "intrinsic operand",
+          {"reduce_add intrinsic operand[1]", "rhs_vec", "lhs_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionIntrinsicResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              "metadata_reduced_vec");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionIntrinsicResult,
+          "vector-reduction reduce_add registry rejects stale reduction "
+          "intrinsic result",
+          {"reduce_add intrinsic result", vectorReductionDescription.resultName,
+           "metadata_reduced_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionStorePointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/0, "out");
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionStorePointer,
+          "vector-reduction reduce_add registry rejects stale output store "
+          "pointer",
+          {"output store operand[0]", "out + offset", "out"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleVectorReductionStoreVLStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              vectorReductionRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/2, vectorReductionDescription.emitCLoopVLName);
+  if (!expectVectorReductionRouteFailure(
+          staleVectorReductionStoreVLStatement,
+          "vector-reduction reduce_add registry rejects stale output store VL "
+          "statement",
+          {"output store operand[2]", "1",
+           vectorReductionDescription.emitCLoopVLName}))
+    return false;
+
+  TargetArtifactCandidate staleVectorReductionTypedOpMirror =
+      vectorReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleVectorReductionTypedOpMirror,
+                                    "rvv_selected_body_typed_compute_op",
+                                    "tcrv_rvv.binary")) {
+    llvm::errs() << "test fixture did not contain vector-reduction typed "
+                    "compute op mirror metadata\n";
+    return false;
+  }
+  if (!expectVectorReductionCandidateFailure(
+          staleVectorReductionTypedOpMirror,
+          "vector-reduction reduce_add registry rejects stale typed-op mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.reduce",
+           "tcrv_rvv.binary"}))
     return false;
 
   TargetArtifactCandidate staleVectorReductionABIMirror =

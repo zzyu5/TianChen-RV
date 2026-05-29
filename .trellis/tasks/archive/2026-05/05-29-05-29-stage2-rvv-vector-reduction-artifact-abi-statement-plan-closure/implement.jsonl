@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV-first Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body, provider route facts, target artifact validator, mirror-only metadata, fail-closed diagnostics, and statement-plan authority contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI role boundary; compute semantics stay in tcrv_rvv/provider."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC consumes provider-built TCRVEmitCLowerableRoute and must not invent RVV semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/generated-bundle/ssh rvv evidence requirements and mirror-only testing rules."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected-body route authority and mirror-only selected-path metadata constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-base-standalone-reduce-add-abi-closure/prd.md", "reason": "Adjacent completed standalone reduce_add artifact ABI closure and evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-standalone-min-max-artifact-abi-closure/prd.md", "reason": "Immediately prior statement-plan validation closure for standalone min/max reductions."}

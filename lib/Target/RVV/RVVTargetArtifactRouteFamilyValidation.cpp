@@ -1177,11 +1177,18 @@ llvm::Error validateRVVProviderBuiltRouteStep(
           step.operands[index].cType + "'");
   }
   if (!expectedResultName.empty()) {
-    if (!stepHasResult(step, expectedResultName, expectedResultCType))
+    if (!step.result)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) + " requires provider-built " +
           stepLabel + " result '" + expectedResultName + "' with C type '" +
           expectedResultCType + "'");
+    if (step.result->name != expectedResultName ||
+        step.result->cType != expectedResultCType)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) + " requires provider-built " +
+          stepLabel + " result '" + expectedResultName + "' with C type '" +
+          expectedResultCType + "' but saw '" + step.result->name +
+          "' with C type '" + step.result->cType + "'");
   } else if (step.result) {
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) + " requires provider-built " + stepLabel +
@@ -9160,18 +9167,39 @@ llvm::Error validateRVVVectorReductionRouteTypeMappings(
 llvm::Error validateRVVVectorReductionRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getCallOpaqueSteps().empty())
+  constexpr llvm::StringLiteral consumerLabel(
+      "vector reduction target artifact consumer");
+  if (description.runtimeABIParameters.size() < 4)
     return makeRVVTargetRouteError(
-        "vector reduction target artifact consumer requires provider-built "
-        "pre-loop setvl statement facts before artifact export");
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived lhs, rhs seed/accumulator, out, and n "
+        "ABI parameters before validating route statements");
+  const support::RuntimeABIParameter &lhsABI =
+      description.runtimeABIParameters[0];
+  const support::RuntimeABIParameter &rhsABI =
+      description.runtimeABIParameters[1];
+  const support::RuntimeABIParameter &outABI =
+      description.runtimeABIParameters[2];
+  const support::RuntimeABIParameter &runtimeNABI =
+      description.runtimeABIParameters[3];
+  if (description.resultName.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived reduction result name before validating "
+        "route statements");
+
+  if (route.getCallOpaqueSteps().size() != 1)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exactly one provider-built pre-loop setvl statement before "
+        "artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != description.setVLIntrinsic ||
-      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "vector reduction target artifact consumer requires rebuilt provider "
-        "route pre-loop setvl statement to define the full-chunk VL");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSetVL, consumerLabel, "pre-loop setvl",
+          description.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
+          description.emitCFullChunkVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -9200,33 +9228,77 @@ llvm::Error validateRVVVectorReductionRouteStatementPlan(
     return makeRVVTargetRouteError(
         "vector reduction target artifact consumer requires provider-built "
         "loop bounds and step to mirror runtime n/AVL/VL facts");
+  if (runtimeN != &runtimeNABI)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI role to match the selected ABI order "
+        "before validating route statements");
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeN->cName) + " - " +
        description.emitCLoopInductionName)
           .str();
-  if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != description.setVLIntrinsic ||
-      loop.bodySteps.front().operands.size() != 1 ||
-      loop.bodySteps.front().operands.front().expression !=
-          expectedRemainingAVL ||
-      loop.bodySteps.front().operands.front().cType != description.vlCType ||
-      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
-                     description.vlCType))
+  if (loop.bodySteps.size() != 5)
     return makeRVVTargetRouteError(
-        "vector reduction target artifact consumer requires provider-built "
-        "loop setvl to derive per-iteration VL from remaining runtime AVL");
+        llvm::Twine(consumerLabel) +
+        " requires provider-built loop setvl, lhs load, RHS seed/"
+        "accumulator load, reduction, and output store statements before "
+        "artifact export");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          description.setVLIntrinsic,
+          {{expectedRemainingAVL, description.vlCType}},
+          description.emitCLoopVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
       return makeRVVTargetRouteError(
           "vector reduction target artifact consumer requires loop statements "
           "to carry selected typed RVV source provenance");
 
-  if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-      !routeLoopContainsCallee(loop, description.intrinsic) ||
-      !routeLoopContainsCallee(loop, description.storeIntrinsic))
-    return makeRVVTargetRouteError(
-        "vector reduction target artifact consumer requires provider-built "
-        "vector load, reduction, and store statements before artifact export");
+  const std::string expectedLhsPointer =
+      (llvm::StringRef(lhsABI.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[1], consumerLabel, "lhs source vector load",
+          description.vectorLoadIntrinsic,
+          {{expectedLhsPointer, lhsABI.cType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "lhs_vec", description.vectorCType))
+    return error;
+
+  const std::string expectedRhsPointer =
+      (llvm::StringRef(rhsABI.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[2], consumerLabel,
+          "RHS seed/accumulator vector load", description.vectorLoadIntrinsic,
+          {{expectedRhsPointer, rhsABI.cType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "rhs_vec", description.vectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[3], consumerLabel, "reduce_add intrinsic",
+          description.intrinsic,
+          {{"lhs_vec", description.vectorCType},
+           {"rhs_vec", description.vectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.resultName, description.vectorCType))
+    return error;
+
+  const std::string expectedOutPointer =
+      (llvm::StringRef(outABI.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[4], consumerLabel, "output store",
+          description.storeIntrinsic,
+          {{expectedOutPointer, outABI.cType},
+           {description.resultName, description.vectorCType},
+           {description.reductionStoreVL, description.vlCType}}))
+    return error;
   return llvm::Error::success();
 }
 
@@ -9338,6 +9410,11 @@ llvm::Error validateRVVVectorReductionTargetArtifactCandidateMirrors(
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
 
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "rvv_selected_body_typed_compute_op",
+          description.typedComputeOpName,
+          "selected typed RVV vector reduction typed compute op"))
+    return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.route_operand_binding_plan",
           description.routeOperandBindingPlanID,
