@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-18.md`
-- **Total Sessions**: 310
+- **Total Sessions**: 311
 - **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-18.md` | ~248 | Active |
+| `journal-18.md` | ~326 | Active |
 | `journal-17.md` | ~1948 | Archived |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
@@ -46,6 +46,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 311 | 2026-05-29 | Stage2 RVV runtime-scalar reduce-add ABI closure | pending-final-session-commit | `main` |
 | 310 | 2026-05-29 | Stage2 RVV computed-mask standalone min/max ABI closure | pending-final-session-commit | `main` |
 | 309 | 2026-05-29 | Stage2 RVV standalone min/max ABI closure | pending-final-session-commit | `main` |
 | 308 | 2026-05-29 | Stage2 RVV plain segment2 runtime ABI closure | pending-final-session-commit | `main` |

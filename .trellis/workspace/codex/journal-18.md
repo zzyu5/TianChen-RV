@@ -227,7 +227,19 @@ Closed computed-mask standalone reduce_min/reduce_max target artifact runtime AB
 
 ### Main Changes
 
-(Add details)
+- Extended `RVVTargetArtifactRouteFamilyValidation.cpp` so the
+  runtime-scalar computed-mask standalone reduction artifact consumer now
+  validates `reduce_add` alongside min/max.
+- Added provider-derived add support for i32 LMUL m1, i32 LMUL m2, and i64
+  LMUL m1 facts, including typed op, memory form, ABI order/roles,
+  source/scalar-result vector split, mask channel, provider mirror, route
+  operand binding, zero-inactive contract, RHS scalar splat, compare/merge,
+  reduction/store leaves, and accumulation scalar-carry contracts.
+- Added focused `TargetArtifactExportTest.cpp` positive and fail-closed coverage
+  for stale add provider/candidate facts while keeping direct pre-realized
+  route-entry unsupported.
+- Archived
+  `.trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-abi-closure`.
 
 ### Git Commits
 
@@ -237,7 +249,22 @@ Closed computed-mask standalone reduce_min/reduce_max target artifact runtime AB
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual `tcrv-opt | tcrv-translate | FileCheck` header artifact replay
+  for runtime-scalar standalone reduce_add i32 m1, i32 m2, and i64 fixtures.
+- [OK] Generated-bundle dry-run for runtime-scalar standalone reduce_add i32
+  m1, i32 m2, and i64.
+- [OK] Direct pre-realized route-entry fail-closed probe for the same add
+  variants.
+- [OK] Runtime-scalar min/max and standalone/computed-mask standalone reduce-add
+  generated-bundle non-regression dry-runs.
+- [OK] `ssh rvv` generated-bundle correctness for runtime-scalar standalone
+  reduce_add i32 m1, i32 m2, and i64 over counts `0,1,16,23,257`, RHS scalars
+  `-37,91`, seeds `-11,17`, mixed masks, all-inactive masks, and tail
+  preservation.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed `459/459`.
 
 ### Status
 
@@ -283,6 +310,39 @@ Closed the runtime-scalar computed-mask standalone reduce_min/reduce_max target 
 - [OK] bounded added-line authority leak scan found no descriptor/source-front-door/direct-C/legacy-i32 route authority
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` passed 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 311: Stage2 RVV runtime-scalar reduce-add ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV runtime-scalar reduce-add ABI closure
+**Branch**: `main`
+
+### Summary
+
+Extended runtime-scalar computed-mask standalone reduce_add target artifact validation to provider-derived i32 m1/m2 and i64 facts, added focused fail-closed C++ coverage, verified generated bundles, ssh rvv, and check-tianchenrv 459/459.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

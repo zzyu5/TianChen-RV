@@ -3628,6 +3628,8 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingSummary(
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorTypeName(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "!tcrv_rvv.vector<i64, \"m1\">";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3639,6 +3641,8 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorTypeName(
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorCType(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "vint64m1_t";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3650,6 +3654,8 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorCType(
 
 llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMaskTypeName(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "!tcrv_rvv.mask<i64, \"m1\">";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3661,6 +3667,8 @@ llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMaskTypeName(
 
 llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMaskCType(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "vbool64_t";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3672,6 +3680,8 @@ llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMaskCType(
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedScalarResultVectorTypeName(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "!tcrv_rvv.vector<i64, \"m1\">";
   if (sew == 32 && (lmul == "m1" || lmul == "m2"))
     return "!tcrv_rvv.vector<i32, \"m1\">";
   return {};
@@ -3679,6 +3689,8 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedScalarResultVectorTypeName
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedScalarResultVectorCType(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "vint64m1_t";
   if (sew == 32 && (lmul == "m1" || lmul == "m2"))
     return "vint32m1_t";
   return {};
@@ -3686,6 +3698,8 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedScalarResultVectorCType(
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "__riscv_vmv_v_x_i64m1";
   if (sew == 32 && (lmul == "m1" || lmul == "m2"))
     return "__riscv_vmv_v_x_i32m1";
   return {};
@@ -3693,6 +3707,8 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedStoreIntrinsic(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "__riscv_vse64_v_i64m1";
   if (sew == 32 && (lmul == "m1" || lmul == "m2"))
     return "__riscv_vse32_v_i32m1";
   return {};
@@ -3701,6 +3717,8 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedStoreIntrinsic(
 llvm::StringRef
 getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedRHSBroadcastIntrinsic(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "__riscv_vmv_v_x_i64m1";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3712,6 +3730,8 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedRHSBroadcastIntrinsic(
 
 llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedCompareIntrinsic(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "__riscv_vmsle_vv_i64m1_b64";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3723,6 +3743,8 @@ llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedCompareIntrinsic(
 
 llvm::StringRef getRVVComputedMaskStandaloneReductionExpectedMergeIntrinsic(
     int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "__riscv_vmerge_vvm_i64m1";
   if (sew != 32)
     return {};
   if (lmul == "m1")
@@ -3794,6 +3816,12 @@ llvm::StringRef
 getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedIntrinsic(
     plugin::rvv::RVVSelectedBodyOperationKind operation, int64_t sew,
     llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1") {
+    if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                         RuntimeScalarComputedMaskStandaloneReduceAdd)
+      return "__riscv_vredsum_vs_i64m1_i64m1";
+    return {};
+  }
   if (sew != 32)
     return {};
   const bool usesM2 = lmul == "m2";
@@ -3815,6 +3843,46 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedIntrinsic(
   default:
     return {};
   }
+}
+
+llvm::StringRef getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedTypeName(
+    int64_t sew) {
+  if (sew == 64)
+    return "i64";
+  if (sew == 32)
+    return "i32";
+  return {};
+}
+
+llvm::StringRef
+getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedElementCType(
+    int64_t sew) {
+  if (sew == 64)
+    return "int64_t";
+  if (sew == 32)
+    return "int32_t";
+  return {};
+}
+
+llvm::StringRef
+getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedAccumulatorLayout(
+    int64_t sew) {
+  if (sew == 64)
+    return "scalar-i64-seed-lane0-from-accumulator-input";
+  if (sew == 32)
+    return kRVVStandaloneReductionAccumulatorLayout;
+  return {};
+}
+
+bool isRVVRuntimeScalarComputedMaskStandaloneReductionSupportedConfig(
+    plugin::rvv::RVVSelectedBodyOperationKind operation, int64_t sew,
+    llvm::StringRef lmul) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       RuntimeScalarComputedMaskStandaloneReduceAdd) {
+    return (sew == 32 && (lmul == "m1" || lmul == "m2")) ||
+           (sew == 64 && lmul == "m1");
+  }
+  return sew == 32 && (lmul == "m1" || lmul == "m2");
 }
 
 llvm::Error validateRVVPlainStandaloneReductionRuntimeABIFacts(
@@ -3938,16 +4006,24 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIFacts(
     llvm::StringRef cType;
     support::RuntimeABIParameterRole role;
   };
+  const llvm::StringRef elementCType =
+      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedElementCType(
+          description.sew);
+  const std::string constElementPointerCType =
+      (llvm::Twine("const ") + elementCType + " *").str();
+  const std::string elementPointerCType =
+      (llvm::Twine(elementCType) + " *").str();
   const ExpectedRuntimeABIParameter expected[] = {
-      {"cmp_lhs", "const int32_t *",
+      {"cmp_lhs", constElementPointerCType,
        support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"rhs_scalar", "int32_t",
+      {"rhs_scalar", elementCType,
        support::RuntimeABIParameterRole::RHSScalarValue},
-      {"src", "const int32_t *",
+      {"src", constElementPointerCType,
        support::RuntimeABIParameterRole::SourceInputBuffer},
-      {"acc", "const int32_t *",
+      {"acc", constElementPointerCType,
        support::RuntimeABIParameterRole::AccumulatorInputBuffer},
-      {"out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer},
+      {"out", elementPointerCType,
+       support::RuntimeABIParameterRole::OutputBuffer},
       {"n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount},
   };
   constexpr size_t expectedCount = sizeof(expected) / sizeof(expected[0]);
@@ -4304,6 +4380,8 @@ llvm::Error
 validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (description.operation != plugin::rvv::RVVSelectedBodyOperationKind::
+                                   RuntimeScalarComputedMaskStandaloneReduceAdd &&
+      description.operation != plugin::rvv::RVVSelectedBodyOperationKind::
                                    RuntimeScalarComputedMaskStandaloneReduceMin &&
       description.operation != plugin::rvv::RVVSelectedBodyOperationKind::
                                    RuntimeScalarComputedMaskStandaloneReduceMax)
@@ -4318,12 +4396,17 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
         "consumer requires a selected tcrv_rvv.masked_standalone_reduce body "
         "with runtime-scalar computed-mask unit-stride standalone reduction "
         "memory form");
-  if (description.elementTypeName != "i32" || description.sew != 32 ||
-      (description.lmul != "m1" && description.lmul != "m2"))
+  const llvm::StringRef expectedElementType =
+      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedTypeName(
+          description.sew);
+  if (description.elementTypeName != expectedElementType ||
+      !isRVVRuntimeScalarComputedMaskStandaloneReductionSupportedConfig(
+          description.operation, description.sew, description.lmul))
     return makeRVVTargetRouteError(
         llvm::Twine("runtime-scalar computed-mask standalone reduction target "
                     "artifact consumer requires provider-derived signed i32 "
-                    "SEW32 LMUL m1/m2 dtype/config facts but saw element '") +
+                    "SEW32 LMUL m1/m2 facts, or signed i64 SEW64 LMUL m1 "
+                    "facts for reduce_add, but saw element '") +
         description.elementTypeName + "', SEW " +
         llvm::Twine(description.sew) + ", LMUL '" + description.lmul + "'");
   if (description.tailPolicy != "agnostic" ||
@@ -4422,15 +4505,17 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
               description))
     return error;
 
-  if (description.reductionAccumulatorLayout !=
-          kRVVStandaloneReductionAccumulatorLayout ||
+  const llvm::StringRef expectedAccumulatorLayout =
+      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedAccumulatorLayout(
+          description.sew);
+  if (description.reductionAccumulatorLayout != expectedAccumulatorLayout ||
       description.reductionResultLayout != kRVVStandaloneReductionResultLayout ||
       description.reductionStoreVL != kRVVStandaloneReductionStoreVL)
     return makeRVVTargetRouteError(
         llvm::Twine("runtime-scalar computed-mask standalone reduction target "
                     "artifact consumer requires scalar seed accumulator "
                     "layout '") +
-        kRVVStandaloneReductionAccumulatorLayout + "', result layout '" +
+        expectedAccumulatorLayout + "', result layout '" +
         kRVVStandaloneReductionResultLayout + "', and store VL '" +
         kRVVStandaloneReductionStoreVL + "' before artifact export");
 
@@ -4467,7 +4552,12 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
         "', compare intrinsic '" + expectedCompare +
         "', inactive neutral merge '" + expectedMerge +
         "', and scalar result store '" + expectedStore +
-        "' before artifact export");
+        "' before artifact export but saw seed splat '" +
+        description.scalarSeedSplatIntrinsic + "', RHS scalar splat '" +
+        description.rhsBroadcastIntrinsic + "', reduction '" +
+        description.intrinsic + "', compare '" + description.compareIntrinsic +
+        "', merge '" + description.maskedMergeIntrinsic + "', and store '" +
+        description.storeIntrinsic + "'");
 
   const llvm::StringRef expectedInactiveRequirement =
       description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
@@ -4515,7 +4605,10 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
         kRVVRuntimeScalarComputedMaskStandaloneReductionProducerSource +
         "', scalar seed/result contracts, and scalar carry contract before "
         "artifact export; saw producer '" +
-        description.accumulationMaskProducerSource + "'");
+        description.accumulationMaskProducerSource + "', accumulator '" +
+        description.accumulationAccumulatorContract + "', result '" +
+        description.accumulationResultContract + "', and scalar carry '" +
+        description.accumulationScalarCarryContract + "'");
 
   return llvm::Error::success();
 }
