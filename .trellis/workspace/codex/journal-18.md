@@ -389,3 +389,41 @@ Closed standalone_reduce_add and computed_mask_standalone_reduce_add target arti
 ### Next Steps
 
 - None - task complete
+
+
+## Session 313: Stage2 RVV standalone min/max artifact ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV standalone min/max artifact ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed signed standalone_reduce_min/max and computed_mask_standalone_reduce_min/max target artifact ABI validation through provider-built route statement facts, generated-bundle evidence, ssh rvv correctness, and check-tianchenrv 459/459.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so standalone and computed-mask standalone reduce_min/reduce_max validate rebuilt provider route statements for setvl, source/compare loads, scalar seed splats, inactive neutral splats, merge masks, reduction leaves, lane-0 scalar-result stores, and store VL `1`.
+- Added `test/Target/TargetArtifactExportTest.cpp` route-clone mutations proving fail-closed behavior for stale scalar seed source, scalar-result store VL, inactive neutral literals, merge mask operands, and min/max reduction leaf confusion.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to preserve the source/work-channel inactive neutral splat boundary separately from scalar-result m1 seed/store channels.
+- Archived `.trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-standalone-min-max-artifact-abi-closure`.
+- Evidence: target artifact export test passed; selected-boundary generated-bundle min/max dry-run passed; direct pre-realized route-entry failed closed as expected; ssh rvv generated-bundle correctness passed for counts 0,1,16,23,257 with signed seeds -11 and 17, duplicate extrema, active/inactive mask lanes, all-inactive-mask cases, and tail preservation; standalone add and runtime-scalar computed-mask reductions passed non-regression dry-run; diff-level authority scan found no new metadata/route-id/descriptor/exact-intrinsic authority; git diff --check passed; check-tianchenrv passed 459/459.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

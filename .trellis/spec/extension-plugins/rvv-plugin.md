@@ -871,6 +871,13 @@ mirrors from these typed family-plan facts. Common EmitC may only materialize
 the provider-built route. Header/object exporters may mirror the source and
 scalar-result C/vector types after rebuilding and validating the provider route.
 
+For computed-mask standalone reductions, inactive-lane neutralization belongs
+to the source/work channel, not the scalar accumulator/result channel. The
+inactive neutral splat must therefore use the source/work vector type and C
+type, while scalar seed splats and scalar-result stores must use the
+scalar-result channel and lane-0 store VL. This remains true when the source
+LMUL is m2 and the scalar-result LMUL is m1.
+
 #### 4. Validation & Error Matrix
 
 - Missing scalar accumulator role/layout -> fail closed before provider route
@@ -884,6 +891,9 @@ scalar-result C/vector types after rebuilding and validating the provider route.
   explicit widening/narrowing family plan -> fail closed.
 - Runtime scalar mask binding, AVL/VL binding, or accumulator/output ABI order
   does not match the realized typed body -> fail closed.
+- Computed-mask inactive neutral splat uses the scalar-result vector channel,
+  a stale neutral literal, or a stale mask/merge operand instead of the
+  validated source/work channel and mask facts -> fail closed.
 - Header/artifact metadata claims source or scalar-result types not present in
   the validated family plan -> fail closed as stale mirror metadata.
 

@@ -40,6 +40,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <string>
@@ -1713,6 +1714,58 @@ bool buildRVVRouteValidationInputs(
   return true;
 }
 
+void copyRVVEmitCLowerableRouteWithoutLoops(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &cloned) {
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    cloned.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    cloned.addTypeMapping(mapping.sourceType, mapping.cType);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping
+           &mapping : route.getABIMappings())
+    cloned.addABIValueMapping(mapping.parameter, mapping.valueName);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCFunctionDeclaration
+           &declaration : route.getFunctionDeclarations()) {
+    llvm::SmallVector<llvm::StringRef, 4> parameterCTypes;
+    for (const std::string &parameterCType : declaration.parameterCTypes)
+      parameterCTypes.push_back(parameterCType);
+    cloned.addFunctionDeclaration(declaration.name, declaration.resultCType,
+                                  parameterCTypes);
+  }
+  for (const tianchenrv::conversion::emitc::TCRVEmitCSourceOpProvenance
+           &provenance : route.getSourceOpProvenance())
+    cloned.addSourceOpProvenance(provenance);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    cloned.addCallOpaqueStep(step);
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithLoopOperand(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t loopIndex, std::size_t stepIndex, std::size_t operandIndex,
+    llvm::StringRef expression, llvm::StringRef cType = {}) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  copyRVVEmitCLowerableRouteWithoutLoops(route, cloned);
+  for (std::size_t currentLoop = 0; currentLoop < route.getForLoops().size();
+       ++currentLoop) {
+    tianchenrv::conversion::emitc::TCRVEmitCForLoop loop =
+        route.getForLoops()[currentLoop];
+    if (currentLoop == loopIndex && stepIndex < loop.bodySteps.size() &&
+        operandIndex < loop.bodySteps[stepIndex].operands.size()) {
+      loop.bodySteps[stepIndex].operands[operandIndex].expression =
+          expression.str();
+      if (!cType.empty())
+        loop.bodySteps[stepIndex].operands[operandIndex].cType = cType.str();
+    }
+    cloned.addForLoop(loop);
+  }
+  return cloned;
+}
+
 bool expectRVVTargetArtifactExporterShape(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
   const tianchenrv::plugin::rvv::RVVConstructionManifest &manifest =
@@ -2395,6 +2448,18 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+  auto expectStandaloneReduceMinRouteFailure =
+      [&](tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute mutated,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        standaloneReduceMinFixture.candidate, mutated,
+        standaloneReduceMinDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
 
   RVVRouteDescription staleStandaloneAddTypedOp = standaloneReduceAddDescription;
   staleStandaloneAddTypedOp.typedComputeOpName =
@@ -2707,6 +2772,31 @@ bool expectRVVTargetArtifactExporterShape(
           "standalone reduce_min registry rejects stale memory form",
           {"tcrv_rvv.standalone_reduce",
            "unit-stride standalone reduction memory form"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleStandaloneMinSeedStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              standaloneReduceMinRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "acc[0]");
+  if (!expectStandaloneReduceMinRouteFailure(
+          staleStandaloneMinSeedStatement,
+          "standalone reduce_min registry rejects stale loop scalar seed "
+          "statement",
+          {"loop scalar seed splat operand[0]", "out[0]", "acc[0]"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleStandaloneMinStoreVLStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              standaloneReduceMinRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/2, standaloneReduceMinDescription.emitCLoopVLName);
+  if (!expectStandaloneReduceMinRouteFailure(
+          staleStandaloneMinStoreVLStatement,
+          "standalone reduce_min registry rejects stale scalar-result store "
+          "VL statement",
+          {"scalar-result store operand[2]", "1",
+           standaloneReduceMinDescription.emitCLoopVLName}))
     return false;
 
   TargetArtifactCandidate staleStandaloneMinBindingMirror =
@@ -3028,6 +3118,30 @@ bool expectRVVTargetArtifactExporterShape(
         tianchenrv::target::rvv::
             validateRVVTargetArtifactRouteFamilyCandidateMirrors(
                 mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectComputedMaskStandaloneReduceMinRouteFailure =
+      [&](tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute mutated,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        computedMaskStandaloneReduceMinFixture.candidate, mutated,
+        computedMaskStandaloneReduceMinDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectComputedMaskStandaloneReduceMaxRouteFailure =
+      [&](tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute mutated,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        computedMaskStandaloneReduceMaxFixture.candidate, mutated,
+        computedMaskStandaloneReduceMaxDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
         mutationContext, fragments);
   };
 
@@ -3430,6 +3544,59 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask standalone reduce_min registry rejects stale "
           "accumulation boundary",
           {"computed-mask accumulation plan", "scalar horizontal reduction"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskStandaloneMinNeutralStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskStandaloneReduceMinRoute, /*loopIndex=*/0,
+              /*stepIndex=*/5, /*operandIndex=*/0, "0");
+  if (!expectComputedMaskStandaloneReduceMinRouteFailure(
+          staleComputedMaskStandaloneMinNeutralStatement,
+          "computed-mask standalone reduce_min registry rejects stale inactive "
+          "neutral literal statement",
+          {"inactive neutral splat operand[0]", "2147483647", "0"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskStandaloneMaxNeutralStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskStandaloneReduceMaxRoute, /*loopIndex=*/0,
+              /*stepIndex=*/5, /*operandIndex=*/0, "2147483647");
+  if (!expectComputedMaskStandaloneReduceMaxRouteFailure(
+          staleComputedMaskStandaloneMaxNeutralStatement,
+          "computed-mask standalone reduce_max registry rejects stale inactive "
+          "neutral literal statement",
+          {"inactive neutral splat operand[0]", "(-2147483647-1)",
+           "2147483647"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskStandaloneMinMergeMaskStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskStandaloneReduceMinRoute, /*loopIndex=*/0,
+              /*stepIndex=*/6, /*operandIndex=*/2, "metadata_mask");
+  if (!expectComputedMaskStandaloneReduceMinRouteFailure(
+          staleComputedMaskStandaloneMinMergeMaskStatement,
+          "computed-mask standalone reduce_min registry rejects stale merge "
+          "mask operand statement",
+          {"inactive-lane merge operand[2]",
+           computedMaskStandaloneReduceMinDescription.maskName,
+           "metadata_mask"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskStandaloneMinStoreVLStatement =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskStandaloneReduceMinRoute, /*loopIndex=*/0,
+              /*stepIndex=*/9, /*operandIndex=*/2,
+              computedMaskStandaloneReduceMinDescription.emitCLoopVLName);
+  if (!expectComputedMaskStandaloneReduceMinRouteFailure(
+          staleComputedMaskStandaloneMinStoreVLStatement,
+          "computed-mask standalone reduce_min registry rejects stale "
+          "scalar-result store VL statement",
+          {"scalar-result store operand[2]", "1",
+           computedMaskStandaloneReduceMinDescription.emitCLoopVLName}))
     return false;
 
   TargetArtifactCandidate staleComputedMaskStandaloneMinPredicateMirror =
