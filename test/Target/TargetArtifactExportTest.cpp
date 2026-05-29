@@ -747,6 +747,34 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
+  if (op == OperationKind::WideningMAccAdd) {
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-macc-add:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-macc-add:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-macc-add:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-macc-add:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-macc-add:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %result = tcrv_rvv.widening_macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "signed_widening_macc_add", macc_relation = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1", result_layout = "store-widening-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   const bool useLegacyBody =
       op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
@@ -1599,6 +1627,198 @@ bool expectRVVTargetArtifactExporterShape(
           "candidate route-family mirror",
           {"must not carry",
            "selected typed RVV non-vector-reduction route-family mirror"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture wideningMAccFixture(
+      OperationKind::WideningMAccAdd);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          wideningMAccFixture,
+          "build valid RVV widening-MAcc selected-body candidate fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         wideningMAccFixture.candidate, *exporter),
+                     "validate RVV widening-MAcc target artifact candidate "
+                     "through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute wideningMAccRoute;
+  RVVRouteDescription wideningMAccDescription;
+  if (!buildRVVRouteValidationInputs(
+          wideningMAccFixture, wideningMAccRoute, wideningMAccDescription,
+          "rebuild RVV widening-MAcc route validator inputs"))
+    return false;
+  RVVRouteValidationContext wideningMAccContext{
+      wideningMAccFixture.candidate, wideningMAccRoute,
+      wideningMAccDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  wideningMAccContext),
+          "widening-MAcc registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  wideningMAccContext),
+          "widening-MAcc registry accepts candidate mirrors"))
+    return false;
+
+  auto expectWideningMAccProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        wideningMAccFixture.candidate, wideningMAccRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectWideningMAccCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, wideningMAccRoute, wideningMAccDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleWideningMAccProviderSupport =
+      wideningMAccDescription;
+  staleWideningMAccProviderSupport.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-widening-macc";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccProviderSupport,
+          "widening-MAcc registry rejects metadata-only provider support",
+          {"provider-owned contraction support",
+           "metadata-only-widening-macc"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccABIOrder = wideningMAccDescription;
+  staleWideningMAccABIOrder.runtimeABIOrder = "lhs,acc,rhs,out,n";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccABIOrder,
+          "widening-MAcc registry rejects stale runtime ABI order",
+          {"runtime ABI order", "lhs,rhs,acc,out,n",
+           "lhs,acc,rhs,out,n"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccAccumulatorRole =
+      wideningMAccDescription;
+  staleWideningMAccAccumulatorRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccAccumulatorRole,
+          "widening-MAcc registry rejects stale accumulator ABI role",
+          {"runtime ABI parameter 2", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccBinding = wideningMAccDescription;
+  staleWideningMAccBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:widening_macc_add.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|src-load;"
+      "rhs=rhs-input-buffer:rhs:abi|src-load;"
+      "acc=metadata-derived-buffer:acc:abi|acc-load;"
+      "out=output-buffer:out:abi|res-store;"
+      "n=runtime-element-count:n:abi|setvl-avl";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccBinding,
+          "widening-MAcc registry rejects stale operand binding facts",
+          {"operand binding facts", "lhs/rhs i16 sources", "i32 "
+           "accumulator"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccSourceDType =
+      wideningMAccDescription;
+  staleWideningMAccSourceDType.sourceSEW = 32;
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccSourceDType,
+          "widening-MAcc registry rejects stale source/result dtype relation",
+          {"i16mf2 source", "i32m1 accumulator/result"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccRelation =
+      wideningMAccDescription;
+  staleWideningMAccRelation.wideningMAccRelation =
+      "metadata-derived-widening-macc-relation";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccRelation,
+          "widening-MAcc registry rejects stale widening relation",
+          {"widening MAcc layout and relation",
+           "metadata-derived-widening-macc-relation"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccNonFamily =
+      wideningMAccDescription;
+  staleWideningMAccNonFamily.plainMAccRouteFamilyPlanID =
+      "metadata-derived-plain-macc";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccNonFamily,
+          "widening-MAcc registry rejects stale non-widening provider facts",
+          {"stale", "non-widening-MAcc route-family facts"}))
+    return false;
+
+  TargetArtifactCandidate missingWideningMAccProviderMirror =
+      wideningMAccFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingWideningMAccProviderMirror,
+                                "tcrv_rvv.provider_supported_mirror")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc provider "
+                    "support mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          missingWideningMAccProviderMirror,
+          "widening-MAcc registry rejects missing provider-supported mirror "
+          "metadata",
+          {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningMAccABIMirror =
+      wideningMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningMAccABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,acc,rhs,out,n")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc runtime ABI "
+                    "order metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccABIMirror,
+          "widening-MAcc registry rejects stale ABI mirror",
+          {"runtime_abi_order", "lhs,rhs,acc,out,n",
+           "lhs,acc,rhs,out,n"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningMAccRelationMirror =
+      wideningMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningMAccRelationMirror,
+          "tcrv_rvv.widening_macc_relation",
+          "metadata-derived-widening-macc-relation")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc relation "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccRelationMirror,
+          "widening-MAcc registry rejects stale relation mirror",
+          {"widening_macc_relation",
+           "metadata-derived-widening-macc-relation"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningMAccNonFamilyMirror =
+      wideningMAccFixture.candidate;
+  staleWideningMAccNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.plain_macc_route_family_plan",
+          "metadata-derived-plain-macc"));
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccNonFamilyMirror,
+          "widening-MAcc registry rejects stale non-family mirror",
+          {"must not carry",
+           "selected typed RVV non-widening-MAcc route-family mirror"}))
     return false;
 
   auto expectBaseMemoryPositive =

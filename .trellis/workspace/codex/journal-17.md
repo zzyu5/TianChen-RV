@@ -1738,3 +1738,59 @@ and stress counts.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 301: Stage2 RVV widening-MAcc artifact runtime ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV widening-MAcc artifact runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed the selected typed RVV widening_macc_add artifact/runtime ABI path through target-owned route-family validation, generated-bundle ABI evidence, and real ssh rvv explicit/pre-realized correctness runs.
+
+### Main Changes
+
+- Continued the dirty in-progress Trellis task `05-29-stage2-rvv-widening-macc-artifact-runtime-abi-closure` instead of selecting a new task.
+- Hardened `RVVTargetArtifactRouteFamilyValidation.cpp` so the `widening-macc-contraction` validator requires provider-derived runtime ABI order/roles, route operand binding facts, contraction provider support/header/type facts, and exact widening-MAcc accumulator/result/relation facts.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with `widening_macc_boundary`, target-validator consumption evidence, mirror-only metadata labels, direct pre-realized route-entry support remaining false, and harness checks for signed widening products, nonzero accumulators, and tail sentinel preservation.
+- Added focused target artifact C++ coverage for valid widening-MAcc acceptance and stale/missing provider/candidate facts failing closed before artifact acceptance.
+- Repaired a real pre-realized ssh-rvv evidence failure by aligning the pre-realized input pattern with explicit widening-producing signed i16 operands; the previous small-value pattern did not produce source-width-overflowing products for `n=16`.
+- Added `.trellis/spec/testing/mlir-testing-contract.md` guidance for widening-MAcc generated-bundle evidence because the harness coverage failure is a durable testing contract.
+- Archived the Trellis task under `.trellis/tasks/archive/2026-05/05-29-stage2-rvv-widening-macc-artifact-runtime-abi-closure/` with status `completed`.
+
+Testing:
+- [OK] `cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit and pre-realized `widening_macc_add` dry-runs for counts `0`, `1`, `16`, `17`, `257`
+- [OK] focused lit filter `rvv-generated-bundle-abi-e2e-(explicit|pre-realized)-widening-macc-add-dry-run` passed 2/2
+- [OK] `ssh -o BatchMode=yes -o ConnectTimeout=8 rvv 'echo rvv-ok'`
+- [OK] explicit and pre-realized `widening_macc_add` ssh-rvv generated-bundle runs for counts `0`, `1`, `16`, `17`, `257`
+- [OK] `reduce_add` dry-run non-regression for counts `0`, `1`, `16`, `17`, `257`
+- [OK] evidence JSON assertion for authority, mirror-only metadata, target-validator consumption, ABI order, widening relation, and direct pre-realized route-entry remaining false
+- [OK] bounded touched-file authority scan: new positive authority remains provider/target-validator-backed; `metadata-derived-*` additions are negative tests only; intrinsic names are evidence mirrors, not support authority
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

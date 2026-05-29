@@ -280,6 +280,13 @@ WIDENING_MACC_RESULT_LAYOUT = (
 )
 WIDENING_MACC_RELATION = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
 WIDENING_MACC_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+WIDENING_MACC_SOURCE_VECTOR_TYPE = '!tcrv_rvv.vector<i16, "mf2">'
+WIDENING_MACC_SOURCE_VECTOR_C_TYPE = "vint16mf2_t"
+WIDENING_MACC_RESULT_VECTOR_TYPE = '!tcrv_rvv.vector<i32, "m1">'
+WIDENING_MACC_RESULT_VECTOR_C_TYPE = "vint32m1_t"
+WIDENING_MACC_SOURCE_LOAD_INTRINSIC = "__riscv_vle16_v_i16mf2"
+WIDENING_MACC_ACCUMULATOR_LOAD_INTRINSIC = "__riscv_vle32_v_i32m1"
+WIDENING_MACC_COMPUTE_INTRINSIC = "__riscv_vwmacc_vv_i32m1"
 WIDENING_DOT_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-input"
 WIDENING_DOT_RESULT_LAYOUT = "store-dot-reduction-lane0-to-output-scalar"
 WIDENING_DOT_RELATION = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
@@ -3302,8 +3309,8 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-widening-macc-add-emitc-route",
         typed_compute_op="tcrv_rvv.widening_macc",
         memory_form="vector-rhs-load",
-        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 97) + 2) : ((int)(index % 97) + 3))",
-        rhs_initializer="(int16_t)(((index % 3) == 0) ? -((int)(index % 41) + 5) : ((int)(index % 41) + 7))",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
         source_initializer="(int32_t)(300 + (int32_t)(index * 11))",
         expected_expression="(int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index])",
         out_initializer=OUT_SENTINEL,
@@ -4890,8 +4897,8 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-widening-macc-add-emitc-route",
         typed_compute_op="tcrv_rvv.widening_macc",
         memory_form="vector-rhs-load",
-        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 97) + 2) : ((int)(index % 97) + 3))",
-        rhs_initializer="(int16_t)(((index % 3) == 0) ? -((int)(index % 41) + 5) : ((int)(index % 41) + 7))",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 257) + 260) : ((int)(index % 251) + 280))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 191) + 170) : ((int)(index % 181) + 190))",
         source_initializer="(int32_t)(300 + (int32_t)(index * 11))",
         expected_expression="(int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index])",
         out_initializer=OUT_SENTINEL,
@@ -6213,6 +6220,42 @@ VECTOR_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.reduction_accumulator_layout",
     "tcrv_rvv.reduction_result_layout",
     "tcrv_rvv.reduction_store_vl",
+)
+WIDENING_MACC_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.runtime_avl_abi_parameter",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.contraction_route_family_plan",
+    "tcrv_rvv.emitc_loop",
+    "tcrv_rvv.loop_induction",
+    "tcrv_rvv.loop_step",
+    "tcrv_rvv.remaining_avl",
+    "tcrv_rvv.pointer_advance",
+    "tcrv_rvv.multi_vl",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.source_sew",
+    "tcrv_rvv.source_lmul",
+    "tcrv_rvv.accumulator_sew",
+    "tcrv_rvv.accumulator_lmul",
+    "tcrv_rvv.result_sew",
+    "tcrv_rvv.result_lmul",
+    "tcrv_rvv.widening_macc_accumulator_layout",
+    "tcrv_rvv.widening_macc_result_layout",
+    "tcrv_rvv.widening_macc_relation",
 )
 MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
@@ -18695,6 +18738,7 @@ static int run_case(size_t n) {{
 
   size_t positive_products = 0;
   size_t negative_products = 0;
+  size_t widening_products = 0;
   size_t nonzero_accumulators = 0;
   for (size_t index = 0; index < n; ++index) {{
     int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
@@ -18703,6 +18747,8 @@ static int run_case(size_t n) {{
       ++positive_products;
     if (product < 0)
       ++negative_products;
+    if (product > INT16_MAX || product < INT16_MIN)
+      ++widening_products;
     if (acc[index] != 0)
       ++nonzero_accumulators;
     if (out[index] != expected) {{
@@ -18731,10 +18777,11 @@ static int run_case(size_t n) {{
   }}
 
   if (n > 3 && (positive_products == 0 || negative_products == 0 ||
+                widening_products == 0 ||
                 nonzero_accumulators == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu nonzero_accumulators=%zu\\n",
-            n, positive_products, negative_products, nonzero_accumulators);
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu widening_products=%zu nonzero_accumulators=%zu\\n",
+            n, positive_products, negative_products, widening_products, nonzero_accumulators);
     free(lhs);
     free(rhs);
     free(acc);
@@ -18746,7 +18793,7 @@ static int run_case(size_t n) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok signed_products accumulation tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu ok signed_widening_products accumulation tail_preserved widening_products=%zu\\n", n, widening_products);
   return 0;
 }}
 
@@ -20136,6 +20183,36 @@ def vector_reduction_metadata_from_bundle(
     return metadata
 
 
+def widening_macc_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "widening-MAcc evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in WIDENING_MACC_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object widening-MAcc metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header widening-MAcc metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def multiply_accumulate_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
@@ -21089,6 +21166,181 @@ def vector_reduction_boundary_summary(
     }
 
 
+def widening_macc_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_widening_macc_add:
+        return {}
+    return {
+        "source": (
+            "selected tcrv.exec RVV variant -> typed "
+            "tcrv_rvv.widening_macc body/config/runtime facts -> "
+            "contraction route-family facts -> math operand-binding facts -> "
+            "route-control provider plan -> direct contraction owner -> "
+            "target-owned widening-macc-contraction validator -> neutral "
+            "EmitC materialization -> runtime-callable artifact ABI"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv widening-MAcc "
+            "body/config/runtime facts"
+        ),
+        "target_artifact_validator": (
+            "target-owned widening-macc-contraction route-family validator"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "direct_pre_realized_route_entry_supported": False,
+        "contraction_kind": "widening_macc_add",
+        "typed_compute_op": "tcrv_rvv.widening_macc",
+        "memory_form": "vector-rhs-load",
+        "source_type_policy": {
+            "element_type": "i16",
+            "element_c_type": "int16_t",
+            "sew": "16",
+            "lmul": "mf2",
+            "vector_type": WIDENING_MACC_SOURCE_VECTOR_TYPE,
+            "vector_c_type": WIDENING_MACC_SOURCE_VECTOR_C_TYPE,
+        },
+        "accumulator_type_policy": {
+            "element_type": "i32",
+            "element_c_type": "int32_t",
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "layout": WIDENING_MACC_ACCUMULATOR_LAYOUT,
+            "abi_role": "accumulator-input-buffer",
+            "vector_type": WIDENING_MACC_RESULT_VECTOR_TYPE,
+            "vector_c_type": WIDENING_MACC_RESULT_VECTOR_C_TYPE,
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "layout": WIDENING_MACC_RESULT_LAYOUT,
+            "abi_role": "output-buffer",
+            "vector_type": WIDENING_MACC_RESULT_VECTOR_TYPE,
+            "vector_c_type": WIDENING_MACC_RESULT_VECTOR_C_TYPE,
+        },
+        "widening_relation": WIDENING_MACC_RELATION,
+        "accumulator_update_semantics": (
+            "out[i] = acc[i] + sign_extend_i32(lhs_i16[i]) * "
+            "sign_extend_i32(rhs_i16[i])"
+        ),
+        "selected_source_abi": {
+            "lhs": "lhs-input-buffer i16 source",
+            "rhs": "rhs-input-buffer i16 source",
+            "acc": "accumulator-input-buffer i32 seed vector",
+            "out": "output-buffer i32 result vector",
+            "n": "runtime-element-count",
+        },
+        "statement_plan": {
+            "family": "widening-MAcc contraction",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                WIDENING_MACC_SOURCE_LOAD_INTRINSIC,
+                WIDENING_MACC_SOURCE_LOAD_INTRINSIC,
+                WIDENING_MACC_ACCUMULATOR_LOAD_INTRINSIC,
+                WIDENING_MACC_COMPUTE_INTRINSIC,
+                expectation.unit_store_intrinsic,
+            ],
+            "macc_operand_order": "accumulator_vector,lhs_i16_vector,rhs_i16_vector,vl",
+            "store_pointer": "out + loop_induction",
+        },
+        "provider_route_facts": {
+            "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
+            "contraction_route_family_plan": (
+                "rvv-contraction-route-family-plan.v1"
+            ),
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "route_operand_binding_plan": WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN,
+            "route_operand_binding_operands": (
+                WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS
+            ),
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "source_vector_load_intrinsic": WIDENING_MACC_SOURCE_LOAD_INTRINSIC,
+            "accumulator_vector_load_intrinsic": (
+                WIDENING_MACC_ACCUMULATOR_LOAD_INTRINSIC
+            ),
+            "widening_macc_intrinsic": WIDENING_MACC_COMPUTE_INTRINSIC,
+            "store_intrinsic": expectation.unit_store_intrinsic,
+            "required_header_declarations": (
+                CONTRACTION_REQUIRED_HEADER_DECLARATIONS
+            ),
+            "c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
+            "source_sew": "16",
+            "source_lmul": "mf2",
+            "accumulator_sew": expectation.sew,
+            "accumulator_lmul": expectation.lmul,
+            "result_sew": expectation.sew,
+            "result_lmul": expectation.lmul,
+            "widening_macc_accumulator_layout": (
+                WIDENING_MACC_ACCUMULATOR_LAYOUT
+            ),
+            "widening_macc_result_layout": WIDENING_MACC_RESULT_LAYOUT,
+            "widening_macc_relation": WIDENING_MACC_RELATION,
+        },
+        "target_validator_consumed_facts": [
+            "emitc_route_id",
+            "typed_compute_op_name",
+            "memory_form",
+            "provider_supported_mirror",
+            "contraction_route_family_plan",
+            "runtime_abi_order",
+            "runtime_abi_parameter_roles",
+            "route_operand_binding_plan",
+            "route_operand_binding_operands",
+            "source_and_result_type_mappings",
+            "setvl_intrinsic",
+            "source_vector_load_intrinsic",
+            "widening_macc_intrinsic",
+            "store_intrinsic",
+            "widening_macc_accumulator_layout",
+            "widening_macc_result_layout",
+            "widening_macc_relation",
+            "statement_plan",
+            "candidate_mirror_labels",
+            "stale_non_widening_macc_fact_rejection",
+        ],
+        "materialized_body": {
+            "typed_compute_op": materialized_checks.get("typed_compute_op"),
+            "memory_form": materialized_checks.get("memory_form"),
+            "runtime_avl_vl_boundary": materialized_checks.get(
+                "runtime_avl_vl_boundary", {}
+            ),
+            "accumulator_layout": WIDENING_MACC_ACCUMULATOR_LAYOUT,
+            "result_layout": WIDENING_MACC_RESULT_LAYOUT,
+            "widening_relation": WIDENING_MACC_RELATION,
+        },
+        "emitted_cpp": emitted_cpp_checks.get(
+            "widening_macc_boundary",
+            {
+                "source_load_intrinsic": WIDENING_MACC_SOURCE_LOAD_INTRINSIC,
+                "accumulator_load_intrinsic": (
+                    WIDENING_MACC_ACCUMULATOR_LOAD_INTRINSIC
+                ),
+                "widening_macc_intrinsic": WIDENING_MACC_COMPUTE_INTRINSIC,
+                "store_intrinsic": expectation.unit_store_intrinsic,
+            },
+        ),
+        "route_metadata": widening_macc_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "runtime_parameters": expectation.runtime_parameters,
+        },
+        "empty_count_behavior": "runtime loop skipped; output tail sentinel preserved",
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_widening_macc_authority": True,
+    }
+
+
 def reduction_accumulation_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -21977,6 +22229,18 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
+        if expectation.is_widening_macc_add:
+            evidence["widening_macc_boundary"] = (
+                widening_macc_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
         if expectation.is_standalone_reduce_add or (
             expectation.is_computed_mask_standalone_reduce_add
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
@@ -22384,6 +22648,21 @@ def run_one_op_e2e(
                 "only out[0] is written and non-scalar output slots preserve "
                 "sentinels"
             )
+        if expectation.is_widening_macc_add:
+            evidence["harness"]["widening_macc_contract"] = (
+                "signed i16 lhs/rhs lanes are widened to i32 products and "
+                "added to nonzero i32 accumulator lanes"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n/AVL must be honored and tail sentinel lanes must "
+                "be preserved"
+            )
+            evidence["harness"]["source_pattern_contract"] = (
+                "multi-lane cases include positive and negative products so "
+                "the oracle distinguishes signed widening multiply-accumulate "
+                "from add-only, non-widening, missing-accumulator, and wrong "
+                "sign-extension behavior"
+            )
         if expectation.is_widening_dot_reduce_add:
             evidence["harness"]["dot_reduction_contract"] = (
                 "signed i16*i16 widening products contribute to the i32 scalar "
@@ -22540,6 +22819,9 @@ def root_op_result_summary(
         ),
         "vector_reduction_boundary": result.get(
             "vector_reduction_boundary", {}
+        ),
+        "widening_macc_boundary": result.get(
+            "widening_macc_boundary", {}
         ),
         "reduction_accumulation_boundary": result.get(
             "reduction_accumulation_boundary", {}
@@ -22979,6 +23261,28 @@ def run_self_test() -> int:
                         "self-test fake bundle generation lost vector "
                         "reduction validator-backed metadata"
                     )
+            if expectation.is_widening_macc_add:
+                widening_macc_metadata = widening_macc_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                if (
+                    widening_macc_metadata.get(
+                        "tcrv_rvv.widening_macc_relation"
+                    )
+                    != WIDENING_MACC_RELATION
+                    or widening_macc_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN
+                    or widening_macc_metadata.get(
+                        "tcrv_rvv.provider_supported_mirror"
+                    )
+                    != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost widening-MAcc "
+                        "validator-backed metadata"
+                    )
             harness = harness_source(
                 "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
                 [1, 17, 257],
@@ -23000,6 +23304,18 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost reduce_add signed "
                     "input or nonzero seed coverage"
+                )
+            if expectation.is_widening_macc_add and (
+                "signed_widening_products" not in harness
+                or "widening_products" not in harness
+                or "INT16_MAX" not in harness
+                or "nonzero_accumulators" not in harness
+                or "(int32_t)lhs[index] * (int32_t)rhs[index]" not in harness
+                or "tail sentinel" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost widening-MAcc signed "
+                    "widening, accumulator, or tail coverage"
                 )
             scalar_literal_suffix = (
                 "LL" if expectation.element_c_type == "int64_t" else ""

@@ -71,6 +71,6 @@
 # HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
 # HARNESS: tcrv_emitc_pre_realized_body_widening_macc_add_kernel_pre_realized_body_rvv_widening_macc_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index]);
-# HARNESS: signed_products accumulation tail_preserved
+# HARNESS: signed_widening_products accumulation tail_preserved widening_products=
 # HARNESS: tcrv_rvv_generated_bundle_abi_widening_macc_add_ok counts=7,16,23
 # HARNESS: PASS op=widening_macc_add counts=7,16,23

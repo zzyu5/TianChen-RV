@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV Stage order, typed-body authority, and descriptor/source-front-door boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body route support, direct contraction provider plan, target artifact route-family validator boundary, and mirror metadata rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope contract and emission diagnostic mirror semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused compiler test and ssh rvv evidence requirements for runtime/correctness claims."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Runtime evidence interpretation and RVV evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-vector-reduction-artifact-runtime-abi-closure/prd.md", "reason": "Sibling reduce_add artifact/runtime ABI closure pattern and non-regression expectation."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-route-family-validator-coverage-gate/prd.md", "reason": "Target-owned route-family validator coverage and widening-macc-contraction validator history."}

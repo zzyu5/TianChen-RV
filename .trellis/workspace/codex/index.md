@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 300
+- **Total Sessions**: 301
 - **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~1710 | Active |
+| `journal-17.md` | ~1796 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 301 | 2026-05-29 | Stage2 RVV widening-MAcc artifact runtime ABI closure | pending-final-session-commit | `main` |
 | 300 | 2026-05-29 | Stage2 RVV vector-reduction artifact/runtime ABI closure | `same commit` | `main` |
 | 299 | 2026-05-29 | Stage2 RVV route-family validator coverage gate | - | `main` |
 | 298 | 2026-05-29 | Stage2 RVV base memory movement artifact validator migration | - | `main` |

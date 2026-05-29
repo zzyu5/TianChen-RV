@@ -5905,6 +5905,68 @@ bool isRVVWideningMAccContractionTargetArtifactRouteFamilyConsumer(
              plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
 }
 
+constexpr llvm::StringLiteral kRVVWideningMAccRuntimeABIOrder(
+    "lhs,rhs,acc,out,n");
+constexpr llvm::StringLiteral kRVVWideningMAccRouteOperandBindingPlan(
+    "rvv-route-operand-binding:widening_macc_add.v1");
+constexpr llvm::StringLiteral kRVVWideningMAccContractionRouteFamilyPlan(
+    "rvv-contraction-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVWideningMAccProviderSupportedMirror(
+    "provider_supported_mirror:rvv-contraction-family-plan-validated");
+constexpr llvm::StringLiteral kRVVWideningMAccRequiredHeaders(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVWideningMAccCTypeMapping(
+    "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32");
+constexpr llvm::StringLiteral kRVVWideningMAccAccumulatorLayout(
+    "separate-i32-vector-accumulator-input");
+constexpr llvm::StringLiteral kRVVWideningMAccResultLayout(
+    "store-widening-multiply-accumulate-result-to-output-buffer");
+constexpr llvm::StringLiteral kRVVWideningMAccRelation(
+    "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1");
+
+llvm::Error validateRVVWideningMAccContractionRuntimeABIFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIOrder != kRVVWideningMAccRuntimeABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived runtime ABI order '") +
+        kRVVWideningMAccRuntimeABIOrder + "' but was '" +
+        description.runtimeABIOrder + "'");
+  if (description.runtimeABIParameters.size() != 5)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-derived runtime ABI parameters for lhs, rhs, accumulator, "
+        "out, and n before artifact export");
+
+  struct ExpectedRuntimeABIParameterRole {
+    llvm::StringRef cName;
+    support::RuntimeABIParameterRole role;
+  };
+  const ExpectedRuntimeABIParameterRole expectedRoles[] = {
+      {"lhs", support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"rhs", support::RuntimeABIParameterRole::RHSInputBuffer},
+      {"acc", support::RuntimeABIParameterRole::AccumulatorInputBuffer},
+      {"out", support::RuntimeABIParameterRole::OutputBuffer},
+      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
+  };
+  constexpr size_t expectedRoleCount =
+      sizeof(expectedRoles) / sizeof(expectedRoles[0]);
+  for (size_t index = 0; index < expectedRoleCount; ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    if (actual.cName != expectedRoles[index].cName ||
+        actual.role != expectedRoles[index].role)
+      return makeRVVTargetRouteError(
+          llvm::Twine("widening MAcc contraction target artifact consumer "
+                      "requires provider-derived runtime ABI parameter ") +
+          std::to_string(index) + " to bind " + expectedRoles[index].cName +
+          " as " +
+          support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
+          " before artifact export");
+  }
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVWideningMAccContractionRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -6036,6 +6098,49 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
         "widening MAcc contraction target artifact consumer requires "
         "provider support, binding, and contraction route-family facts before "
         "artifact export");
+  if (description.providerSupportedMirror !=
+          kRVVWideningMAccProviderSupportedMirror ||
+      description.contractionRouteFamilyPlanID !=
+          kRVVWideningMAccContractionRouteFamilyPlan ||
+      description.requiredHeaderDeclarations !=
+          kRVVWideningMAccRequiredHeaders ||
+      description.cTypeMappingSummary != kRVVWideningMAccCTypeMapping)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-owned contraction support, header, "
+                    "and C type facts before artifact export but provider "
+                    "carried support '") +
+        description.providerSupportedMirror + "', plan '" +
+        description.contractionRouteFamilyPlanID + "', headers '" +
+        description.requiredHeaderDeclarations + "', and C type mapping '" +
+        description.cTypeMappingSummary + "'");
+  if (description.routeOperandBindingPlanID !=
+      kRVVWideningMAccRouteOperandBindingPlan)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider route operand binding plan '") +
+        kRVVWideningMAccRouteOperandBindingPlan + "' but was '" +
+        description.routeOperandBindingPlanID + "'");
+  llvm::StringRef routeOperandBindingSummary(
+      description.routeOperandBindingSummary);
+  if (!routeOperandBindingSummary.starts_with(
+          kRVVWideningMAccRouteOperandBindingPlan) ||
+      !routeOperandBindingSummary.contains("lhs=lhs-input-buffer") ||
+      !routeOperandBindingSummary.contains("rhs=rhs-input-buffer") ||
+      !routeOperandBindingSummary.contains(
+          "acc=accumulator-input-buffer") ||
+      !routeOperandBindingSummary.contains("out=output-buffer") ||
+      !routeOperandBindingSummary.contains("n=runtime-element-count") ||
+      !routeOperandBindingSummary.contains("wmacc-lhs") ||
+      !routeOperandBindingSummary.contains("wmacc-rhs") ||
+      !routeOperandBindingSummary.contains("wmacc-acc") ||
+      !routeOperandBindingSummary.contains("src-i16mf2") ||
+      !routeOperandBindingSummary.contains("acc-i32m1") ||
+      !routeOperandBindingSummary.contains("res-i32m1"))
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider route operand binding facts for lhs/rhs i16 sources, i32 "
+        "accumulator, i32 output, and runtime n before artifact export");
   if (description.memoryForm !=
           plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad ||
       description.typedComputeOpName != "tcrv_rvv.widening_macc")
@@ -6048,6 +6153,9 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived runtime AVL/VL facts before artifact export");
+  if (llvm::Error error =
+          validateRVVWideningMAccContractionRuntimeABIFacts(description))
+    return error;
   if (description.wideningMAccAccumulatorLayout.empty() ||
       description.wideningMAccResultLayout.empty() ||
       description.wideningMAccRelation.empty() ||
@@ -6057,6 +6165,21 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived accumulator/result layout, relation, source load, "
         "widening MAcc, and store facts before artifact export");
+  if (description.wideningMAccAccumulatorLayout !=
+          kRVVWideningMAccAccumulatorLayout ||
+      description.wideningMAccResultLayout != kRVVWideningMAccResultLayout ||
+      description.wideningMAccRelation != kRVVWideningMAccRelation)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived widening MAcc layout and "
+                    "relation facts accumulator '") +
+        kRVVWideningMAccAccumulatorLayout + "', result '" +
+        kRVVWideningMAccResultLayout + "', relation '" +
+        kRVVWideningMAccRelation +
+        "' before artifact export but provider carried accumulator '" +
+        description.wideningMAccAccumulatorLayout + "', result '" +
+        description.wideningMAccResultLayout + "', and relation '" +
+        description.wideningMAccRelation + "'");
   if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
       !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||

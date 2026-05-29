@@ -300,6 +300,121 @@ typed body/config/runtime compare-mask and accumulator facts
   -> mirror metadata plus executable harness evidence
 ```
 
+## Widening-MAcc Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use widening-MAcc generated-bundle evidence whenever an RVV generated-bundle
+test claims executable `widening_macc_add` correctness for a route-supported
+typed `tcrv_rvv` path. This evidence is required for both explicit selected
+bodies and selected pre-realized bodies after RVV plugin-local realization.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key such as:
+
+```json
+"widening_macc_boundary": {
+  "authority": "provider-derived typed tcrv_rvv widening-MAcc body/config/runtime facts",
+  "target_artifact_validator": "target-owned widening-macc-contraction route-family validator",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "direct_pre_realized_route_entry_supported": false,
+  "selected_source_abi": {},
+  "provider_route_facts": {},
+  "target_validator_consumed_facts": [],
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_widening_macc_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of route support.
+- `selected_source_abi` must identify `lhs`, `rhs`, `acc`, `out`, and runtime
+  `n` in provider-validated ABI order. `lhs` and `rhs` are source-width inputs;
+  `acc` and `out` are widened accumulator/result buffers.
+- The evidence must mirror source dtype, accumulator/result dtype, SEW, LMUL,
+  policy, memory form, runtime AVL/VL, setvl placement, operand binding,
+  accumulator layout, result layout, widening relation, and artifact ABI order
+  from provider route facts after route construction.
+- `target_validator_consumed_facts` must identify the target-owned
+  `widening-macc-contraction` validator as the consumer of provider facts and
+  candidate mirror checks.
+- `route_metadata` may mirror provider/export metadata only after provider route
+  construction. It must not be used as route authority.
+- Runtime counts are execution cases only. They must not define dtype,
+  widening relation, route support, artifact authority, or direct route-entry
+  support.
+
+### 4. Validation & Error Matrix
+
+- Missing or stale source/result dtype relation -> evidence failure.
+- Missing `lhs`, `rhs`, accumulator, output, or runtime `n` ABI role ->
+  evidence failure.
+- Missing widening relation, accumulator layout, result layout, runtime
+  AVL/VL, route operand binding, provider-supported mirror, or target-validator
+  consumption summary -> evidence failure.
+- Generated C/C++ omits runtime VL on source loads, accumulator load,
+  widening-MAcc compute, or store -> evidence failure.
+- Generated C/C++ uses MAcc operands in an order that disagrees with
+  provider-owned operand-binding facts -> evidence failure.
+- A multi-lane runtime evidence case lacks positive products, negative
+  products, nonzero accumulators, or products outside the source-width range ->
+  evidence failure.
+- Descriptor, direct-C/source-export, route-id, artifact-name, ABI-string,
+  script, test-name, common EmitC, exact intrinsic spelling, direct route entry,
+  or legacy i32 residue is required to explain widening-MAcc semantics ->
+  evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries i16 source, i32 accumulator/result,
+  widening relation, runtime `n`, and policy facts -> RVV plugin validates or
+  realizes the body -> provider emits the widening-MAcc route -> target-owned
+  validator consumes provider facts -> generated evidence mirrors the facts and
+  harness checks signed widening products, accumulation, and tail preservation.
+- Base: unrelated MAcc, reduction, conversion, or dot-reduction routes omit
+  `widening_macc_boundary` and keep their own generated-bundle evidence.
+- Bad: evidence infers widening behavior from route id, artifact filename,
+  exact intrinsic spelling, script constants, or the pre-realized fixture name.
+
+### 6. Tests Required
+
+- lit/FileCheck for explicit and pre-realized generated-bundle dry-runs must
+  check representative `widening_macc_boundary` fields and mirror metadata.
+- Target artifact tests must check provider-owned runtime ABI order/roles,
+  operand binding, type relation, accumulator/result layout, provider-supported
+  mirror, and stale non-widening-MAcc fact rejection before artifact acceptance.
+- Runtime RVV claims must include `ssh rvv` output over multiple runtime counts,
+  including `n=0`, `n=1`, exact-VL, tail, and stress cases.
+- Harness checks must distinguish signed widening multiply-accumulate from
+  add-only, non-widening, missing-accumulator, wrong sign-extension, and
+  tail-overwrite behavior. Explicit and pre-realized selected-body modes must
+  use input patterns that produce source-width-overflowing products in
+  multi-lane runtime cases.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+pre-realized fixture name says widening_macc_add
+  -> harness uses small i16 products and claims widening correctness
+```
+
+Correct:
+
+```text
+typed body/config/runtime widening-MAcc facts
+  -> RVV plugin legality/realization
+  -> provider-built contraction route
+  -> target-owned widening-MAcc validator
+  -> mirror metadata plus executable harness evidence with widening products
+```
+
 ## Compare/Select Predicate Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture red lines and RVV Stage2 authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check widening-MAcc provider/validator facts, fail-closed diagnostics, and mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check runtime ABI role boundaries and emission diagnostic labels."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-built route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused compiler tests and required ssh rvv evidence."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check runtime evidence interpretation."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-vector-reduction-artifact-runtime-abi-closure/prd.md", "reason": "Check sibling reduce_add non-regression and generated-bundle evidence shape."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-route-family-validator-coverage-gate/prd.md", "reason": "Check route-family validator registry expectations."}
