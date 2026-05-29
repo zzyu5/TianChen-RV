@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority, Stage1/Stage2 boundaries, and common EmitC ownership constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, route-control provider-plan boundary, mask/tail policy rules, fail-closed diagnostics, and owner-local provider construction contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "C++ tests, lit/FileCheck, generated-bundle evidence, mask/tail policy evidence, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Typed tcrv_rvv body authority, selected-body realization, route-provider output, and metadata mirror rules."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-owned selected-body realization and route provider locality review checklist."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure this RVV provider refactor does not introduce high-level compute/core dialect semantics."}

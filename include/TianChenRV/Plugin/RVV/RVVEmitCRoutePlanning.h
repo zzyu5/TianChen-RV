@@ -951,26 +951,6 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   llvm::StringRef selectedLegalityMirror;
 };
 
-struct RVVSelectedBodyRouteControlProviderOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using ProviderPlanBuilder = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      RVVSelectedBodyRouteControlProviderPlan &,
-      const RVVRuntimeAVLVLControlPlan *&, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanBuilder buildProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyRouteControlProviderOwner>
-getRVVSelectedBodyRouteControlProviderOwners();
-
-bool isRVVSelectedBodyRouteControlProviderConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-
 struct RVVSelectedBodyMaskTailPolicyProviderPlan {
   const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
   const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
@@ -1002,27 +982,6 @@ struct RVVSelectedBodyMaskTailPolicyProviderPlan {
   llvm::StringRef selectedProviderMirror;
   llvm::StringRef selectedLegalityMirror;
 };
-
-struct RVVSelectedBodyMaskTailPolicyProviderOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using ProviderPlanBuilder = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      const RVVSelectedBodyRouteControlProviderPlan &,
-      const RVVRouteOperandBindingPlan &,
-      RVVSelectedBodyMaskTailPolicyProviderPlan &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanBuilder buildProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMaskTailPolicyProviderOwner>
-getRVVSelectedBodyMaskTailPolicyProviderOwners();
-
-bool isRVVSelectedBodyMaskTailPolicyProviderConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
 
 struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
@@ -1691,19 +1650,6 @@ llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
 llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
 getRVVSelectedBodyRouteMaterializationFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyRouteControlProviderPlan>
-getRVVSelectedBodyRouteControlProviderPlan(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyMaskTailPolicyProviderPlan>
-getRVVSelectedBodyMaskTailPolicyProviderPlan(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyRouteControlProviderPlan &routeControlPlan,
-    const RVVRouteOperandBindingPlan &bindingPlan, llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
 getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority and Stage boundary invariants after the refactor."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check route-control/mask-tail owner boundaries, registry exact-once behavior, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC remains neutral and provider-built route authority is preserved."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and generated-bundle evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check metadata remains mirror-only and typed selected-body authority is preserved."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin-local owner extraction did not move RVV semantics into core/common code."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no new core/high-level compute semantics were introduced."}

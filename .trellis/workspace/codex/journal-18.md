@@ -1531,3 +1531,36 @@ Moved WideningConversion and RuntimeScalarSplatStore migrated RVV statement-plan
 ### Next Steps
 
 - None - task complete
+
+
+## Session 330: Stage2 RVV route-control and mask-tail policy owner boundary
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV route-control and mask-tail policy owner boundary
+**Branch**: `main`
+
+### Summary
+
+Moved selected-body route-control and mask/tail policy provider-plan construction from central route planning into an explicit RVV-owned control/policy owner boundary; focused plugin test, generated-bundle dry-runs, authority scans, git diff check, and check-tianchenrv 464/464 passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

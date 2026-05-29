@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_PLUGIN_RVV_RVVEMITCSTATEMENTPLANOWNERS_H
 #define TIANCHENRV_PLUGIN_RVV_RVVEMITCSTATEMENTPLANOWNERS_H
 
+#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 
 #include "llvm/ADT/ArrayRef.h"
