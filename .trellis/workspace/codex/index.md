@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-18.md`
-- **Total Sessions**: 328
+- **Total Sessions**: 329
 - **Last Active**: 2026-05-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-18.md` | ~1500 | Active |
+| `journal-18.md` | ~1533 | Active |
 | `journal-17.md` | ~1948 | Archived |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
@@ -46,6 +46,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 329 | 2026-05-30 | Stage2 RVV residual statement-plan owner extraction | pending-final-commit | `main` |
 | 328 | 2026-05-30 | Stage2 RVV compare/select owner extraction | pending-final-commit | `main` |
 | 327 | 2026-05-30 | Stage2 RVV elementwise arithmetic owner extraction | pending-final-commit | `main` |
 | 326 | 2026-05-30 | Stage2 RVV reduction accumulation owner extraction | pending-final-commit | `main` |

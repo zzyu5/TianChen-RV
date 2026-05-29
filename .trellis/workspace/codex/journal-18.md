@@ -1498,3 +1498,36 @@ Moved migrated RVV compare/select statement-plan construction from central route
 ### Next Steps
 
 - None - task complete
+
+
+## Session 329: Stage2 RVV residual statement-plan owner extraction
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV residual statement-plan owner extraction
+**Branch**: `main`
+
+### Summary
+
+Moved WideningConversion and RuntimeScalarSplatStore migrated RVV statement-plan construction from central route planning into an owner-local EmitC module; focused plugin test, generated-bundle dry-runs, authority scans, and check-tianchenrv 464/464 passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

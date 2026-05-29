@@ -1,0 +1,8 @@
+{"file":".trellis/spec/index.md","reason":"Global project invariants for C++/MLIR stack, RVV-first authority chain, common EmitC neutrality, mirror-only diagnostics, and Stage2 typed RVV coverage boundary."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV Stage2 route ownership, migrated statement-plan aggregate boundary, widening conversion and runtime scalar splat-store facts, fail-closed diagnostics, mirror metadata, and common EmitC neutrality."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Unified EmitC route contract: provider-built TCRVEmitCLowerableRoute, common materialization neutrality, invalid source-front-door/legacy-i32/metadata authority, and target artifact handoff boundaries."}
+{"file":".trellis/spec/implementation-stack/compiler-stack-contract.md","reason":"C++/MLIR/LLVM/TableGen/CMake implementation boundary and Python prohibition for compiler core, lowering, route authority, and selected-body realization."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused C++/lit/generated-bundle evidence expectations and RVV runtime evidence boundary."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Stage2 typed RVV selected-body route authority and metadata mirror boundary."}
+{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"Plugin-local route provider output and extension-specific mapping locality checks."}
+{"file":".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-compare-select-owner-boundary/prd.md","reason":"Latest owner-boundary extraction precedent and validation evidence for moving provider-ready statements from central planning into owner-local RVV EmitC files."}
