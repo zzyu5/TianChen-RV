@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, RVV-first authority chain, and Stage2 route-supported selected-body rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected-body realization, direct contraction/widening dot ownership, provider plan, artifact ABI consumer, and mirror-only metadata contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on core-owned compute or RVV dtype semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute authority, common EmitC neutrality, and target artifact handoff rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++/generated-bundle/ssh RVV evidence requirements and claim boundaries."}

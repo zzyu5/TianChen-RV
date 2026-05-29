@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work preserves the RVV-first authority chain and project-level stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify widening dot-reduction validator behavior matches provider-derived route facts, selected-body boundary, and direct contraction contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no tcrv.exec/core drift into RVV compute, dtype, or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and target artifacts consume provider-built route facts only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused target/export, generated-bundle, ssh RVV, non-regression, and authority-scan evidence is sufficient."}

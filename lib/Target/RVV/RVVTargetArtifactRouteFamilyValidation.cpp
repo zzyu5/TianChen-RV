@@ -2561,33 +2561,121 @@ llvm::Error validateRVVWideningDotReductionRouteABIMappings(
 llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getCallOpaqueSteps().empty())
+  constexpr llvm::StringLiteral consumerLabel(
+      "widening dot-reduction target artifact consumer");
+  const bool isComputedMask =
+      isRVVComputedMaskWideningDotReductionRouteFamilyOperation(
+          description.operation);
+  const bool isStrided =
+      isRVVStridedInputWideningDotReductionRouteFamilyOperation(
+          description.operation);
+  const std::size_t expectedABIParameterCount =
+      isComputedMask ? (isStrided ? 9 : 7) : (isStrided ? 7 : 5);
+  if (description.runtimeABIParameters.size() < expectedABIParameterCount)
     return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires "
-        "provider-built pre-loop setvl, seed, and initial store statement "
-        "facts before artifact export");
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived widening dot ABI parameters before "
+        "validating route statements");
+  if (description.resultName.empty() || description.sourceVectorCType.empty() ||
+      description.vectorCType.empty() || description.vlCType.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived result, source/result vector C type, and "
+        "VL C type facts before validating route statements");
+  if (isComputedMask &&
+      (description.maskName.empty() || description.maskCType.empty()))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived computed-mask name and C type before "
+        "validating route statements");
+
+  const support::RuntimeABIParameter *cmpLHSABI = nullptr;
+  const support::RuntimeABIParameter *cmpRHSABI = nullptr;
+  const support::RuntimeABIParameter *lhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *dotLHSABI = nullptr;
+  const support::RuntimeABIParameter *dotRHSABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *outABI = nullptr;
+  const support::RuntimeABIParameter *runtimeNABI = nullptr;
+  const support::RuntimeABIParameter *lhsStrideABI = nullptr;
+  const support::RuntimeABIParameter *rhsStrideABI = nullptr;
+
+  if (isComputedMask) {
+    cmpLHSABI = &description.runtimeABIParameters[0];
+    cmpRHSABI = &description.runtimeABIParameters[1];
+    dotLHSABI = &description.runtimeABIParameters[2];
+    dotRHSABI = &description.runtimeABIParameters[3];
+    accumulatorABI = &description.runtimeABIParameters[4];
+    outABI = &description.runtimeABIParameters[5];
+    runtimeNABI = &description.runtimeABIParameters[6];
+    if (isStrided) {
+      lhsStrideABI = &description.runtimeABIParameters[7];
+      rhsStrideABI = &description.runtimeABIParameters[8];
+    }
+  } else {
+    lhsABI = &description.runtimeABIParameters[0];
+    rhsABI = &description.runtimeABIParameters[1];
+    accumulatorABI = &description.runtimeABIParameters[2];
+    outABI = &description.runtimeABIParameters[3];
+    runtimeNABI = &description.runtimeABIParameters[4];
+    if (isStrided) {
+      lhsStrideABI = &description.runtimeABIParameters[5];
+      rhsStrideABI = &description.runtimeABIParameters[6];
+    }
+  }
+
+  const support::RuntimeABIParameter *runtimeElementCount =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeElementCount || runtimeElementCount != runtimeNABI)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI role to match the selected widening dot "
+        "ABI order before validating route statements");
+
+  const llvm::StringRef scalarI32CType = "int32_t";
+  if (route.getCallOpaqueSteps().size() != 3)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-built pre-loop setvl, scalar seed splat, and "
+        "initial output store statements before artifact export");
+
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
-      route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != description.setVLIntrinsic ||
-      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires rebuilt "
-        "provider route pre-loop setvl statement to define the full-chunk VL");
+      route.getCallOpaqueSteps()[0];
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSetVL, consumerLabel, "pre-loop setvl",
+          description.setVLIntrinsic, {{runtimeNABI->cName, runtimeNABI->cType}},
+          description.emitCFullChunkVLName, description.vlCType))
+    return error;
+
+  const std::string expectedInitialAccumulatorLane =
+      (llvm::StringRef(accumulatorABI->cName) + "[0]").str();
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSeed =
+      route.getCallOpaqueSteps()[1];
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSeed, consumerLabel, "pre-loop scalar seed splat",
+          description.scalarSeedSplatIntrinsic,
+          {{expectedInitialAccumulatorLane, scalarI32CType},
+           {description.reductionStoreVL, description.vlCType}},
+          "dot_initial_acc_vec", description.vectorCType))
+    return error;
+
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopStore =
+      route.getCallOpaqueSteps()[2];
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopStore, consumerLabel, "pre-loop initial output store",
+          description.storeIntrinsic,
+          {{outABI->cName, outABI->cType},
+           {"dot_initial_acc_vec", description.vectorCType},
+           {description.reductionStoreVL, description.vlCType}}))
+    return error;
+
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     if (!routeStepSourceIsSelectedRVVBody(step))
       return makeRVVTargetRouteError(
           "widening dot-reduction target artifact consumer requires pre-loop "
           "statements to carry selected typed RVV source provenance");
-  if (!routeStepsContainCallee(route.getCallOpaqueSteps(),
-                               description.scalarSeedSplatIntrinsic) ||
-      !routeStepsContainCallee(route.getCallOpaqueSteps(),
-                               description.storeIntrinsic))
-    return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires "
-        "provider-built pre-loop scalar seed and initial store statements "
-        "before artifact export");
 
   if (route.getForLoops().size() != 1)
     return makeRVVTargetRouteError(
@@ -2597,78 +2685,198 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   if (loop.inductionVarName != description.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
       loop.lowerBound.cType != description.vlCType ||
+      loop.upperBound.expression != runtimeNABI->cName ||
+      loop.upperBound.cType != runtimeNABI->cType ||
       loop.step.expression != description.emitCFullChunkVLName ||
       loop.step.cType != description.vlCType)
     return makeRVVTargetRouteError(
         "widening dot-reduction target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime AVL/VL route "
         "facts");
-  const support::RuntimeABIParameter *runtimeElementCount =
-      findRuntimeElementCountABIParameter(description);
-  if (!runtimeElementCount)
+
+  const std::size_t expectedLoopStepCount = isComputedMask ? 12 : 7;
+  if (loop.bodySteps.size() != expectedLoopStepCount)
     return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires a "
-        "provider-derived runtime n/AVL ABI parameter before artifact export");
-  if (loop.upperBound.expression != runtimeElementCount->cName ||
-      loop.upperBound.cType != runtimeElementCount->cType)
-    return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires "
-        "provider-built loop upper bound to use the runtime n/AVL ABI "
-        "parameter");
-  if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != description.setVLIntrinsic ||
-      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires "
-        "provider-built loop setvl statement to define per-iteration VL");
+        llvm::Twine(consumerLabel) +
+        " requires exact provider-built widening dot loop statement count " +
+        llvm::Twine(expectedLoopStepCount) + " before artifact export");
+
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeNABI->cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          description.setVLIntrinsic,
+          {{expectedRemainingAVL, description.vlCType}},
+          description.emitCLoopVLName, description.vlCType))
+    return error;
+
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
       return makeRVVTargetRouteError(
           "widening dot-reduction target artifact consumer requires loop "
           "statements to carry selected typed RVV source provenance");
 
-  llvm::StringRef sourceLoad =
-      isRVVStridedInputWideningDotReductionRouteFamilyOperation(
-          description.operation)
-          ? description.stridedLoadIntrinsic
-          : description.sourceVectorLoadIntrinsic;
-  if (sourceLoad.empty() || !routeLoopContainsCallee(loop, sourceLoad) ||
-      !routeLoopContainsCallee(loop, description.scalarSeedSplatIntrinsic) ||
-      !routeLoopContainsCallee(loop, description.intrinsic) ||
-      !routeLoopContainsCallee(loop, description.storeIntrinsic))
-    return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires "
-        "provider-built source load, scalar seed, reduction, and store "
-        "statements before artifact export");
+  auto validateUnitSourceLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi, llvm::StringRef resultName,
+          llvm::StringRef stepLabel) -> llvm::Error {
+    const std::string expectedPointer =
+        (llvm::StringRef(abi.cName) + " + " +
+         description.emitCLoopInductionName)
+            .str();
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
+        {{expectedPointer, abi.cType},
+         {description.emitCLoopVLName, description.vlCType}},
+        resultName, description.sourceVectorCType);
+  };
 
-  if (isRVVComputedMaskWideningDotReductionRouteFamilyOperation(
-          description.operation)) {
-    if (description.vectorLoadIntrinsic.empty() ||
-        description.compareIntrinsic.empty() ||
-        description.maskedWideningProductIntrinsic.empty() ||
-        description.maskedMergeIntrinsic.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask widening dot-reduction target artifact consumer "
-          "requires provider-derived compare, masked product, and merge "
-          "statement facts before artifact export");
-    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.compareIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.maskedWideningProductIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.maskedMergeIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask widening dot-reduction target artifact consumer "
-          "requires provider-built compare, masked product, and merge "
-          "statements before artifact export");
+  auto validateStridedSourceLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi,
+          const support::RuntimeABIParameter &strideABI,
+          llvm::StringRef resultName, llvm::StringRef stepLabel) -> llvm::Error {
+    const std::string expectedPointer =
+        (llvm::StringRef(abi.cName) + " + (" +
+         description.emitCLoopInductionName + " * " + strideABI.cName + ")")
+            .str();
+    const std::string expectedStrideBytes =
+        (llvm::StringRef(strideABI.cName) + " * 2").str();
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.stridedLoadIntrinsic,
+        {{expectedPointer, abi.cType},
+         {expectedStrideBytes, "ptrdiff_t"},
+         {description.emitCLoopVLName, description.vlCType}},
+        resultName, description.sourceVectorCType);
+  };
+
+  auto validateDotSourceLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi,
+          const support::RuntimeABIParameter *strideABI,
+          llvm::StringRef resultName, llvm::StringRef stepLabel) -> llvm::Error {
+    if (isStrided) {
+      if (!strideABI)
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) +
+            " requires provider-derived stride ABI facts before validating " +
+            stepLabel);
+      return validateStridedSourceLoad(step, abi, *strideABI, resultName,
+                                       stepLabel);
+    }
+    return validateUnitSourceLoad(step, abi, resultName, stepLabel);
+  };
+
+  if (isComputedMask) {
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[1], consumerLabel, "compare lhs vector load",
+            description.vectorLoadIntrinsic,
+            {{(llvm::StringRef(cmpLHSABI->cName) + " + " +
+               description.emitCLoopInductionName)
+                  .str(),
+              cmpLHSABI->cType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "cmp_lhs_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[2], consumerLabel, "compare rhs vector load",
+            description.vectorLoadIntrinsic,
+            {{(llvm::StringRef(cmpRHSABI->cName) + " + " +
+               description.emitCLoopInductionName)
+                  .str(),
+              cmpRHSABI->cType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "cmp_rhs_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[3], consumerLabel, "compare predicate",
+            description.compareIntrinsic,
+            {{"cmp_lhs_vec", description.vectorCType},
+             {"cmp_rhs_vec", description.vectorCType},
+             {description.emitCLoopVLName, description.vlCType}},
+            description.maskName, description.maskCType))
+      return error;
+    if (llvm::Error error =
+            validateDotSourceLoad(loop.bodySteps[4], *dotLHSABI, lhsStrideABI,
+                                  "dot_lhs_vec", "dot lhs source load"))
+      return error;
+    if (llvm::Error error =
+            validateDotSourceLoad(loop.bodySteps[5], *dotRHSABI, rhsStrideABI,
+                                  "dot_rhs_vec", "dot rhs source load"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[6], consumerLabel, "inactive zero scalar splat",
+            description.scalarSeedSplatIntrinsic,
+            {{"0", scalarI32CType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "dot_zero_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "masked widening product",
+            description.maskedWideningProductIntrinsic,
+            {{description.maskName, description.maskCType},
+             {"dot_lhs_vec", description.sourceVectorCType},
+             {"dot_rhs_vec", description.sourceVectorCType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "active_dot_product_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[8], consumerLabel, "inactive-lane merge",
+            description.maskedMergeIntrinsic,
+            {{"dot_zero_vec", description.vectorCType},
+             {"active_dot_product_vec", description.vectorCType},
+             {description.maskName, description.maskCType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "dot_product_vec", description.vectorCType))
+      return error;
   } else {
-    if (description.wideningProductIntrinsic.empty() ||
-        !routeLoopContainsCallee(loop, description.wideningProductIntrinsic))
-      return makeRVVTargetRouteError(
-          "widening dot-reduction target artifact consumer requires "
-          "provider-built widening product statement facts before artifact "
-          "export");
+    if (llvm::Error error =
+            validateDotSourceLoad(loop.bodySteps[1], *lhsABI, lhsStrideABI,
+                                  "lhs_vec", "lhs source load"))
+      return error;
+    if (llvm::Error error =
+            validateDotSourceLoad(loop.bodySteps[2], *rhsABI, rhsStrideABI,
+                                  "rhs_vec", "rhs source load"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[3], consumerLabel, "widening product",
+            description.wideningProductIntrinsic,
+            {{"lhs_vec", description.sourceVectorCType},
+             {"rhs_vec", description.sourceVectorCType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "dot_product_vec", description.vectorCType))
+      return error;
   }
+
+  const std::size_t seedIndex = isComputedMask ? 9 : 4;
+  const std::size_t reductionIndex = isComputedMask ? 10 : 5;
+  const std::size_t storeIndex = isComputedMask ? 11 : 6;
+  const std::string expectedOutLane =
+      (llvm::StringRef(outABI->cName) + "[0]").str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[seedIndex], consumerLabel, "loop scalar seed splat",
+          description.scalarSeedSplatIntrinsic,
+          {{expectedOutLane, scalarI32CType},
+           {description.reductionStoreVL, description.vlCType}},
+          "dot_acc_vec", description.vectorCType))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[reductionIndex], consumerLabel,
+          "widening dot reduction", description.intrinsic,
+          {{"dot_product_vec", description.vectorCType},
+           {"dot_acc_vec", description.vectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.resultName, description.vectorCType))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[storeIndex], consumerLabel, "output store",
+          description.storeIntrinsic,
+          {{outABI->cName, outABI->cType},
+           {description.resultName, description.vectorCType},
+           {description.reductionStoreVL, description.vlCType}}))
+    return error;
 
   return llvm::Error::success();
 }

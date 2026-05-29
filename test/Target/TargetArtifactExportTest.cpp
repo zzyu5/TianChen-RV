@@ -1811,6 +1811,50 @@ cloneRVVEmitCLowerableRouteWithCallOperand(
 }
 
 tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithCallResult(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t stepIndex, llvm::StringRef resultName,
+    llvm::StringRef resultCType = {}) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    cloned.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    cloned.addTypeMapping(mapping.sourceType, mapping.cType);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping
+           &mapping : route.getABIMappings())
+    cloned.addABIValueMapping(mapping.parameter, mapping.valueName);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCFunctionDeclaration
+           &declaration : route.getFunctionDeclarations()) {
+    llvm::SmallVector<llvm::StringRef, 4> parameterCTypes;
+    for (const std::string &parameterCType : declaration.parameterCTypes)
+      parameterCTypes.push_back(parameterCType);
+    cloned.addFunctionDeclaration(declaration.name, declaration.resultCType,
+                                  parameterCTypes);
+  }
+  for (const tianchenrv::conversion::emitc::TCRVEmitCSourceOpProvenance
+           &provenance : route.getSourceOpProvenance())
+    cloned.addSourceOpProvenance(provenance);
+  for (std::size_t currentStep = 0;
+       currentStep < route.getCallOpaqueSteps().size(); ++currentStep) {
+    tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep step =
+        route.getCallOpaqueSteps()[currentStep];
+    if (currentStep == stepIndex && step.result) {
+      step.result->name = resultName.str();
+      if (!resultCType.empty())
+        step.result->cType = resultCType.str();
+    }
+    cloned.addCallOpaqueStep(std::move(step));
+  }
+  for (const tianchenrv::conversion::emitc::TCRVEmitCForLoop &loop :
+       route.getForLoops())
+    cloned.addForLoop(loop);
+  return cloned;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
 cloneRVVEmitCLowerableRouteWithLoopResult(
     const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
     std::size_t loopIndex, std::size_t stepIndex, llvm::StringRef resultName,
@@ -4942,6 +4986,20 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+  auto expectWideningDotRouteFailure =
+      [&](const TargetArtifactCandidate &candidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          const RVVRouteDescription &description,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{candidate, mutatedRoute,
+                                             description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
 
   RVVRouteDescription staleWideningDotProviderSupport =
       wideningDotDescription;
@@ -5119,6 +5177,283 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask widening-dot registry rejects stale non-dot provider "
           "facts",
           {"stale", "non-widening-dot route-family facts"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotPreLoopSetVL =
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              wideningDotRoute, /*stepIndex=*/0, /*operandIndex=*/0,
+              "metadata_n");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotPreLoopSetVL,
+          wideningDotDescription,
+          "widening-dot registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl operand[0]", "n", "metadata_n"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotPreLoopSeedOperand =
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              wideningDotRoute, /*stepIndex=*/1, /*operandIndex=*/0,
+              "acc[1]");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotPreLoopSeedOperand,
+          wideningDotDescription,
+          "widening-dot registry rejects stale pre-loop seed operand",
+          {"pre-loop scalar seed splat operand[0]", "acc[0]", "acc[1]"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotPreLoopSeedResult =
+          cloneRVVEmitCLowerableRouteWithCallResult(
+              wideningDotRoute, /*stepIndex=*/1, "metadata_initial_acc_vec");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotPreLoopSeedResult,
+          wideningDotDescription,
+          "widening-dot registry rejects stale pre-loop seed result",
+          {"pre-loop scalar seed splat result", "dot_initial_acc_vec",
+           "metadata_initial_acc_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotPreLoopStorePointer =
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              wideningDotRoute, /*stepIndex=*/2, /*operandIndex=*/0,
+              "out + offset");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotPreLoopStorePointer,
+          wideningDotDescription,
+          "widening-dot registry rejects stale pre-loop store pointer",
+          {"pre-loop initial output store operand[0]", "out",
+           "out + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotLoopSetVL =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "metadata_remaining_avl");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotLoopSetVL,
+          wideningDotDescription,
+          "widening-dot registry rejects stale loop setvl remaining AVL",
+          {"loop setvl operand[0]", "n - offset",
+           "metadata_remaining_avl"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotLHSLoadPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "rhs + offset");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotLHSLoadPointer,
+          wideningDotDescription,
+          "widening-dot registry rejects stale lhs source pointer",
+          {"lhs source load operand[0]", "lhs + offset", "rhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotRHSLoadPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "lhs + offset");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotRHSLoadPointer,
+          wideningDotDescription,
+          "widening-dot registry rejects stale rhs source pointer",
+          {"rhs source load operand[0]", "rhs + offset", "lhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotProductOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/1, "lhs_vec");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotProductOperand,
+          wideningDotDescription,
+          "widening-dot registry rejects stale widening product operand",
+          {"widening product operand[1]", "rhs_vec", "lhs_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotSeedOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/0, "acc[0]");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotSeedOperand,
+          wideningDotDescription,
+          "widening-dot registry rejects stale loop seed operand",
+          {"loop scalar seed splat operand[0]", "out[0]", "acc[0]"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotReductionOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/0, "lhs_vec");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotReductionOperand,
+          wideningDotDescription,
+          "widening-dot registry rejects stale reduction operand",
+          {"widening dot reduction operand[0]", "dot_product_vec",
+           "lhs_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotReductionResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              "metadata_dot_sum");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotReductionResult,
+          wideningDotDescription,
+          "widening-dot registry rejects stale reduction result",
+          {"widening dot reduction result", wideningDotDescription.resultName,
+           "metadata_dot_sum"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotStorePointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/6,
+              /*operandIndex=*/0, "out + offset");
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotStorePointer,
+          wideningDotDescription,
+          "widening-dot registry rejects stale output store pointer",
+          {"output store operand[0]", "out", "out + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningDotStoreVL =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/6,
+              /*operandIndex=*/2, wideningDotDescription.emitCLoopVLName);
+  if (!expectWideningDotRouteFailure(
+          wideningDotFixture.candidate, staleWideningDotStoreVL,
+          wideningDotDescription,
+          "widening-dot registry rejects stale output store VL",
+          {"output store operand[2]", "1",
+           wideningDotDescription.emitCLoopVLName}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleStridedWideningDotLHSStride =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              stridedWideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/1, "metadata_lhs_stride_bytes");
+  if (!expectWideningDotRouteFailure(
+          stridedWideningDotFixture.candidate,
+          staleStridedWideningDotLHSStride, stridedWideningDotDescription,
+          "strided widening-dot registry rejects stale lhs stride operand",
+          {"lhs source load operand[1]", "lhs_stride * 2",
+           "metadata_lhs_stride_bytes"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleStridedWideningDotRHSStridePointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              stridedWideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "rhs + offset");
+  if (!expectWideningDotRouteFailure(
+          stridedWideningDotFixture.candidate,
+          staleStridedWideningDotRHSStridePointer,
+          stridedWideningDotDescription,
+          "strided widening-dot registry rejects stale rhs strided pointer",
+          {"rhs source load operand[0]", "rhs + (offset * rhs_stride)",
+           "rhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskDotComparePointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskWideningDotRoute, /*loopIndex=*/0,
+              /*stepIndex=*/1, /*operandIndex=*/0, "cmp_rhs + offset");
+  if (!expectWideningDotRouteFailure(
+          computedMaskWideningDotFixture.candidate,
+          staleComputedMaskDotComparePointer,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale compare lhs "
+          "pointer",
+          {"compare lhs vector load operand[0]", "cmp_lhs + offset",
+           "cmp_rhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskDotMaskResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              computedMaskWideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              "metadata_dot_mask");
+  if (!expectWideningDotRouteFailure(
+          computedMaskWideningDotFixture.candidate,
+          staleComputedMaskDotMaskResult, computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale mask result",
+          {"compare predicate result",
+           computedMaskWideningDotDescription.maskName,
+           "metadata_dot_mask"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskDotMaskedProductOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskWideningDotRoute, /*loopIndex=*/0,
+              /*stepIndex=*/7, /*operandIndex=*/0, "metadata_dot_mask");
+  if (!expectWideningDotRouteFailure(
+          computedMaskWideningDotFixture.candidate,
+          staleComputedMaskDotMaskedProductOperand,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale masked product "
+          "mask operand",
+          {"masked widening product operand[0]",
+           computedMaskWideningDotDescription.maskName,
+           "metadata_dot_mask"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskDotMergeResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              computedMaskWideningDotRoute, /*loopIndex=*/0, /*stepIndex=*/8,
+              "metadata_dot_product_vec");
+  if (!expectWideningDotRouteFailure(
+          computedMaskWideningDotFixture.candidate,
+          staleComputedMaskDotMergeResult, computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale merge result",
+          {"inactive-lane merge result", "dot_product_vec",
+           "metadata_dot_product_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskStridedDotStrideOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskStridedWideningDotRoute, /*loopIndex=*/0,
+              /*stepIndex=*/4, /*operandIndex=*/1,
+              "metadata_lhs_stride_bytes");
+  if (!expectWideningDotRouteFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          staleComputedMaskStridedDotStrideOperand,
+          computedMaskStridedWideningDotDescription,
+          "computed-mask strided widening-dot registry rejects stale dot lhs "
+          "stride operand",
+          {"dot lhs source load operand[1]", "lhs_stride * 2",
+           "metadata_lhs_stride_bytes"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleComputedMaskStridedDotRHSPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskStridedWideningDotRoute, /*loopIndex=*/0,
+              /*stepIndex=*/5, /*operandIndex=*/0, "rhs + offset");
+  if (!expectWideningDotRouteFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          staleComputedMaskStridedDotRHSPointer,
+          computedMaskStridedWideningDotDescription,
+          "computed-mask strided widening-dot registry rejects stale dot rhs "
+          "strided pointer",
+          {"dot rhs source load operand[0]",
+           "rhs + (offset * rhs_stride)", "rhs + offset"}))
     return false;
 
   TargetArtifactCandidate missingWideningDotProviderMirror =

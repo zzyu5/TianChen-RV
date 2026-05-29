@@ -61,6 +61,83 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 315: Stage2 RVV widening dot-reduction artifact ABI statement-plan closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV widening dot-reduction artifact ABI statement-plan closure
+**Branch**: `main`
+
+### Summary
+
+Closed widening dot-reduction target artifact ABI statement-plan validation by
+making the production validator consume exact rebuilt provider route statement
+operands/results for plain, strided-input, computed-mask, and computed-mask
+strided-input dot-reduction routes, with focused route-clone fail-closed
+coverage, generated-bundle evidence, real `ssh rvv` correctness, and
+check-tianchenrv 459/459.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so the
+  widening dot-reduction consumer validates pre-loop setvl, accumulator seed
+  splat, initial output store, loop bounds, loop setvl remaining AVL, unit and
+  strided i16 source loads, compare/mask construction, masked product, merge,
+  widening product, scalar seed, reduction, output store, result names, C
+  types, runtime ABI order/roles, store VL `1`, and selected typed RVV
+  provenance from the rebuilt provider route.
+- Added `test/Target/TargetArtifactExportTest.cpp` route-clone mutations
+  proving fail-closed behavior for stale statement operands/results across
+  unit, strided, computed-mask, and computed-mask-strided widening dot cases,
+  plus existing stale provider and candidate mirror checks.
+- Created and completed Trellis task
+  `.trellis/tasks/05-29-05-29-stage2-rvv-widening-dot-reduction-artifact-abi-statement-plan-closure`
+  from the Hermes direction brief.
+- Evidence: target artifact export test passed; selected-boundary
+  generated-bundle dry-run passed for all four widening dot subfamilies; direct
+  pre-realized route-entry failed closed for all four; `ssh rvv`
+  generated-bundle correctness passed for all four over counts `0,1,16,17,257`
+  with signed i16 products, seed accumulation, scalar output/tail preservation,
+  strided source patterns, and computed-mask patterns; vector reduce_add and
+  standalone add/min/max non-regression dry-run passed; production added-line
+  authority scan found no new metadata/route-id/descriptor/exact-intrinsic
+  authority; git diff --check passed; check-tianchenrv passed 459/459.
+- Spec update judgment: no spec change was needed because existing RVV plugin,
+  EmitC route, emission runtime, and testing specs already encode the
+  provider-derived target validator, mirror-only metadata, selected-boundary,
+  and ssh RVV evidence contracts used here.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] pre-realized selected-boundary generated-bundle dry-run for all four
+  widening dot-reduction subfamilies, counts `0,1,16,17,257`
+- [OK] direct pre-realized route-entry failed closed for all four widening dot
+  subfamilies
+- [OK] `ssh rvv` generated-bundle correctness for all four widening dot
+  subfamilies, counts `0,1,16,17,257`
+- [OK] vector `reduce_add` and standalone add/min/max generated-bundle
+  dry-run non-regression
+- [OK] bounded touched-file authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (459/459)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 314: Stage2 RVV vector reduction artifact ABI statement-plan closure
 
 **Date**: 2026-05-29
