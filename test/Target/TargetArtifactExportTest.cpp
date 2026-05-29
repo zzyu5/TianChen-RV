@@ -2158,6 +2158,599 @@ cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
   return cloned;
 }
 
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithLoopUpperBound(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t loopIndex, llvm::StringRef expression,
+    llvm::StringRef cType = {}) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  copyRVVEmitCLowerableRouteWithoutLoops(route, cloned);
+  for (std::size_t currentLoop = 0; currentLoop < route.getForLoops().size();
+       ++currentLoop) {
+    tianchenrv::conversion::emitc::TCRVEmitCForLoop loop =
+        route.getForLoops()[currentLoop];
+    if (currentLoop == loopIndex) {
+      loop.upperBound.expression = expression.str();
+      if (!cType.empty())
+        loop.upperBound.cType = cType.str();
+    }
+    cloned.addForLoop(loop);
+  }
+  return cloned;
+}
+
+using RVVManualRouteDescription =
+    tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+using RVVManualOperationKind =
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+using RVVManualMemoryForm = tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+
+RuntimeABIParameter makeRVVManualRuntimeABIParameter(
+    llvm::StringRef cName, llvm::StringRef cType,
+    RuntimeABIParameterRole role) {
+  return RuntimeABIParameter(cName, cType, role,
+                             RuntimeABIParameterOwnership::TargetExportABIOwned);
+}
+
+void addRVVManualRuntimeABIParameter(RVVManualRouteDescription &description,
+                                     llvm::StringRef cName,
+                                     llvm::StringRef cType,
+                                     RuntimeABIParameterRole role) {
+  description.runtimeABIParameters.push_back(
+      makeRVVManualRuntimeABIParameter(cName, cType, role));
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep makeRVVManualRouteStep(
+    llvm::StringRef callee,
+    std::initializer_list<tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand>
+        operands,
+    llvm::StringRef resultName = {}, llvm::StringRef resultCType = {},
+    llvm::StringRef role = "compute") {
+  tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = {"tcrv_rvv.manual_target_artifact_test", role.str(),
+                   tianchenrv::plugin::rvv::
+                       getRVVEmitCLowerableOpInterfaceName()
+                           .str()};
+  step.callee = callee.str();
+  for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand &operand :
+       operands)
+    step.operands.push_back(operand);
+  if (!resultName.empty())
+    step.result = {resultName.str(), resultCType.str()};
+  return step;
+}
+
+void addRVVManualRouteCommonFacts(
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const RVVManualRouteDescription &description) {
+  route.addHeader("stddef.h");
+  route.addHeader("stdint.h");
+  route.addHeader("riscv_vector.h");
+  route.addTypeMapping("!tcrv_rvv.vl", description.vlCType);
+  route.addTypeMapping(description.vectorTypeName, description.vectorCType);
+  route.addTypeMapping(description.maskTypeName, description.maskCType);
+  if (!description.indexVectorTypeName.empty())
+    route.addTypeMapping(description.indexVectorTypeName,
+                         description.indexVectorCType);
+  for (const RuntimeABIParameter &parameter : description.runtimeABIParameters)
+    route.addABIValueMapping(parameter, parameter.cName);
+}
+
+TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
+    const RVVManualRouteDescription &description) {
+  TargetArtifactCandidate candidate;
+  auto add = [&](llvm::StringRef key, llvm::StringRef value) {
+    if (!value.empty())
+      candidate.artifactMetadata.emplace_back(key, value);
+  };
+  add("tcrv_rvv.compare_predicate_kind", description.comparePredicateKind);
+  add("tcrv_rvv.route_operand_binding_plan",
+      description.routeOperandBindingPlanID);
+  add("tcrv_rvv.route_operand_binding_operands",
+      description.routeOperandBindingSummary);
+  add("tcrv_rvv.provider_supported_mirror",
+      description.providerSupportedMirror);
+  add("tcrv_rvv.target_leaf_profile", description.targetLeafProfile);
+  add("tcrv_rvv.plain_compare_select_route_family_plan",
+      description.plainCompareSelectRouteFamilyPlanID);
+  add("tcrv_rvv.computed_mask_select_route_family_plan",
+      description.computedMaskSelectRouteFamilyPlanID);
+  add("tcrv_rvv.computed_mask_select_mask_producer_source",
+      description.computedMaskSelectMaskProducerSource);
+  add("tcrv_rvv.computed_mask_memory_route_family_plan",
+      description.computedMaskMemoryRouteFamilyPlanID);
+  add("tcrv_rvv.computed_mask_memory_mask_producer_source",
+      description.computedMaskMemoryMaskProducerSource);
+  add("tcrv_rvv.mask_tail_policy_route_family_plan",
+      description.maskTailPolicyRouteFamilyPlanID);
+  add("tcrv_rvv.mask_tail_policy_owner", description.maskTailPolicyOwner);
+  add("tcrv_rvv.memory_form",
+      tianchenrv::plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+          description.memoryForm));
+  add("tcrv_rvv.runtime_control_plan", description.runtimeControlPlanID);
+  add("tcrv_rvv.runtime_abi_order", description.runtimeABIOrder);
+  add("tcrv_rvv.required_header_declarations",
+      description.requiredHeaderDeclarations);
+  add("tcrv_rvv.c_type_mapping", description.cTypeMappingSummary);
+  add("tcrv_rvv.mask_role", description.maskRole);
+  add("tcrv_rvv.mask_source", description.maskSource);
+  add("tcrv_rvv.mask_memory_form", description.maskMemoryForm);
+  add("tcrv_rvv.source_memory_form", description.sourceMemoryForm);
+  add("tcrv_rvv.destination_memory_form",
+      description.destinationMemoryForm);
+  add("tcrv_rvv.select_layout", description.selectLayout);
+  add("tcrv_rvv.secondary_compare_predicate_kind",
+      description.secondaryComparePredicateKind);
+  add("tcrv_rvv.mask_composition", description.maskComposition);
+  add("tcrv_rvv.inactive_lane_contract", description.inactiveLaneContract);
+  add("tcrv_rvv.masked_passthrough_layout",
+      description.maskedPassthroughLayout);
+  add("tcrv_rvv.masked_memory_layout", description.indexedMemoryLayout);
+  add("tcrv_rvv.strided_memory_layout", description.stridedMemoryLayout);
+  add("tcrv_rvv.source_stride_source", description.sourceStrideSource);
+  add("tcrv_rvv.destination_stride_source", description.outStrideSource);
+  if (description.operation ==
+          RVVManualOperationKind::ComputedMaskIndexedGatherLoadUnitStore ||
+      description.operation ==
+          RVVManualOperationKind::ComputedMaskIndexedScatterStoreUnitLoad) {
+    add("tcrv_rvv.indexed_memory_layout", description.indexedMemoryLayout);
+    add("tcrv_rvv.index_source", description.indexSource);
+    candidate.artifactMetadata.emplace_back(
+        "tcrv_rvv.index_eew", llvm::Twine(description.indexEEW).str());
+    add("tcrv_rvv.offset_unit", description.offsetUnit);
+    add("tcrv_rvv.indexed_data_memory_form",
+        description.indexedDataMemoryForm);
+    add("tcrv_rvv.indexed_destination_memory_form",
+        description.indexedDestinationMemoryForm);
+  }
+  return candidate;
+}
+
+RVVManualRouteDescription makeRVVManualDualCompareSelectDescription() {
+  RVVManualRouteDescription description;
+  description.operation =
+      RVVManualOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+  description.memoryForm =
+      RVVManualMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
+  description.elementTypeName = "i32";
+  description.sew = 32;
+  description.lmul = "m1";
+  description.tailPolicy = "agnostic";
+  description.maskPolicy = "agnostic";
+  description.emitCRouteID = "manual-dual-compare-select-route";
+  description.providerSupportedMirror =
+      "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated";
+  description.targetLeafProfile =
+      "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1";
+  description.routeOperandBindingPlanID =
+      "rvv-runtime-scalar-dual-compare-mask-and-select-operand-binding-plan.v1";
+  description.routeOperandBindingSummary =
+      "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n";
+  description.runtimeControlPlanID =
+      "rvv-runtime-avl-vl-control-plan.v1";
+  description.runtimeABIOrder =
+      "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n";
+  description.computedMaskSelectRouteFamilyPlanID =
+      "rvv-computed-mask-select-route-family-plan.v1";
+  description.computedMaskSelectMaskProducerSource =
+      "dual-runtime-scalar-splat-compare-rhs-mask-and";
+  description.maskTailPolicyRouteFamilyPlanID =
+      "rvv-mask-tail-policy-route-family-plan.v1";
+  description.maskTailPolicyOwner = "computed-mask select mask/tail policy";
+  description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
+  description.cTypeMappingSummary =
+      "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector";
+  description.vlCType = "size_t";
+  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
+  description.vectorCType = "vint32m1_t";
+  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
+  description.maskCType = "vbool32_t";
+  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
+  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  description.rhsBroadcastIntrinsic = "__riscv_vmv_v_x_i32m1";
+  description.storeIntrinsic = "__riscv_vse32_v_i32m1";
+  description.intrinsic = "__riscv_vmerge_vvm_i32m1";
+  description.comparePredicateKind = "sle";
+  description.compareIntrinsic = "__riscv_vmsle_vv_i32m1_b32";
+  description.secondaryComparePredicateKind = "sle";
+  description.secondaryCompareIntrinsic = "__riscv_vmsle_vv_i32m1_b32";
+  description.maskAndIntrinsic = "__riscv_vmand_mm_b32";
+  description.resultName = "runtime_scalar_mask_and_selected_vec";
+  description.maskName = "runtime_scalar_dual_cmp_mask_and_select_mask";
+  description.maskRole = "predicate-mask-produced-by-mask-and";
+  description.maskSource =
+      "mask-and-of-two-runtime-scalar-compare-produced-masks";
+  description.maskMemoryForm = "composed-compare-produced-mask";
+  description.maskComposition = "and";
+  description.selectLayout =
+      "select-true-value-when-mask-else-false-value";
+  description.sourceMemoryForm = "unit-stride-load";
+  description.destinationMemoryForm = "unit-stride-store";
+  description.emitCLoopInductionName = "i";
+  description.emitCFullChunkVLName = "vl_full";
+  description.emitCLoopVLName = "vl";
+  addRVVManualRuntimeABIParameter(description, "cmp_lhs_a", "const int32_t *",
+                                  RuntimeABIParameterRole::LHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "rhs_scalar_a", "int32_t",
+                                  RuntimeABIParameterRole::RHSScalarValue);
+  addRVVManualRuntimeABIParameter(description, "cmp_lhs_b", "const int32_t *",
+                                  RuntimeABIParameterRole::RHSInputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "rhs_scalar_b", "int32_t",
+      RuntimeABIParameterRole::RHSSecondaryScalarValue);
+  addRVVManualRuntimeABIParameter(
+      description, "true_value", "const int32_t *",
+      RuntimeABIParameterRole::TrueValueInputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "false_value", "const int32_t *",
+      RuntimeABIParameterRole::FalseValueInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "out", "int32_t *",
+                                  RuntimeABIParameterRole::OutputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "n", "size_t",
+      RuntimeABIParameterRole::RuntimeElementCount);
+  return description;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualDualCompareSelectRoute(
+    const RVVManualRouteDescription &description) {
+  using Operand = tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  route.addCallOpaqueStep(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n", "size_t"}},
+      description.emitCFullChunkVLName, description.vlCType, "configure"));
+  tianchenrv::conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = description.emitCLoopInductionName.str();
+  loop.lowerBound = {"0", description.vlCType.str()};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {description.emitCFullChunkVLName.str(),
+               description.vlCType.str()};
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.emitCLoopVLName, description.vlCType, "configure"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"cmp_lhs_a + i", "const int32_t *"},
+       Operand{"vl", "size_t"}},
+      "lhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.rhsBroadcastIntrinsic,
+      {Operand{"rhs_scalar_a", "int32_t"}, Operand{"vl", "size_t"}},
+      "rhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"cmp_lhs_b + i", "const int32_t *"},
+       Operand{"vl", "size_t"}},
+      "cmp_lhs_b_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.rhsBroadcastIntrinsic,
+      {Operand{"rhs_scalar_b", "int32_t"}, Operand{"vl", "size_t"}},
+      "rhs_b_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"true_value + i", "const int32_t *"},
+       Operand{"vl", "size_t"}},
+      "true_value_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"false_value + i", "const int32_t *"},
+       Operand{"vl", "size_t"}},
+      "false_value_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.compareIntrinsic,
+      {Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{"rhs_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      "mask_a", description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.secondaryCompareIntrinsic,
+      {Operand{"cmp_lhs_b_vec", description.vectorCType.str()},
+       Operand{"rhs_b_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      "mask_b", description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.maskAndIntrinsic,
+      {Operand{"mask_a", description.maskCType.str()},
+       Operand{"mask_b", description.maskCType.str()},
+       Operand{"vl", "size_t"}},
+      description.maskName, description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.intrinsic,
+      {Operand{"false_value_vec", description.vectorCType.str()},
+       Operand{"true_value_vec", description.vectorCType.str()},
+       Operand{description.maskName.str(), description.maskCType.str()},
+       Operand{"vl", "size_t"}},
+      description.resultName, description.vectorCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.storeIntrinsic,
+      {Operand{"out + i", "int32_t *"},
+       Operand{description.resultName.str(), description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      {}, {}, "store"));
+  route.addForLoop(loop);
+  return route;
+}
+
+RVVManualRouteDescription makeRVVManualIndexedGatherDescription() {
+  RVVManualRouteDescription description;
+  description.operation =
+      RVVManualOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+  description.memoryForm =
+      RVVManualMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  description.elementTypeName = "i32";
+  description.sew = 32;
+  description.lmul = "m1";
+  description.tailPolicy = "agnostic";
+  description.maskPolicy = "agnostic";
+  description.emitCRouteID = "manual-computed-mask-indexed-gather-route";
+  description.providerSupportedMirror =
+      "provider_supported_mirror:rvv-computed-mask-indexed-gather-load-plan-validated";
+  description.targetLeafProfile =
+      "rvv-v1-e32m1-computed-mask-indexed-gather-load-leaf-profile.v1";
+  description.routeOperandBindingPlanID =
+      "rvv-computed-mask-indexed-gather-operand-binding-plan.v1";
+  description.routeOperandBindingSummary = "cmp_lhs,cmp_rhs,src,index,dst,n";
+  description.runtimeControlPlanID =
+      "rvv-runtime-avl-vl-control-plan.v1";
+  description.runtimeABIOrder = "cmp_lhs,cmp_rhs,src,index,dst,n";
+  description.computedMaskMemoryRouteFamilyPlanID =
+      "rvv-computed-mask-memory-route-family-plan.v1";
+  description.computedMaskMemoryMaskProducerSource =
+      "vector-compare-rhs-load";
+  description.maskTailPolicyRouteFamilyPlanID =
+      "rvv-mask-tail-policy-route-family-plan.v1";
+  description.maskTailPolicyOwner = "computed-mask memory mask/tail policy";
+  description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
+  description.cTypeMappingSummary =
+      "vl:size_t,compare/source/index/passthrough:signed-e32m1,mask:b32,result:masked-indexed-load-store";
+  description.vlCType = "size_t";
+  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
+  description.vectorCType = "vint32m1_t";
+  description.indexVectorTypeName = "!tcrv_rvv.index_vector<i32, \"m1\">";
+  description.indexVectorCType = "vuint32m1_t";
+  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
+  description.maskCType = "vbool32_t";
+  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
+  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  description.indexLoadIntrinsic = "__riscv_vle32_v_u32m1";
+  description.indexScaleIntrinsic = "__riscv_vmul_vx_u32m1";
+  description.maskedLoadIntrinsic = "__riscv_vluxei32_v_i32m1_tumu";
+  description.storeIntrinsic = "__riscv_vse32_v_i32m1";
+  description.comparePredicateKind = "slt";
+  description.compareIntrinsic = "__riscv_vmslt_vv_i32m1_b32";
+  description.resultName = "computed_masked_indexed_loaded_vec";
+  description.maskName = "computed_indexed_load_mask";
+  description.maskRole = "predicate-mask-produced-by-compare";
+  description.maskSource = "compare-produced-mask-same-vl-scope";
+  description.maskMemoryForm = "compare-produced-mask";
+  description.inactiveLaneContract =
+      "masked-off-lanes-preserve-old-destination";
+  description.maskedPassthroughLayout =
+      "old-destination-vector-preserves-inactive-lanes";
+  description.indexedMemoryLayout =
+      "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi";
+  description.sourceMemoryForm = "masked-indexed-load";
+  description.destinationMemoryForm = "unit-stride-store";
+  description.emitCLoopInductionName = "i";
+  description.emitCFullChunkVLName = "vl_full";
+  description.emitCLoopVLName = "vl";
+  description.indexEEW = 32;
+  description.offsetUnit = "element";
+  description.indexSource = "runtime_abi:index";
+  description.indexedDataMemoryForm = "masked-indexed-load";
+  addRVVManualRuntimeABIParameter(description, "cmp_lhs", "const int32_t *",
+                                  RuntimeABIParameterRole::LHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "cmp_rhs", "const int32_t *",
+                                  RuntimeABIParameterRole::RHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "src", "const int32_t *",
+                                  RuntimeABIParameterRole::SourceInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "index", "const uint32_t *",
+                                  RuntimeABIParameterRole::IndexInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "dst", "int32_t *",
+                                  RuntimeABIParameterRole::OutputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "n", "size_t",
+      RuntimeABIParameterRole::RuntimeElementCount);
+  return description;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualIndexedGatherRoute(
+    const RVVManualRouteDescription &description) {
+  using Operand = tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  route.addCallOpaqueStep(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n", "size_t"}},
+      description.emitCFullChunkVLName, description.vlCType, "configure"));
+  tianchenrv::conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = description.emitCLoopInductionName.str();
+  loop.lowerBound = {"0", description.vlCType.str()};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {description.emitCFullChunkVLName.str(),
+               description.vlCType.str()};
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.emitCLoopVLName, description.vlCType, "configure"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"cmp_lhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "lhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.indexLoadIntrinsic,
+      {Operand{"index + i", "const uint32_t *"}, Operand{"vl", "size_t"}},
+      "index_vec", description.indexVectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.indexScaleIntrinsic,
+      {Operand{"index_vec", description.indexVectorCType.str()},
+       Operand{"4", "uint32_t"}, Operand{"vl", "size_t"}},
+      "byte_offsets", description.indexVectorCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"cmp_rhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "rhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"dst + i", "int32_t *"}, Operand{"vl", "size_t"}},
+      "old_dst_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.compareIntrinsic,
+      {Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{"rhs_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      description.maskName, description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.maskedLoadIntrinsic,
+      {Operand{description.maskName.str(), description.maskCType.str()},
+       Operand{"old_dst_vec", description.vectorCType.str()},
+       Operand{"src", "const int32_t *"},
+       Operand{"byte_offsets", description.indexVectorCType.str()},
+       Operand{"vl", "size_t"}},
+      description.resultName, description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.storeIntrinsic,
+      {Operand{"dst + i", "int32_t *"},
+       Operand{description.resultName.str(), description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      {}, {}, "store"));
+  route.addForLoop(loop);
+  return route;
+}
+
+RVVManualRouteDescription makeRVVManualStridedStoreDescription() {
+  RVVManualRouteDescription description;
+  description.operation = RVVManualOperationKind::ComputedMaskStridedStore;
+  description.memoryForm =
+      RVVManualMemoryForm::ComputedMaskUnitLoadStridedStore;
+  description.elementTypeName = "i32";
+  description.sew = 32;
+  description.lmul = "m1";
+  description.tailPolicy = "agnostic";
+  description.maskPolicy = "agnostic";
+  description.emitCRouteID = "manual-computed-mask-strided-store-route";
+  description.providerSupportedMirror =
+      "provider_supported_mirror:rvv-computed-mask-strided-store-plan-validated";
+  description.targetLeafProfile =
+      "rvv-v1-e32m1-computed-mask-strided-store-leaf-profile.v1";
+  description.routeOperandBindingPlanID =
+      "rvv-computed-mask-strided-store-operand-binding-plan.v1";
+  description.routeOperandBindingSummary =
+      "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes";
+  description.runtimeControlPlanID =
+      "rvv-runtime-avl-vl-control-plan.v1";
+  description.runtimeABIOrder =
+      "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes";
+  description.computedMaskMemoryRouteFamilyPlanID =
+      "rvv-computed-mask-memory-route-family-plan.v1";
+  description.computedMaskMemoryMaskProducerSource =
+      "vector-compare-rhs-load";
+  description.maskTailPolicyRouteFamilyPlanID =
+      "rvv-mask-tail-policy-route-family-plan.v1";
+  description.maskTailPolicyOwner = "computed-mask memory mask/tail policy";
+  description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
+  description.cTypeMappingSummary =
+      "vl:size_t,compare/source:signed-e32m1,mask:b32,dst:masked-strided-store";
+  description.vlCType = "size_t";
+  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
+  description.vectorCType = "vint32m1_t";
+  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
+  description.maskCType = "vbool32_t";
+  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
+  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  description.stridedStoreIntrinsic = "__riscv_vsse32_v_i32m1_m";
+  description.comparePredicateKind = "slt";
+  description.compareIntrinsic = "__riscv_vmslt_vv_i32m1_b32";
+  description.resultName = "computed_masked_strided_store_written";
+  description.maskName = "computed_strided_store_mask";
+  description.maskRole = "predicate-mask-produced-by-compare";
+  description.maskSource = "compare-produced-mask-same-vl-scope";
+  description.maskMemoryForm = "compare-produced-mask";
+  description.inactiveLaneContract =
+      "masked-strided-store-false-lanes-preserve-output-buffer";
+  description.maskedPassthroughLayout =
+      "masked-strided-store-has-no-passthrough-load";
+  description.indexedMemoryLayout =
+      "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi";
+  description.stridedMemoryLayout =
+      "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi";
+  description.sourceMemoryForm = "unit-stride-load";
+  description.destinationMemoryForm = "masked-strided-store";
+  description.outStrideSource = "runtime_abi:dst_stride_bytes";
+  description.emitCLoopInductionName = "i";
+  description.emitCFullChunkVLName = "vl_full";
+  description.emitCLoopVLName = "vl";
+  addRVVManualRuntimeABIParameter(description, "cmp_lhs", "const int32_t *",
+                                  RuntimeABIParameterRole::LHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "cmp_rhs", "const int32_t *",
+                                  RuntimeABIParameterRole::RHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "src", "const int32_t *",
+                                  RuntimeABIParameterRole::SourceInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "dst", "int32_t *",
+                                  RuntimeABIParameterRole::OutputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "n", "size_t",
+      RuntimeABIParameterRole::RuntimeElementCount);
+  addRVVManualRuntimeABIParameter(
+      description, "dst_stride_bytes", "size_t",
+      RuntimeABIParameterRole::DestinationByteStride);
+  return description;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualStridedStoreRoute(
+    const RVVManualRouteDescription &description) {
+  using Operand = tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  route.addCallOpaqueStep(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n", "size_t"}},
+      description.emitCFullChunkVLName, description.vlCType, "configure"));
+  tianchenrv::conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = description.emitCLoopInductionName.str();
+  loop.lowerBound = {"0", description.vlCType.str()};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {description.emitCFullChunkVLName.str(),
+               description.vlCType.str()};
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.emitCLoopVLName, description.vlCType, "configure"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"cmp_lhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "lhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"cmp_rhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "rhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"src + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "source_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.compareIntrinsic,
+      {Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{"rhs_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      description.maskName, description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.stridedStoreIntrinsic,
+      {Operand{description.maskName.str(), description.maskCType.str()},
+       Operand{"(int32_t *)((uint8_t *)dst + (i * dst_stride_bytes))",
+               "int32_t *"},
+       Operand{"dst_stride_bytes", "ptrdiff_t"},
+       Operand{"source_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      {}, {}, "store"));
+  route.addForLoop(loop);
+  return route;
+}
+
 bool expectRVVTargetArtifactExporterShape(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
   const tianchenrv::plugin::rvv::RVVConstructionManifest &manifest =
@@ -8571,6 +9164,512 @@ bool expectRVVTargetArtifactExporterShape(
           "RVV route-family registry rejects unowned candidate mirrors",
           {"no target artifact route-family validator", "scalar_broadcast_sub",
            "candidate metadata mirrors"}))
+    return false;
+
+  RVVRouteDescription manualDualDescription =
+      makeRVVManualDualCompareSelectDescription();
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute manualDualRoute =
+      makeRVVManualDualCompareSelectRoute(manualDualDescription);
+  TargetArtifactCandidate manualDualCandidate =
+      makeRVVManualTargetArtifactCandidate(manualDualDescription);
+  RVVRouteDescription manualIndexedDescription =
+      makeRVVManualIndexedGatherDescription();
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute manualIndexedRoute =
+      makeRVVManualIndexedGatherRoute(manualIndexedDescription);
+  TargetArtifactCandidate manualIndexedCandidate =
+      makeRVVManualTargetArtifactCandidate(manualIndexedDescription);
+  RVVRouteDescription manualStridedStoreDescription =
+      makeRVVManualStridedStoreDescription();
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      manualStridedStoreRoute =
+          makeRVVManualStridedStoreRoute(manualStridedStoreDescription);
+  TargetArtifactCandidate manualStridedStoreCandidate =
+      makeRVVManualTargetArtifactCandidate(manualStridedStoreDescription);
+
+  auto expectManualCompareSelectMaskPositive =
+      [&](const TargetArtifactCandidate &manualCandidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &manualRoute,
+          const RVVRouteDescription &manualDescription,
+          llvm::StringRef fixtureContext) -> bool {
+    RVVRouteValidationContext manualContext{manualCandidate, manualRoute,
+                                            manualDescription};
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(
+                    manualContext),
+            (llvm::Twine("compare/select mask registry accepts provider facts "
+                         "for ") +
+             fixtureContext)
+                .str()))
+      return false;
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                manualContext),
+        (llvm::Twine("compare/select mask registry accepts candidate mirrors "
+                     "for ") +
+         fixtureContext)
+            .str());
+  };
+  auto expectManualCompareSelectMaskProviderFailure =
+      [&](const TargetArtifactCandidate &manualCandidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &manualRoute,
+          RVVRouteDescription manualDescription,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext manualContext{manualCandidate, manualRoute,
+                                            manualDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(manualContext),
+        mutationContext, fragments);
+  };
+  auto expectManualCompareSelectMaskRouteFailure =
+      [&](const TargetArtifactCandidate &manualCandidate,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute manualRoute,
+          const RVVRouteDescription &manualDescription,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext manualContext{manualCandidate, manualRoute,
+                                            manualDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(manualContext),
+        mutationContext, fragments);
+  };
+  auto expectManualCompareSelectMaskCandidateFailure =
+      [&](TargetArtifactCandidate manualCandidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &manualRoute,
+          const RVVRouteDescription &manualDescription,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext manualContext{manualCandidate, manualRoute,
+                                            manualDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                manualContext),
+        mutationContext, fragments);
+  };
+
+  if (!expectManualCompareSelectMaskPositive(
+          manualDualCandidate, manualDualRoute, manualDualDescription,
+          "runtime-scalar dual compare/select"))
+    return false;
+  if (!expectManualCompareSelectMaskPositive(
+          manualIndexedCandidate, manualIndexedRoute, manualIndexedDescription,
+          "computed-mask indexed gather/load-store"))
+    return false;
+  if (!expectManualCompareSelectMaskPositive(
+          manualStridedStoreCandidate, manualStridedStoreRoute,
+          manualStridedStoreDescription, "computed-mask strided store"))
+    return false;
+
+  RVVRouteDescription staleDualABIOrder = manualDualDescription;
+  staleDualABIOrder.runtimeABIOrder =
+      "cmp_lhs_a,cmp_lhs_b,rhs_scalar_a,rhs_scalar_b,true_value,false_value,out,n";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, staleDualABIOrder,
+          "compare/select mask registry rejects stale dual ABI order",
+          {"runtime ABI order",
+           "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n",
+           "cmp_lhs_a,cmp_lhs_b"}))
+    return false;
+
+  RVVRouteDescription wrongDualABIName = manualDualDescription;
+  wrongDualABIName.runtimeABIParameters[1].cName = "metadata_rhs_scalar";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, wrongDualABIName,
+          "compare/select mask registry rejects stale ABI parameter name",
+          {"runtime ABI parameter[1]", "rhs_scalar_a",
+           "metadata_rhs_scalar"}))
+    return false;
+
+  RVVRouteDescription wrongDualABIRole = manualDualDescription;
+  wrongDualABIRole.runtimeABIParameters[1].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, wrongDualABIRole,
+          "compare/select mask registry rejects stale ABI parameter role",
+          {"runtime ABI parameter[1]", "rhs-scalar-value",
+           "output-buffer"}))
+    return false;
+
+  RVVRouteDescription wrongDualABIType = manualDualDescription;
+  wrongDualABIType.runtimeABIParameters[1].cType = "int64_t";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, wrongDualABIType,
+          "compare/select mask registry rejects stale ABI parameter type",
+          {"runtime ABI parameter[1]", "int32_t", "int64_t"}))
+    return false;
+
+  RVVRouteDescription wrongDualABIOwnership = manualDualDescription;
+  wrongDualABIOwnership.runtimeABIParameters[1].ownership =
+      RuntimeABIParameterOwnership::IRModeled;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, wrongDualABIOwnership,
+          "compare/select mask registry rejects stale ABI parameter ownership",
+          {"runtime ABI parameter[1]", "target-export-abi-owned",
+           "ir-modeled"}))
+    return false;
+
+  RVVRouteDescription staleDualProviderMirror = manualDualDescription;
+  staleDualProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-dual-select";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, staleDualProviderMirror,
+          "compare/select mask registry rejects stale provider support mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated",
+           "metadata-only-dual-select"}))
+    return false;
+
+  RVVRouteDescription staleDualTargetLeaf = manualDualDescription;
+  staleDualTargetLeaf.targetLeafProfile = "metadata-only-dual-leaf";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, staleDualTargetLeaf,
+          "compare/select mask registry rejects stale target leaf profile",
+          {"target_leaf_profile",
+           "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1",
+           "metadata-only-dual-leaf"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/10,
+              "metadata-only-interface"),
+          manualDualDescription,
+          "compare/select mask registry rejects missing selected typed "
+          "provenance",
+          {"loop statements", "selected typed RVV source provenance"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              manualDualRoute, /*stepIndex=*/0, /*operandIndex=*/0,
+              "metadata_n", "size_t"),
+          manualDualDescription,
+          "compare/select mask registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl", "operand[0]", "n", "metadata_n"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopUpperBound(
+              manualDualRoute, /*loopIndex=*/0, "metadata_n", "size_t"),
+          manualDualDescription,
+          "compare/select mask registry rejects stale loop bounds",
+          {"loop bounds", "runtime", "AVL"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "n", "size_t"),
+          manualDualDescription,
+          "compare/select mask registry rejects stale loop remaining AVL",
+          {"loop setvl", "operand[0]", "n - i", "n"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              /*operandIndex=*/0, "rhs_vec"),
+          manualDualDescription,
+          "compare/select mask registry rejects wrong compare operand",
+          {"compare A", "operand[0]", "lhs_vec", "rhs_vec"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/8,
+              /*operandIndex=*/1, "lhs_vec"),
+          manualDualDescription,
+          "compare/select mask registry rejects wrong secondary compare "
+          "operand",
+          {"compare B", "operand[1]", "rhs_b_vec", "lhs_vec"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/9,
+              /*operandIndex=*/0, "mask_b"),
+          manualDualDescription,
+          "compare/select mask registry rejects wrong mask-composition "
+          "operand",
+          {"mask composition", "operand[0]", "mask_a", "mask_b"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/10,
+              "metadata_selected_vec"),
+          manualDualDescription,
+          "compare/select mask registry rejects wrong select result name",
+          {"select/merge", "result",
+           "runtime_scalar_mask_and_selected_vec",
+           "metadata_selected_vec"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/10,
+              manualDualDescription.resultName, "vint64m1_t"),
+          manualDualDescription,
+          "compare/select mask registry rejects wrong select result type",
+          {"select/merge", "result", "vint32m1_t", "vint64m1_t"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualDualCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualDualRoute, /*loopIndex=*/0, /*stepIndex=*/11,
+              /*operandIndex=*/1, "false_value_vec"),
+          manualDualDescription,
+          "compare/select mask registry rejects wrong output store operand",
+          {"output store", "operand[1]",
+           "runtime_scalar_mask_and_selected_vec", "false_value_vec"}))
+    return false;
+
+  RVVRouteDescription staleDualSourceMemory = manualDualDescription;
+  staleDualSourceMemory.sourceMemoryForm = "metadata-derived-source";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute, staleDualSourceMemory,
+          "compare/select mask registry rejects stale source memory form",
+          {"source memory form", "unit-stride-load",
+           "metadata-derived-source"}))
+    return false;
+
+  RVVRouteDescription staleIndexedMaskLayout = manualIndexedDescription;
+  staleIndexedMaskLayout.indexedMemoryLayout =
+      "metadata-derived-indexed-layout";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute, staleIndexedMaskLayout,
+          "compare/select mask registry rejects stale masked memory layout",
+          {"masked memory layout",
+           "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi",
+           "metadata-derived-indexed-layout"}))
+    return false;
+
+  RVVRouteDescription staleIndexedIndexSource = manualIndexedDescription;
+  staleIndexedIndexSource.indexSource = "metadata-derived-index";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute, staleIndexedIndexSource,
+          "compare/select mask registry rejects stale index source",
+          {"index source", "runtime_abi:index", "metadata-derived-index"}))
+    return false;
+
+  RVVRouteDescription staleStridedDestinationStride =
+      manualStridedStoreDescription;
+  staleStridedDestinationStride.outStrideSource = "metadata-derived-stride";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualStridedStoreCandidate, manualStridedStoreRoute,
+          staleStridedDestinationStride,
+          "compare/select mask registry rejects stale destination stride "
+          "source",
+          {"destination stride source", "runtime_abi:dst_stride_bytes",
+           "metadata-derived-stride"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "index", "const uint32_t *"),
+          manualIndexedDescription,
+          "compare/select mask registry rejects wrong index load operand",
+          {"index vector load", "operand[0]", "index + i", "index"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/1, "8", "uint32_t"),
+          manualIndexedDescription,
+          "compare/select mask registry rejects wrong index scale operand",
+          {"index scale", "operand[1]", "4", "8"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              /*operandIndex=*/2, "src + i"),
+          manualIndexedDescription,
+          "compare/select mask registry rejects wrong masked indexed load "
+          "base",
+          {"masked indexed load", "operand[2]", "src", "src + i"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              manualIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              "metadata_indexed_vec"),
+          manualIndexedDescription,
+          "compare/select mask registry rejects wrong masked indexed load "
+          "result",
+          {"masked indexed load", "result",
+           "computed_masked_indexed_loaded_vec",
+           "metadata_indexed_vec"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualIndexedRoute, /*loopIndex=*/0, /*stepIndex=*/8,
+              /*operandIndex=*/1, "old_dst_vec"),
+          manualIndexedDescription,
+          "compare/select mask registry rejects wrong final indexed store "
+          "operand",
+          {"output store", "operand[1]",
+           "computed_masked_indexed_loaded_vec", "old_dst_vec"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualStridedStoreCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualStridedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/1, "dst + i", "int32_t *"),
+          manualStridedStoreDescription,
+          "compare/select mask registry rejects wrong strided store pointer",
+          {"masked strided store", "operand[1]",
+           "(int32_t *)((uint8_t *)dst + (i * dst_stride_bytes))",
+           "dst + i"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualStridedStoreCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualStridedStoreRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/2, "4", "ptrdiff_t"),
+          manualStridedStoreDescription,
+          "compare/select mask registry rejects wrong strided store stride",
+          {"masked strided store", "operand[2]", "dst_stride_bytes", "4"}))
+    return false;
+
+  TargetArtifactCandidate wrongDualProviderMirrorCandidate =
+      manualDualCandidate;
+  if (!rewriteArtifactMetadataValue(wrongDualProviderMirrorCandidate,
+                                    "tcrv_rvv.provider_supported_mirror",
+                                    "provider_supported_mirror:metadata-only"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongDualProviderMirrorCandidate, manualDualRoute,
+          manualDualDescription,
+          "compare/select mask registry rejects stale provider mirror "
+          "metadata",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated",
+           "metadata-only"}))
+    return false;
+
+  TargetArtifactCandidate wrongDualTargetLeafCandidate = manualDualCandidate;
+  if (!rewriteArtifactMetadataValue(wrongDualTargetLeafCandidate,
+                                    "tcrv_rvv.target_leaf_profile",
+                                    "metadata-only-leaf"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongDualTargetLeafCandidate, manualDualRoute, manualDualDescription,
+          "compare/select mask registry rejects stale target leaf metadata",
+          {"target_leaf_profile",
+           "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1",
+           "metadata-only-leaf"}))
+    return false;
+
+  TargetArtifactCandidate wrongDualABICandidate = manualDualCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongDualABICandidate, "tcrv_rvv.runtime_abi_order",
+          "cmp_lhs_a,cmp_lhs_b,rhs_scalar_a,rhs_scalar_b,true_value,false_value,out,n"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongDualABICandidate, manualDualRoute, manualDualDescription,
+          "compare/select mask registry rejects stale ABI mirror metadata",
+          {"runtime_abi_order",
+           "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n",
+           "cmp_lhs_a,cmp_lhs_b"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedMaskLayoutCandidate =
+      manualIndexedCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedMaskLayoutCandidate, "tcrv_rvv.masked_memory_layout",
+          "metadata-derived-indexed-layout"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedMaskLayoutCandidate, manualIndexedRoute,
+          manualIndexedDescription,
+          "compare/select mask registry rejects stale masked memory layout "
+          "metadata",
+          {"masked_memory_layout",
+           "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi",
+           "metadata-derived-indexed-layout"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedSourceCandidate = manualIndexedCandidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedSourceCandidate,
+                                    "tcrv_rvv.index_source",
+                                    "metadata-derived-index"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedSourceCandidate, manualIndexedRoute,
+          manualIndexedDescription,
+          "compare/select mask registry rejects stale index source metadata",
+          {"index_source", "runtime_abi:index", "metadata-derived-index"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedEEWCandidate = manualIndexedCandidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedEEWCandidate,
+                                    "tcrv_rvv.index_eew", "64"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedEEWCandidate, manualIndexedRoute,
+          manualIndexedDescription,
+          "compare/select mask registry rejects stale index EEW metadata",
+          {"index_eew", "32", "64"}))
+    return false;
+
+  TargetArtifactCandidate wrongStridedLayoutCandidate =
+      manualStridedStoreCandidate;
+  if (!rewriteArtifactMetadataValue(wrongStridedLayoutCandidate,
+                                    "tcrv_rvv.strided_memory_layout",
+                                    "metadata-derived-strided-layout"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongStridedLayoutCandidate, manualStridedStoreRoute,
+          manualStridedStoreDescription,
+          "compare/select mask registry rejects stale strided layout metadata",
+          {"strided_memory_layout",
+           "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi",
+           "metadata-derived-strided-layout"}))
+    return false;
+
+  TargetArtifactCandidate wrongStridedDestinationStrideCandidate =
+      manualStridedStoreCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongStridedDestinationStrideCandidate,
+          "tcrv_rvv.destination_stride_source",
+          "metadata-derived-stride"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongStridedDestinationStrideCandidate, manualStridedStoreRoute,
+          manualStridedStoreDescription,
+          "compare/select mask registry rejects stale destination stride "
+          "metadata",
+          {"destination_stride_source", "runtime_abi:dst_stride_bytes",
+           "metadata-derived-stride"}))
     return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(

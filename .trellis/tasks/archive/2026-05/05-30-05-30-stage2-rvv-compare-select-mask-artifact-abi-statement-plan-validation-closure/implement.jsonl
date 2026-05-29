@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first authority chain, mirror-only artifact metadata, and Stage2 typed RVV boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, compare/select statement-plan boundary, target artifact route-family validator boundary, mask/tail policy, provider facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on using ABI strings or metadata as RVV compute/route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and common EmitC neutrality before target artifact export."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-segment2-memory-artifact-abi-statement-plan-validation-closure/prd.md", "reason": "Immediate precedent for closing target artifact validator callee-presence acceptance with exact ABI and statement-plan checks."}

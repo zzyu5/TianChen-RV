@@ -829,3 +829,68 @@ Closed segment2-memory target artifact validation with exact provider ABI role/o
 ### Next Steps
 
 - None - task complete
+
+
+## Session 318: Stage2 RVV compare/select mask artifact ABI statement-plan validation closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV compare/select mask artifact ABI statement-plan validation closure
+**Branch**: `main`
+
+### Summary
+
+Closed the compare/select mask target artifact validation boundary by replacing
+callee-presence acceptance with exact provider ABI facts, selected typed RVV
+statement-plan validation, memory-form/stride/index facts, and focused
+route-clone negative coverage.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so the
+  compare/select mask route-family target artifact consumer validates exact
+  runtime ABI order, cNames, C types, roles, target-export ownership, provider
+  support mirror, target leaf profile, headers, type mappings, mask/tail owner,
+  source/destination memory form, masked/strided/indexed layout facts, stride
+  sources, index source/EEW/offset facts, and selected typed RVV provenance.
+- Replaced compare/select mask statement-plan acceptance with exact
+  provider-built statement validation for pre-loop setvl, loop bounds, loop
+  remaining AVL setvl, compare/select producer routes, runtime-scalar dual
+  compare mask-and/select, computed-mask memory load/store forms, indexed
+  gather, and strided store operands/results/order.
+- Added `test/Target/TargetArtifactExportTest.cpp` manual provider-like
+  compare/select mask fixtures plus positives for runtime-scalar dual
+  compare/select, computed-mask indexed gather, and computed-mask strided
+  store.
+- Added fail-closed clones for stale ABI order/name/role/type/ownership,
+  missing selected typed provenance, wrong pre-loop setvl, wrong loop bounds,
+  wrong remaining AVL, wrong compare/secondary-compare/mask-composition
+  operands, wrong select result name/type, wrong output store, stale provider
+  and target leaf mirrors, stale source/masked/index/stride facts, and wrong
+  load/store/index/stride statement operands.
+- Archived `.trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-compare-select-mask-artifact-abi-statement-plan-validation-closure`.
+- Evidence: focused target artifact export test passed; bounded compare/select
+  mask owner scan found no remaining `routeLoopContainsCallee`,
+  `routeStepsContainCallee`, or `requireLoopCallee`; `git diff --check`
+  passed; `check-tianchenrv` passed 459/459.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] compare/select mask owner callee-presence scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

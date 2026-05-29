@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority-chain and mirror-only artifact constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify compare/select statement-plan and target artifact validator constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime role use stays layered and does not become compute authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target artifact validation consumes provider-built routes and keeps common EmitC neutral."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-segment2-memory-artifact-abi-statement-plan-validation-closure/prd.md", "reason": "Verify consistency with the previous target-consumer-side segment2 closure pattern."}
