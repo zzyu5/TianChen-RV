@@ -546,6 +546,155 @@ typed body/config/runtime widening dot-reduction and optional stride facts
   -> mirror metadata plus executable harness evidence with signed widening dot products
 ```
 
+## Computed-Mask Widening Dot-Reduction Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use computed-mask widening dot-reduction generated-bundle evidence whenever an
+RVV generated-bundle test claims executable
+`computed_masked_widening_dot_reduce_add` or
+`computed_masked_strided_input_widening_dot_reduce_add` correctness for a
+route-supported typed `tcrv_rvv` path. This evidence is required for explicit
+selected bodies and selected pre-realized bodies after RVV plugin-local
+realization.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key:
+
+```json
+"computed_masked_widening_dot_reduce_boundary": {
+  "authority": "provider-derived typed tcrv_rvv computed-mask widening dot-reduce body/config/runtime facts",
+  "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "direct_pre_realized_route_entry_supported": false,
+  "selected_source_abi": {},
+  "provider_route_facts": {},
+  "target_validator_consumed_facts": [],
+  "materialized_body": {},
+  "emitted_cpp": {},
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_dot_or_mask_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of route support.
+- `selected_source_abi` must identify `cmp_lhs`, `cmp_rhs`, `lhs`, `rhs`,
+  `acc`, `out`, and runtime `n` in provider-validated ABI order. Strided-input
+  routes must also identify `lhs_stride` and `rhs_stride`.
+- `provider_route_facts` must mirror provider support, target leaf profile,
+  runtime ABI order, route operand binding plan and exact binding operands,
+  contraction family plan, headers, C type mapping, predicate, mask role/source,
+  mask memory form, inactive-lane zeroing, masked product/merge intrinsics,
+  source/accumulator/result SEW and LMUL, accumulator/result layout, dot-product
+  relation, and scalar store VL after route construction.
+- Unit-stride evidence must report strided-input facts as rejected if present.
+  Strided-input evidence must mirror source/destination memory forms, strided
+  memory layout, stride ABI sources, and strided load intrinsic.
+- `target_validator_consumed_facts` must identify the target-owned
+  widening-dot-reduction validator as the consumer of provider facts and
+  candidate mirror checks.
+- `route_metadata` may mirror provider/export metadata only after provider
+  route construction. It must not be used as route authority.
+- Runtime counts are execution cases only. They must not define predicate kind,
+  mask behavior, dtype, dot-reduction semantics, strided support, route support,
+  artifact authority, or direct route-entry support.
+
+### 4. Validation & Error Matrix
+
+- Missing or stale runtime ABI order, role, or parameter count -> evidence
+  failure.
+- Missing compare lhs/rhs, dot lhs/rhs, accumulator, output, runtime `n`, or
+  required stride ABI role -> evidence failure.
+- Missing or stale route operand binding plan or exact binding summary ->
+  evidence failure.
+- Missing mask role/source/form, compare predicate, compare intrinsic, masked
+  product intrinsic, merge intrinsic, mask type, inactive-lane zeroing, or
+  mask/tail policy mirror -> evidence failure.
+- Missing source/accumulator/result dtype relation, dot-product relation,
+  accumulator/result layout, source load form, scalar store VL, provider support
+  mirror, headers, C type mapping, or target-validator consumption summary ->
+  evidence failure.
+- Strided-input route missing source/destination memory form, stride source,
+  strided layout, or strided load intrinsic -> evidence failure.
+- Unit-stride route carrying stale strided-input facts -> evidence failure.
+- Generated C/C++ omits runtime VL on compare, source loads, masked widening
+  product, merge, scalar seed, reduction, or scalar result store -> evidence
+  failure.
+- Generated C/C++ uses compare, product, merge, or dot operands in an order that
+  disagrees with provider-owned operand-binding facts -> evidence failure.
+- A multi-lane runtime evidence case lacks active and inactive mask lanes,
+  positive products, negative products, nonzero inactive products, nonzero seed,
+  scalar output check, strided skipped-source checks where applicable, or tail
+  sentinel preservation -> evidence failure.
+- Descriptor, direct-C/source-export, route-id, artifact-name, ABI-string,
+  script, test-name, common EmitC, exact intrinsic spelling, direct route entry,
+  pre-realized fixture name, or legacy i32 residue is required to explain
+  computed-mask widening dot semantics -> evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries compare-produced mask, i16 dot sources, i32
+  scalar seed/result, dot-product relation, source load form, runtime `n`,
+  optional stride ABI, and policy facts -> RVV plugin validates or realizes the
+  body -> provider emits computed-mask widening dot route -> target-owned
+  validator consumes provider facts -> generated evidence mirrors the facts and
+  harness checks active lanes, inactive zeroing before reduction, signed widening
+  products, scalar output, strided source selection when applicable, and tail
+  preservation.
+- Base: non-computed widening dot-reduction routes omit
+  `computed_masked_widening_dot_reduce_boundary` and use
+  `widening_dot_reduction_boundary`.
+- Bad: evidence infers predicate kind, mask behavior, dot-reduction behavior,
+  strided behavior, dtype, or route support from route id, artifact filename,
+  ABI string, exact intrinsic spelling, script constants, or the pre-realized
+  fixture name.
+
+### 6. Tests Required
+
+- lit/FileCheck for explicit and pre-realized generated-bundle dry-runs must
+  check representative `computed_masked_widening_dot_reduce_boundary` fields,
+  provider route facts, target-validator consumed facts, mirror metadata, and
+  direct pre-realized route-entry support remaining false.
+- Target artifact tests must check provider-owned runtime ABI order/roles,
+  route operand binding, mask role/source/form, predicate, masked product/merge
+  facts, dtype relation, dot relation/layout, source load form, strided fact
+  presence/absence, provider-supported mirror, and stale non-family fact
+  rejection before artifact acceptance.
+- Runtime RVV claims must include `ssh rvv` output over multiple runtime counts,
+  including `n=0`, `n=1`, exact-VL, tail, and stress cases.
+- Strided-input runtime evidence must include more than one stride pattern or an
+  equivalent oracle proving source elements are consumed through runtime stride
+  ABI values rather than unit-stride addresses.
+- Harness checks must distinguish signed computed-mask widening horizontal
+  dot-reduction from add-only, mul-only, unmasked, non-widening, missing-seed,
+  wrong sign-extension, unit-stride-vs-strided confusion, scalar-output
+  overwrite, inactive-lane contribution, and tail-overwrite behavior.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+pre-realized fixture name says computed_masked_strided_input_widening_dot_reduce_add
+  -> harness expects computed-mask strided widening dot behavior
+```
+
+Correct:
+
+```text
+typed body/config/runtime compare-mask, widening dot, and optional stride facts
+  -> RVV plugin legality/realization
+  -> provider-built contraction route
+  -> target-owned widening-dot validator
+  -> mirror metadata plus executable harness evidence with active/inactive mask and signed widening dot products
+```
+
 ## Compare/Select Predicate Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

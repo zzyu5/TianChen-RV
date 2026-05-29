@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture red lines, RVV stage order, and source-of-truth boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check computed-mask widening dot provider facts, target artifact validator consumption, fail-closed behavior, and mirror-only metadata."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-built route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused compiler tests, generated-bundle evidence, and required ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-widening-dot-reduction-artifact-runtime-abi-closure/prd.md", "reason": "Check non-computed widening dot non-regression and evidence shape."}
+{"command": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py", "result": "passed"}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"command": "computed-mask widening dot explicit/pre-realized dry-runs for computed_masked_widening_dot_reduce_add and computed_masked_strided_input_widening_dot_reduce_add over counts 0,1,16,17,257", "result": "passed"}
+{"command": "non-computed widening_dot_reduce_add and strided_input_widening_dot_reduce_add explicit/pre-realized dry-run non-regression over counts 0,1,16,17,257", "result": "passed"}
+{"command": "ssh -o BatchMode=yes -o ConnectTimeout=8 rvv 'echo rvv-ok'", "result": "passed"}
+{"command": "ssh rvv generated-bundle runs for computed_masked_widening_dot_reduce_add and computed_masked_strided_input_widening_dot_reduce_add, explicit and pre-realized, over counts 0,1,16,17,257", "result": "passed"}
+{"command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv -sv --filter='computed-masked.*widening-dot.*dry-run|direct-pre-realized-computed-masked.*widening-dot' .", "result": "passed 6 selected lit/FileCheck tests from build/test"}
+{"command": "git diff --check", "result": "passed"}
+{"command": "cmake --build build --target tianchenrv-target-artifact-export-test -j2", "result": "passed"}
+{"command": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "cmake --build build --target check-tianchenrv -j2", "result": "passed: 456 lit tests passed"}
+{"command": "bounded touched-file authority scan", "result": "passed with only negative assertions, existing residue guards, or pre-existing stale/metadata-derived test strings; no added positive support authority from descriptor/source-front-door/script/artifact-name/route-id/exact-intrinsic/direct-route-entry/common-EmitC/pre-realized-fixture/legacy-i32 sources."}

@@ -1833,3 +1833,36 @@ Closed the selected typed RVV non-computed-mask widening_dot_reduce_add and stri
 ### Next Steps
 
 - None - task complete
+
+
+## Session 303: Stage2 RVV computed-mask widening dot runtime ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV computed-mask widening dot runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed computed-mask unit and strided widening dot runtime ABI/artifact evidence through target-owned validator checks, generated-bundle boundary evidence, ssh rvv correctness, testing spec sync, Trellis archive, and final quality gates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

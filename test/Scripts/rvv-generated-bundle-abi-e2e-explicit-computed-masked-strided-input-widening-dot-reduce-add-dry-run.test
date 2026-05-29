@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-computed-masked-strided-input-widening-dot-reduce-add --overwrite --op-kind computed_masked_strided_input_widening_dot_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-computed-masked-strided-input-widening-dot-reduce-add --overwrite --op-kind computed_masked_strided_input_widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/explicit-computed-masked-strided-input-widening-dot-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MSDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/explicit-computed-masked-strided-input-widening-dot-reduce-add/computed_masked_strided_input_widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/explicit-computed-masked-strided-input-widening-dot-reduce-add/computed_masked_strided_input_widening_dot_reduce_add/rvv_generated_bundle_abi_computed_masked_strided_input_widening_dot_reduce_add_harness.c
@@ -34,6 +34,8 @@
 # MSDOT-DAG: "value": "computed-mask-strided-input-widening-dot-reduce"
 # MSDOT-DAG: "key": "tcrv_rvv.runtime_abi_order"
 # MSDOT-DAG: "value": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride"
+# MSDOT-DAG: "key": "tcrv_rvv.compare_predicate_kind"
+# MSDOT-DAG: "value": "slt"
 # MSDOT-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # MSDOT-DAG: "value": "rvv-route-operand-binding:masked_strided_wdot.v1"
 # MSDOT-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
@@ -60,6 +62,12 @@
 # MSDOT-DAG: "value": "__riscv_vwmul_vv_i32m1_m"
 # MSDOT-DAG: "key": "tcrv_rvv.strided_load_intrinsic"
 # MSDOT-DAG: "value": "__riscv_vlse16_v_i16mf2"
+# MSDOT-DAG: "computed_masked_widening_dot_reduce_boundary"
+# MSDOT-DAG: "direct_pre_realized_route_entry_supported": false
+# MSDOT-DAG: "provider_route_facts"
+# MSDOT-DAG: "target_validator_consumed_facts"
+# MSDOT-DAG: "dot_source_load_intrinsic": "__riscv_vlse16_v_i16mf2"
+# MSDOT-DAG: "strided_input_facts"
 # MSDOT-DAG: "typed_compute_op": "tcrv_rvv.masked_widening_dot_reduce"
 # MSDOT-DAG: "memory_form": "computed-mask-strided-input-widening-dot-reduce"
 # MSDOT-DAG: "status": "dry_run_success"
@@ -71,7 +79,7 @@
 # HARNESS: size_t rhs_index = index * rhs_stride;
 # HARNESS: int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
 # HARNESS: compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=%zu,%zu mask_pattern=%d input_pattern=%d skipped_source_elements_ignored scalar_output tail_preserved
-# HARNESS: const size_t counts[] = {0, 7, 16, 23};
+# HARNESS: const size_t counts[] = {0, 1, 16, 17, 257};
 # HARNESS: cases[] = { {2, 3, 0}, {3, 2, 1} };
-# HARNESS: tcrv_rvv_generated_bundle_abi_computed_masked_strided_input_widening_dot_reduce_add_ok counts=0,7,16,23 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2
-# HARNESS: PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,7,16,23 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2
+# HARNESS: tcrv_rvv_generated_bundle_abi_computed_masked_strided_input_widening_dot_reduce_add_ok counts=0,1,16,17,257 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2
+# HARNESS: PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,1,16,17,257 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2

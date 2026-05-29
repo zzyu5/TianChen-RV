@@ -455,6 +455,34 @@ STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS = (
     "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
     "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"
 )
+COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:masked_widening_dot_reduce.v1"
+)
+COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:masked_widening_dot_reduce.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+    "dot_lhs=dot-lhs-input-buffer:lhs:abi|ld|mlhs|i16|hdr;"
+    "dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+    "out=output-buffer:out:abi|store|i32|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:masked_strided_wdot.v1"
+)
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:masked_strided_wdot.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask;"
+    "dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16;"
+    "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16;"
+    "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+    "out=output-buffer:out:abi|store|i32|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+    "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr;"
+    "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr"
+)
 STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_load_unit_store.v1"
 )
@@ -3369,7 +3397,6 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
-        compare_predicate_kind="slt",
     ),
     "strided_input_widening_dot_reduce_add": OpExpectation(
         kind="strided_input_widening_dot_reduce_add",
@@ -3472,6 +3499,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
     "strided_add": OpExpectation(
         kind="strided_add",
@@ -5046,6 +5074,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
 }
 
@@ -6409,6 +6438,11 @@ COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
     "tcrv_rvv.accumulator_lmul",
     "tcrv_rvv.result_sew",
     "tcrv_rvv.result_lmul",
+    "tcrv_rvv.strided_memory_layout",
+    "tcrv_rvv.lhs_stride_source",
+    "tcrv_rvv.rhs_stride_source",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
     "tcrv_rvv.mask_role",
     "tcrv_rvv.mask_source",
     "tcrv_rvv.mask_memory_form",
@@ -6418,6 +6452,7 @@ COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
     "tcrv_rvv.widening_dot_relation",
     "tcrv_rvv.widening_product_intrinsic",
     "tcrv_rvv.masked_widening_product_intrinsic",
+    "tcrv_rvv.strided_load_intrinsic",
     "tcrv_rvv.widening_dot_reduction_store_vl",
 )
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
@@ -8502,6 +8537,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
@@ -8513,6 +8554,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.accumulator_lmul": "m1",
                 "tcrv_rvv.result_sew": "32",
                 "tcrv_rvv.result_lmul": "m1",
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
                 "tcrv_rvv.strided_memory_layout": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
                 ),
@@ -8548,6 +8592,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )
@@ -9150,12 +9200,20 @@ def verify_emitted_rvv_cpp(
             "store_intrinsic": "__riscv_vse32_v_i32m1",
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
-    if expectation.is_computed_masked_widening_dot_reduce_add:
+    if (
+        expectation.is_computed_masked_widening_dot_reduce_add
+        or expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+    ):
         vector_c_type = expectation.rvv_vector_c_type
+        source_load_intrinsic = (
+            STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+            if expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+            else "__riscv_vle16_v_i16mf2"
+        )
         intrinsics = [
             expectation.setvl_intrinsic,
             "__riscv_vle32_v_i32m1",
-            "__riscv_vle16_v_i16mf2",
+            source_load_intrinsic,
             expectation.compare_intrinsic,
             "__riscv_vmv_v_x_i32m1",
             "__riscv_vwmul_vv_i32m1_m",
@@ -10029,6 +10087,13 @@ def extract_computed_masked_macc_emitc_boundary(
 def extract_computed_masked_widening_dot_reduce_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
+    is_strided = expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+    signature_suffix = (
+        r", size_t (?P<lhs_stride>v[0-9]+), "
+        r"size_t (?P<rhs_stride>v[0-9]+)"
+        if is_strided
+        else ""
+    )
     signature = require_regex(
         text,
         rf"extern \"C\" void {re.escape(expectation.function_name)}"
@@ -10038,7 +10103,7 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         r"const int16_t\s*\*\s*(?P<rhs>v[0-9]+), "
         r"const int32_t\s*\*\s*(?P<acc>v[0-9]+), "
         r"int32_t\s*\*\s*(?P<out>v[0-9]+), "
-        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        rf"size_t (?P<runtime_n>v[0-9]+){signature_suffix}\) \{{",
         "emitted RVV C/C++ computed-mask widening dot-reduce ABI parameters",
     )
     cmp_lhs = signature.group("cmp_lhs")
@@ -10048,6 +10113,8 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
     acc = signature.group("acc")
     out = signature.group("out")
     runtime_n = signature.group("runtime_n")
+    lhs_stride = signature.group("lhs_stride") if is_strided else ""
+    rhs_stride = signature.group("rhs_stride") if is_strided else ""
     setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
     full_chunk = require_regex(
         text,
@@ -10088,7 +10155,7 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
     remaining_avl = remaining.group("remaining_avl")
     loop_vl = remaining.group("loop_vl")
 
-    def load_vector(
+    def unit_load_vector(
         parameter: str,
         element_c_type: str,
         vector_c_type: str,
@@ -10105,10 +10172,37 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         )
         return loaded.group("ptr"), loaded.group("vec")
 
-    cmp_lhs_ptr, cmp_lhs_vec = load_vector(
+    def strided_load_vector(
+        parameter: str,
+        stride_parameter: str,
+        element_c_type: str,
+        vector_c_type: str,
+        load_intrinsic: str,
+        role: str,
+    ) -> tuple[str, str, str, str]:
+        loaded = require_regex(
+            text,
+            rf"size_t (?P<element_offset>v[0-9]+) = {offset} \* "
+            rf"{stride_parameter};\s*"
+            rf"const {re.escape(element_c_type)}\* (?P<ptr>v[0-9]+) = "
+            rf"{parameter} \+ (?P=element_offset);\s*"
+            rf"size_t (?P<byte_stride>v[0-9]+) = {stride_parameter} \* 2;\s*"
+            rf"{re.escape(vector_c_type)} (?P<vec>v[0-9]+) = "
+            rf"{re.escape(load_intrinsic)}"
+            rf"\((?P=ptr), (?P=byte_stride), {loop_vl}\);",
+            f"emitted RVV C/C++ computed-mask strided widening dot-reduce {role} load",
+        )
+        return (
+            loaded.group("ptr"),
+            loaded.group("vec"),
+            loaded.group("element_offset"),
+            loaded.group("byte_stride"),
+        )
+
+    cmp_lhs_ptr, cmp_lhs_vec = unit_load_vector(
         cmp_lhs, "int32_t", "vint32m1_t", "__riscv_vle32_v_i32m1", "compare lhs"
     )
-    cmp_rhs_ptr, cmp_rhs_vec = load_vector(
+    cmp_rhs_ptr, cmp_rhs_vec = unit_load_vector(
         cmp_rhs, "int32_t", "vint32m1_t", "__riscv_vle32_v_i32m1", "compare rhs"
     )
     compare = require_regex(
@@ -10118,12 +10212,38 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         "emitted RVV C/C++ computed-mask widening dot-reduce compare producer",
     )
     mask = compare.group("mask")
-    lhs_ptr, lhs_vec = load_vector(
-        lhs, "int16_t", "vint16mf2_t", "__riscv_vle16_v_i16mf2", "dot lhs"
-    )
-    rhs_ptr, rhs_vec = load_vector(
-        rhs, "int16_t", "vint16mf2_t", "__riscv_vle16_v_i16mf2", "dot rhs"
-    )
+    lhs_element_offset = ""
+    rhs_element_offset = ""
+    lhs_byte_stride = ""
+    rhs_byte_stride = ""
+    if is_strided:
+        lhs_ptr, lhs_vec, lhs_element_offset, lhs_byte_stride = (
+            strided_load_vector(
+                lhs,
+                lhs_stride,
+                "int16_t",
+                "vint16mf2_t",
+                STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC,
+                "dot lhs",
+            )
+        )
+        rhs_ptr, rhs_vec, rhs_element_offset, rhs_byte_stride = (
+            strided_load_vector(
+                rhs,
+                rhs_stride,
+                "int16_t",
+                "vint16mf2_t",
+                STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC,
+                "dot rhs",
+            )
+        )
+    else:
+        lhs_ptr, lhs_vec = unit_load_vector(
+            lhs, "int16_t", "vint16mf2_t", "__riscv_vle16_v_i16mf2", "dot lhs"
+        )
+        rhs_ptr, rhs_vec = unit_load_vector(
+            rhs, "int16_t", "vint16mf2_t", "__riscv_vle16_v_i16mf2", "dot rhs"
+        )
     zero = require_regex(
         text,
         rf"vint32m1_t (?P<zero>v[0-9]+) = "
@@ -10169,6 +10289,29 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         rf"__riscv_vse32_v_i32m1\({out}, {result_vec}, 1\);",
         "emitted RVV C/C++ computed-mask widening dot-reduce scalar store",
     )
+    dot_source_load_intrinsic = (
+        STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+        if is_strided
+        else "__riscv_vle16_v_i16mf2"
+    )
+    strided_input_facts: dict[str, str] | str
+    if is_strided:
+        strided_input_facts = {
+            "strided_memory_layout": (
+                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+            ),
+            "lhs_stride_source": STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE,
+            "rhs_stride_source": STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE,
+            "source_memory_form": STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM,
+            "destination_memory_form": (
+                STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
+            ),
+            "strided_load_intrinsic": (
+                STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+            ),
+        }
+    else:
+        strided_input_facts = "rejected-if-present"
     return {
         "runtime_avl_vl_control": {
             "runtime_abi_parameter": runtime_n,
@@ -10190,10 +10333,16 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         "accumulator_abi_parameter": acc,
         "out_abi_parameter": out,
         "runtime_n_abi_parameter": runtime_n,
+        "lhs_stride_abi_parameter": lhs_stride,
+        "rhs_stride_abi_parameter": rhs_stride,
         "compare_lhs_pointer": cmp_lhs_ptr,
         "compare_rhs_pointer": cmp_rhs_ptr,
         "lhs_pointer": lhs_ptr,
         "rhs_pointer": rhs_ptr,
+        "lhs_element_offset": lhs_element_offset,
+        "rhs_element_offset": rhs_element_offset,
+        "lhs_byte_stride": lhs_byte_stride,
+        "rhs_byte_stride": rhs_byte_stride,
         "compare_lhs_vector": cmp_lhs_vec,
         "compare_rhs_vector": cmp_rhs_vec,
         "lhs_vector": lhs_vec,
@@ -10226,7 +10375,8 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         "dot_product_relation": WIDENING_DOT_RELATION,
         "compare_intrinsic": expectation.compare_intrinsic,
         "compare_load_intrinsic": "__riscv_vle32_v_i32m1",
-        "dot_source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+        "dot_source_load_intrinsic": dot_source_load_intrinsic,
+        "strided_input_facts": strided_input_facts,
         "zero_intrinsic": "__riscv_vmv_v_x_i32m1",
         "masked_widening_product_intrinsic": "__riscv_vwmul_vv_i32m1_m",
         "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
@@ -13492,7 +13642,10 @@ def verify_materialized_selected_body(
             f'result_layout = "{WIDENING_DOT_RESULT_LAYOUT}"',
             "materialized selected-body MLIR widening dot result layout",
         )
-    if expectation.is_computed_masked_widening_dot_reduce_add:
+    if (
+        expectation.is_computed_masked_widening_dot_reduce_add
+        or expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+    ):
         require_contains(
             text,
             "tcrv_rvv.compare",
@@ -13582,8 +13735,54 @@ def verify_materialized_selected_body(
                 "out": "output-buffer",
                 "n": "runtime-element-count",
             },
+            "uses_strided_inputs": (
+                expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+            ),
+            "source_load_op": (
+                "tcrv_rvv.strided_load"
+                if expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+                else "tcrv_rvv.load"
+            ),
+            "source_memory_form": (
+                STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
+                if expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+                else "unit-stride-load"
+            ),
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
+        if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
+            computed_masked_widening_dot_reduce_boundary[
+                "selected_source_abi"
+            ].update(
+                {
+                    "lhs_stride": "lhs-input-stride",
+                    "rhs_stride": "rhs-input-stride",
+                }
+            )
+            computed_masked_widening_dot_reduce_boundary[
+                "strided_input_facts"
+            ] = {
+                "strided_memory_layout": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+                ),
+                "lhs_stride_source": (
+                    STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE
+                ),
+                "rhs_stride_source": (
+                    STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE
+                ),
+                "source_memory_form": STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM,
+                "destination_memory_form": (
+                    STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
+                ),
+                "strided_load_intrinsic": (
+                    STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+                ),
+            }
+        else:
+            computed_masked_widening_dot_reduce_boundary[
+                "strided_input_facts"
+            ] = "rejected-if-present"
     if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
         require_contains(
             text,
@@ -22317,8 +22516,97 @@ def computed_masked_widening_dot_reduce_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
-    if not expectation.is_computed_masked_widening_dot_reduce_add:
+    if not (
+        expectation.is_computed_masked_widening_dot_reduce_add
+        or expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+    ):
         return {}
+    is_strided = expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+    source_load_intrinsic = (
+        STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+        if is_strided
+        else "__riscv_vle16_v_i16mf2"
+    )
+    route_operand_binding_plan = (
+        COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+        if is_strided
+        else COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+    )
+    route_operand_binding_operands = (
+        COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+        if is_strided
+        else COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+    )
+    selected_source_abi = {
+        "cmp_lhs": "lhs-input-buffer",
+        "cmp_rhs": "rhs-input-buffer",
+        "lhs": "dot-lhs-input-buffer",
+        "rhs": "dot-rhs-input-buffer",
+        "acc": "accumulator-input-buffer",
+        "out": "output-buffer",
+        "n": "runtime-element-count",
+    }
+    if is_strided:
+        selected_source_abi.update(
+            {
+                "lhs_stride": "lhs-input-stride",
+                "rhs_stride": "rhs-input-stride",
+            }
+        )
+    provider_route_facts = {
+        "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
+        "target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
+        "runtime_abi_order": expectation.runtime_abi_order,
+        "route_operand_binding_plan": route_operand_binding_plan,
+        "route_operand_binding_operands": route_operand_binding_operands,
+        "contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
+        "required_header_declarations": CONTRACTION_REQUIRED_HEADER_DECLARATIONS,
+        "c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
+        "compare_predicate_kind": expectation.compare_predicate_kind,
+        "compare_intrinsic": expectation.compare_intrinsic,
+        "compare_load_intrinsic": "__riscv_vle32_v_i32m1",
+        "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+        "effective_source_load_intrinsic": source_load_intrinsic,
+        "widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+        "masked_widening_product_intrinsic": "__riscv_vwmul_vv_i32m1_m",
+        "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
+        "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+        "store_intrinsic": "__riscv_vse32_v_i32m1",
+        "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+        "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+        "mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+        "inactive_lane_zeroing_requirement": (
+            CONTRACTION_MASKED_INACTIVE_LANE_ZEROING_REQUIREMENT
+        ),
+        "source_sew": "16",
+        "source_lmul": "mf2",
+        "accumulator_sew": expectation.sew,
+        "accumulator_lmul": expectation.lmul,
+        "result_sew": expectation.sew,
+        "result_lmul": expectation.lmul,
+        "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+        "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+        "dot_product_relation": WIDENING_DOT_RELATION,
+        "reduction_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+    }
+    if is_strided:
+        provider_route_facts["strided_input_facts"] = {
+            "strided_memory_layout": (
+                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+            ),
+            "lhs_stride_source": STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE,
+            "rhs_stride_source": STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE,
+            "source_memory_form": STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM,
+            "destination_memory_form": (
+                STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
+            ),
+            "strided_load_intrinsic": (
+                STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+            ),
+        }
+    else:
+        provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
         "source": (
             "typed tcrv_rvv.masked_widening_dot_reduce body/config/runtime "
@@ -22331,8 +22619,15 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "provider-derived typed tcrv_rvv computed-mask widening "
             "dot-reduce body/config/runtime facts"
         ),
+        "target_artifact_validator": (
+            "RVVTargetArtifactRouteFamilyValidation.cpp:"
+            "widening-dot-reduction target-owned consumer"
+        ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
-        "contraction_kind": "computed_masked_widening_dot_reduce_add",
+        "direct_pre_realized_route_entry_supported": False,
+        "contraction_kind": expectation.kind,
+        "typed_compute_op": "tcrv_rvv.masked_widening_dot_reduce",
+        "memory_form": expectation.memory_form,
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
         "mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -22374,15 +22669,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
         },
         "dot_product_relation": WIDENING_DOT_RELATION,
-        "selected_source_abi": {
-            "cmp_lhs": "lhs-input-buffer",
-            "cmp_rhs": "rhs-input-buffer",
-            "lhs": "dot-lhs-input-buffer",
-            "rhs": "dot-rhs-input-buffer",
-            "acc": "accumulator-input-buffer",
-            "out": "output-buffer",
-            "n": "runtime-element-count",
-        },
+        "selected_source_abi": selected_source_abi,
         "statement_plan": {
             "family": "computed-mask widening dot-reduction contraction",
             "pre_loop_callees": [
@@ -22395,8 +22682,8 @@ def computed_masked_widening_dot_reduce_boundary_summary(
                 "__riscv_vle32_v_i32m1",
                 "__riscv_vle32_v_i32m1",
                 expectation.compare_intrinsic,
-                "__riscv_vle16_v_i16mf2",
-                "__riscv_vle16_v_i16mf2",
+                source_load_intrinsic,
+                source_load_intrinsic,
                 "__riscv_vmv_v_x_i32m1",
                 "__riscv_vwmul_vv_i32m1_m",
                 "__riscv_vmerge_vvm_i32m1",
@@ -22412,6 +22699,24 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "loop_accumulator_source": "out[0]",
             "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
         },
+        "provider_route_facts": provider_route_facts,
+        "target_validator_consumed_facts": [
+            "runtime ABI order and roles",
+            "route operand binding plan and exact binding summary",
+            "computed mask role, source, form, and predicate",
+            "compare load and predicate intrinsic",
+            "masked widening product and inactive zero merge intrinsics",
+            "mask type and inactive-lane zeroing requirement",
+            "dot-product relation",
+            "accumulator/result layout",
+            "source/result dtype relation",
+            "source load form",
+            "strided fact presence or absence",
+            "setvl/VL control and scalar store VL",
+            "required headers and C type mapping",
+            "mirror-only candidate metadata",
+            "stale non-family fact rejection",
+        ],
         "materialized_body": materialized_checks.get(
             "computed_masked_widening_dot_reduce_boundary", {}
         ),
@@ -22711,7 +23016,10 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_computed_masked_widening_dot_reduce_add:
+        if (
+            expectation.is_computed_masked_widening_dot_reduce_add
+            or expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+        ):
             evidence["computed_masked_widening_dot_reduce_boundary"] = (
                 computed_masked_widening_dot_reduce_boundary_summary(
                     expectation=expectation,
@@ -23761,6 +24069,61 @@ def run_self_test() -> int:
                         "self-test fake bundle generation lost widening dot "
                         "validator-backed metadata"
                     )
+            if (
+                expectation.is_computed_masked_widening_dot_reduce_add
+                or expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+            ):
+                computed_masked_widening_dot_metadata = (
+                    computed_masked_widening_dot_metadata_from_bundle(
+                        bundle_checks, expectation
+                    )
+                )
+                expected_binding_plan = (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                    if expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+                    else COMPUTED_MASK_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                )
+                if (
+                    computed_masked_widening_dot_metadata.get(
+                        "tcrv_rvv.widening_dot_relation"
+                    )
+                    != WIDENING_DOT_RELATION
+                    or computed_masked_widening_dot_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != expected_binding_plan
+                    or computed_masked_widening_dot_metadata.get(
+                        "tcrv_rvv.compare_predicate_kind"
+                    )
+                    != "slt"
+                    or computed_masked_widening_dot_metadata.get(
+                        "tcrv_rvv.masked_widening_product_intrinsic"
+                    )
+                    != "__riscv_vwmul_vv_i32m1_m"
+                    or computed_masked_widening_dot_metadata.get(
+                        "tcrv_rvv.provider_supported_mirror"
+                    )
+                    != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost computed-mask "
+                        "widening dot validator-backed metadata"
+                    )
+                if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
+                    if (
+                        computed_masked_widening_dot_metadata.get(
+                            "tcrv_rvv.source_memory_form"
+                        )
+                        != STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
+                        or computed_masked_widening_dot_metadata.get(
+                            "tcrv_rvv.strided_memory_layout"
+                        )
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+                    ):
+                        raise AssertionError(
+                            "self-test fake bundle generation lost computed-mask "
+                            "strided widening dot memory-form metadata"
+                        )
             harness = harness_source(
                 "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
                 [1, 17, 257],

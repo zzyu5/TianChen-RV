@@ -1803,10 +1803,20 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
 constexpr llvm::StringLiteral kRVVWideningDotRuntimeABIOrder("lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVStridedInputWideningDotRuntimeABIOrder(
     "lhs,rhs,acc,out,n,lhs_stride,rhs_stride");
+constexpr llvm::StringLiteral kRVVComputedMaskWideningDotRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStridedInputWideningDotRuntimeABIOrder(
+        "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride");
 constexpr llvm::StringLiteral kRVVWideningDotRouteOperandBindingPlan(
     "rvv-route-operand-binding:widening_dot_reduce.v1");
 constexpr llvm::StringLiteral kRVVStridedInputWideningDotRouteOperandBindingPlan(
     "rvv-route-operand-binding:strided_widening_dot_reduce.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskWideningDotRouteOperandBindingPlan(
+    "rvv-route-operand-binding:masked_widening_dot_reduce.v1");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStridedInputWideningDotRouteOperandBindingPlan(
+        "rvv-route-operand-binding:masked_strided_wdot.v1");
 constexpr llvm::StringLiteral kRVVWideningDotRouteOperandBindingSummary(
     "rvv-route-operand-binding:widening_dot_reduce.v1;"
     "lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;"
@@ -1823,6 +1833,27 @@ constexpr llvm::StringLiteral kRVVStridedInputWideningDotRouteOperandBindingSumm
     "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
     "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
     "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr");
+constexpr llvm::StringLiteral kRVVComputedMaskWideningDotRouteOperandBindingSummary(
+    "rvv-route-operand-binding:masked_widening_dot_reduce.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+    "dot_lhs=dot-lhs-input-buffer:lhs:abi|ld|mlhs|i16|hdr;"
+    "dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+    "out=output-buffer:out:abi|store|i32|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStridedInputWideningDotRouteOperandBindingSummary(
+        "rvv-route-operand-binding:masked_strided_wdot.v1;"
+        "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask;"
+        "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask;"
+        "dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16;"
+        "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16;"
+        "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+        "out=output-buffer:out:abi|store|i32|hdr;"
+        "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+        "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr;"
+        "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr");
 constexpr llvm::StringLiteral kRVVWideningDotContractionRouteFamilyPlan(
     "rvv-contraction-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVWideningDotProviderSupportedMirror(
@@ -1862,6 +1893,31 @@ constexpr llvm::StringLiteral kRVVStridedInputWideningDotSourceMemoryForm(
     "strided-load");
 constexpr llvm::StringLiteral kRVVStridedInputWideningDotDestinationMemoryForm(
     "unit-stride-store");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStridedInputWideningDotMemoryLayout(
+        "unit-stride-compare-element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
+constexpr llvm::StringLiteral kRVVComputedMaskRole(
+    "predicate-mask-produced-by-compare");
+constexpr llvm::StringLiteral kRVVComputedMaskSource(
+    "compare-produced-mask-same-vl-scope");
+constexpr llvm::StringLiteral kRVVComputedMaskMemoryForm(
+    "compare-produced-mask");
+constexpr llvm::StringLiteral kRVVComputedMaskInactiveLaneZeroingRequirement(
+    "masked-widening-products-zero-inactive-lanes-before-reduction");
+constexpr llvm::StringLiteral kRVVComputedMaskComparePredicateKind("slt");
+constexpr llvm::StringLiteral kRVVComputedMaskCompareIntrinsic(
+    "__riscv_vmslt_vv_i32m1_b32");
+constexpr llvm::StringLiteral kRVVComputedMaskCompareLoadIntrinsic(
+    "__riscv_vle32_v_i32m1");
+constexpr llvm::StringLiteral kRVVComputedMaskWideningDotMaskedProductIntrinsic(
+    "__riscv_vwmul_vv_i32m1_m");
+constexpr llvm::StringLiteral kRVVComputedMaskWideningDotMergeIntrinsic(
+    "__riscv_vmerge_vvm_i32m1");
+constexpr llvm::StringLiteral kRVVComputedMaskTypeName(
+    "!tcrv_rvv.mask<i32, \"m1\">");
+constexpr llvm::StringLiteral kRVVComputedMaskCType("vbool32_t");
+constexpr llvm::StringLiteral kRVVWideningDotTailPolicy("agnostic");
+constexpr llvm::StringLiteral kRVVWideningDotMaskPolicy("agnostic");
 
 llvm::Error validateRVVNonComputedMaskWideningDotReductionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -1919,6 +1975,97 @@ llvm::Error validateRVVNonComputedMaskWideningDotReductionRuntimeABIFacts(
           support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
           " before artifact export");
   }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskWideningDotReductionRuntimeABIFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const bool isStrided =
+      isRVVStridedInputWideningDotReductionRouteFamilyOperation(
+          description.operation);
+  const llvm::StringRef expectedABIOrder =
+      isStrided ? kRVVComputedMaskStridedInputWideningDotRuntimeABIOrder
+                : kRVVComputedMaskWideningDotRuntimeABIOrder;
+  if (description.runtimeABIOrder != expectedABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask widening dot-reduction target artifact "
+                    "consumer requires provider-derived runtime ABI order '") +
+        expectedABIOrder + "' but was '" + description.runtimeABIOrder + "'");
+  const size_t expectedCount = isStrided ? 9 : 7;
+  if (description.runtimeABIParameters.size() != expectedCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask widening dot-reduction target artifact "
+                    "consumer requires provider-derived runtime ABI "
+                    "parameter count ") +
+        llvm::Twine(expectedCount) + " before artifact export");
+
+  struct ExpectedRuntimeABIParameterRole {
+    llvm::StringRef cName;
+    support::RuntimeABIParameterRole role;
+  };
+  const ExpectedRuntimeABIParameterRole expectedUnitRoles[] = {
+      {"cmp_lhs", support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"cmp_rhs", support::RuntimeABIParameterRole::RHSInputBuffer},
+      {"lhs", support::RuntimeABIParameterRole::DotLHSInputBuffer},
+      {"rhs", support::RuntimeABIParameterRole::DotRHSInputBuffer},
+      {"acc", support::RuntimeABIParameterRole::AccumulatorInputBuffer},
+      {"out", support::RuntimeABIParameterRole::OutputBuffer},
+      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
+  };
+  const ExpectedRuntimeABIParameterRole expectedStridedRoles[] = {
+      {"cmp_lhs", support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"cmp_rhs", support::RuntimeABIParameterRole::RHSInputBuffer},
+      {"lhs", support::RuntimeABIParameterRole::DotLHSInputBuffer},
+      {"rhs", support::RuntimeABIParameterRole::DotRHSInputBuffer},
+      {"acc", support::RuntimeABIParameterRole::AccumulatorInputBuffer},
+      {"out", support::RuntimeABIParameterRole::OutputBuffer},
+      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
+      {"lhs_stride", support::RuntimeABIParameterRole::LHSInputStride},
+      {"rhs_stride", support::RuntimeABIParameterRole::RHSInputStride},
+  };
+  llvm::ArrayRef<ExpectedRuntimeABIParameterRole> expectedRoles =
+      isStrided ? llvm::ArrayRef(expectedStridedRoles)
+                : llvm::ArrayRef(expectedUnitRoles);
+  for (size_t index = 0; index < expectedRoles.size(); ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    if (actual.cName != expectedRoles[index].cName ||
+        actual.role != expectedRoles[index].role)
+      return makeRVVTargetRouteError(
+          llvm::Twine("computed-mask widening dot-reduction target artifact "
+                      "consumer requires provider-derived runtime ABI "
+                      "parameter ") +
+          std::to_string(index) + " to bind " + expectedRoles[index].cName +
+          " as " +
+          support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
+          " before artifact export");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningDotReductionNoStaleNonFamilyProviderFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.maccAccumulatorLayout.empty() ||
+      !description.maccResultLayout.empty() ||
+      !description.wideningMAccAccumulatorLayout.empty() ||
+      !description.wideningMAccResultLayout.empty())
+    return makeRVVTargetRouteError(
+        "widening dot-reduction target artifact consumer rejects stale "
+        "non-widening-dot route-family facts");
   return llvm::Error::success();
 }
 
@@ -2028,27 +2175,155 @@ llvm::Error validateRVVNonComputedMaskWideningDotReductionRoutePayloadFacts(
         "widening dot-reduction target artifact consumer rejects stale "
         "strided-input facts on unit-stride widening dot routes");
   }
-  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
-      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
-      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
-      !description.wideningConversionRouteFamilyPlanID.empty() ||
-      !description.plainMAccRouteFamilyPlanID.empty() ||
-      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
-      !description.accumulationRouteFamilyPlanID.empty() ||
-      !description.standaloneReductionRouteFamilyPlanID.empty() ||
-      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
-      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
-      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
-      !description.segment2MemoryRouteFamilyPlanID.empty() ||
-      !description.baseMemoryMovementRouteFamilyPlanID.empty() ||
-      !description.wideningMAccRelation.empty() ||
-      !description.maccAccumulatorLayout.empty() ||
-      !description.maccResultLayout.empty() ||
-      !description.wideningMAccAccumulatorLayout.empty() ||
-      !description.wideningMAccResultLayout.empty())
+  if (llvm::Error error =
+          validateRVVWideningDotReductionNoStaleNonFamilyProviderFacts(
+              description))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskWideningDotReductionRoutePayloadFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const bool isStrided =
+      isRVVStridedInputWideningDotReductionRouteFamilyOperation(
+          description.operation);
+  const llvm::StringRef expectedBindingPlan =
+      isStrided ? kRVVComputedMaskStridedInputWideningDotRouteOperandBindingPlan
+                : kRVVComputedMaskWideningDotRouteOperandBindingPlan;
+  const llvm::StringRef expectedBindingSummary =
+      isStrided
+          ? kRVVComputedMaskStridedInputWideningDotRouteOperandBindingSummary
+          : kRVVComputedMaskWideningDotRouteOperandBindingSummary;
+  const plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm =
+      isStrided
+          ? plugin::rvv::RVVSelectedBodyMemoryForm::
+                ComputedMaskStridedInputWideningDotReduce
+          : plugin::rvv::RVVSelectedBodyMemoryForm::
+                ComputedMaskUnitStrideWideningDotReduce;
+  const llvm::StringRef expectedMemoryLayout =
+      isStrided ? kRVVComputedMaskStridedInputWideningDotMemoryLayout : "";
+
+  if (description.providerSupportedMirror !=
+          kRVVWideningDotProviderSupportedMirror ||
+      description.contractionRouteFamilyPlanID !=
+          kRVVWideningDotContractionRouteFamilyPlan ||
+      description.targetLeafProfile != kRVVWideningDotTargetLeafProfile ||
+      description.requiredHeaderDeclarations != kRVVWideningDotRequiredHeaders ||
+      description.cTypeMappingSummary != kRVVWideningDotCTypeMapping)
     return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer rejects stale "
-        "non-widening-dot route-family facts");
+        llvm::Twine("computed-mask widening dot-reduction target artifact "
+                    "consumer requires provider-owned contraction support, "
+                    "target leaf profile, header, and C type facts before "
+                    "artifact export but provider carried support '") +
+        description.providerSupportedMirror + "', plan '" +
+        description.contractionRouteFamilyPlanID + "', target profile '" +
+        description.targetLeafProfile + "', headers '" +
+        description.requiredHeaderDeclarations + "', and C type mapping '" +
+        description.cTypeMappingSummary + "'");
+  if (description.routeOperandBindingPlanID != expectedBindingPlan ||
+      description.routeOperandBindingSummary != expectedBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask widening dot-reduction target artifact "
+                    "consumer requires provider route operand binding plan '") +
+        expectedBindingPlan + "' and exact operand binding summary before "
+        "artifact export");
+  if (description.memoryForm != expectedMemoryForm ||
+      description.typedComputeOpName != "tcrv_rvv.masked_widening_dot_reduce")
+    return makeRVVTargetRouteError(
+        "computed-mask widening dot-reduction target artifact consumer "
+        "requires a selected tcrv_rvv.masked_widening_dot_reduce body with "
+        "the provider-derived computed-mask memory form");
+  if (llvm::Error error =
+          validateRVVComputedMaskWideningDotReductionRuntimeABIFacts(
+              description))
+    return error;
+  if (description.tailPolicy != kRVVWideningDotTailPolicy ||
+      description.maskPolicy != kRVVWideningDotMaskPolicy)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask widening dot-reduction target artifact "
+                    "consumer requires provider-derived tail/mask policy '") +
+        kRVVWideningDotTailPolicy + "/" + kRVVWideningDotMaskPolicy +
+        "' before artifact export");
+  if (description.maskRole != kRVVComputedMaskRole ||
+      description.maskSource != kRVVComputedMaskSource ||
+      description.maskMemoryForm != kRVVComputedMaskMemoryForm ||
+      description.inactiveLaneZeroingRequirement !=
+          kRVVComputedMaskInactiveLaneZeroingRequirement ||
+      description.comparePredicateKind != kRVVComputedMaskComparePredicateKind ||
+      description.compareIntrinsic != kRVVComputedMaskCompareIntrinsic ||
+      description.vectorLoadIntrinsic != kRVVComputedMaskCompareLoadIntrinsic ||
+      description.maskedWideningProductIntrinsic !=
+          kRVVComputedMaskWideningDotMaskedProductIntrinsic ||
+      description.maskedMergeIntrinsic !=
+          kRVVComputedMaskWideningDotMergeIntrinsic ||
+      description.maskTypeName != kRVVComputedMaskTypeName ||
+      description.maskCType != kRVVComputedMaskCType)
+    return makeRVVTargetRouteError(
+        "computed-mask widening dot-reduction target artifact consumer "
+        "requires exact provider-derived mask role/source/form, predicate, "
+        "compare, masked product, merge, inactive-lane zeroing, and mask type "
+        "facts before artifact export");
+  if (description.wideningDotProductAccumulatorLayout !=
+          kRVVWideningDotAccumulatorLayout ||
+      description.wideningDotProductResultLayout !=
+          kRVVWideningDotResultLayout ||
+      description.wideningDotProductRelation != kRVVWideningDotRelation ||
+      description.reductionStoreVL != kRVVWideningDotReductionStoreVL)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask widening dot-reduction target artifact "
+                    "consumer requires provider-derived dot layout/relation "
+                    "facts accumulator '") +
+        kRVVWideningDotAccumulatorLayout + "', result '" +
+        kRVVWideningDotResultLayout + "', relation '" +
+        kRVVWideningDotRelation + "', and store VL '" +
+        kRVVWideningDotReductionStoreVL + "' before artifact export but saw "
+        "accumulator '" +
+        description.wideningDotProductAccumulatorLayout + "', result '" +
+        description.wideningDotProductResultLayout + "', relation '" +
+        description.wideningDotProductRelation + "', and store VL '" +
+        description.reductionStoreVL + "'");
+  if (description.sourceVectorLoadIntrinsic !=
+          kRVVWideningDotSourceLoadIntrinsic ||
+      description.wideningProductIntrinsic != kRVVWideningDotProductIntrinsic ||
+      description.scalarSeedSplatIntrinsic !=
+          kRVVWideningDotScalarSeedSplatIntrinsic ||
+      description.intrinsic != kRVVWideningDotReductionIntrinsic ||
+      description.storeIntrinsic != kRVVWideningDotStoreIntrinsic)
+    return makeRVVTargetRouteError(
+        "computed-mask widening dot-reduction target artifact consumer "
+        "requires provider-derived source load, widening product, scalar "
+        "seed, reduction, and store statement facts before artifact export");
+  if (isStrided) {
+    if (description.stridedLoadIntrinsic !=
+            kRVVStridedInputWideningDotSourceLoadIntrinsic ||
+        description.stridedMemoryLayout != expectedMemoryLayout ||
+        description.lhsStrideSource !=
+            kRVVStridedInputWideningDotLHSStrideSource ||
+        description.rhsStrideSource !=
+            kRVVStridedInputWideningDotRHSStrideSource ||
+        description.sourceMemoryForm !=
+            kRVVStridedInputWideningDotSourceMemoryForm ||
+        description.destinationMemoryForm !=
+            kRVVStridedInputWideningDotDestinationMemoryForm)
+      return makeRVVTargetRouteError(
+          "computed-mask strided-input widening dot-reduction target artifact "
+          "consumer requires exact provider-derived strided load, stride ABI, "
+          "source/result memory form, and layout facts before artifact export");
+  } else if (!description.stridedLoadIntrinsic.empty() ||
+             !description.stridedMemoryLayout.empty() ||
+             !description.lhsStrideSource.empty() ||
+             !description.rhsStrideSource.empty() ||
+             !description.sourceMemoryForm.empty() ||
+             !description.destinationMemoryForm.empty()) {
+    return makeRVVTargetRouteError(
+        "computed-mask widening dot-reduction target artifact consumer "
+        "rejects stale strided-input facts on unit-stride computed-mask "
+        "widening dot routes");
+  }
+  if (llvm::Error error =
+          validateRVVWideningDotReductionNoStaleNonFamilyProviderFacts(
+              description))
+    return error;
   return llvm::Error::success();
 }
 
@@ -2159,6 +2434,12 @@ llvm::Error validateRVVWideningDotReductionRouteABIMappings(
           description.operation))
     if (llvm::Error error =
             validateRVVNonComputedMaskWideningDotReductionRuntimeABIFacts(
+                description))
+      return error;
+  if (isRVVComputedMaskWideningDotReductionRouteFamilyOperation(
+          description.operation))
+    if (llvm::Error error =
+            validateRVVComputedMaskWideningDotReductionRuntimeABIFacts(
                 description))
       return error;
   if (description.runtimeABIOrder.empty() ||
@@ -2418,6 +2699,12 @@ llvm::Error validateRVVWideningDotReductionRoutePayloadFacts(
             validateRVVNonComputedMaskWideningDotReductionRoutePayloadFacts(
                 description))
       return error;
+  if (isRVVComputedMaskWideningDotReductionRouteFamilyOperation(
+          description.operation))
+    if (llvm::Error error =
+            validateRVVComputedMaskWideningDotReductionRoutePayloadFacts(
+                description))
+      return error;
 
   if (llvm::Error error =
           validateRVVWideningDotReductionRouteHeaders(route, description))
@@ -2573,6 +2860,11 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             "zeroing requirement"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind",
+            description.comparePredicateKind,
+            "selected typed RVV computed-mask widening dot compare predicate"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.masked_widening_product_intrinsic",
             description.maskedWideningProductIntrinsic,
             "selected typed RVV computed-mask widening dot product intrinsic"))
@@ -2594,6 +2886,10 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             candidate, "tcrv_rvv.inactive_lane_zeroing_requirement", "",
             "selected typed RVV computed-mask widening dot inactive lane "
             "zeroing requirement"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind", "",
+            "selected typed RVV computed-mask widening dot compare predicate"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.masked_widening_product_intrinsic", "",
@@ -2660,31 +2956,28 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
       return error;
   }
 
-  if (isRVVNonComputedMaskWideningDotReductionRouteFamilyOperation(
-          description.operation)) {
-    constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
-        "tcrv_rvv.elementwise_arithmetic_route_family_plan",
-        "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
-        "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
-        "tcrv_rvv.widening_conversion_route_family_plan",
-        "tcrv_rvv.plain_compare_select_route_family_plan",
-        "tcrv_rvv.computed_mask_select_route_family_plan",
-        "tcrv_rvv.computed_mask_memory_route_family_plan",
-        "tcrv_rvv.segment2_memory_route_family_plan",
-        "tcrv_rvv.plain_macc_route_family_plan",
-        "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
-        "tcrv_rvv.accumulation_route_family_plan",
-        "tcrv_rvv.standalone_reduction_route_family_plan",
-        "tcrv_rvv.base_memory_movement_route_family_plan",
-        "tcrv_rvv.mask_tail_policy_route_family_plan",
-        "tcrv_rvv.mask_tail_policy_owner",
-        "tcrv_rvv.widening_macc_relation"};
-    for (llvm::StringRef key : staleRouteFamilyMirrors)
-      if (llvm::Error error = requireEmptyWideningDotReductionStaleMirror(
-              candidate, key,
-              "selected typed RVV non-widening-dot route-family mirror"))
-        return error;
-  }
+  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.mask_tail_policy_route_family_plan",
+      "tcrv_rvv.mask_tail_policy_owner",
+      "tcrv_rvv.widening_macc_relation"};
+  for (llvm::StringRef key : staleRouteFamilyMirrors)
+    if (llvm::Error error = requireEmptyWideningDotReductionStaleMirror(
+            candidate, key,
+            "selected typed RVV non-widening-dot route-family mirror"))
+      return error;
 
   return llvm::Error::success();
 }

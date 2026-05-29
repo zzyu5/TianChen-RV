@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 302
+- **Total Sessions**: 303
 - **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~1835 | Active |
+| `journal-17.md` | ~1868 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 303 | 2026-05-29 | Stage2 RVV computed-mask widening dot runtime ABI closure | pending-final-session-commit | `main` |
 | 302 | 2026-05-29 | Stage2 RVV widening dot-reduction artifact runtime ABI closure | pending-final-session-commit | `main` |
 | 301 | 2026-05-29 | Stage2 RVV widening-MAcc artifact runtime ABI closure | pending-final-session-commit | `main` |
 | 300 | 2026-05-29 | Stage2 RVV vector-reduction artifact/runtime ABI closure | `same commit` | `main` |

@@ -823,6 +823,59 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
+  if (op == OperationKind::ComputedMaskWideningDotReduceAdd ||
+      op == OperationKind::ComputedMaskStridedInputWideningDotReduceAdd) {
+    const bool isStrided =
+        op == OperationKind::ComputedMaskStridedInputWideningDotReduceAdd;
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:cmp-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:cmp-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:lhs", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:rhs", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:n", role = "runtime-element-count"} : index
+)mlir";
+    if (isStrided)
+      os << R"mlir(
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:lhs-stride", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-widening-dot-reduce-add:rhs-stride", role = "rhs-input-stride"} : index
+)mlir";
+    os << R"mlir(
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+)mlir";
+    if (isStrided) {
+      os << R"mlir(
+        %lhs_vec = tcrv_rvv.strided_load %lhs, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %rhs_vec = tcrv_rvv.strided_load %rhs, %rhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+)mlir";
+    } else {
+      os << R"mlir(
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+)mlir";
+    }
+    os << R"mlir(
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_widening_dot_reduce %mask, %lhs_vec, %rhs_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", kind = "signed_masked_widening_dot_reduce_add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-dot-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   const bool useLegacyBody =
       op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
@@ -1933,6 +1986,29 @@ bool expectRVVTargetArtifactExporterShape(
                                  stridedWideningDotDescription))
     return false;
 
+  RVVTargetArtifactCandidateFixture computedMaskWideningDotFixture(
+      OperationKind::ComputedMaskWideningDotReduceAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskWideningDotRoute;
+  RVVRouteDescription computedMaskWideningDotDescription;
+  if (!expectWideningDotPositive("computed-mask widening dot-reduce",
+                                 computedMaskWideningDotFixture,
+                                 computedMaskWideningDotRoute,
+                                 computedMaskWideningDotDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture computedMaskStridedWideningDotFixture(
+      OperationKind::ComputedMaskStridedInputWideningDotReduceAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskStridedWideningDotRoute;
+  RVVRouteDescription computedMaskStridedWideningDotDescription;
+  if (!expectWideningDotPositive(
+          "computed-mask strided-input widening dot-reduce",
+          computedMaskStridedWideningDotFixture,
+          computedMaskStridedWideningDotRoute,
+          computedMaskStridedWideningDotDescription))
+    return false;
+
   auto expectWideningDotProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -2046,6 +2122,96 @@ bool expectRVVTargetArtifactExporterShape(
           {"stale", "non-widening-dot route-family facts"}))
     return false;
 
+  RVVRouteDescription staleComputedMaskDotBinding =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:masked_widening_dot_reduce.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+      "dot_lhs=metadata-derived-buffer:lhs:abi|ld|mlhs|i16|hdr;"
+      "dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+      "out=output-buffer:out:abi|store|i32|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotBinding,
+          "computed-mask widening-dot registry rejects stale operand binding "
+          "facts",
+          {"computed-mask widening dot-reduction",
+           "provider route operand binding plan",
+           "exact operand binding summary"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskDotLHSRole =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotLHSRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotLHSRole,
+          "computed-mask widening-dot registry rejects stale dot-lhs ABI role",
+          {"runtime ABI parameter 2", "lhs", "dot-lhs-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskDotSource =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotSource.maskSource = "metadata-derived-mask-source";
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotSource,
+          "computed-mask widening-dot registry rejects stale mask source",
+          {"exact provider-derived mask role/source/form",
+           "predicate", "masked product"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskDotPredicate =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotPredicate.comparePredicateKind = "eq";
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotPredicate,
+          "computed-mask widening-dot registry rejects stale predicate",
+          {"exact provider-derived mask role/source/form",
+           "predicate", "masked product"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskDotStridedFacts =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotStridedFacts.sourceMemoryForm = "strided-load";
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotStridedFacts,
+          "computed-mask widening-dot registry rejects stale strided facts on "
+          "unit route",
+          {"widening dot-reduction", "stale", "strided-input facts"}))
+    return false;
+
+  RVVRouteDescription missingComputedMaskStridedDotFacts =
+      computedMaskStridedWideningDotDescription;
+  missingComputedMaskStridedDotFacts.sourceMemoryForm = "";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          missingComputedMaskStridedDotFacts,
+          "computed-mask widening-dot registry rejects missing strided source "
+          "form",
+          {"strided-input widening dot-reduction",
+           "source/result memory form"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskDotNonFamily =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotNonFamily.plainMAccRouteFamilyPlanID =
+      "metadata-derived-plain-macc";
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotNonFamily,
+          "computed-mask widening-dot registry rejects stale non-dot provider "
+          "facts",
+          {"stale", "non-widening-dot route-family facts"}))
+    return false;
+
   TargetArtifactCandidate missingWideningDotProviderMirror =
       wideningDotFixture.candidate;
   if (!eraseArtifactMetadataKey(missingWideningDotProviderMirror,
@@ -2150,6 +2316,101 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningDotNonFamilyMirror, wideningDotRoute,
           wideningDotDescription,
           "widening-dot registry rejects stale non-family mirror",
+          {"must not carry",
+           "selected typed RVV non-widening-dot route-family mirror"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskDotMaskSourceMirror =
+      computedMaskWideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleComputedMaskDotMaskSourceMirror,
+                                    "tcrv_rvv.mask_source",
+                                    "metadata-derived-mask-source")) {
+    llvm::errs() << "test fixture did not contain computed-mask widening-dot "
+                    "mask source metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleComputedMaskDotMaskSourceMirror, computedMaskWideningDotRoute,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale mask source "
+          "mirror",
+          {"mask_source", "metadata-derived-mask-source"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskDotPredicateMirror =
+      computedMaskWideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleComputedMaskDotPredicateMirror,
+                                    "tcrv_rvv.compare_predicate_kind", "eq")) {
+    llvm::errs() << "test fixture did not contain computed-mask widening-dot "
+                    "compare predicate metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleComputedMaskDotPredicateMirror, computedMaskWideningDotRoute,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale predicate mirror",
+          {"compare_predicate_kind", "slt", "eq"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskDotProductMirror =
+      computedMaskWideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleComputedMaskDotProductMirror,
+          "tcrv_rvv.masked_widening_product_intrinsic",
+          "__riscv_vwmul_vv_i32m1")) {
+    llvm::errs() << "test fixture did not contain computed-mask widening-dot "
+                    "masked product metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleComputedMaskDotProductMirror, computedMaskWideningDotRoute,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale product mirror",
+          {"masked_widening_product_intrinsic",
+           "__riscv_vwmul_vv_i32m1_m", "__riscv_vwmul_vv_i32m1"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskDotStridedMirror =
+      computedMaskWideningDotFixture.candidate;
+  staleComputedMaskDotStridedMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.source_memory_form", "strided-load"));
+  if (!expectWideningDotCandidateFailure(
+          staleComputedMaskDotStridedMirror, computedMaskWideningDotRoute,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale strided mirror on "
+          "unit route",
+          {"source_memory_form", "must not carry"}))
+    return false;
+
+  TargetArtifactCandidate missingComputedMaskStridedDotSourceFormMirror =
+      computedMaskStridedWideningDotFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingComputedMaskStridedDotSourceFormMirror,
+                                "tcrv_rvv.source_memory_form")) {
+    llvm::errs() << "test fixture did not contain computed-mask strided "
+                    "widening-dot source memory form metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingComputedMaskStridedDotSourceFormMirror,
+          computedMaskStridedWideningDotRoute,
+          computedMaskStridedWideningDotDescription,
+          "computed-mask widening-dot registry rejects missing strided source "
+          "form mirror",
+          {"source_memory_form", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskDotNonFamilyMirror =
+      computedMaskWideningDotFixture.candidate;
+  staleComputedMaskDotNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.plain_macc_route_family_plan",
+          "metadata-derived-plain-macc"));
+  if (!expectWideningDotCandidateFailure(
+          staleComputedMaskDotNonFamilyMirror, computedMaskWideningDotRoute,
+          computedMaskWideningDotDescription,
+          "computed-mask widening-dot registry rejects stale non-family "
+          "mirror",
           {"must not carry",
            "selected typed RVV non-widening-dot route-family mirror"}))
     return false;

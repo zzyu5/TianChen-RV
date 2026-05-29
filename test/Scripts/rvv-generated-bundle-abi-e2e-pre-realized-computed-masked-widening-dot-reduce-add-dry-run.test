@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-widening-dot-reduce-add --overwrite --op-kind computed_masked_widening_dot_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-masked-widening-dot-reduce-add --overwrite --op-kind computed_masked_widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-masked-widening-dot-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MDOT --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-masked-widening-dot-reduce-add/computed_masked_widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-masked-widening-dot-reduce-add/computed_masked_widening_dot_reduce_add/rvv_generated_bundle_abi_computed_masked_widening_dot_reduce_add_harness.c
@@ -53,6 +53,10 @@
 # MDOT-DAG: "key": "tcrv_rvv.masked_widening_product_intrinsic"
 # MDOT-DAG: "value": "__riscv_vwmul_vv_i32m1_m"
 # MDOT-DAG: "computed_masked_widening_dot_reduce_boundary"
+# MDOT-DAG: "direct_pre_realized_route_entry_supported": false
+# MDOT-DAG: "provider_route_facts"
+# MDOT-DAG: "target_validator_consumed_facts"
+# MDOT-DAG: "strided_input_facts": "rejected-if-present"
 # MDOT-DAG: "compare_predicate_kind": "slt"
 # MDOT-DAG: "masked_product_operand_order": "mask,lhs,rhs,vl"
 # MDOT-DAG: "merge_operand_order": "zero,active_product,mask,vl"
@@ -68,5 +72,5 @@
 # HARNESS: int active = cmp_lhs[index] < cmp_rhs[index];
 # HARNESS: int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
 # HARNESS: compare_masked_signed_horizontal_dot seed_added inactive_lanes_skipped scalar_output tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_computed_masked_widening_dot_reduce_add_ok counts=0,7,16,23
-# HARNESS: PASS op=computed_masked_widening_dot_reduce_add counts=0,7,16,23
+# HARNESS: tcrv_rvv_generated_bundle_abi_computed_masked_widening_dot_reduce_add_ok counts=0,1,16,17,257
+# HARNESS: PASS op=computed_masked_widening_dot_reduce_add counts=0,1,16,17,257
