@@ -246,3 +246,48 @@ Closed computed-mask standalone reduce_min/reduce_max target artifact runtime AB
 ### Next Steps
 
 - None - task complete
+
+
+## Session 311: Stage2 RVV runtime-scalar computed-mask standalone min/max ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV runtime-scalar computed-mask standalone reduce_min/reduce_max runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime-scalar computed-mask standalone reduce_min/reduce_max target artifact ABI boundary for signed i32 SEW32 LMUL m1/m2 while preserving existing runtime-scalar reduce_add/i64 evidence.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so runtime-scalar computed-mask standalone reduce_min/reduce_max must carry provider-derived typed op, runtime-scalar standalone memory form, signed i32 SEW32 LMUL m1/m2 source/config facts, scalar-result m1 boundary, ABI order `cmp_lhs,rhs_scalar,src,acc,out,n`, rhs scalar ABI role, provider mirror, route operand binding plan/summary, neutral inactive lanes, seed splat, runtime scalar RHS splat, compare/merge/reduction/store leaf facts, accumulation producer source, scalar carry boundary, and targeted fail-closed diagnostics.
+- Added `test/Target/TargetArtifactExportTest.cpp` positive target artifact coverage for runtime-scalar min/max m1/m2 and fail-closed provider/candidate mirror mutations across typed op, ABI order, rhs_scalar role, provider mirror, binding plan, inactive-lane contract, RHS splat, min/max intrinsic, accumulation producer, runtime ABI mirror, binding mirror, producer mirror, and scalar-result C type mirror.
+- Self-repaired a full-check regression by limiting the new detailed i32 min/max validation to min/max instead of the pre-existing runtime-scalar reduce_add i64 path.
+- Archived `.trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-minmax-runtime-abi-closure`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | rvv: close runtime scalar min max ABI validation |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] generated-bundle pre-realized runtime-scalar min/max dry-run for m1/m2, counts 0,1,16,23,257, rhs scalars -37 and 91
+- [OK] direct pre-realized route-entry fail-closed check for runtime-scalar min/max m1/m2
+- [OK] runtime-scalar reduce_add/i64 generated-bundle dry-run non-regression
+- [OK] vector computed-mask standalone min/max generated-bundle dry-run non-regression
+- [OK] `ssh rvv` runtime-scalar min/max m1/m2 compile/run correctness for counts 0,1,16,23,257, rhs scalars -37 and 91, seeds -11 and 17, mixed-mask and all-inactive-mask cases
+- [OK] bounded added-line authority leak scan found no descriptor/source-front-door/direct-C/legacy-i32 route authority
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
