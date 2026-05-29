@@ -789,3 +789,43 @@ Closed widening conversion dtype-policy target artifact validation with exact pr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 317: Stage2 RVV segment2 memory artifact ABI statement-plan validation closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV segment2 memory artifact ABI statement-plan validation closure
+**Branch**: `main`
+
+### Summary
+
+Closed segment2-memory target artifact validation with exact provider ABI role/order and statement-plan checks; focused target/export tests and check-tianchenrv passed.
+
+### Main Changes
+
+### Main Changes
+
+- Replaced segment2-memory callee-presence acceptance with exact provider-built statement validation for computed-mask segment2 load/store/update and plain segment2 deinterleave/interleave.
+- Added segment2 runtime ABI validation for exact c_name, C type, role, target-export ownership, and per-family ABI order.
+- Added TargetArtifactExportTest route-clone negatives for stale pre-loop AVL, loop remaining AVL, field loads, compare/mask, update arithmetic, segment load/store, tuple field extract/create, field stores, and selected typed RVV provenance.
+- Archived `.trellis/tasks/archive/2026-05/05-29-stage2-rvv-segment2-memory-artifact-abi-statement-plan-validation-closure`.
+- Evidence: focused target artifact export test passed; bounded segment2 owner scan found no remaining `routeLoopContainsCallee` / `routeStepsContainCallee`; git diff --check passed; check-tianchenrv passed 459/459.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

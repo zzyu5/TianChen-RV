@@ -6972,6 +6972,16 @@ bool expectRVVTargetArtifactExporterShape(
                                          computedMaskSegment2UpdateRoute,
                                          mutated, mutationContext, fragments);
   };
+  auto expectComputedMaskSegment2RouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(computedMaskSegment2UpdateFixture,
+                                         mutatedRoute,
+                                         computedMaskSegment2UpdateDescription,
+                                         mutationContext, fragments);
+  };
   auto expectComputedMaskSegment2CandidateFailure =
       [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -6986,6 +6996,16 @@ bool expectRVVTargetArtifactExporterShape(
                                          segment2DeinterleaveRoute, mutated,
                                          mutationContext, fragments);
   };
+  auto expectPlainDeinterleaveRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(segment2DeinterleaveFixture,
+                                         mutatedRoute,
+                                         segment2DeinterleaveDescription,
+                                         mutationContext, fragments);
+  };
   auto expectPlainDeinterleaveCandidateFailure =
       [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -6998,6 +7018,16 @@ bool expectRVVTargetArtifactExporterShape(
           std::initializer_list<llvm::StringRef> fragments) -> bool {
     return expectSegment2ProviderFailure(segment2InterleaveFixture,
                                          segment2InterleaveRoute, mutated,
+                                         mutationContext, fragments);
+  };
+  auto expectPlainInterleaveRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(segment2InterleaveFixture,
+                                         mutatedRoute,
+                                         segment2InterleaveDescription,
                                          mutationContext, fragments);
   };
   auto expectPlainInterleaveCandidateFailure =
@@ -7519,7 +7549,148 @@ bool expectRVVTargetArtifactExporterShape(
           wrongSegment2RuntimePlan,
           "computed-mask segment2 registry rejects wrong VL/AVL runtime "
           "relation",
-          {"pre-loop setvl statement", "full-chunk VL"}))
+          {"pre-loop setvl", "metadata_derived_full_chunk_vl",
+           "full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2RuntimeRole =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2RuntimeRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::SourceInputBuffer;
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2RuntimeRole,
+          "computed-mask segment2 registry rejects wrong runtime ABI role",
+          {"runtime ABI parameter[2]", "segment-field0-input-buffer",
+           "source-input-buffer"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2Layout =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2Layout.segmentMemoryLayout =
+      "metadata-derived-segment2-layout";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2Layout,
+          "computed-mask segment2 registry rejects wrong segment layout",
+          {"segment memory layout",
+           "unit-stride-compare-field-payloads-arithmetic-segment2-masked-destination-runtime-abi",
+           "metadata-derived-segment2-layout"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              computedMaskSegment2UpdateRoute, 0, 0, "metadata_n"),
+          "computed-mask segment2 registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl", "operand[0]", "metadata_n"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2UpdateRoute, 0, 0, 0, "n"),
+          "computed-mask segment2 registry rejects stale loop setvl remaining "
+          "AVL",
+          {"loop setvl", "operand[0]", "n - offset"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2UpdateRoute, 0, 3, 0, "src0 + stale"),
+          "computed-mask segment2 registry rejects stale field0 vector load",
+          {"field0 payload vector load", "operand[0]", "src0 + stale"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2UpdateRoute, 0, 5, 0,
+              "metadata_cmp_lhs_vec"),
+          "computed-mask segment2 registry rejects stale compare/mask operand",
+          {"compare/mask", "operand[0]", "metadata_cmp_lhs_vec"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2UpdateRoute, 0, 6, 1,
+              "metadata_field1_vec"),
+          "computed-mask segment2 registry rejects stale update arithmetic "
+          "operand",
+          {"segment2 update arithmetic", "operand[1]",
+           "metadata_field1_vec"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              computedMaskSegment2UpdateRoute, 0, 6,
+              "metadata_updated_field0_vec"),
+          "computed-mask segment2 registry rejects stale update arithmetic "
+          "result",
+          {"segment2 update arithmetic", "result",
+           "metadata_updated_field0_vec"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2UpdateRoute, 0, 8, 1, "dst + i"),
+          "computed-mask segment2 registry rejects stale masked segment-store "
+          "pointer",
+          {"masked segment2 store", "operand[1]", "dst + i"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+              computedMaskSegment2UpdateRoute, 0, 8,
+              "tcrv.stale_segment2_source"),
+          "computed-mask segment2 registry rejects stale loop statement "
+          "source provenance",
+          {"loop statements", "selected typed RVV source provenance"}))
+    return false;
+
+  if (!expectSegment2ProviderFailure(
+          computedMaskSegment2LoadFixture,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2LoadRoute, 0, 7, 2, "src + i"),
+          computedMaskSegment2LoadDescription,
+          "computed-mask segment2 load validator rejects stale segment-load "
+          "pointer",
+          {"masked segment2 load", "operand[2]", "src + i"}))
+    return false;
+
+  if (!expectSegment2ProviderFailure(
+          computedMaskSegment2LoadFixture,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2LoadRoute, 0, 10, 2, "full_chunk_vl"),
+          computedMaskSegment2LoadDescription,
+          "computed-mask segment2 load validator rejects stale field-store VL",
+          {"field0 output store", "operand[2]", "full_chunk_vl"}))
+    return false;
+
+  if (!expectPlainDeinterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              segment2DeinterleaveRoute, 0, 2, 1, "1"),
+          "plain segment2 deinterleave validator rejects stale field0 tuple "
+          "index",
+          {"segment2 field0 extract", "operand[1]", "0", "1"}))
+    return false;
+
+  if (!expectPlainDeinterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              segment2DeinterleaveRoute, 0, 4, 1, "field1_vec"),
+          "plain segment2 deinterleave validator rejects stale field0 store "
+          "value",
+          {"field0 output store", "operand[1]", "field1_vec"}))
+    return false;
+
+  if (!expectPlainInterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              segment2InterleaveRoute, 0, 3, 0, "field1_vec"),
+          "plain segment2 interleave validator rejects stale tuple field order",
+          {"segment2 tuple create", "operand[0]", "field1_vec"}))
+    return false;
+
+  if (!expectPlainInterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              segment2InterleaveRoute, 0, 4, 0, "dst + i"),
+          "plain segment2 interleave validator rejects stale segment-store "
+          "pointer",
+          {"segment2 store", "operand[0]", "dst + i"}))
     return false;
 
   TargetArtifactCandidate wrongSegment2MaskMirror =

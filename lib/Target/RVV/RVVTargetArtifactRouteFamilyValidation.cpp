@@ -8974,21 +8974,183 @@ llvm::Error validateRVVPlainSegment2MemoryProviderFacts(
   return llvm::Error::success();
 }
 
+struct RVVExpectedSegment2RuntimeABIParameter {
+  llvm::StringRef cName;
+  llvm::StringRef cType;
+  support::RuntimeABIParameterRole role;
+};
+
+llvm::StringRef getRVVSegment2MemoryExpectedRuntimeABIOrder(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return getRVVComputedMaskSegment2ExpectedRuntimeABIOrder(operation);
+  if (isRVVPlainSegment2MemoryRouteFamilyOperation(operation))
+    return getRVVPlainSegment2ExpectedRuntimeABIOrder(operation);
+  return {};
+}
+
+llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6>
+getRVVSegment2MemoryExpectedRuntimeABIParameters(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  using support::RuntimeABIParameterRole;
+  llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6> expected;
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "cmp_lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "cmp_rhs", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "src", "const int32_t *", RuntimeABIParameterRole::SourceInputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "out0", "int32_t *",
+        RuntimeABIParameterRole::SegmentField0OutputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "out1", "int32_t *",
+        RuntimeABIParameterRole::SegmentField1OutputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount});
+    return expected;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "cmp_lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "cmp_rhs", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "src0", "const int32_t *",
+        RuntimeABIParameterRole::SegmentField0InputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "src1", "const int32_t *",
+        RuntimeABIParameterRole::SegmentField1InputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "dst", "int32_t *",
+        RuntimeABIParameterRole::SegmentInterleavedOutputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount});
+    return expected;
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "src", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "out0", "int32_t *",
+        RuntimeABIParameterRole::SegmentField0OutputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "out1", "int32_t *",
+        RuntimeABIParameterRole::SegmentField1OutputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount});
+    return expected;
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "src0", "const int32_t *",
+        RuntimeABIParameterRole::SegmentField0InputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "src1", "const int32_t *",
+        RuntimeABIParameterRole::SegmentField1InputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "dst", "int32_t *",
+        RuntimeABIParameterRole::SegmentInterleavedOutputBuffer});
+    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+        "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount});
+    return expected;
+  default:
+    return expected;
+  }
+}
+
+llvm::Error validateRVVSegment2MemoryRuntimeABIFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  llvm::StringRef expectedOrder =
+      getRVVSegment2MemoryExpectedRuntimeABIOrder(description.operation);
+  if (expectedOrder.empty())
+    return makeRVVTargetRouteError(
+        "segment2-memory target artifact consumer requires a segment2 runtime "
+        "ABI order owner before artifact export");
+  if (description.runtimeABIOrder != expectedOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "provider-derived runtime ABI order '") +
+        expectedOrder + "' but was '" + description.runtimeABIOrder + "'");
+
+  llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6>
+      expectedParameters =
+          getRVVSegment2MemoryExpectedRuntimeABIParameters(
+              description.operation);
+  if (description.runtimeABIParameters.size() != expectedParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires ") +
+        llvm::Twine(expectedParameters.size()) +
+        " provider-derived runtime ABI parameters before artifact export but "
+        "saw " +
+        llvm::Twine(description.runtimeABIParameters.size()));
+
+  for (std::size_t index = 0; index < expectedParameters.size(); ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    const RVVExpectedSegment2RuntimeABIParameter &expected =
+        expectedParameters[index];
+    if (actual.cName != expected.cName || actual.cType != expected.cType ||
+        actual.role != expected.role ||
+        actual.ownership !=
+            support::RuntimeABIParameterOwnership::TargetExportABIOwned)
+      return makeRVVTargetRouteError(
+          llvm::Twine("segment2-memory target artifact consumer requires "
+                      "provider-derived runtime ABI parameter[") +
+          llvm::Twine(index) + "] to bind '" + expected.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(expected.role) +
+          " with C type '" + expected.cType +
+          "' before artifact export but saw '" + actual.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(actual.role) +
+          " with C type '" + actual.cType + "'");
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getCallOpaqueSteps().empty())
+  constexpr llvm::StringLiteral consumerLabel(
+      "segment2-memory target artifact consumer");
+  if (llvm::Error error = validateRVVSegment2MemoryRuntimeABIFacts(description))
+    return error;
+  if (description.setVLIntrinsic.empty() || description.vectorCType.empty() ||
+      description.vlCType.empty() || description.emitCFullChunkVLName.empty() ||
+      description.emitCLoopVLName.empty() ||
+      description.emitCLoopInductionName.empty() ||
+      description.field0Name.empty() || description.field1Name.empty() ||
+      description.segmentTupleCType.empty())
     return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires provider-built "
-        "pre-loop setvl statement facts before artifact export");
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived setvl, vector, VL, field, tuple, and loop "
+        "facts before validating route statements");
+
+  const support::RuntimeABIParameter &runtimeNABI =
+      description.runtimeABIParameters.back();
+  const support::RuntimeABIParameter *runtimeElementCount =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeElementCount || runtimeElementCount != &runtimeNABI)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI role to match the selected segment2 ABI "
+        "order before validating route statements");
+
+  if (route.getCallOpaqueSteps().size() != 1)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exactly one provider-built pre-loop setvl statement before "
+        "artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != description.setVLIntrinsic ||
-      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires rebuilt provider "
-        "route pre-loop setvl statement to define the full-chunk VL");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSetVL, consumerLabel, "pre-loop setvl",
+          description.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
+          description.emitCFullChunkVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -9009,88 +9171,340 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     return makeRVVTargetRouteError(
         "segment2-memory target artifact consumer requires provider-built "
         "loop bounds and step to mirror runtime AVL/VL route facts");
-  if (description.runtimeABIParameters.empty() ||
-      loop.upperBound.expression != description.runtimeABIParameters.back().cName ||
-      loop.upperBound.cType != description.runtimeABIParameters.back().cType)
+  if (loop.upperBound.expression != runtimeNABI.cName ||
+      loop.upperBound.cType != runtimeNABI.cType)
     return makeRVVTargetRouteError(
         "segment2-memory target artifact consumer requires provider-built "
         "loop upper bound to use the runtime n/AVL ABI parameter");
-  if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != description.setVLIntrinsic ||
-      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
-                     description.vlCType))
+
+  std::size_t expectedLoopBodyStepCount = 0;
+  switch (description.operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    expectedLoopBodyStepCount = 12;
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    expectedLoopBodyStepCount = 8;
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    expectedLoopBodyStepCount = 9;
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    expectedLoopBodyStepCount = 6;
+    break;
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    expectedLoopBodyStepCount = 5;
+    break;
+  default:
+    llvm_unreachable("validated non-segment2 operation as segment2-memory");
+  }
+  if (loop.bodySteps.size() != expectedLoopBodyStepCount)
     return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires provider-built "
-        "loop setvl statement to define per-iteration VL");
+        llvm::Twine(consumerLabel) +
+        " requires exact provider-built loop statement count " +
+        llvm::Twine(expectedLoopBodyStepCount) +
+        " for the selected segment2-memory family before artifact export");
+
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeNABI.cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          description.setVLIntrinsic,
+          {{expectedRemainingAVL, description.vlCType}},
+          description.emitCLoopVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
       return makeRVVTargetRouteError(
           "segment2-memory target artifact consumer requires loop statements "
           "to carry selected typed RVV source provenance");
 
-  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
-          description.operation) &&
-      !routeLoopContainsCallee(loop, description.compareIntrinsic))
-    return makeRVVTargetRouteError(
-        "computed-mask segment2-memory target artifact consumer requires "
-        "provider-built compare/mask statement facts before artifact export");
+  auto pointerAtInduction = [&](const support::RuntimeABIParameter &abi) {
+    return (llvm::StringRef(abi.cName) + " + " +
+            description.emitCLoopInductionName)
+        .str();
+  };
+  auto interleavedPointerAtInduction =
+      [&](const support::RuntimeABIParameter &abi) {
+        return (llvm::StringRef(abi.cName) + " + (" +
+                description.emitCLoopInductionName + " * 2)")
+            .str();
+      };
+  auto validateVectorLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          llvm::StringRef stepLabel, const support::RuntimeABIParameter &abi,
+          llvm::StringRef resultName) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.vectorLoadIntrinsic,
+        {{pointerAtInduction(abi), abi.cType},
+         {description.emitCLoopVLName, description.vlCType}},
+        resultName, description.vectorCType);
+  };
+  auto validateFieldStore =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          llvm::StringRef stepLabel, const support::RuntimeABIParameter &abi,
+          llvm::StringRef valueName) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.storeIntrinsic,
+        {{pointerAtInduction(abi), abi.cType},
+         {valueName, description.vectorCType},
+         {description.emitCLoopVLName, description.vlCType}});
+  };
+  auto validateTupleFieldExtract =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          llvm::StringRef stepLabel, llvm::StringRef fieldIndex,
+          llvm::StringRef resultName) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.segmentFieldExtractIntrinsic,
+        {{"segment2_tuple", description.segmentTupleCType},
+         {fieldIndex, "size_t"}},
+        resultName, description.vectorCType);
+  };
+  auto validateTupleCreate =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          llvm::StringRef stepLabel, llvm::StringRef field0Name,
+          llvm::StringRef field1Name,
+          llvm::StringRef resultName) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.segmentFieldExtractIntrinsic,
+        {{field0Name, description.vectorCType},
+         {field1Name, description.vectorCType}},
+        resultName, description.segmentTupleCType);
+  };
+  auto validateComputedMaskPrefix =
+      [&](const support::RuntimeABIParameter &compareLhsABI,
+          const support::RuntimeABIParameter &compareRhsABI,
+          const support::RuntimeABIParameter &field0ABI,
+          const support::RuntimeABIParameter &field1ABI,
+          llvm::StringRef field0ResultName,
+          llvm::StringRef field1ResultName) -> llvm::Error {
+    if (description.compareIntrinsic.empty() || description.maskName.empty() ||
+        description.maskCType.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires provider-derived computed-mask compare, mask name, and "
+          "mask C type facts before validating route statements");
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[1], "compare lhs vector load", compareLhsABI,
+            "cmp_lhs_vec"))
+      return error;
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[2], "compare rhs vector load", compareRhsABI,
+            "cmp_rhs_vec"))
+      return error;
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[3], "field0 payload vector load", field0ABI,
+            field0ResultName))
+      return error;
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[4], "field1 payload vector load", field1ABI,
+            field1ResultName))
+      return error;
+    return validateRVVProviderBuiltRouteStep(
+        loop.bodySteps[5], consumerLabel, "compare/mask",
+        description.compareIntrinsic,
+        {{"cmp_lhs_vec", description.vectorCType},
+         {"cmp_rhs_vec", description.vectorCType},
+         {description.emitCLoopVLName, description.vlCType}},
+        description.maskName, description.maskCType);
+  };
 
   switch (description.operation) {
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2LoadUnitStore:
-    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.segmentLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.segmentFieldExtractIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.storeIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask segment2 load target artifact consumer requires "
-          "provider-built segment load, tuple, extract, and store statements");
+      ComputedMaskSegment2LoadUnitStore: {
+    const support::RuntimeABIParameter &compareLhsABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &compareRhsABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &sourceABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &field0ABI =
+        description.runtimeABIParameters[3];
+    const support::RuntimeABIParameter &field1ABI =
+        description.runtimeABIParameters[4];
+    if (llvm::Error error =
+            validateComputedMaskPrefix(compareLhsABI, compareRhsABI, field0ABI,
+                                       field1ABI, "field0_old_vec",
+                                       "field1_old_vec"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[6], consumerLabel, "masked passthrough tuple",
+            description.segmentStoreIntrinsic,
+            {{"field0_old_vec", description.vectorCType},
+             {"field1_old_vec", description.vectorCType}},
+            "segment2_passthrough_tuple", description.segmentTupleCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "masked segment2 load",
+            description.segmentLoadIntrinsic,
+            {{description.maskName, description.maskCType},
+             {"segment2_passthrough_tuple", description.segmentTupleCType},
+             {interleavedPointerAtInduction(sourceABI), sourceABI.cType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "segment2_tuple", description.segmentTupleCType))
+      return error;
+    if (llvm::Error error = validateTupleFieldExtract(
+            loop.bodySteps[8], "segment2 field0 extract", "0",
+            description.field0Name))
+      return error;
+    if (llvm::Error error = validateTupleFieldExtract(
+            loop.bodySteps[9], "segment2 field1 extract", "1",
+            description.field1Name))
+      return error;
+    if (llvm::Error error = validateFieldStore(
+            loop.bodySteps[10], "field0 output store", field0ABI,
+            description.field0Name))
+      return error;
+    if (llvm::Error error = validateFieldStore(
+            loop.bodySteps[11], "field1 output store", field1ABI,
+            description.field1Name))
+      return error;
     break;
+  }
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2StoreUnitLoad:
-    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.segmentFieldExtractIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask segment2 store target artifact consumer requires "
-          "provider-built tuple and masked segment-store statements");
+      ComputedMaskSegment2StoreUnitLoad: {
+    const support::RuntimeABIParameter &compareLhsABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &compareRhsABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &field0ABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &field1ABI =
+        description.runtimeABIParameters[3];
+    const support::RuntimeABIParameter &destinationABI =
+        description.runtimeABIParameters[4];
+    if (llvm::Error error =
+            validateComputedMaskPrefix(compareLhsABI, compareRhsABI, field0ABI,
+                                       field1ABI, description.field0Name,
+                                       description.field1Name))
+      return error;
+    if (llvm::Error error =
+            validateTupleCreate(loop.bodySteps[6], "segment2 tuple create",
+                                description.field0Name, description.field1Name,
+                                "segment2_tuple"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "masked segment2 store",
+            description.segmentStoreIntrinsic,
+            {{description.maskName, description.maskCType},
+             {interleavedPointerAtInduction(destinationABI),
+              destinationABI.cType},
+             {"segment2_tuple", description.segmentTupleCType},
+             {description.emitCLoopVLName, description.vlCType}}))
+      return error;
     break;
+  }
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2UpdateUnitLoad:
-    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.segment2UpdateArithmeticIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.segmentFieldExtractIntrinsic))
+      ComputedMaskSegment2UpdateUnitLoad: {
+    if (description.segment2UpdateArithmeticIntrinsic.empty())
       return makeRVVTargetRouteError(
-          "computed-mask segment2 update target artifact consumer requires "
-          "provider-built arithmetic, tuple, and masked segment-store "
-          "statements");
+          llvm::Twine(consumerLabel) +
+          " requires provider-derived segment2 update arithmetic intrinsic "
+          "before validating route statements");
+    const support::RuntimeABIParameter &compareLhsABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &compareRhsABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &field0ABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &field1ABI =
+        description.runtimeABIParameters[3];
+    const support::RuntimeABIParameter &destinationABI =
+        description.runtimeABIParameters[4];
+    if (llvm::Error error = validateComputedMaskPrefix(
+            compareLhsABI, compareRhsABI, field0ABI, field1ABI,
+            "segment2_update_field0_src_vec", description.field1Name))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[6], consumerLabel, "segment2 update arithmetic",
+            description.segment2UpdateArithmeticIntrinsic,
+            {{"segment2_update_field0_src_vec", description.vectorCType},
+             {description.field1Name, description.vectorCType},
+             {description.emitCLoopVLName, description.vlCType}},
+            description.field0Name, description.vectorCType))
+      return error;
+    if (llvm::Error error =
+            validateTupleCreate(loop.bodySteps[7], "segment2 tuple create",
+                                description.field0Name, description.field1Name,
+                                "segment2_tuple"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[8], consumerLabel, "masked segment2 store",
+            description.segmentStoreIntrinsic,
+            {{description.maskName, description.maskCType},
+             {interleavedPointerAtInduction(destinationABI),
+              destinationABI.cType},
+             {"segment2_tuple", description.segmentTupleCType},
+             {description.emitCLoopVLName, description.vlCType}}))
+      return error;
     break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      Segment2DeinterleaveUnitStore:
-    if (!routeLoopContainsCallee(loop, description.segmentLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.segmentFieldExtractIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.storeIntrinsic))
-      return makeRVVTargetRouteError(
-          "segment2 deinterleave target artifact consumer requires "
-          "provider-built segment load, extract, and field-store statements");
+  }
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore: {
+    const support::RuntimeABIParameter &sourceABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &field0ABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &field1ABI =
+        description.runtimeABIParameters[2];
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[1], consumerLabel, "segment2 load",
+            description.segmentLoadIntrinsic,
+            {{interleavedPointerAtInduction(sourceABI), sourceABI.cType},
+             {description.emitCLoopVLName, description.vlCType}},
+            "segment2_tuple", description.segmentTupleCType))
+      return error;
+    if (llvm::Error error = validateTupleFieldExtract(
+            loop.bodySteps[2], "segment2 field0 extract", "0",
+            description.field0Name))
+      return error;
+    if (llvm::Error error = validateTupleFieldExtract(
+            loop.bodySteps[3], "segment2 field1 extract", "1",
+            description.field1Name))
+      return error;
+    if (llvm::Error error = validateFieldStore(
+            loop.bodySteps[4], "field0 output store", field0ABI,
+            description.field0Name))
+      return error;
+    if (llvm::Error error = validateFieldStore(
+            loop.bodySteps[5], "field1 output store", field1ABI,
+            description.field1Name))
+      return error;
     break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      Segment2InterleaveUnitLoad:
-    if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
-        !routeLoopContainsCallee(loop,
-                                 description.segmentFieldExtractIntrinsic))
-      return makeRVVTargetRouteError(
-          "segment2 interleave target artifact consumer requires "
-          "provider-built tuple and segment-store statements");
+  }
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad: {
+    const support::RuntimeABIParameter &field0ABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &field1ABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &destinationABI =
+        description.runtimeABIParameters[2];
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[1], "field0 input vector load", field0ABI,
+            description.field0Name))
+      return error;
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[2], "field1 input vector load", field1ABI,
+            description.field1Name))
+      return error;
+    if (llvm::Error error =
+            validateTupleCreate(loop.bodySteps[3], "segment2 tuple create",
+                                description.field0Name, description.field1Name,
+                                "segment2_tuple"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[4], consumerLabel, "segment2 store",
+            description.segmentStoreIntrinsic,
+            {{interleavedPointerAtInduction(destinationABI),
+              destinationABI.cType},
+             {"segment2_tuple", description.segmentTupleCType},
+             {description.emitCLoopVLName, description.vlCType}}))
+      return error;
     break;
+  }
   default:
     llvm_unreachable("validated non-segment2 operation as segment2-memory");
   }
@@ -9119,6 +9533,8 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
         "segment2-memory target artifact consumer requires provider-derived "
         "support, binding, runtime control, segment layout, memory form, and "
         "segment-count facts before artifact export");
+  if (llvm::Error error = validateRVVSegment2MemoryRuntimeABIFacts(description))
+    return error;
 
   if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
           description.operation)) {

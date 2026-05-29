@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV segment2 selected-body, provider facts, target artifact route-family validator contract, mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary; mem_window/runtime_param strings are not compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused target artifact C++ test and evidence requirements for RVV route validation changes."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing checklist for RVV route, lowering, artifact, and testing changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-widening-conversion-dtype-policy-artifact-abi-statement-plan-validation-closure/prd.md", "reason": "Immediate previous exact statement-plan validation closure pattern and evidence boundary."}
