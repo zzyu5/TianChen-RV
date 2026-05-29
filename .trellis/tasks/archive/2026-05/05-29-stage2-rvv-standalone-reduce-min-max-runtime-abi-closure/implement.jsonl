@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stage, authority, stack, and source-of-truth invariants for this RVV runtime ABI closure."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, standalone reduction scalar channel, provider construction, target artifact validator, mirror metadata, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role envelope boundaries; compute and RVV dtype/config must remain plugin-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, runtime ABI boundary, and hardware evidence requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/ssh-rvv evidence policy and generated-bundle runtime evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage2 typed RVV selected-body realization and route authority constraints."}
+{"file": ".trellis/tasks/05-29-stage2-rvv-standalone-reduce-min-max-runtime-abi-closure/prd.md", "reason": "Task-specific goal, boundaries, acceptance criteria, non-goals, and validation plan."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "hardened plain standalone reduce_min/reduce_max target artifact consumer facts"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "focused validator positive and stale-fact negative coverage for standalone min/max"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "plain standalone min/max reduction accumulation evidence boundary"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-standalone-reduce-minmax-dry-run.test", "reason": "explicit and pre-realized min/max dry-run evidence counts and boundary checks"}

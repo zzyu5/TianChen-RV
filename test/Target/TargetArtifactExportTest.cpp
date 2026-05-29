@@ -612,6 +612,29 @@ std::string getRVVTestVariantSymbol(
       .str();
 }
 
+bool isRVVTestStandaloneReductionOperation(
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  return op == OperationKind::StandaloneReduceAdd ||
+         op == OperationKind::StandaloneReduceMin ||
+         op == OperationKind::StandaloneReduceMax;
+}
+
+llvm::StringRef getRVVTestStandaloneReductionKind(
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  switch (op) {
+  case OperationKind::StandaloneReduceAdd:
+    return "add";
+  case OperationKind::StandaloneReduceMin:
+    return "min";
+  case OperationKind::StandaloneReduceMax:
+    return "max";
+  default:
+    return {};
+  }
+}
+
 mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
     mlir::MLIRContext &context,
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op,
@@ -643,6 +666,48 @@ module {
         %broadcast = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
         tcrv_rvv.store %out, %broadcast, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (isRVVTestStandaloneReductionOperation(op)) {
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    llvm::StringRef reduceKind = getRVVTestStandaloneReductionKind(op);
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:seed", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << lmul
+       << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << lmul
+       << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant
+       << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %result = tcrv_rvv.standalone_reduce %lhs_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = ")mlir"
+       << reduceKind
+       << R"mlir(", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : )mlir"
+       << vectorType
+       << R"mlir(, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
        << vectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
@@ -1918,6 +1983,280 @@ bool expectRVVTargetArtifactExporterShape(
           "candidate route-family mirror",
           {"must not carry",
            "selected typed RVV non-vector-reduction route-family mirror"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture standaloneReduceMinFixture(
+      OperationKind::StandaloneReduceMin);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          standaloneReduceMinFixture,
+          "build valid RVV standalone reduce_min selected-body candidate "
+          "fixture"))
+    return false;
+  RVVTargetArtifactCandidateFixture standaloneReduceMaxFixture(
+      OperationKind::StandaloneReduceMax);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          standaloneReduceMaxFixture,
+          "build valid RVV standalone reduce_max selected-body candidate "
+          "fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         standaloneReduceMinFixture.candidate, *exporter),
+                     "validate RVV standalone reduce_min target artifact "
+                     "candidate through exporter"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         standaloneReduceMaxFixture.candidate, *exporter),
+                     "validate RVV standalone reduce_max target artifact "
+                     "candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      standaloneReduceMinRoute;
+  RVVRouteDescription standaloneReduceMinDescription;
+  if (!buildRVVRouteValidationInputs(
+          standaloneReduceMinFixture, standaloneReduceMinRoute,
+          standaloneReduceMinDescription,
+          "rebuild RVV standalone reduce_min route validator inputs"))
+    return false;
+  RVVRouteValidationContext standaloneReduceMinContext{
+      standaloneReduceMinFixture.candidate, standaloneReduceMinRoute,
+      standaloneReduceMinDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  standaloneReduceMinContext),
+          "standalone reduce_min registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  standaloneReduceMinContext),
+          "standalone reduce_min registry accepts candidate mirrors"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      standaloneReduceMaxRoute;
+  RVVRouteDescription standaloneReduceMaxDescription;
+  if (!buildRVVRouteValidationInputs(
+          standaloneReduceMaxFixture, standaloneReduceMaxRoute,
+          standaloneReduceMaxDescription,
+          "rebuild RVV standalone reduce_max route validator inputs"))
+    return false;
+  RVVRouteValidationContext standaloneReduceMaxContext{
+      standaloneReduceMaxFixture.candidate, standaloneReduceMaxRoute,
+      standaloneReduceMaxDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  standaloneReduceMaxContext),
+          "standalone reduce_max registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  standaloneReduceMaxContext),
+          "standalone reduce_max registry accepts candidate mirrors"))
+    return false;
+
+  auto expectStandaloneReduceMinProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        standaloneReduceMinFixture.candidate, standaloneReduceMinRoute,
+        mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectStandaloneReduceMaxProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        standaloneReduceMaxFixture.candidate, standaloneReduceMaxRoute,
+        mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectStandaloneReduceMinCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, standaloneReduceMinRoute, standaloneReduceMinDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleStandaloneMinTypedOp =
+      standaloneReduceMinDescription;
+  staleStandaloneMinTypedOp.typedComputeOpName =
+      "metadata-derived-standalone-reduction";
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinTypedOp,
+          "standalone reduce_min registry rejects stale typed compute op",
+          {"tcrv_rvv.standalone_reduce",
+           "unit-stride standalone reduction memory form"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinOperation =
+      standaloneReduceMinDescription;
+  staleStandaloneMinOperation.operation = OperationKind::StandaloneReduceMax;
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinOperation,
+          "standalone reduce_min registry rejects stale operation-kind "
+          "authority",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:standalone_reduce_max.v1",
+           "rvv-route-operand-binding:standalone_reduce_min.v1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinIntrinsic =
+      standaloneReduceMinDescription;
+  staleStandaloneMinIntrinsic.intrinsic =
+      "__riscv_vredmax_vs_i32m1_i32m1";
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinIntrinsic,
+          "standalone reduce_min registry rejects stale signed min intrinsic",
+          {"signed min/max/add reduction intrinsic",
+           "__riscv_vredmin_vs_i32m1_i32m1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMaxIntrinsic =
+      standaloneReduceMaxDescription;
+  staleStandaloneMaxIntrinsic.intrinsic =
+      "__riscv_vredmin_vs_i32m1_i32m1";
+  if (!expectStandaloneReduceMaxProviderFailure(
+          staleStandaloneMaxIntrinsic,
+          "standalone reduce_max registry rejects stale signed max intrinsic",
+          {"signed min/max/add reduction intrinsic",
+           "__riscv_vredmax_vs_i32m1_i32m1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinScalarChannel =
+      standaloneReduceMinDescription;
+  staleStandaloneMinScalarChannel.reductionAccumulatorLayout =
+      "metadata-derived-vector-accumulator";
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinScalarChannel,
+          "standalone reduce_min registry rejects stale scalar seed channel",
+          {"scalar seed accumulator layout",
+           "scalar-i32-seed-lane0-from-accumulator-input"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinScalarResultType =
+      standaloneReduceMinDescription;
+  staleStandaloneMinScalarResultType
+      .standaloneReductionScalarResultVectorCType = "vint32m2_t";
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinScalarResultType,
+          "standalone reduce_min registry rejects stale scalar result type",
+          {"scalar-result vector type", "vint32m1_t"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinProviderMirror =
+      standaloneReduceMinDescription;
+  staleStandaloneMinProviderMirror.providerSupportedMirror =
+      "metadata-derived-provider-supported";
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinProviderMirror,
+          "standalone reduce_min registry rejects stale provider mirror",
+          {"provider mirror",
+           "provider_supported_mirror:rvv-standalone-reduction-plan-validated"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinABIOrder =
+      standaloneReduceMinDescription;
+  staleStandaloneMinABIOrder.runtimeABIOrder = "lhs,out,acc,n";
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinABIOrder,
+          "standalone reduce_min registry rejects stale runtime ABI order",
+          {"runtime ABI order", "lhs,acc,out,n", "lhs,out,acc,n"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneMinMemoryForm =
+      standaloneReduceMinDescription;
+  staleStandaloneMinMemoryForm.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (!expectStandaloneReduceMinProviderFailure(
+          staleStandaloneMinMemoryForm,
+          "standalone reduce_min registry rejects stale memory form",
+          {"tcrv_rvv.standalone_reduce",
+           "unit-stride standalone reduction memory form"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneMinBindingMirror =
+      standaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleStandaloneMinBindingMirror,
+          "tcrv_rvv.route_operand_binding_plan",
+          "rvv-route-operand-binding:standalone_reduce_add.v1")) {
+    llvm::errs() << "test fixture did not contain standalone reduction route "
+                    "operand binding plan mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceMinCandidateFailure(
+          staleStandaloneMinBindingMirror,
+          "standalone reduce_min registry rejects stale binding mirror",
+          {"route_operand_binding_plan",
+           "rvv-route-operand-binding:standalone_reduce_min.v1",
+           "rvv-route-operand-binding:standalone_reduce_add.v1"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneMinABIMirror =
+      standaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleStandaloneMinABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,out,acc,n")) {
+    llvm::errs() << "test fixture did not contain standalone reduction "
+                    "runtime ABI order mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceMinCandidateFailure(
+          staleStandaloneMinABIMirror,
+          "standalone reduce_min registry rejects stale ABI mirror",
+          {"runtime_abi_order", "lhs,acc,out,n", "lhs,out,acc,n"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneMinProviderMirrorCandidate =
+      standaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleStandaloneMinProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "metadata-derived-provider-supported")) {
+    llvm::errs() << "test fixture did not contain standalone reduction "
+                    "provider-supported mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceMinCandidateFailure(
+          staleStandaloneMinProviderMirrorCandidate,
+          "standalone reduce_min registry rejects stale provider mirror "
+          "metadata",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-standalone-reduction-plan-validated",
+           "metadata-derived-provider-supported"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneMinScalarTypeMirror =
+      standaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleStandaloneMinScalarTypeMirror,
+          "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
+          "vint32m2_t")) {
+    llvm::errs() << "test fixture did not contain standalone reduction scalar "
+                    "result vector C type mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceMinCandidateFailure(
+          staleStandaloneMinScalarTypeMirror,
+          "standalone reduce_min registry rejects stale scalar-result type "
+          "mirror",
+          {"standalone_reduction_scalar_result_vector_c_type", "vint32m1_t",
+           "vint32m2_t"}))
     return false;
 
   RVVTargetArtifactCandidateFixture wideningMAccFixture(

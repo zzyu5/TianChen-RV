@@ -170,3 +170,46 @@ Spec update judgment:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 309: Stage2 RVV standalone min/max ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV standalone min/max ABI closure
+**Branch**: `main`
+
+### Summary
+
+Hardened plain standalone reduce_min/reduce_max target artifact validation, exposed min/max reduction-accumulation evidence, and verified explicit/pre-realized ssh rvv runtime ABI closure.
+
+### Main Changes
+
+- Hardened the RVV target artifact route-family consumer for plain standalone reduction so reduce_min/reduce_max must carry provider-derived typed compute op, unit-stride standalone reduction memory form, source/scalar-result vector type policy, route operand binding plan/summary, provider mirror, ABI order, scalar seed/result layout, and operation-specific signed reduction intrinsic relation.
+- Added focused target artifact exporter coverage for standalone reduce_min/reduce_max positive paths and stale provider/candidate mirror negatives.
+- Extended generated-bundle evidence so plain standalone reduce_min/reduce_max expose the reduction_accumulation_boundary summary, scalar seed/result channel, runtime ABI order, runtime counts, and mirror-only authority label.
+- Archived `.trellis/tasks/archive/2026-05/05-29-stage2-rvv-standalone-reduce-min-max-runtime-abi-closure`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | rvv: close standalone min max runtime abi evidence |
+
+### Testing
+
+- [OK] `ninja -C build tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] generated-bundle dry-runs for explicit/pre-realized standalone reduce_min/reduce_max with counts 0,1,16,17,257
+- [OK] direct pre-realized route-entry fail-closed checks for standalone reduce_min/reduce_max
+- [OK] `ssh rvv` explicit/pre-realized standalone reduce_min/reduce_max compile/run correctness with seeds -11 and 17
+- [OK] reduce_add plus plain segment2 deinterleave/interleave generated-bundle dry-run non-regression
+- [OK] `git diff --check`
+- [OK] `ninja -C build check-tianchenrv` passed 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

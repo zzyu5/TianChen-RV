@@ -1,9 +1,9 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id standalone-reduce-min --overwrite --op-kind standalone_reduce_min --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id standalone-reduce-max --overwrite --op-kind standalone_reduce_max --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-min --overwrite --op-kind standalone_reduce_min --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-max --overwrite --op-kind standalone_reduce_max --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id standalone-reduce-min --overwrite --op-kind standalone_reduce_min --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id standalone-reduce-max --overwrite --op-kind standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-min --overwrite --op-kind standalone_reduce_min --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-max --overwrite --op-kind standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=MIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/standalone-reduce-min/standalone_reduce_min/evidence.json
 # RUN: FileCheck %s --check-prefix=MAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/standalone-reduce-max/standalone_reduce_max/evidence.json
 # RUN: FileCheck %s --check-prefix=PREMIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-min/standalone_reduce_min/evidence.json
@@ -28,6 +28,19 @@
 # MIN-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
 # MIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 # MIN-DAG: "reduction_contract": "signed i32 min reduction combines input lanes with the scalar accumulator seed"
+# MIN-DAG: "reduction_accumulation_boundary":
+# MIN-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# MIN-DAG: "reduction_kind": "min"
+# MIN-DAG: "seed_source": "acc[0]"
+# MIN-DAG: "loop_accumulator_source": "out[0]"
+# MIN-DAG: "runtime_abi_order": "lhs,acc,out,n"
+# MIN-DAG: "runtime_counts": [
+# MIN-DAG: 0,
+# MIN-DAG: 1,
+# MIN-DAG: 16,
+# MIN-DAG: 17,
+# MIN-DAG: 257
+# MIN-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # MIN-DAG: "status": "dry_run_success"
 
 # MAX-DAG: "op_kind": "standalone_reduce_max"
@@ -43,6 +56,19 @@
 # MAX-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
 # MAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 # MAX-DAG: "reduction_contract": "signed i32 max reduction combines input lanes with the scalar accumulator seed"
+# MAX-DAG: "reduction_accumulation_boundary":
+# MAX-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# MAX-DAG: "reduction_kind": "max"
+# MAX-DAG: "seed_source": "acc[0]"
+# MAX-DAG: "loop_accumulator_source": "out[0]"
+# MAX-DAG: "runtime_abi_order": "lhs,acc,out,n"
+# MAX-DAG: "runtime_counts": [
+# MAX-DAG: 0,
+# MAX-DAG: 1,
+# MAX-DAG: 16,
+# MAX-DAG: 17,
+# MAX-DAG: 257
+# MAX-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # MAX-DAG: "status": "dry_run_success"
 
 # PREMIN-DAG: "op_kind": "standalone_reduce_min"
@@ -52,6 +78,11 @@
 # PREMIN-DAG: "value": "standalone_reduce_min"
 # PREMIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1"
 # PREMIN-DAG: "reduction_contract": "signed i32 min reduction combines input lanes with the scalar accumulator seed"
+# PREMIN-DAG: "reduction_accumulation_boundary":
+# PREMIN-DAG: "reduction_kind": "min"
+# PREMIN-DAG: "runtime_abi_order": "lhs,acc,out,n"
+# PREMIN-DAG: 257
+# PREMIN-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # PREMIN-DAG: "status": "dry_run_success"
 
 # PREMAX-DAG: "op_kind": "standalone_reduce_max"
@@ -61,6 +92,11 @@
 # PREMAX-DAG: "value": "standalone_reduce_max"
 # PREMAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1"
 # PREMAX-DAG: "reduction_contract": "signed i32 max reduction combines input lanes with the scalar accumulator seed"
+# PREMAX-DAG: "reduction_accumulation_boundary":
+# PREMAX-DAG: "reduction_kind": "max"
+# PREMAX-DAG: "runtime_abi_order": "lhs,acc,out,n"
+# PREMAX-DAG: 257
+# PREMAX-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # PREMAX-DAG: "status": "dry_run_success"
 
 # MIN-HARNESS: int32_t expected = seed;

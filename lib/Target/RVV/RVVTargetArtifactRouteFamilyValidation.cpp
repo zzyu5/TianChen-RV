@@ -12,6 +12,7 @@
 #include "llvm/Support/Error.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace tianchenrv::target::rvv {
@@ -178,6 +179,18 @@ bool isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
       RuntimeScalarComputedMaskStandaloneReduceMin:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskStandaloneReduceMax:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVPlainStandaloneReductionRouteFamilyOperation(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
     return true;
   default:
     return false;
@@ -3421,6 +3434,307 @@ bool isRVVStandaloneReductionAccumulationTargetArtifactRouteFamilyConsumer(
       description.operation);
 }
 
+constexpr llvm::StringLiteral kRVVStandaloneReductionTypedComputeOp(
+    "tcrv_rvv.standalone_reduce");
+constexpr llvm::StringLiteral kRVVStandaloneReductionRuntimeABIOrder(
+    "lhs,acc,out,n");
+constexpr llvm::StringLiteral kRVVStandaloneReductionRouteFamilyPlanID(
+    "rvv-standalone-reduction-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVStandaloneReductionScalarResultBoundary(
+    "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1");
+constexpr llvm::StringLiteral kRVVStandaloneReductionTargetLeafProfile(
+    "rvv-v1-typed-standalone-reduction-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVStandaloneReductionProviderSupportedMirror(
+    "provider_supported_mirror:rvv-standalone-reduction-plan-validated");
+constexpr llvm::StringLiteral kRVVStandaloneReductionHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVStandaloneReductionCTypeMappingSummary(
+    "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector");
+constexpr llvm::StringLiteral kRVVStandaloneReductionAccumulatorLayout(
+    "scalar-i32-seed-lane0-from-accumulator-input");
+constexpr llvm::StringLiteral kRVVStandaloneReductionResultLayout(
+    "store-standalone-reduction-lane0-to-output-scalar");
+constexpr llvm::StringLiteral kRVVStandaloneReductionStoreVL("1");
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedBindingPlanID(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+    return "rvv-route-operand-binding:standalone_reduce_add.v1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
+    return "rvv-route-operand-binding:standalone_reduce_min.v1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return "rvv-route-operand-binding:standalone_reduce_max.v1";
+  default:
+    return {};
+  }
+}
+
+std::string getRVVPlainStandaloneReductionExpectedBindingSummary(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  llvm::StringRef planID =
+      getRVVPlainStandaloneReductionExpectedBindingPlanID(operation);
+  if (planID.empty())
+    return {};
+  return (llvm::Twine(planID) +
+          ";lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;"
+          "acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;"
+          "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
+          "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror")
+      .str();
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorTypeName(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "!tcrv_rvv.vector<i32, \"m1\">";
+  if (lmul == "m2")
+    return "!tcrv_rvv.vector<i32, \"m2\">";
+  return {};
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedVectorCType(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "vint32m1_t";
+  if (lmul == "m2")
+    return "vint32m2_t";
+  return {};
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedScalarResultVectorTypeName(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew == 32 && (lmul == "m1" || lmul == "m2"))
+    return "!tcrv_rvv.vector<i32, \"m1\">";
+  return {};
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedScalarResultVectorCType(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew == 32 && (lmul == "m1" || lmul == "m2"))
+    return "vint32m1_t";
+  return {};
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew == 32 && (lmul == "m1" || lmul == "m2"))
+    return "__riscv_vmv_v_x_i32m1";
+  return {};
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedStoreIntrinsic(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew == 32 && (lmul == "m1" || lmul == "m2"))
+    return "__riscv_vse32_v_i32m1";
+  return {};
+}
+
+llvm::StringRef getRVVPlainStandaloneReductionExpectedIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation, int64_t sew,
+    llvm::StringRef lmul) {
+  if (sew != 32)
+    return {};
+  const bool usesM2 = lmul == "m2";
+  if (lmul != "m1" && !usesM2)
+    return {};
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+    return usesM2 ? "__riscv_vredsum_vs_i32m2_i32m1"
+                  : "__riscv_vredsum_vs_i32m1_i32m1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
+    return usesM2 ? "__riscv_vredmin_vs_i32m2_i32m1"
+                  : "__riscv_vredmin_vs_i32m1_i32m1";
+  case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return usesM2 ? "__riscv_vredmax_vs_i32m2_i32m1"
+                  : "__riscv_vredmax_vs_i32m1_i32m1";
+  default:
+    return {};
+  }
+}
+
+llvm::Error validateRVVPlainStandaloneReductionRuntimeABIFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.runtimeABIOrder != kRVVStandaloneReductionRuntimeABIOrder)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider-derived runtime ABI order '") +
+        kRVVStandaloneReductionRuntimeABIOrder + "' but was '" +
+        description.runtimeABIOrder + "'");
+  if (description.runtimeABIParameters.size() != 4)
+    return makeRVVTargetRouteError(
+        "plain standalone reduction target artifact consumer requires "
+        "provider-derived runtime ABI parameters for lhs source, acc scalar "
+        "seed, out scalar result, and n before artifact export");
+
+  struct ExpectedRuntimeABIParameter {
+    llvm::StringRef cName;
+    llvm::StringRef cType;
+    support::RuntimeABIParameterRole role;
+  };
+  const ExpectedRuntimeABIParameter expected[] = {
+      {"lhs", "const int32_t *",
+       support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"acc", "const int32_t *",
+       support::RuntimeABIParameterRole::AccumulatorInputBuffer},
+      {"out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer},
+      {"n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount},
+  };
+  constexpr size_t expectedCount = sizeof(expected) / sizeof(expected[0]);
+  for (size_t index = 0; index < expectedCount; ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    if (actual.cName != expected[index].cName ||
+        actual.cType != expected[index].cType ||
+        actual.role != expected[index].role)
+      return makeRVVTargetRouteError(
+          llvm::Twine("plain standalone reduction target artifact consumer "
+                      "requires provider-derived runtime ABI parameter ") +
+          std::to_string(index) + " to bind " + expected[index].cName +
+          " as " +
+          support::stringifyRuntimeABIParameterRole(expected[index].role) +
+          " with C type '" + expected[index].cType +
+          "' before artifact export");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVPlainStandaloneReductionRoutePayloadFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVPlainStandaloneReductionRouteFamilyOperation(
+          description.operation))
+    return llvm::Error::success();
+
+  if (description.typedComputeOpName != kRVVStandaloneReductionTypedComputeOp ||
+      description.memoryForm != plugin::rvv::RVVSelectedBodyMemoryForm::
+                                    UnitStrideStandaloneReduction)
+    return makeRVVTargetRouteError(
+        "plain standalone reduction target artifact consumer requires a "
+        "selected tcrv_rvv.standalone_reduce body with unit-stride standalone "
+        "reduction memory form");
+  if (description.elementTypeName != "i32" || description.sew != 32 ||
+      (description.lmul != "m1" && description.lmul != "m2"))
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider-derived signed i32 SEW32 LMUL m1/m2 "
+                    "dtype/config facts but saw element '") +
+        description.elementTypeName + "', SEW " +
+        llvm::Twine(description.sew) + ", LMUL '" + description.lmul + "'");
+
+  llvm::StringRef expectedVectorType =
+      getRVVPlainStandaloneReductionExpectedVectorTypeName(description.sew,
+                                                          description.lmul);
+  llvm::StringRef expectedVectorCType =
+      getRVVPlainStandaloneReductionExpectedVectorCType(description.sew,
+                                                       description.lmul);
+  llvm::StringRef expectedScalarResultVectorType =
+      getRVVPlainStandaloneReductionExpectedScalarResultVectorTypeName(
+          description.sew, description.lmul);
+  llvm::StringRef expectedScalarResultVectorCType =
+      getRVVPlainStandaloneReductionExpectedScalarResultVectorCType(
+          description.sew, description.lmul);
+  if (description.vectorTypeName != expectedVectorType ||
+      description.vectorCType != expectedVectorCType ||
+      description.standaloneReductionSourceVectorTypeName !=
+          expectedVectorType ||
+      description.standaloneReductionSourceVectorCType !=
+          expectedVectorCType ||
+      description.standaloneReductionScalarResultVectorTypeName !=
+          expectedScalarResultVectorType ||
+      description.standaloneReductionScalarResultVectorCType !=
+          expectedScalarResultVectorCType)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider-derived source vector type '") +
+        expectedVectorType + "' / '" + expectedVectorCType +
+        "' and scalar-result vector type '" + expectedScalarResultVectorType +
+        "' / '" + expectedScalarResultVectorCType +
+        "' before artifact export");
+
+  if (description.providerSupportedMirror !=
+          kRVVStandaloneReductionProviderSupportedMirror ||
+      description.targetLeafProfile != kRVVStandaloneReductionTargetLeafProfile ||
+      description.standaloneReductionRouteFamilyPlanID !=
+          kRVVStandaloneReductionRouteFamilyPlanID ||
+      description.standaloneReductionScalarResultRuntimeBoundary !=
+          kRVVStandaloneReductionScalarResultBoundary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider mirror '") +
+        kRVVStandaloneReductionProviderSupportedMirror + "', target leaf '" +
+        kRVVStandaloneReductionTargetLeafProfile + "', route-family plan '" +
+        kRVVStandaloneReductionRouteFamilyPlanID +
+        "', and scalar-result boundary '" +
+        kRVVStandaloneReductionScalarResultBoundary +
+        "' before artifact export");
+
+  if (description.requiredHeaderDeclarations !=
+          kRVVStandaloneReductionHeaderDeclarations ||
+      description.cTypeMappingSummary != kRVVStandaloneReductionCTypeMappingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider-derived header declarations '") +
+        kRVVStandaloneReductionHeaderDeclarations + "' and C type mapping '" +
+        kRVVStandaloneReductionCTypeMappingSummary +
+        "' before artifact export");
+
+  llvm::StringRef expectedBindingPlan =
+      getRVVPlainStandaloneReductionExpectedBindingPlanID(
+          description.operation);
+  std::string expectedBindingSummary =
+      getRVVPlainStandaloneReductionExpectedBindingSummary(
+          description.operation);
+  if (description.routeOperandBindingPlanID != expectedBindingPlan ||
+      description.routeOperandBindingSummary != expectedBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider-derived route operand binding plan '") +
+        expectedBindingPlan +
+        "' with lhs source, acc seed, out scalar result, and n bindings but "
+        "provider carried plan '" +
+        description.routeOperandBindingPlanID + "'");
+
+  if (llvm::Error error =
+          validateRVVPlainStandaloneReductionRuntimeABIFacts(description))
+    return error;
+
+  if (description.reductionAccumulatorLayout !=
+          kRVVStandaloneReductionAccumulatorLayout ||
+      description.reductionResultLayout != kRVVStandaloneReductionResultLayout ||
+      description.reductionStoreVL != kRVVStandaloneReductionStoreVL)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires scalar seed accumulator layout '") +
+        kRVVStandaloneReductionAccumulatorLayout + "', result layout '" +
+        kRVVStandaloneReductionResultLayout + "', and store VL '" +
+        kRVVStandaloneReductionStoreVL + "' before artifact export");
+
+  llvm::StringRef expectedSeedSplat =
+      getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(description.sew,
+                                                              description.lmul);
+  llvm::StringRef expectedStore =
+      getRVVPlainStandaloneReductionExpectedStoreIntrinsic(description.sew,
+                                                          description.lmul);
+  llvm::StringRef expectedReduction =
+      getRVVPlainStandaloneReductionExpectedIntrinsic(
+          description.operation, description.sew, description.lmul);
+  if (description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
+      description.storeIntrinsic != expectedStore ||
+      description.intrinsic != expectedReduction)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain standalone reduction target artifact consumer "
+                    "requires provider-derived scalar seed splat '") +
+        expectedSeedSplat + "', signed min/max/add reduction intrinsic '" +
+        expectedReduction + "', and scalar result store '" + expectedStore +
+        "' before artifact export");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVStandaloneReductionAccumulationRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -3702,6 +4016,9 @@ llvm::Error validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
         "standalone reduction/accumulation target artifact consumer requires "
         "provider-derived scalar seed, reduction intrinsic, and store facts "
         "before artifact export");
+  if (llvm::Error error =
+          validateRVVPlainStandaloneReductionRoutePayloadFacts(description))
+    return error;
 
   if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
           description.operation)) {

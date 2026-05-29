@@ -22009,7 +22009,7 @@ def reduction_accumulation_boundary_summary(
                 }
             )
         return summary
-    if not expectation.is_standalone_reduce_add:
+    if not expectation.is_standalone_reduce:
         return {}
     return {
         "source": (
@@ -22040,12 +22040,25 @@ def reduction_accumulation_boundary_summary(
             "element_c_type": expectation.element_c_type,
             "layout": STANDALONE_REDUCE_ACCUMULATOR_LAYOUT,
             "abi_role": "accumulator-input-buffer",
+            "vector_type": (
+                expectation.standalone_reduction_scalar_result_vector_type
+            ),
+            "vector_c_type": (
+                expectation.standalone_reduction_scalar_result_vector_c_type
+            ),
         },
         "result_type_policy": {
             "element_type": expectation.element_type,
             "element_c_type": expectation.element_c_type,
             "layout": STANDALONE_REDUCE_RESULT_LAYOUT,
             "abi_role": "output-buffer",
+            "scalar_slot": "out[0]",
+            "vector_type": (
+                expectation.standalone_reduction_scalar_result_vector_type
+            ),
+            "vector_c_type": (
+                expectation.standalone_reduction_scalar_result_vector_c_type
+            ),
         },
         "reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
         "selected_source_abi": {
@@ -22988,7 +23001,7 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
-        if expectation.is_standalone_reduce_add or (
+        if expectation.is_standalone_reduce or (
             expectation.is_computed_mask_standalone_reduce_add
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         ):

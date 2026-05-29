@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no drift from global stack, Stage2, and authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check standalone reduction scalar channel, provider facts, target validator, mirror-only metadata, and fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec stays an ABI/runtime envelope and does not own min/max semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and consumes provider-built route only."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export and runtime ABI evidence claims are properly grounded."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, generated-bundle evidence, and ssh rvv claims meet testing policy."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-body realization and typed RVV Stage2 constraints."}
+{"file": ".trellis/tasks/05-29-stage2-rvv-standalone-reduce-min-max-runtime-abi-closure/prd.md", "reason": "Check implementation against this task's acceptance criteria and non-goals."}
+{"file": "artifacts/tmp/standalone_reduce_minmax_rvv_runtime/", "type": "directory", "reason": "ssh rvv explicit/pre-realized standalone min/max evidence artifacts"}
+{"file": "artifacts/tmp/standalone_reduce_minmax_nonregression/", "type": "directory", "reason": "reduce_add and plain segment2 non-regression dry-run artifacts"}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "focused target artifact exporter test executable passed"}
