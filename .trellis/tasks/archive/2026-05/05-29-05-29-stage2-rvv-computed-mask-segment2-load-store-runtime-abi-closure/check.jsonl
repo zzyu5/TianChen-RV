@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth and RVV stage/authority compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary-only segment2 load/store behavior, provider facts, target validator facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI and target artifact claims are provider-route-backed."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused compiler/runtime evidence covers production behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle evidence, inactive/tail sentinels, and direct route-entry fail-closed evidence."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Verify segment2 direct route-entry remains fail-closed while selected-boundary realization works."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify load/store provider facts come from typed body/config/runtime facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify provider consumes route-control/materialization/statement facts before common EmitC."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verify target validator consumes rebuilt provider route facts and rejects stale/missing mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify generated-bundle dry-runs and ssh rvv runtime correctness for both load/store counts and masks."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify focused target validation positive and negative tests for computed-mask segment2 load/store."}

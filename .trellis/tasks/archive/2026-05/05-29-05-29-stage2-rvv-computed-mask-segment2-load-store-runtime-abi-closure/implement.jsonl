@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth, RVV stage order, and authority boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, segment2 memory ownership, computed-mask/mask-tail policy, provider facts, route-control plans, target artifact validation, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Execution envelope and ABI/runtime role boundary for selected RVV variants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Neutral common EmitC materialization and target artifact authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target export, and RVV hardware evidence contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused compiler tests and ssh rvv evidence expectations."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle runtime n, mask/tail, inactive/tail sentinel, direct route-entry fail-closed, and runtime evidence quality rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-segment2-memory-target-artifact-validator-boundary/prd.md", "reason": "Previous segment2 target artifact validator boundary scope and preserved non-regression expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-computed-mask-segment2-update-runtime-abi-closure/prd.md", "reason": "Previous computed-mask segment2 update runtime ABI closure and load/store non-regression baseline."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Selected typed/pre-realized segment2 body realization owner and direct route-entry fail-closed behavior."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Provider route-family, materialization, route-control, and segment2 statement plan facts consumed by load/store routes."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "RVV route analysis/provider fact derivation for computed-mask segment2 load/store."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "TCRVEmitCLowerableRoute construction and segment2 statement-plan consumption."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target-owned segment2 validator consumption of provider-derived load/store facts and stale mirror rejection."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated RVV C artifact/harness expectations and ssh rvv runtime ABI evidence for computed-mask segment2 load/store."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target artifact validation positive/negative coverage for segment2 computed-mask load/store facts."}
