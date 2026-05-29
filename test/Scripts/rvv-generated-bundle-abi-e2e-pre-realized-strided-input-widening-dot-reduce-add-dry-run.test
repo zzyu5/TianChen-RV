@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-strided-input-widening-dot-reduce-add --overwrite --op-kind strided_input_widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-strided-input-widening-dot-reduce-add --overwrite --op-kind strided_input_widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=SDOT --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_harness.c
@@ -64,6 +64,14 @@
 # SDOT-DAG: "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
 # SDOT-DAG: "key": "tcrv_rvv.strided_load_intrinsic"
 # SDOT-DAG: "value": "__riscv_vlse16_v_i16mf2"
+# SDOT-DAG: "widening_dot_reduction_boundary":
+# SDOT-DAG: "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer"
+# SDOT-DAG: "provider_route_facts":
+# SDOT-DAG: "target_validator_consumed_facts":
+# SDOT-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# SDOT-DAG: "direct_pre_realized_route_entry_supported": false
+# SDOT-DAG: "runtime_counts_are_execution_cases_not_widening_dot_authority": true
+# SDOT-DAG: "strided_input_facts":
 # SDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
 # SDOT-DAG: "memory_form": "strided-input-widening-dot-reduce"
 # SDOT-DAG: "status": "dry_run_success"
@@ -74,6 +82,7 @@
 # HARNESS: size_t lhs_index = index * lhs_stride;
 # HARNESS: size_t rhs_index = index * rhs_stride;
 # HARNESS: int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
-# HARNESS: skipped_source_elements_ignored scalar_output tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_ok counts=7,16,23 lhs_stride=2 rhs_stride=3
-# HARNESS: PASS op=strided_input_widening_dot_reduce_add counts=7,16,23 lhs_stride=2 rhs_stride=3
+# HARNESS: widening_products
+# HARNESS: strided_signed_horizontal_dot seed_added widening_products=
+# HARNESS: tcrv_rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_ok counts=0,1,16,17,257 lhs_stride=2 rhs_stride=3
+# HARNESS: PASS op=strided_input_widening_dot_reduce_add counts=0,1,16,17,257 lhs_stride=2 rhs_stride=3

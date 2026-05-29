@@ -775,6 +775,54 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
+  if (op == OperationKind::WideningDotReduceAdd ||
+      op == OperationKind::StridedInputWideningDotReduceAdd) {
+    const bool isStrided =
+        op == OperationKind::StridedInputWideningDotReduceAdd;
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:n", role = "runtime-element-count"} : index
+)mlir";
+    if (isStrided)
+      os << R"mlir(
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:lhs-stride", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-dot-reduce-add:rhs-stride", role = "rhs-input-stride"} : index
+)mlir";
+    os << R"mlir(
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+)mlir";
+    if (isStrided) {
+      os << R"mlir(
+        %lhs_vec = tcrv_rvv.strided_load %lhs, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %rhs_vec = tcrv_rvv.strided_load %rhs, %rhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+)mlir";
+    } else {
+      os << R"mlir(
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+)mlir";
+    }
+    os << R"mlir(
+        %sum = tcrv_rvv.widening_dot_reduce %lhs_vec, %rhs_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", kind = "signed_widening_dot_reduce_add", result_layout = "store-dot-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   const bool useLegacyBody =
       op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
@@ -1819,6 +1867,291 @@ bool expectRVVTargetArtifactExporterShape(
           "widening-MAcc registry rejects stale non-family mirror",
           {"must not carry",
            "selected typed RVV non-widening-MAcc route-family mirror"}))
+    return false;
+
+  auto expectWideningDotPositive =
+      [&](llvm::StringRef fixtureContext,
+          const RVVTargetArtifactCandidateFixture &fixture,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription &description) -> bool {
+    if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))
+      return false;
+    std::string validateContext =
+        (llvm::Twine("validate RVV widening-dot target artifact candidate "
+                     "through exporter for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                           fixture.candidate, *exporter),
+                       validateContext))
+      return false;
+    std::string rebuildContext =
+        (llvm::Twine("rebuild RVV widening-dot route validator inputs for ") +
+         fixtureContext)
+            .str();
+    if (!buildRVVRouteValidationInputs(
+            fixture, route, description, rebuildContext))
+      return false;
+
+    RVVRouteValidationContext context{fixture.candidate, route, description};
+    std::string providerContext =
+        (llvm::Twine("widening-dot registry accepts provider facts for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(context),
+            providerContext))
+      return false;
+    std::string mirrorContext =
+        (llvm::Twine("widening-dot registry accepts candidate mirrors for ") +
+         fixtureContext)
+            .str();
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(context),
+        mirrorContext);
+  };
+
+  RVVTargetArtifactCandidateFixture wideningDotFixture(
+      OperationKind::WideningDotReduceAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute wideningDotRoute;
+  RVVRouteDescription wideningDotDescription;
+  if (!expectWideningDotPositive("plain widening dot-reduce",
+                                 wideningDotFixture, wideningDotRoute,
+                                 wideningDotDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture stridedWideningDotFixture(
+      OperationKind::StridedInputWideningDotReduceAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      stridedWideningDotRoute;
+  RVVRouteDescription stridedWideningDotDescription;
+  if (!expectWideningDotPositive("strided-input widening dot-reduce",
+                                 stridedWideningDotFixture,
+                                 stridedWideningDotRoute,
+                                 stridedWideningDotDescription))
+    return false;
+
+  auto expectWideningDotProviderFailure =
+      [&](const TargetArtifactCandidate &candidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{candidate, route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectWideningDotCandidateFailure =
+      [&](TargetArtifactCandidate mutated,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          const RVVRouteDescription &description,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{mutated, route, description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleWideningDotProviderSupport =
+      wideningDotDescription;
+  staleWideningDotProviderSupport.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-widening-dot";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotProviderSupport,
+          "widening-dot registry rejects metadata-only provider support",
+          {"provider-owned contraction support",
+           "metadata-only-widening-dot"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotBinding = wideningDotDescription;
+  staleWideningDotBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:widening_dot_reduce.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;"
+      "rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;"
+      "acc=metadata-derived-buffer:acc:abi|seed|red|i32|hdr;"
+      "out=output-buffer:out:abi|store|i32|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotBinding,
+          "widening-dot registry rejects stale operand binding facts",
+          {"provider route operand binding plan",
+           "exact operand binding summary"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotAccumulatorRole =
+      wideningDotDescription;
+  staleWideningDotAccumulatorRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotAccumulatorRole,
+          "widening-dot registry rejects stale accumulator ABI role",
+          {"runtime ABI parameter 2", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotSourceDType = wideningDotDescription;
+  staleWideningDotSourceDType.sourceSEW = 32;
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotSourceDType,
+          "widening-dot registry rejects stale source/result dtype relation",
+          {"i16mf2 source", "i32m1 result"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotRelation = wideningDotDescription;
+  staleWideningDotRelation.wideningDotProductRelation =
+      "metadata-derived-widening-dot-relation";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotRelation,
+          "widening-dot registry rejects stale dot relation",
+          {"dot layout/relation facts",
+           "metadata-derived-widening-dot-relation"}))
+    return false;
+
+  RVVRouteDescription stalePlainDotStridedFacts = wideningDotDescription;
+  stalePlainDotStridedFacts.sourceMemoryForm = "strided-load";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          stalePlainDotStridedFacts,
+          "widening-dot registry rejects stale strided facts on plain route",
+          {"stale", "strided-input facts"}))
+    return false;
+
+  RVVRouteDescription missingStridedDotFacts = stridedWideningDotDescription;
+  missingStridedDotFacts.sourceMemoryForm = "";
+  if (!expectWideningDotProviderFailure(
+          stridedWideningDotFixture.candidate, stridedWideningDotRoute,
+          missingStridedDotFacts,
+          "widening-dot registry rejects missing strided source form",
+          {"strided-input widening dot-reduction",
+           "source/result memory form"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotNonFamily = wideningDotDescription;
+  staleWideningDotNonFamily.plainMAccRouteFamilyPlanID =
+      "metadata-derived-plain-macc";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotNonFamily,
+          "widening-dot registry rejects stale non-dot provider facts",
+          {"stale", "non-widening-dot route-family facts"}))
+    return false;
+
+  TargetArtifactCandidate missingWideningDotProviderMirror =
+      wideningDotFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingWideningDotProviderMirror,
+                                "tcrv_rvv.provider_supported_mirror")) {
+    llvm::errs() << "test fixture did not contain widening-dot provider "
+                    "support mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingWideningDotProviderMirror, wideningDotRoute,
+          wideningDotDescription,
+          "widening-dot registry rejects missing provider support mirror",
+          {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningDotBindingMirror =
+      wideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningDotBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          "rvv-route-operand-binding:widening_dot_reduce.v1;"
+          "lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;"
+          "rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;"
+          "acc=metadata-derived-buffer:acc:abi|seed|red|i32|hdr;"
+          "out=output-buffer:out:abi|store|i32|hdr;"
+          "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")) {
+    llvm::errs() << "test fixture did not contain widening-dot binding "
+                    "summary metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleWideningDotBindingMirror, wideningDotRoute,
+          wideningDotDescription,
+          "widening-dot registry rejects stale binding summary mirror",
+          {"route_operand_binding_operands",
+           "metadata-derived-buffer"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningDotAccumulatorSEWMirror =
+      wideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningDotAccumulatorSEWMirror,
+                                    "tcrv_rvv.accumulator_sew", "16")) {
+    llvm::errs() << "test fixture did not contain widening-dot accumulator "
+                    "SEW metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleWideningDotAccumulatorSEWMirror, wideningDotRoute,
+          wideningDotDescription,
+          "widening-dot registry rejects stale accumulator SEW mirror",
+          {"accumulator_sew", "32", "16"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningDotResultLMULMirror =
+      wideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningDotResultLMULMirror,
+                                    "tcrv_rvv.result_lmul", "mf2")) {
+    llvm::errs() << "test fixture did not contain widening-dot result LMUL "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleWideningDotResultLMULMirror, wideningDotRoute,
+          wideningDotDescription,
+          "widening-dot registry rejects stale result LMUL mirror",
+          {"result_lmul", "m1", "mf2"}))
+    return false;
+
+  TargetArtifactCandidate stalePlainDotStridedMirror =
+      wideningDotFixture.candidate;
+  stalePlainDotStridedMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.source_memory_form", "strided-load"));
+  if (!expectWideningDotCandidateFailure(
+          stalePlainDotStridedMirror, wideningDotRoute, wideningDotDescription,
+          "widening-dot registry rejects stale strided mirror on plain route",
+          {"source_memory_form", "must not carry"}))
+    return false;
+
+  TargetArtifactCandidate missingStridedDotSourceFormMirror =
+      stridedWideningDotFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingStridedDotSourceFormMirror,
+                                "tcrv_rvv.source_memory_form")) {
+    llvm::errs() << "test fixture did not contain strided widening-dot source "
+                    "memory form metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingStridedDotSourceFormMirror, stridedWideningDotRoute,
+          stridedWideningDotDescription,
+          "widening-dot registry rejects missing strided source form mirror",
+          {"source_memory_form", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningDotNonFamilyMirror =
+      wideningDotFixture.candidate;
+  staleWideningDotNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.plain_macc_route_family_plan",
+          "metadata-derived-plain-macc"));
+  if (!expectWideningDotCandidateFailure(
+          staleWideningDotNonFamilyMirror, wideningDotRoute,
+          wideningDotDescription,
+          "widening-dot registry rejects stale non-family mirror",
+          {"must not carry",
+           "selected typed RVV non-widening-dot route-family mirror"}))
     return false;
 
   auto expectBaseMemoryPositive =

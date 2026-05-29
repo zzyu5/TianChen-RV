@@ -1794,3 +1794,42 @@ Testing:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 302: Stage2 RVV widening dot-reduction artifact runtime ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV widening dot-reduction artifact runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed the selected typed RVV non-computed-mask widening_dot_reduce_add and strided_input_widening_dot_reduce_add artifact/runtime ABI boundary through target-owned validator checks, generated-bundle evidence, testing spec update, and real ssh rvv correctness runs.
+
+### Main Changes
+
+- Continued the dirty in-progress task `05-29-stage2-rvv-widening-dot-reduction-artifact-runtime-abi-closure` instead of selecting a new owner.
+- Hardened `RVVTargetArtifactRouteFamilyValidation.cpp` so plain and strided widening dot-reduction require provider-derived runtime ABI order/roles, exact route operand binding, provider support mirror, source/accumulator/result SEW/LMUL, dot relation/layout, source load form, scalar store VL, strided fact presence/absence, and stale non-family fact rejection.
+- Extended `rvv_generated_bundle_abi_e2e.py` with `widening_dot_reduction_boundary`, target-validator consumed facts, mirror-only metadata checks, direct pre-realized route-entry support remaining false, and strided widening-dot harness coverage.
+- Added focused target artifact C++ coverage and updated four explicit/pre-realized generated-bundle FileCheck dry-run tests for counts `0`, `1`, `16`, `17`, and `257`.
+- Added `.trellis/spec/testing/mlir-testing-contract.md` guidance for widening dot-reduction generated-bundle evidence.
+- Verified focused build/tests, py_compile/self-test, four local dry-runs, focused lit 4/4, four `ssh rvv` generated-bundle correctness runs, widening_macc_add/reduce_add dry-run non-regression, authority scan, `git diff --check`, and `check-tianchenrv 456/456`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -415,6 +415,137 @@ typed body/config/runtime widening-MAcc facts
   -> mirror metadata plus executable harness evidence with widening products
 ```
 
+## Widening Dot-Reduction Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use widening dot-reduction generated-bundle evidence whenever an RVV
+generated-bundle test claims executable `widening_dot_reduce_add` or
+`strided_input_widening_dot_reduce_add` correctness for a route-supported typed
+`tcrv_rvv` path. This evidence is required for explicit selected bodies and
+selected pre-realized bodies after RVV plugin-local realization. Computed-mask
+widening dot-reduction routes use their own computed-mask evidence boundary.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key such as:
+
+```json
+"widening_dot_reduction_boundary": {
+  "authority": "provider-derived typed tcrv_rvv widening dot-reduction body/config/runtime facts",
+  "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "direct_pre_realized_route_entry_supported": false,
+  "selected_source_abi": {},
+  "provider_route_facts": {},
+  "target_validator_consumed_facts": [],
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_widening_dot_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of route support.
+- `selected_source_abi` must identify `lhs`, `rhs`, `acc`, `out`, and runtime
+  `n` in provider-validated ABI order. Strided-input routes must also identify
+  `lhs_stride` and `rhs_stride`.
+- The evidence must mirror source dtype, accumulator/result dtype, SEW, LMUL,
+  policy, runtime AVL/VL, scalar store VL, route operand binding, dot-product
+  relation, accumulator layout, result layout, required headers, C type mapping,
+  provider support mirror, and artifact ABI order from provider route facts
+  after route construction.
+- Strided-input evidence must mirror source memory form, destination memory
+  form, strided memory layout, stride ABI sources, and strided load intrinsic.
+  Unit-stride evidence must make stale strided-input facts fail evidence or
+  target validation.
+- `target_validator_consumed_facts` must identify the target-owned
+  widening-dot-reduction validator as the consumer of provider facts and
+  candidate mirror checks.
+- `route_metadata` may mirror provider/export metadata only after provider route
+  construction. It must not be used as route authority.
+- Runtime counts are execution cases only. They must not define dtype,
+  dot-reduction semantics, route support, artifact authority, strided support,
+  or direct route-entry support.
+
+### 4. Validation & Error Matrix
+
+- Missing or stale source/accumulator/result dtype relation -> evidence
+  failure.
+- Missing `lhs`, `rhs`, accumulator, output, runtime `n`, or required stride ABI
+  role -> evidence failure.
+- Missing route operand binding plan, exact binding summary,
+  provider-supported mirror, target-validator consumption summary, dot-product
+  relation, accumulator/result layout, scalar store VL, or source load form ->
+  evidence failure.
+- Strided-input route missing source/destination memory form, strided memory
+  layout, stride source, or strided load intrinsic -> evidence failure.
+- Unit-stride route carrying stale strided-input facts -> evidence failure.
+- Generated C/C++ omits runtime VL on source loads, widening product, scalar
+  seed, reduction, or scalar result store -> evidence failure.
+- Generated C/C++ uses dot-product operands in an order that disagrees with
+  provider-owned operand-binding facts -> evidence failure.
+- A multi-lane runtime evidence case lacks positive products, negative products,
+  source-width-overflowing widening products, nonzero seed, scalar output check,
+  or tail sentinel preservation -> evidence failure.
+- Descriptor, direct-C/source-export, route-id, artifact-name, ABI-string,
+  script, test-name, common EmitC, exact intrinsic spelling, direct route entry,
+  pre-realized fixture name, or legacy i32 residue is required to explain
+  widening dot-reduction semantics -> evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries i16 dot sources, i32 scalar seed/result,
+  dot-product relation, source load form, runtime `n`, optional stride ABI, and
+  policy facts -> RVV plugin validates or realizes the body -> provider emits
+  the widening dot-reduction route -> target-owned validator consumes provider
+  facts -> generated evidence mirrors the facts and harness checks signed
+  widening products, horizontal reduction, scalar output, and tail preservation.
+- Base: computed-mask widening dot-reduction routes omit
+  `widening_dot_reduction_boundary` and use the computed-mask widening
+  dot-reduction evidence boundary.
+- Bad: evidence infers dot-reduction behavior, strided behavior, dtype, or
+  route support from route id, artifact filename, ABI string, exact intrinsic
+  spelling, script constants, or the pre-realized fixture name.
+
+### 6. Tests Required
+
+- lit/FileCheck for explicit and pre-realized generated-bundle dry-runs must
+  check representative `widening_dot_reduction_boundary` fields and mirror
+  metadata for both unit-stride and strided-input routes.
+- Target artifact tests must check provider-owned runtime ABI order/roles,
+  operand binding, dtype relation, dot relation/layout, source load form,
+  strided fact presence/absence, provider-supported mirror, and stale
+  non-widening-dot fact rejection before artifact acceptance.
+- Runtime RVV claims must include `ssh rvv` output over multiple runtime counts,
+  including `n=0`, `n=1`, exact-VL, tail, and stress cases.
+- Harness checks must distinguish signed widening horizontal dot-reduction from
+  add-only, mul-only, non-widening, missing-seed, wrong sign-extension,
+  unit-stride-vs-strided confusion, scalar-output overwrite, and tail-overwrite
+  behavior.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+pre-realized fixture name says strided_input_widening_dot_reduce_add
+  -> harness expects strided widening dot behavior
+```
+
+Correct:
+
+```text
+typed body/config/runtime widening dot-reduction and optional stride facts
+  -> RVV plugin legality/realization
+  -> provider-built contraction route
+  -> target-owned widening-dot validator
+  -> mirror metadata plus executable harness evidence with signed widening dot products
+```
+
 ## Compare/Select Predicate Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

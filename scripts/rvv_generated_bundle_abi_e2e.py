@@ -431,6 +431,30 @@ WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:abi|res-store|res-i32m1|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
+WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:widening_dot_reduce.v1"
+)
+WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:widening_dot_reduce.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+    "out=output-buffer:out:abi|store|i32|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
+STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:strided_widening_dot_reduce.v1"
+)
+STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:strided_widening_dot_reduce.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+    "out=output-buffer:out:abi|store|i32|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+    "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
+    "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"
+)
 STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_load_unit_store.v1"
 )
@@ -6257,6 +6281,50 @@ WIDENING_MACC_METADATA_KEYS = (
     "tcrv_rvv.widening_macc_result_layout",
     "tcrv_rvv.widening_macc_relation",
 )
+WIDENING_DOT_REDUCTION_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.runtime_avl_abi_parameter",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.contraction_route_family_plan",
+    "tcrv_rvv.emitc_loop",
+    "tcrv_rvv.loop_induction",
+    "tcrv_rvv.loop_step",
+    "tcrv_rvv.remaining_avl",
+    "tcrv_rvv.pointer_advance",
+    "tcrv_rvv.multi_vl",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.source_sew",
+    "tcrv_rvv.source_lmul",
+    "tcrv_rvv.accumulator_sew",
+    "tcrv_rvv.accumulator_lmul",
+    "tcrv_rvv.result_sew",
+    "tcrv_rvv.result_lmul",
+    "tcrv_rvv.strided_memory_layout",
+    "tcrv_rvv.lhs_stride_source",
+    "tcrv_rvv.rhs_stride_source",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
+    "tcrv_rvv.widening_dot_accumulator_layout",
+    "tcrv_rvv.widening_dot_result_layout",
+    "tcrv_rvv.widening_dot_relation",
+    "tcrv_rvv.widening_product_intrinsic",
+    "tcrv_rvv.strided_load_intrinsic",
+    "tcrv_rvv.widening_dot_reduction_store_vl",
+)
 MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.element_type",
@@ -8352,6 +8420,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_strided_input_widening_dot_reduce_add:
@@ -8389,6 +8463,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )
@@ -8568,6 +8648,7 @@ def verify_emitted_rvv_cpp(
     vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
+    widening_dot_reduction_boundary: dict[str, Any] = {}
     computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
     runtime_scalar_computed_mask_memory_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
@@ -9017,6 +9098,58 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = computed_masked_macc_boundary[
             "runtime_avl_vl_control"
         ]
+    if (
+        expectation.is_widening_dot_reduce_add
+        or expectation.is_strided_input_widening_dot_reduce_add
+    ):
+        vector_c_type = expectation.rvv_vector_c_type
+        source_load_intrinsic = (
+            STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+            if expectation.is_strided_input_widening_dot_reduce_add
+            else "__riscv_vle16_v_i16mf2"
+        )
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            source_load_intrinsic,
+            "__riscv_vmv_v_x_i32m1",
+            "__riscv_vwmul_vv_i32m1",
+            "__riscv_vredsum_vs_i32m1_i32m1",
+            "__riscv_vse32_v_i32m1",
+        ]
+        require_contains(
+            text,
+            "vint16mf2_t",
+            "emitted RVV C/C++ widening dot-reduce source vector type",
+        )
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ widening dot-reduce result vector type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ widening dot-reduce intrinsic spelling",
+            )
+        runtime_avl_vl_boundary = {
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "uses_runtime_n_avl": True,
+            "uses_loop_vl_for_source_load_product_reduction": True,
+            "store_uses_scalar_result_vl": True,
+        }
+        widening_dot_reduction_boundary = {
+            "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+            "source_vector_c_type": "vint16mf2_t",
+            "result_vector_c_type": vector_c_type,
+            "source_load_intrinsic": source_load_intrinsic,
+            "product_intrinsic": "__riscv_vwmul_vv_i32m1",
+            "seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+            "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+            "store_intrinsic": "__riscv_vse32_v_i32m1",
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_computed_masked_widening_dot_reduce_add:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -9105,6 +9238,7 @@ def verify_emitted_rvv_cpp(
         "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
+        "widening_dot_reduction_boundary": widening_dot_reduction_boundary,
         "computed_masked_widening_dot_reduce_boundary": (
             computed_masked_widening_dot_reduce_boundary
         ),
@@ -11330,6 +11464,7 @@ def verify_materialized_selected_body(
     vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
     computed_masked_macc_boundary: dict[str, Any] = {}
+    widening_dot_reduction_boundary: dict[str, Any] = {}
     computed_masked_widening_dot_reduce_boundary: dict[str, Any] = {}
     if expectation.is_widen_i32_to_i64:
         require_contains(
@@ -11456,6 +11591,53 @@ def verify_materialized_selected_body(
             f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
             "materialized selected-body MLIR strided dot relation",
         )
+    if (
+        expectation.is_widening_dot_reduce_add
+        or expectation.is_strided_input_widening_dot_reduce_add
+    ):
+        widening_dot_reduction_boundary = {
+            "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+            "source_vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
+            "source_element_type": "i16",
+            "source_sew": "16",
+            "source_lmul": "mf2",
+            "accumulator_element_type": "i32",
+            "result_element_type": expectation.element_type,
+            "result_sew": expectation.sew,
+            "result_lmul": expectation.lmul,
+            "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+            "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+            "dot_product_relation": WIDENING_DOT_RELATION,
+            "selected_source_abi": {
+                "lhs": "lhs-input-buffer",
+                "rhs": "rhs-input-buffer",
+                "acc": "accumulator-input-buffer",
+                "out": "output-buffer",
+                "n": "runtime-element-count",
+            },
+            "uses_strided_inputs": expectation.is_strided_input_widening_dot_reduce_add,
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
+        if expectation.is_strided_input_widening_dot_reduce_add:
+            widening_dot_reduction_boundary["selected_source_abi"].update(
+                {
+                    "lhs_stride": "lhs-input-stride",
+                    "rhs_stride": "rhs-input-stride",
+                }
+            )
+            widening_dot_reduction_boundary["strided_input_facts"] = {
+                "strided_memory_layout": STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT,
+                "lhs_stride_source": STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE,
+                "rhs_stride_source": STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE,
+                "source_memory_form": STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM,
+                "destination_memory_form": (
+                    STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
+                ),
+                "strided_load_intrinsic": (
+                    STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+                ),
+            }
     if expectation.is_computed_masked_widening_dot_reduce_add:
         require_contains(
             text,
@@ -13572,6 +13754,7 @@ def verify_materialized_selected_body(
         "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
         "computed_masked_macc_boundary": computed_masked_macc_boundary,
+        "widening_dot_reduction_boundary": widening_dot_reduction_boundary,
         "computed_masked_widening_dot_reduce_boundary": (
             computed_masked_widening_dot_reduce_boundary
         ),
@@ -17960,12 +18143,18 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < lhs_alloc; ++index)
-    lhs[index] = {expectation.lhs_initializer};
+    lhs[index] = (int16_t)(((index % 2) == 0) ? 17 : -19);
   for (size_t index = 0; index < rhs_alloc; ++index)
-    rhs[index] = {expectation.rhs_initializer};
+    rhs[index] = (int16_t)(((index % 3) == 0) ? -23 : 29);
   for (size_t index = 0; index < out_alloc; ++index) {{
     acc[index] = {expectation.source_initializer};
     out[index] = {expectation.out_initializer};
+  }}
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index * lhs_stride] =
+        (int16_t)(((index % 4) < 2) ? 200 : -210);
+    rhs[index * rhs_stride] =
+        (int16_t)(((index % 5) == 0) ? -190 : 180);
   }}
 
   {expectation.function_name}(lhs, rhs, acc, out, n, lhs_stride, rhs_stride);
@@ -17973,6 +18162,7 @@ static int run_case(size_t n) {{
   int32_t expected = acc[0];
   size_t positive_products = 0;
   size_t negative_products = 0;
+  size_t widening_products = 0;
   size_t lhs_skipped_nonzero = 0;
   size_t rhs_skipped_nonzero = 0;
   for (size_t index = 0; index < n; ++index) {{
@@ -17983,6 +18173,8 @@ static int run_case(size_t n) {{
       ++positive_products;
     if (product < 0)
       ++negative_products;
+    if (product > 32767 || product < -32768)
+      ++widening_products;
     expected = (int32_t)(expected + product);
   }}
   for (size_t index = 0; index < n * lhs_stride; ++index)
@@ -18019,12 +18211,12 @@ static int run_case(size_t n) {{
   }}
 
   if (n > 3 && (positive_products == 0 || negative_products == 0 ||
-                lhs_skipped_nonzero == 0 || rhs_skipped_nonzero == 0 ||
-                acc[0] == 0)) {{
+                widening_products == 0 || lhs_skipped_nonzero == 0 ||
+                rhs_skipped_nonzero == 0 || acc[0] == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
-            n, positive_products, negative_products, lhs_skipped_nonzero,
-            rhs_skipped_nonzero, acc[0]);
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu widening_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
+            n, positive_products, negative_products, widening_products,
+            lhs_skipped_nonzero, rhs_skipped_nonzero, acc[0]);
     free(lhs);
     free(rhs);
     free(acc);
@@ -18036,7 +18228,8 @@ static int run_case(size_t n) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok strided_signed_horizontal_dot seed_added source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu ok strided_signed_horizontal_dot seed_added widening_products=%zu source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved\\n",
+         n, widening_products);
   return 0;
 }}
 
@@ -20273,6 +20466,36 @@ def computed_masked_macc_metadata_from_bundle(
     return metadata
 
 
+def widening_dot_reduction_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "widening dot-reduction evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in WIDENING_DOT_REDUCTION_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object widening dot metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header widening dot metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def computed_masked_widening_dot_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
@@ -21896,6 +22119,196 @@ def computed_masked_macc_boundary_summary(
     }
 
 
+def widening_dot_reduction_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not (
+        expectation.is_widening_dot_reduce_add
+        or expectation.is_strided_input_widening_dot_reduce_add
+    ):
+        return {}
+    is_strided = expectation.is_strided_input_widening_dot_reduce_add
+    source_load_intrinsic = (
+        STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+        if is_strided
+        else "__riscv_vle16_v_i16mf2"
+    )
+    selected_source_abi = {
+        "lhs": "lhs-input-buffer",
+        "rhs": "rhs-input-buffer",
+        "acc": "accumulator-input-buffer",
+        "out": "output-buffer",
+        "n": "runtime-element-count",
+    }
+    if is_strided:
+        selected_source_abi.update(
+            {
+                "lhs_stride": "lhs-input-stride",
+                "rhs_stride": "rhs-input-stride",
+            }
+        )
+    route_operand_binding_plan = (
+        STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+        if is_strided
+        else WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+    )
+    route_operand_binding_operands = (
+        STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+        if is_strided
+        else WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+    )
+    provider_route_facts = {
+        "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
+        "target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
+        "runtime_abi_order": expectation.runtime_abi_order,
+        "route_operand_binding_plan": route_operand_binding_plan,
+        "route_operand_binding_operands": route_operand_binding_operands,
+        "contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
+        "required_header_declarations": CONTRACTION_REQUIRED_HEADER_DECLARATIONS,
+        "c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
+        "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+        "effective_source_load_intrinsic": source_load_intrinsic,
+        "widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+        "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+        "store_intrinsic": "__riscv_vse32_v_i32m1",
+        "source_sew": "16",
+        "source_lmul": "mf2",
+        "accumulator_sew": expectation.sew,
+        "accumulator_lmul": expectation.lmul,
+        "result_sew": expectation.sew,
+        "result_lmul": expectation.lmul,
+        "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+        "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+        "dot_product_relation": WIDENING_DOT_RELATION,
+        "reduction_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+    }
+    if is_strided:
+        provider_route_facts["strided_input_facts"] = {
+            "strided_memory_layout": STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT,
+            "lhs_stride_source": STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE,
+            "rhs_stride_source": STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE,
+            "source_memory_form": STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM,
+            "destination_memory_form": (
+                STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
+            ),
+            "strided_load_intrinsic": (
+                STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+            ),
+        }
+    else:
+        provider_route_facts["strided_input_facts"] = "rejected-if-present"
+    return {
+        "source": (
+            "typed tcrv_rvv.widening_dot_reduce body/config/runtime facts -> "
+            "contraction route-family plan -> target-owned dot-reduction "
+            "validator -> neutral EmitC materializer -> generated RVV C artifact"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv widening dot-reduction "
+            "body/config/runtime facts"
+        ),
+        "target_artifact_validator": (
+            "RVVTargetArtifactRouteFamilyValidation.cpp:"
+            "widening-dot-reduction target-owned consumer"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "direct_pre_realized_route_entry_supported": False,
+        "contraction_kind": expectation.kind,
+        "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+        "memory_form": expectation.memory_form,
+        "source_type_policy": {
+            "element_type": "i16",
+            "element_c_type": "int16_t",
+            "sew": "16",
+            "lmul": "mf2",
+            "vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "vector_c_type": "vint16mf2_t",
+        },
+        "accumulator_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+            "abi_role": "accumulator-input-buffer",
+            "seed_source": "acc[0]",
+            "loop_carry_source": "out[0]",
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "layout": WIDENING_DOT_RESULT_LAYOUT,
+            "abi_role": "output-buffer",
+            "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+        },
+        "dot_product_relation": WIDENING_DOT_RELATION,
+        "selected_source_abi": selected_source_abi,
+        "statement_plan": {
+            "family": "widening dot-reduction contraction",
+            "pre_loop_callees": [
+                expectation.setvl_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vse32_v_i32m1",
+            ],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                source_load_intrinsic,
+                source_load_intrinsic,
+                "__riscv_vwmul_vv_i32m1",
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vredsum_vs_i32m1_i32m1",
+                "__riscv_vse32_v_i32m1",
+            ],
+            "product_operand_order": "lhs,rhs,vl",
+            "reduction_operand_order": "products,current_out0,vl",
+            "seed_source": "acc[0]",
+            "loop_accumulator_source": "out[0]",
+            "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
+        },
+        "provider_route_facts": provider_route_facts,
+        "target_validator_consumed_facts": [
+            "runtime ABI order and roles",
+            "route operand binding plan and exact binding summary",
+            "dot-product relation",
+            "accumulator/result layout",
+            "source/result dtype relation",
+            "source load form",
+            "strided fact presence or absence",
+            "setvl/VL control and scalar store VL",
+            "required headers and C type mapping",
+            "mirror-only candidate metadata",
+            "stale non-family fact rejection",
+        ],
+        "materialized_body": materialized_checks.get(
+            "widening_dot_reduction_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "widening_dot_reduction_boundary", {}
+        ),
+        "route_metadata": widening_dot_reduction_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "empty_count_behavior": (
+            "runtime loop skipped after seed store; tail/non-scalar output "
+            "sentinels preserved"
+        ),
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_widening_dot_authority": True,
+    }
+
+
 def computed_masked_widening_dot_reduce_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -22274,6 +22687,21 @@ def run_one_op_e2e(
         ):
             evidence["computed_masked_macc_boundary"] = (
                 computed_masked_macc_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
+        if (
+            expectation.is_widening_dot_reduce_add
+            or expectation.is_strided_input_widening_dot_reduce_add
+        ):
+            evidence["widening_dot_reduction_boundary"] = (
+                widening_dot_reduction_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"
@@ -22678,6 +23106,25 @@ def run_one_op_e2e(
                 "only out[0] is written and tail/non-scalar output slots "
                 "preserve sentinels"
             )
+        if expectation.is_strided_input_widening_dot_reduce_add:
+            evidence["harness"]["stride_coverage_contract"] = (
+                "runtime lhs_stride=2 and rhs_stride=3 source elements "
+                "contribute only at indexed source positions"
+            )
+            evidence["harness"]["dot_reduction_contract"] = (
+                "signed strided i16*i16 widening products contribute to the "
+                "i32 scalar seed through a horizontal dot-reduction"
+            )
+            evidence["harness"]["dot_distinguishing_contract"] = (
+                "multi-lane cases include mixed-sign products, skipped nonzero "
+                "source elements, and products outside int16 range so the "
+                "oracle distinguishes true strided widening dot-reduce from "
+                "unit-stride or non-widening behavior"
+            )
+            evidence["harness"]["scalar_result_contract"] = (
+                "only out[0] is written and tail/non-scalar output slots "
+                "preserve sentinels"
+            )
         if expectation.is_computed_masked_widening_dot_reduce_add:
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane computed_masked_widening_dot_reduce_add cases "
@@ -22831,6 +23278,9 @@ def root_op_result_summary(
         ),
         "computed_masked_macc_boundary": result.get(
             "computed_masked_macc_boundary", {}
+        ),
+        "widening_dot_reduction_boundary": result.get(
+            "widening_dot_reduction_boundary", {}
         ),
         "computed_masked_widening_dot_reduce_boundary": result.get(
             "computed_masked_widening_dot_reduce_boundary", {}
@@ -23283,6 +23733,34 @@ def run_self_test() -> int:
                         "self-test fake bundle generation lost widening-MAcc "
                         "validator-backed metadata"
                     )
+            if (
+                expectation.is_widening_dot_reduce_add
+                or expectation.is_strided_input_widening_dot_reduce_add
+            ):
+                widening_dot_metadata = widening_dot_reduction_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                expected_binding_plan = (
+                    STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                    if expectation.is_strided_input_widening_dot_reduce_add
+                    else WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
+                )
+                if (
+                    widening_dot_metadata.get("tcrv_rvv.widening_dot_relation")
+                    != WIDENING_DOT_RELATION
+                    or widening_dot_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != expected_binding_plan
+                    or widening_dot_metadata.get(
+                        "tcrv_rvv.provider_supported_mirror"
+                    )
+                    != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost widening dot "
+                        "validator-backed metadata"
+                    )
             harness = harness_source(
                 "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
                 [1, 17, 257],
@@ -23523,6 +24001,17 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost widening dot-reduce "
                     "signed widening, scalar-result, or distinguishing coverage"
+                )
+            if expectation.is_strided_input_widening_dot_reduce_add and (
+                "strided_signed_horizontal_dot" not in harness
+                or "widening_products" not in harness
+                or "lhs_skipped_nonzero" not in harness
+                or "rhs_skipped_nonzero" not in harness
+                or "lhs_stride=2 rhs_stride=3" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost strided widening "
+                    "dot-reduce stride, widening, or scalar-result coverage"
                 )
 
         expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]
