@@ -5912,7 +5912,7 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
   return validateRVVSegment2MemoryRouteStatementPlan(route, description);
 }
 
-llvm::Error validateRVVSegment2MemoryTargetArtifactProviderFacts(
+llvm::Error validateRVVSegment2MemoryTargetArtifactProviderFactsImpl(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   return validateRVVSegment2MemoryRoutePayloadFacts(context.route,
                                                     context.description);
@@ -5924,7 +5924,7 @@ llvm::Error requireEmptySegment2MemoryStaleMirror(
   return requireCandidateMetadataMirror(candidate, key, "", label);
 }
 
-llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
+llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   const TargetArtifactCandidate &candidate = context.candidate;
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
@@ -6218,6 +6218,148 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
       return error;
 
   return llvm::Error::success();
+}
+
+bool isRVVSegment2LoadTargetArtifactFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                      ComputedMaskSegment2LoadUnitStore;
+}
+
+bool isRVVSegment2StoreTargetArtifactFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                      ComputedMaskSegment2StoreUnitLoad;
+}
+
+bool isRVVSegment2UpdateTargetArtifactFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                      ComputedMaskSegment2UpdateUnitLoad;
+}
+
+bool isRVVSegment2DeinterleaveTargetArtifactFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                      Segment2DeinterleaveUnitStore;
+}
+
+bool isRVVSegment2InterleaveTargetArtifactFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                      Segment2InterleaveUnitLoad;
+}
+
+struct RVVSegment2MemoryTargetArtifactFamilyValidator {
+  llvm::StringLiteral familyName;
+  bool (*isConsumer)(
+      const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description);
+  llvm::Error (*validateProviderFacts)(
+      const RVVTargetArtifactRouteFamilyValidationContext &context);
+  llvm::Error (*validateCandidateMirrors)(
+      const RVVTargetArtifactRouteFamilyValidationContext &context);
+};
+
+llvm::Error validateRVVSegment2MemoryTargetArtifactFamilyProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVSegment2MemoryTargetArtifactProviderFactsImpl(context);
+}
+
+llvm::Error validateRVVSegment2MemoryTargetArtifactFamilyCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(context);
+}
+
+llvm::ArrayRef<RVVSegment2MemoryTargetArtifactFamilyValidator>
+getRVVSegment2MemoryTargetArtifactFamilyValidators() {
+  static const RVVSegment2MemoryTargetArtifactFamilyValidator validators[] = {
+      {llvm::StringLiteral("computed-mask-segment2-load"),
+       isRVVSegment2LoadTargetArtifactFamilyConsumer,
+       validateRVVSegment2MemoryTargetArtifactFamilyProviderFacts,
+       validateRVVSegment2MemoryTargetArtifactFamilyCandidateMirrors},
+      {llvm::StringLiteral("computed-mask-segment2-store"),
+       isRVVSegment2StoreTargetArtifactFamilyConsumer,
+       validateRVVSegment2MemoryTargetArtifactFamilyProviderFacts,
+       validateRVVSegment2MemoryTargetArtifactFamilyCandidateMirrors},
+      {llvm::StringLiteral("computed-mask-segment2-update"),
+       isRVVSegment2UpdateTargetArtifactFamilyConsumer,
+       validateRVVSegment2MemoryTargetArtifactFamilyProviderFacts,
+       validateRVVSegment2MemoryTargetArtifactFamilyCandidateMirrors},
+      {llvm::StringLiteral("plain-segment2-deinterleave"),
+       isRVVSegment2DeinterleaveTargetArtifactFamilyConsumer,
+       validateRVVSegment2MemoryTargetArtifactFamilyProviderFacts,
+       validateRVVSegment2MemoryTargetArtifactFamilyCandidateMirrors},
+      {llvm::StringLiteral("plain-segment2-interleave"),
+       isRVVSegment2InterleaveTargetArtifactFamilyConsumer,
+       validateRVVSegment2MemoryTargetArtifactFamilyProviderFacts,
+       validateRVVSegment2MemoryTargetArtifactFamilyCandidateMirrors},
+  };
+  return validators;
+}
+
+llvm::Error selectRVVSegment2MemoryTargetArtifactFamilyValidator(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef validationKind,
+    const RVVSegment2MemoryTargetArtifactFamilyValidator *&selected) {
+  selected = nullptr;
+  for (const RVVSegment2MemoryTargetArtifactFamilyValidator &validator :
+       getRVVSegment2MemoryTargetArtifactFamilyValidators()) {
+    if (!validator.isConsumer(description))
+      continue;
+    if (selected)
+      return makeRVVTargetRouteError(
+          llvm::Twine("segment2-memory target artifact family registry matched "
+                      "both '") +
+          selected->familyName + "' and '" + validator.familyName +
+          "' while checking " + validationKind);
+    selected = &validator;
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error makeMissingRVVSegment2MemoryTargetArtifactFamilyValidatorError(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef validationKind) {
+  return makeRVVTargetRouteError(
+      llvm::Twine("no segment2-memory target artifact family validator owns "
+                  "selected typed RVV route operation '") +
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+          description.operation) +
+      "' with memory form '" +
+      plugin::rvv::stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
+      "' while checking " + validationKind);
+}
+
+llvm::Error validateRVVSegment2MemoryTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const RVVSegment2MemoryTargetArtifactFamilyValidator *validator = nullptr;
+  if (llvm::Error error = selectRVVSegment2MemoryTargetArtifactFamilyValidator(
+          context.description, "rebuilt provider facts", validator))
+    return error;
+  if (!validator)
+    return makeMissingRVVSegment2MemoryTargetArtifactFamilyValidatorError(
+        context.description, "rebuilt provider facts");
+  if (!validator->validateProviderFacts)
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact family validator '") +
+        validator->familyName + "' has no provider-fact validator");
+  return validator->validateProviderFacts(context);
+}
+
+llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const RVVSegment2MemoryTargetArtifactFamilyValidator *validator = nullptr;
+  if (llvm::Error error = selectRVVSegment2MemoryTargetArtifactFamilyValidator(
+          context.description, "candidate metadata mirrors", validator))
+    return error;
+  if (!validator)
+    return makeMissingRVVSegment2MemoryTargetArtifactFamilyValidatorError(
+        context.description, "candidate metadata mirrors");
+  if (!validator->validateCandidateMirrors)
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact family validator '") +
+        validator->familyName + "' has no candidate-mirror validator");
+  return validator->validateCandidateMirrors(context);
 }
 
 llvm::StringRef getRVVElementwiseArithmeticSignedCType(

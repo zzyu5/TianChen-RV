@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check for source-of-truth, RVV stage, and authority-leak compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 target validator boundary, provider-derived facts, mirror metadata, and direct route-entry fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains an ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider routes only."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check that production changes are covered by focused C++/lit/runtime evidence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check RVV generated-bundle, fail-closed diagnostics, and ssh rvv evidence quality."}

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-17.md`
-- **Total Sessions**: 304
+- **Total Sessions**: 305
 - **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-17.md` | ~1899 | Active |
+| `journal-17.md` | ~1944 | Active |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
 | `journal-14.md` | ~1982 | Archived |
@@ -45,6 +45,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 305 | 2026-05-29 | Stage2 RVV segment2 validator boundary | pending-final-session-commit | `main` |
 | 304 | 2026-05-29 | Stage2 RVV computed-mask segment2 update runtime ABI closure | - | `main` |
 | 303 | 2026-05-29 | Stage2 RVV computed-mask widening dot runtime ABI closure | pending-final-session-commit | `main` |
 | 302 | 2026-05-29 | Stage2 RVV widening dot-reduction artifact runtime ABI closure | pending-final-session-commit | `main` |

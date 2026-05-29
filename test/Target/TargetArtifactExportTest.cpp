@@ -653,7 +653,7 @@ module {
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
   using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
-  if (op == OperationKind::ComputedMaskSegment2UpdateUnitLoad) {
+  if (op == OperationKind::ComputedMaskSegment2LoadUnitStore) {
     std::string vectorType =
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.vector<i32, \"m2\">"
@@ -668,12 +668,68 @@ module {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @)mlir"
        << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:cmp-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:cmp-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:src0", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:src1", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:dst", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:n", role = "runtime-element-count"} : index
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-load:cmp-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-load:cmp-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-load:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-load:out0", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-load:out1", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-load:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %old0 = tcrv_rvv.load %out0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %old1 = tcrv_rvv.load %out1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << maskType << R"mlir(
+        %field0, %field1 = tcrv_rvv.masked_segment2_load %src, %mask, %old0, %old1, %vl {field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", inactive_lane_policy = "preserve-passthrough-on-false-lanes", segment_count = 2 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : !tcrv_rvv.runtime_abi_value, )mlir"
+       << maskType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType
+       << R"mlir(, )mlir" << vectorType << R"mlir(
+        tcrv_rvv.store %out0, %field0, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+        tcrv_rvv.store %out1, %field1, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (op == OperationKind::ComputedMaskSegment2StoreUnitLoad ||
+      op == OperationKind::ComputedMaskSegment2UpdateUnitLoad) {
+    const bool isUpdate =
+        op == OperationKind::ComputedMaskSegment2UpdateUnitLoad;
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    std::string maskType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.mask<i32, \"m2\">"
+            : "!tcrv_rvv.mask<i32, \"m1\">";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-store-like:cmp-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-store-like:cmp-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-store-like:src0", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-store-like:src1", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-store-like:dst", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-store-like:n", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
        << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
@@ -690,12 +746,91 @@ module {
         %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << maskType << R"mlir(
+)mlir";
+    if (isUpdate)
+      os << R"mlir(
         %updated = tcrv_rvv.binary %field0, %field1, %vl {kind = "add"} : )mlir"
-       << vectorType << R"mlir(, )mlir" << vectorType
-       << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
+         << vectorType << R"mlir(, )mlir" << vectorType
+         << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
         tcrv_rvv.masked_segment2_store %dst, %mask, %updated, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, )mlir"
-       << maskType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
-       << vectorType << R"mlir(, !tcrv_rvv.vl
+         << maskType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+)mlir";
+    else
+      os << R"mlir(
+        tcrv_rvv.masked_segment2_store %dst, %mask, %field0, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, )mlir"
+         << maskType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+)mlir";
+    os << R"mlir(
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (op == OperationKind::Segment2DeinterleaveUnitStore ||
+      op == OperationKind::Segment2InterleaveUnitLoad) {
+    const bool isInterleave = op == OperationKind::Segment2InterleaveUnitLoad;
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+)mlir";
+    if (isInterleave)
+      os << R"mlir(
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-interleave:src0", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-interleave:src1", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-interleave:dst", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-interleave:n", role = "runtime-element-count"} : index
+)mlir";
+    else
+      os << R"mlir(
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-deinterleave:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-deinterleave:out0", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-deinterleave:out1", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-segment2-deinterleave:n", role = "runtime-element-count"} : index
+)mlir";
+    os << R"mlir(
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+)mlir";
+    if (isInterleave)
+      os << R"mlir(
+        %field0 = tcrv_rvv.load %src0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        %field1 = tcrv_rvv.load %src1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+        tcrv_rvv.segment2_store %dst, %field0, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl
+)mlir";
+    else
+      os << R"mlir(
+        %field0, %field1 = tcrv_rvv.segment2_load %src, %vl {field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", segment_count = 2 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(, )mlir" << vectorType << R"mlir(
+        %field0_copy = tcrv_rvv.move %field0, %vl {kind = "copy"} : )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType
+         << R"mlir(
+        %field1_copy = tcrv_rvv.move %field1, %vl {kind = "copy"} : )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType
+         << R"mlir(
+        tcrv_rvv.store %out0, %field0_copy, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+        tcrv_rvv.store %out1, %field1_copy, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+         << vectorType << R"mlir(, !tcrv_rvv.vl
+)mlir";
+    os << R"mlir(
       } : !tcrv_rvv.vl
     }
   }
@@ -2470,7 +2605,7 @@ bool expectRVVTargetArtifactExporterShape(
            "selected typed RVV non-widening-dot route-family mirror"}))
     return false;
 
-  auto expectComputedMaskSegment2Positive =
+  auto expectSegment2MemoryPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture,
           tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -2478,7 +2613,7 @@ bool expectRVVTargetArtifactExporterShape(
     if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))
       return false;
     std::string validateContext =
-        (llvm::Twine("validate RVV computed-mask segment2 target artifact "
+        (llvm::Twine("validate RVV segment2-memory target artifact "
                      "candidate through exporter for ") +
          fixtureContext)
             .str();
@@ -2487,7 +2622,7 @@ bool expectRVVTargetArtifactExporterShape(
                        validateContext))
       return false;
     std::string rebuildContext =
-        (llvm::Twine("rebuild RVV computed-mask segment2 route validator "
+        (llvm::Twine("rebuild RVV segment2-memory route validator "
                      "inputs for ") +
          fixtureContext)
             .str();
@@ -2497,7 +2632,7 @@ bool expectRVVTargetArtifactExporterShape(
 
     RVVRouteValidationContext context{fixture.candidate, route, description};
     std::string providerContext =
-        (llvm::Twine("computed-mask segment2 registry accepts provider facts "
+        (llvm::Twine("segment2-memory registry accepts provider facts "
                      "for ") +
          fixtureContext)
             .str();
@@ -2507,7 +2642,7 @@ bool expectRVVTargetArtifactExporterShape(
             providerContext))
       return false;
     std::string mirrorContext =
-        (llvm::Twine("computed-mask segment2 registry accepts candidate "
+        (llvm::Twine("segment2-memory registry accepts candidate "
                      "mirrors for ") +
          fixtureContext)
             .str();
@@ -2517,15 +2652,58 @@ bool expectRVVTargetArtifactExporterShape(
         mirrorContext);
   };
 
+  RVVTargetArtifactCandidateFixture computedMaskSegment2LoadFixture(
+      OperationKind::ComputedMaskSegment2LoadUnitStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskSegment2LoadRoute;
+  RVVRouteDescription computedMaskSegment2LoadDescription;
+  if (!expectSegment2MemoryPositive("computed-mask segment2 load-unit-store",
+                                    computedMaskSegment2LoadFixture,
+                                    computedMaskSegment2LoadRoute,
+                                    computedMaskSegment2LoadDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture computedMaskSegment2StoreFixture(
+      OperationKind::ComputedMaskSegment2StoreUnitLoad);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskSegment2StoreRoute;
+  RVVRouteDescription computedMaskSegment2StoreDescription;
+  if (!expectSegment2MemoryPositive("computed-mask segment2 store-unit-load",
+                                    computedMaskSegment2StoreFixture,
+                                    computedMaskSegment2StoreRoute,
+                                    computedMaskSegment2StoreDescription))
+    return false;
+
   RVVTargetArtifactCandidateFixture computedMaskSegment2UpdateFixture(
       OperationKind::ComputedMaskSegment2UpdateUnitLoad);
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
       computedMaskSegment2UpdateRoute;
   RVVRouteDescription computedMaskSegment2UpdateDescription;
-  if (!expectComputedMaskSegment2Positive(
+  if (!expectSegment2MemoryPositive(
           "computed-mask segment2 update-unit-load",
           computedMaskSegment2UpdateFixture, computedMaskSegment2UpdateRoute,
           computedMaskSegment2UpdateDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture segment2DeinterleaveFixture(
+      OperationKind::Segment2DeinterleaveUnitStore);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      segment2DeinterleaveRoute;
+  RVVRouteDescription segment2DeinterleaveDescription;
+  if (!expectSegment2MemoryPositive("plain segment2 deinterleave-unit-store",
+                                    segment2DeinterleaveFixture,
+                                    segment2DeinterleaveRoute,
+                                    segment2DeinterleaveDescription))
+    return false;
+
+  RVVTargetArtifactCandidateFixture segment2InterleaveFixture(
+      OperationKind::Segment2InterleaveUnitLoad);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute segment2InterleaveRoute;
+  RVVRouteDescription segment2InterleaveDescription;
+  if (!expectSegment2MemoryPositive("plain segment2 interleave-unit-load",
+                                    segment2InterleaveFixture,
+                                    segment2InterleaveRoute,
+                                    segment2InterleaveDescription))
     return false;
 
   auto expectComputedMaskSegment2ProviderFailure =

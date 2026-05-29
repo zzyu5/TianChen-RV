@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundary, RVV stage order, and source-of-truth rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 segment2 memory ownership, route-control/provider facts, target artifact route-family validator boundary, mirror metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Execution envelope and ABI/runtime role boundary for selected RVV variants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Neutral EmitC route/materialization boundary and target artifact authority rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing and ssh rvv evidence expectations for RVV runtime/correctness claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/runtime evidence policy and mirror-only artifact authority checks."}

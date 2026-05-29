@@ -1897,3 +1897,52 @@ Closed computed_masked_segment2_update_unit_load explicit and pre-realized runti
 ### Next Steps
 
 - None - task complete
+
+
+## Session 305: Stage2 RVV segment2 validator boundary
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV segment2 validator boundary
+**Branch**: `main`
+
+### Summary
+
+Factored segment2-memory target artifact validation behind a target-owned family boundary, preserved provider-derived route facts and generated bundle ABI, and validated focused target tests, dry-runs, check-tianchenrv, and ssh rvv update non-regression.
+
+### Main Changes
+
+Completed task: 05-29-stage2-rvv-segment2-memory-target-artifact-validator-boundary.
+
+Implementation:
+- Added segment2-memory target artifact family validator registry/selection in lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp.
+- Kept central dispatch as neutral glue and delegated provider-fact/candidate-mirror checks behind the selected family boundary.
+- Extended TargetArtifactExportTest selected-body fixtures and positive coverage for computed-mask load/store/update plus plain deinterleave/interleave.
+
+Evidence:
+- tianchenrv-target-artifact-export-test passed.
+- Generated-bundle dry-runs passed for update explicit/pre-realized, computed-mask load/store, and plain deinterleave/interleave; direct pre-realized segment2 update route-entry remained fail-closed.
+- ssh rvv passed computed_masked_segment2_update_unit_load explicit and pre-realized paths for counts 0,1,16,17,257.
+- git diff --check passed.
+- Added-line authority scan passed for touched files.
+- check-tianchenrv passed 458/458.
+
+
+### Git Commits
+
+pending-final-session-commit
+
+### Testing
+
+- [OK] tianchenrv-target-artifact-export-test
+- [OK] generated-bundle dry-runs and direct route-entry fail-closed probe
+- [OK] ssh rvv explicit/pre-realized update counts 0,1,16,17,257
+- [OK] git diff --check and added-line authority scan
+- [OK] check-tianchenrv 458/458
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
