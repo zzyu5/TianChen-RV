@@ -940,3 +940,47 @@ Closed the runtime_scalar_dual_cmp_mask_and_select generated-bundle executable a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 320: Stage2 RVV runtime-scalar compare masked-store executable artifact closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV runtime-scalar compare masked-store executable artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed runtime_scalar_cmp_masked_store generated-bundle executable artifact evidence with selected-boundary dry-run lit coverage, direct-route-entry fail-closed coverage, ssh rvv correctness, dual compare/select non-regression, and full check-tianchenrv.
+
+### Main Changes
+
+- Created and archived Trellis task `.trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-runtime-scalar-cmp-masked-store-executable-artifact` from the Hermes direction brief.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-store-dry-run.test` to lock the selected-boundary generated-bundle dry-run path for `runtime_scalar_cmp_masked_store`.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-store-fail-closed.test` to keep the direct pre-realized route-entry shortcut unsupported for this selected-boundary-only family.
+- The dry-run evidence checks `route_entry_realization: false`, selected-boundary materialization, runtime ABI order `lhs,rhs_scalar,src,dst,n`, provider-supported mirror, computed-mask memory route-family plan, route operand binding facts, emitted compare/splat/masked-store RVV C boundary, inactive-lane preserve-output semantics, counts `0,1,16,23,257`, and scalar thresholds `-37,91`.
+- Evidence: real `ssh rvv` generated-bundle execution passed counts `0,1,16,23,257` with runtime scalar values `-37,91`; output showed active lanes copying `src`, inactive lanes preserving old `dst`, source preserved, tail preserved, and final PASS marker.
+- Non-regression: focused lit filter for the prior `runtime_scalar_dual_cmp_mask_and_select` generated-bundle dry-run, typed dry-run, and direct-route-entry fail-closed tests passed 3/3.
+- Checks passed: new focused lit tests passed 2/2; `git diff --check`; bounded authority scan; `cmake --build build --target check-tianchenrv -j2` passed 462/462.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] focused lit filter for runtime-scalar compare masked-store dry-run and direct-route-entry fail-closed tests passed 2/2
+- [OK] `ssh rvv` generated-bundle run passed counts 0,1,16,23,257 with rhs scalars -37 and 91
+- [OK] focused dual compare/select generated-bundle non-regression lit filter passed 3/3
+- [OK] bounded authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 462/462
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

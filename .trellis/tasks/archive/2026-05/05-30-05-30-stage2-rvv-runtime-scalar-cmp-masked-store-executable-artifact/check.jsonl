@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV-first authority chain, Stage2 scope, and runtime evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary-only runtime-scalar computed-mask store realization, computed-mask memory statement-plan provider ownership, target artifact mirrors, route-entry fail-closed behavior, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime roles remain declarations and do not become compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC and target export consume provider-built routes without semantic invention."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-runtime-scalar-dual-cmp-select-executable-artifact/prd.md", "reason": "Check predecessor executable artifact closure remains preserved as focused non-regression."}

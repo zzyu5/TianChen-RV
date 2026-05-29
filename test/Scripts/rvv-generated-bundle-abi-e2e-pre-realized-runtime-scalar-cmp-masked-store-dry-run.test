@@ -1,0 +1,85 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-store --overwrite --op-kind runtime_scalar_cmp_masked_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-store/evidence.json
+# RUN: FileCheck %s --check-prefix=RSM --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-store/runtime_scalar_cmp_masked_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-store/runtime_scalar_cmp_masked_store/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_store"
+# ROOT-DAG: "rhs_scalar_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# RSM-DAG: "input": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store.mlir"
+# RSM-DAG: "expected_function": "tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store"
+# RSM-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi.v1"
+# RSM-DAG: "expected_selected_variant": "pre_realized_body_rvv_runtime_scalar_cmp_masked_store"
+# RSM-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# RSM-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# RSM-DAG: "route_entry_realization": false
+# RSM-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# RSM-DAG: "pre_realized_body_consumed": true
+# RSM-DAG: "typed_compute_op": "tcrv_rvv.masked_store"
+# RSM-DAG: "memory_form": "runtime-scalar-computed-mask-store"
+# RSM-DAG: "runtime_abi_order": "lhs,rhs_scalar,src,dst,n"
+# RSM-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask memory body/config/runtime facts"
+# RSM-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# RSM-DAG: "active_lane_contract": "compare-true lanes store src payload into dst"
+# RSM-DAG: "inactive_lane_contract": "masked-store-false-lanes-preserve-output-buffer"
+# RSM-DAG: "empty_count_behavior": "runtime loop skipped; destination tail sentinel preserved"
+# RSM-DAG: "mask_role": "predicate-mask-produced-by-compare"
+# RSM-DAG: "mask_source": "compare-produced-mask-same-vl-scope"
+# RSM-DAG: "mask_memory_form": "compare-produced-mask"
+# RSM-DAG: "runtime_scalar_operand": "rhs_scalar"
+# RSM-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
+# RSM-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# RSM-DAG: "typed_body_source": "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body"
+# RSM-DAG: "realized_splat_count": 1
+# RSM-DAG: "realized_compare_count": 1
+# RSM-DAG: "realized_memory_ops": [
+# RSM-DAG: "tcrv_rvv.masked_store"
+# RSM-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i32m1_b32"
+# RSM-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
+# RSM-DAG: "masked_store_intrinsic": "__riscv_vse32_v_i32m1_m"
+# RSM-DAG: "masked_store_operand_order": "mask,dst,src,vl"
+# RSM-DAG: "store_uses_compare_mask": true
+# RSM-DAG: "store_payload_is_source_vector": true
+# RSM-DAG: "store_advances_by_loop_induction": true
+# RSM-DAG: "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:runtime_scalar_cmp_masked_store.v1"
+# RSM-DAG: "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:runtime_scalar_cmp_masked_store.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|cmp-lhs|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;src=source-input-buffer:src:abi|src-load|mstore-src|hdr;dst=output-buffer:dst:abi|mstore-base|mstore-dst|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr"
+# RSM-DAG: "tcrv_rvv.computed_mask_memory_route_family_plan": "rvv-computed-mask-memory-route-family-plan.v1"
+# RSM-DAG: "tcrv_rvv.computed_mask_memory_mask_producer_source": "runtime-scalar-splat-compare-rhs"
+# RSM-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-store-plan-validated"
+# RSM-DAG: "tcrv_rvv.runtime_abi_order": "lhs,rhs_scalar,src,dst,n"
+# RSM-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,dst:masked-store"
+# RSM-DAG: "prototype": "void tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *dst, size_t n);"
+# RSM-DAG: "runtime_counts": [
+# RSM-DAG: 0
+# RSM-DAG: 1
+# RSM-DAG: 16
+# RSM-DAG: 23
+# RSM-DAG: 257
+# RSM-DAG: "rhs_scalar_values": [
+# RSM-DAG: -37
+# RSM-DAG: 91
+# RSM-DAG: "runtime_counts_are_execution_cases_not_memory_authority": true
+# RSM-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_runtime_scalar_cmp_masked_store_kernel_pre_realized_body_rvv_runtime_scalar_cmp_masked_store(lhs, rhs_scalar, src, dst, n);
+# HARNESS: (lhs[index] <= rhs_scalar ? src[index] : old_dst[index])
+# HARNESS: inactive lane did not preserve old destination
+# HARNESS: touched tail sentinel
+# HARNESS: source payload buffer mutated
+# HARNESS: runtime scalar mask coverage missing
+# HARNESS: inactive preservation coverage mismatch
+# HARNESS: payload-distinguishing coverage missing
+# HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: tcrv_rvv_generated_bundle_abi_runtime_scalar_cmp_masked_store_ok counts=0,1,16,23,257 rhs_scalars=-37,91

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first authority chain, Stage2 selected typed RVV coverage, mirror-only metadata, and ssh rvv evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, runtime-scalar computed-mask store ownership, computed-mask memory statement-plan boundary, provider construction, artifact ABI consumers, fail-closed diagnostics, and route-entry restrictions."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on using ABI strings or metadata as RVV compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority, common EmitC neutrality, target artifact handoff, and invalid RVV route inputs."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-runtime-scalar-dual-cmp-select-executable-artifact/prd.md", "reason": "Immediate predecessor generated-bundle and ssh rvv closure pattern for selected-boundary runtime-scalar mask/select artifacts."}
