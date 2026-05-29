@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV-first authority chain, Stage2 scope, and evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary-only compare/select realization, provider-owned route construction, route-entry fail-closed behavior, and runtime evidence requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime roles remain declarations and do not become compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC and target export consume provider-built routes without semantic invention."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-compare-select-mask-artifact-abi-statement-plan-validation-closure/prd.md", "reason": "Check predecessor validator closure is preserved while this round adds generated-bundle and ssh rvv executable evidence."}

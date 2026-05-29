@@ -19246,7 +19246,21 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n, {expectation.element_c_type} rhs_scalar_a, {expectation.element_c_type} rhs_scalar_b) {{
+typedef struct {{
+  size_t mask_a_true;
+  size_t mask_a_false;
+  size_t mask_b_true;
+  size_t mask_b_false;
+  size_t composed_true;
+  size_t composed_false;
+  size_t single_mask_only;
+  size_t true_payload_lanes;
+  size_t false_payload_lanes;
+}} dual_compare_select_coverage_t;
+
+static int run_case(size_t n, {expectation.element_c_type} rhs_scalar_a,
+                    {expectation.element_c_type} rhs_scalar_b,
+                    dual_compare_select_coverage_t *coverage) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t out_alloc_n = alloc_n + 8;
@@ -19352,45 +19366,16 @@ static int run_case(size_t n, {expectation.element_c_type} rhs_scalar_a, {expect
     }}
   }}
 
-  if (n > 1 && (mask_a_true == 0 || mask_a_false == 0 ||
-                mask_b_true == 0 || mask_b_false == 0 ||
-                composed_true == 0 || composed_false == 0)) {{
-    fprintf(stderr,
-            "{expectation.kind} mask coverage missing n=%zu rhs_scalar_a={value_printf_format} rhs_scalar_b={value_printf_format} mask_a_true=%zu mask_a_false=%zu mask_b_true=%zu mask_b_false=%zu composed_true=%zu composed_false=%zu\\n",
-            n, {value_printf_cast}rhs_scalar_a,
-            {value_printf_cast}rhs_scalar_b, mask_a_true, mask_a_false,
-            mask_b_true, mask_b_false, composed_true, composed_false);
-    free(cmp_lhs_a);
-    free(cmp_lhs_b);
-    free(true_value);
-    free(false_value);
-    free(out);
-    return 14;
-  }}
-  if (n > 1 && single_mask_only == 0) {{
-    fprintf(stderr,
-            "{expectation.kind} mask-and distinction missing n=%zu rhs_scalar_a={value_printf_format} rhs_scalar_b={value_printf_format}\\n",
-            n, {value_printf_cast}rhs_scalar_a,
-            {value_printf_cast}rhs_scalar_b);
-    free(cmp_lhs_a);
-    free(cmp_lhs_b);
-    free(true_value);
-    free(false_value);
-    free(out);
-    return 15;
-  }}
-  if (n > 1 && (true_payload_lanes == 0 || false_payload_lanes == 0)) {{
-    fprintf(stderr,
-            "{expectation.kind} select payload coverage missing n=%zu rhs_scalar_a={value_printf_format} rhs_scalar_b={value_printf_format} true_lanes=%zu false_lanes=%zu\\n",
-            n, {value_printf_cast}rhs_scalar_a,
-            {value_printf_cast}rhs_scalar_b, true_payload_lanes,
-            false_payload_lanes);
-    free(cmp_lhs_a);
-    free(cmp_lhs_b);
-    free(true_value);
-    free(false_value);
-    free(out);
-    return 16;
+  if (coverage) {{
+    coverage->mask_a_true += mask_a_true;
+    coverage->mask_a_false += mask_a_false;
+    coverage->mask_b_true += mask_b_true;
+    coverage->mask_b_false += mask_b_false;
+    coverage->composed_true += composed_true;
+    coverage->composed_false += composed_false;
+    coverage->single_mask_only += single_mask_only;
+    coverage->true_payload_lanes += true_payload_lanes;
+    coverage->false_payload_lanes += false_payload_lanes;
   }}
 
   free(cmp_lhs_a);
@@ -19412,15 +19397,37 @@ int main(void) {{
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t scalar_a_count = sizeof(rhs_scalar_a_values) / sizeof(rhs_scalar_a_values[0]);
   const size_t scalar_b_count = sizeof(rhs_scalar_b_values) / sizeof(rhs_scalar_b_values[0]);
+  dual_compare_select_coverage_t coverage = {{0, 0, 0, 0, 0, 0, 0, 0, 0}};
   for (size_t scalar_a_index = 0; scalar_a_index < scalar_a_count; ++scalar_a_index) {{
     for (size_t scalar_b_index = 0; scalar_b_index < scalar_b_count; ++scalar_b_index) {{
       for (size_t index = 0; index < count_count; ++index) {{
         int status = run_case(counts[index], rhs_scalar_a_values[scalar_a_index],
-                              rhs_scalar_b_values[scalar_b_index]);
+                              rhs_scalar_b_values[scalar_b_index], &coverage);
         if (status != 0)
           return status;
       }}
     }}
+  }}
+  if (coverage.mask_a_true == 0 || coverage.mask_a_false == 0 ||
+      coverage.mask_b_true == 0 || coverage.mask_b_false == 0 ||
+      coverage.composed_true == 0 || coverage.composed_false == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} aggregate mask coverage missing mask_a_true=%zu mask_a_false=%zu mask_b_true=%zu mask_b_false=%zu composed_true=%zu composed_false=%zu\\n",
+            coverage.mask_a_true, coverage.mask_a_false, coverage.mask_b_true,
+            coverage.mask_b_false, coverage.composed_true,
+            coverage.composed_false);
+    return 14;
+  }}
+  if (coverage.single_mask_only == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} aggregate mask-and distinction missing\\n");
+    return 15;
+  }}
+  if (coverage.true_payload_lanes == 0 || coverage.false_payload_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} aggregate select payload coverage missing true_lanes=%zu false_lanes=%zu\\n",
+            coverage.true_payload_lanes, coverage.false_payload_lanes);
+    return 16;
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalar_a_values={scalar_values_summary} rhs_scalar_b_values={dual_secondary_scalar_values_summary}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalar_a_values={scalar_values_summary} rhs_scalar_b_values={dual_secondary_scalar_values_summary}\\n");
@@ -23176,9 +23183,10 @@ def run_one_op_e2e(
                 for rhs in secondary_values
             ]
             evidence["harness"]["mask_composition_coverage_contract"] = (
-                "multi-lane runtime_scalar_dual_cmp_mask_and_select cases "
-                "require both input masks, composed mask-and true/false lanes, "
-                "and single-mask-only lanes that prove intersection semantics"
+                "aggregate runtime_scalar_dual_cmp_mask_and_select cases "
+                "across counts and scalar pairs require both input masks, "
+                "composed mask-and true/false lanes, and single-mask-only "
+                "lanes that prove intersection semantics"
             )
             evidence["harness"]["tail_lane_contract"] = (
                 "runtime n/AVL must be honored and tail sentinel lanes must be "

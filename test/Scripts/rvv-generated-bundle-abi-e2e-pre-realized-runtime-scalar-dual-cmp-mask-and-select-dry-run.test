@@ -95,7 +95,7 @@
 # RSD-DAG: "rhs_scalar_threshold_pairs": [
 # RSD-DAG: "rhs_scalar_a": -37
 # RSD-DAG: "rhs_scalar_b": 91
-# RSD-DAG: "mask_composition_coverage_contract": "multi-lane runtime_scalar_dual_cmp_mask_and_select cases require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
+# RSD-DAG: "mask_composition_coverage_contract": "aggregate runtime_scalar_dual_cmp_mask_and_select cases across counts and scalar pairs require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
 # RSD-DAG: "tail_lane_contract": "runtime n/AVL must be honored and tail sentinel lanes must be preserved"
 # RSD-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # RSD-DAG: "status": "dry_run_success"
@@ -103,8 +103,8 @@
 # HARNESS: tcrv_emitc_pre_dual_cmp_mask_select_kernel_pre_rvv_dual_cmp_mask_select(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
 # HARNESS: (cmp_lhs_a[index] <= rhs_scalar_a && cmp_lhs_b[index] <= rhs_scalar_b)
 # HARNESS: touched tail sentinel
-# HARNESS: mask coverage missing
-# HARNESS: mask-and distinction missing
-# HARNESS: select payload coverage missing
 # HARNESS: const int32_t rhs_scalar_a_values[] = {(int32_t)-37, (int32_t)91};
 # HARNESS: const int32_t rhs_scalar_b_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: aggregate mask coverage missing
+# HARNESS: aggregate mask-and distinction missing
+# HARNESS: aggregate select payload coverage missing

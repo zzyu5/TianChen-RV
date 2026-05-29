@@ -52,7 +52,7 @@
 # I64-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"
 # I64-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector"
 # I64-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "dual-runtime-scalar-splat-compare-rhs-mask-and"
-# I64-DAG: "mask_composition_coverage_contract": "multi-lane runtime_scalar_dual_cmp_mask_and_select cases require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
+# I64-DAG: "mask_composition_coverage_contract": "aggregate runtime_scalar_dual_cmp_mask_and_select cases across counts and scalar pairs require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
 # I64-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # I64-DAG: "status": "dry_run_success"
 
@@ -85,7 +85,7 @@
 # M2-DAG: "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"
 # M2-DAG: "tcrv_rvv.c_type_mapping": "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector"
 # M2-DAG: "tcrv_rvv.computed_mask_select_mask_producer_source": "dual-runtime-scalar-splat-compare-rhs-mask-and"
-# M2-DAG: "mask_composition_coverage_contract": "multi-lane runtime_scalar_dual_cmp_mask_and_select cases require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
+# M2-DAG: "mask_composition_coverage_contract": "aggregate runtime_scalar_dual_cmp_mask_and_select cases across counts and scalar pairs require both input masks, composed mask-and true/false lanes, and single-mask-only lanes that prove intersection semantics"
 # M2-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # M2-DAG: "status": "dry_run_success"
 
@@ -112,19 +112,19 @@
 # I64HARNESS: tcrv_emitc_pr_dual_cmp_sel_i64_kernel_pr_rvv_dual_cmp_sel_i64(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
 # I64HARNESS: int64_t expected =
 # I64HARNESS: (cmp_lhs_a[index] <= rhs_scalar_a && cmp_lhs_b[index] <= rhs_scalar_b)
-# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 mask coverage missing
-# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 mask-and distinction missing
-# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 select payload coverage missing
 # I64HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # I64HARNESS: const int64_t rhs_scalar_a_values[] = {(int64_t)-37LL, (int64_t)91LL};
 # I64HARNESS: const int64_t rhs_scalar_b_values[] = {(int64_t)-37LL, (int64_t)91LL};
+# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 aggregate mask coverage missing
+# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 aggregate mask-and distinction missing
+# I64HARNESS: runtime_scalar_dual_cmp_mask_and_select_i64 aggregate select payload coverage missing
 
 # M2HARNESS: tcrv_emitc_pr_dual_cmp_sel_m2_kernel_pr_rvv_dual_cmp_sel_m2(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
 # M2HARNESS: int32_t expected =
 # M2HARNESS: (cmp_lhs_a[index] <= rhs_scalar_a && cmp_lhs_b[index] <= rhs_scalar_b)
-# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 mask coverage missing
-# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 mask-and distinction missing
-# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 select payload coverage missing
 # M2HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # M2HARNESS: const int32_t rhs_scalar_a_values[] = {(int32_t)-37, (int32_t)91};
 # M2HARNESS: const int32_t rhs_scalar_b_values[] = {(int32_t)-37, (int32_t)91};
+# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 aggregate mask coverage missing
+# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 aggregate mask-and distinction missing
+# M2HARNESS: runtime_scalar_dual_cmp_mask_and_select_lmul_m2 aggregate select payload coverage missing

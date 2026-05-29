@@ -894,3 +894,49 @@ route-clone negative coverage.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 319: Stage2 RVV runtime-scalar dual compare/select executable artifact closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV runtime-scalar dual compare/select executable artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime_scalar_dual_cmp_mask_and_select generated-bundle executable artifact path with selected-boundary/provider route evidence, aggregate dual-mask/select runtime coverage, exact-VL ssh rvv correctness, and focused non-regression tests.
+
+### Main Changes
+
+- Created and archived Trellis task `.trellis/tasks/archive/2026-05/05-30-stage2-rvv-runtime-scalar-dual-cmp-select-executable-artifact` from the Hermes direction brief.
+- Added a target artifact bundle lit consumer for `runtime_scalar_dual_cmp_mask_and_select`, checking generated RISC-V object/header/index output, selected variant, ABI order, scalar roles, provider-supported mirror, route operand binding, mask-and composition, select layout, and descriptor/direct/source/legacy-i32 absence.
+- Adjusted `scripts/rvv_generated_bundle_abi_e2e.py` so the generated harness aggregates dual compare/select mask coverage across runtime counts and scalar pairs while each case still checks output correctness and tail sentinel preservation.
+- Updated i32/m1, i64, and LMUL m2 generated-bundle dry-run tests to require the aggregate coverage contract and aggregate fail-closed diagnostics.
+- Evidence: dry-run `runtime_scalar_dual_cmp_mask_and_select` with counts 0,1,4,23,257 and scalar values -37,91 recorded `route_entry_realization: false`, selected-boundary materialization, provider route facts, target artifact bundle, runtime ABI order, mask-and, select layout, and tail contract.
+- Evidence: `ssh rvv` compiled with `/usr/bin/clang` for `rv64gcv/lp64d` and ran counts 0,1,4,23,257 across scalar pairs (-37,-37), (-37,91), (91,-37), (91,91); all cases preserved tail sentinels and final PASS marker reported the same counts/scalar pairs.
+- Checks passed: `git diff --check`; `tianchenrv-target-artifact-export-test`; focused lit filter for the new bundle, two dry-run script tests, and direct-route-entry fail-closed test (4/4); bounded authority scan; `check-tianchenrv` passed 460/460.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit filter for the new bundle, i32/m1 and typed dry-run tests, and direct-route-entry fail-closed test passed 4/4
+- [OK] `ssh rvv` generated-bundle run passed counts 0,1,4,23,257 across scalar pairs -37/-37, -37/91, 91/-37, and 91/91
+- [OK] bounded authority scan
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 460/460
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
