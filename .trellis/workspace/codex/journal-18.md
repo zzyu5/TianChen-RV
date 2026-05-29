@@ -1029,3 +1029,43 @@ Closed runtime_scalar_cmp_masked_load_store generated-bundle executable artifact
 ### Next Steps
 
 - None - task complete
+
+
+## Session 322: Stage2 RVV production direct route-entry fallback retirement
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV production direct route-entry fallback retirement
+**Branch**: `main`
+
+### Summary
+
+Retired the production RVV direct pre-realized route-entry fallback so provider route construction requires selected-boundary materialization, kept selected-boundary generated-bundle paths executable, and archived the Trellis task.
+
+### Main Changes
+
+- Archived Trellis task `.trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-production-direct-route-entry-fallback-retirement` from the Hermes direction brief.
+- Replaced the production route-boundary fallback in `RVVExtensionPlugin.cpp` with a selected-boundary-only requirement before emission-plan or EmitC route construction.
+- Demoted direct pre-realized route-entry selected-body realization in `RVVSelectedBodyRealization.cpp` to diagnostic-only inventory; active selected-body realization owners no longer install route-entry predicates.
+- Kept generated-bundle direct pre-realized CLI support fail-closed and aligned evidence metadata so pre-realized executable runs record `tcrv-materialize-selected-lowering-boundaries` with `route_entry_realization: false`.
+- Rewrote the former direct route-entry positive lit test as fail-closed coverage and updated C++ plugin tests for the retired helper, no route-entry-capable owners, and selected-boundary success.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` so route-entry inventory is negative-test/diagnostic-only unless a future explicit owner task reintroduces it with full specs and evidence.
+- Evidence: focused C++ plugin test passed; focused lit direct fail-closed and selected-boundary tests passed; 30 direct pre-realized generated-bundle fail-closed lit tests passed; representative selected-boundary dry-run passed for runtime scalar compare masked load-store, scalar broadcast add, strided load/unit store, and widening MAcc add; `ssh rvv` correctness passed for runtime scalar compare masked load-store counts 0,1,16,23,257 with rhs scalars -37,91; `check-tianchenrv` passed 464/464.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

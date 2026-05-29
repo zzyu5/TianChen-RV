@@ -4,6 +4,6 @@
 
 # CHECK: rvv_generated_bundle_abi_e2e: failed
 # CHECK: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): segment2_interleave_unit_load
-# CHECK-SAME: selected-boundary-only and must use
+# CHECK-SAME: direct route-entry shortcut
 # CHECK-NOT: rvv-route-entry-selected-body-realization
 # CHECK-NOT: tcrv_rvv_generated_bundle_abi_segment2_interleave_unit_load_ok

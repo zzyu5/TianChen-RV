@@ -888,39 +888,6 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(
       op);
 }
 
-bool isPreRealizedRVVTypedBinaryRouteEntryOp(mlir::Operation *op) {
-  auto body = llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(op);
-  if (!body)
-    return false;
-
-  if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm()))
-    return false;
-  if (isPreRealizedStridedMemoryForm(body.getMemoryForm()))
-    return body.getOpKind() == "add";
-  if (isPreRealizedUnitStrideMemoryForm(body.getMemoryForm()))
-    return isSupportedPreRealizedArithmeticOpKind(body.getOpKind());
-  return false;
-}
-
-bool isPreRealizedRVVElementwiseCompareSelectRouteEntryOp(
-    mlir::Operation *op) {
-  if (isPreRealizedRVVTypedBinaryRouteEntryOp(op))
-    return true;
-  return llvm::isa<tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
-                   tcrv::rvv::
-                       TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
-                   tcrv::rvv::
-                       TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
-      op);
-}
-
-bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
-}
-
 llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
 getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry() {
   return {};
@@ -1099,19 +1066,6 @@ bool isPreRealizedRVVContractionOwnerOp(mlir::Operation *op) {
           TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(op);
 }
 
-bool isPreRealizedRVVContractionRouteEntryOp(mlir::Operation *op) {
-  if (llvm::isa<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
-                tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
-                tcrv::rvv::
-                    TypedStridedInputWideningDotReducePreRealizedBodyOp,
-                tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
-                tcrv::rvv::
-                    TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
-          op))
-    return false;
-  return isPreRealizedRVVContractionOwnerOp(op);
-}
-
 bool isPreRealizedRVVWideningConversionOwnerOp(mlir::Operation *op) {
   return llvm::isa<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op);
 }
@@ -1215,8 +1169,7 @@ llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
 getRVVSelectedBodyRealizationOwnerRegistry() {
   static const RVVSelectedBodyRealizationOwner owners[] = {
       {"elementwise/compare-select",
-       isPreRealizedRVVElementwiseCompareSelectClusterOp,
-       isPreRealizedRVVElementwiseCompareSelectRouteEntryOp,
+       isPreRealizedRVVElementwiseCompareSelectClusterOp, nullptr,
        realizePreRealizedRVVElementwiseCompareSelectOwner},
       {"runtime scalar splat-store",
        isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp, nullptr,
@@ -1236,13 +1189,12 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp,
        nullptr, realizePreRealizedRVVComputedMaskMAccOwner},
-      {"contraction", isPreRealizedRVVContractionOwnerOp,
-       isPreRealizedRVVContractionRouteEntryOp,
+      {"contraction", isPreRealizedRVVContractionOwnerOp, nullptr,
        realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
        nullptr, realizePreRealizedRVVWideningConversionOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
-       isPreRealizedRVVBaseMemoryMovementRouteEntryOp,
+       nullptr,
        realizePreRealizedRVVBaseMemoryMovementOwner},
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
        nullptr, realizePreRealizedRVVComputedMaskMemoryOwner},
@@ -7883,7 +7835,7 @@ realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
   tcrv::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
     return makeRVVPluginError(
-        "elementwise/compare-select route-entry realization requires "
+        "elementwise/compare-select selected-body realization requires "
         "materialized kernel and variant");
 
   llvm::Expected<mlir::Operation *> bodyOp =
@@ -7897,7 +7849,7 @@ realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
     return realization.takeError();
   if (!realization->applies())
     return makeRVVPluginError(
-        "elementwise/compare-select route-entry realization expected a "
+        "elementwise/compare-select selected-body realization expected a "
         "pre-realized elementwise or compare/select tcrv_rvv body; selected "
         "body belongs to another RVV realization family");
   return realization->boundary;
@@ -7906,33 +7858,11 @@ realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request) {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  if (!variant || !kernel)
-    return makeRVVPluginError(
-        "selected-body route-entry realization requires materialized kernel "
-        "and variant");
-
-  llvm::Expected<mlir::Operation *> bodyOp =
-      findUniquePreRealizedRVVSelectedBody(variant);
-  if (!bodyOp)
-    return bodyOp.takeError();
-  llvm::Expected<const RVVSelectedBodyRealizationOwner *> owner =
-      getRVVSelectedBodyRealizationOwnerForBody(
-          *bodyOp, "selected-body route-entry realization owner registry");
-  if (!owner)
-    return owner.takeError();
-  if (!(*owner)->isRouteEntryConsumer ||
-      !(*owner)->isRouteEntryConsumer(*bodyOp))
-    return makeRVVPluginError(
-        "selected-body route-entry realization currently supports only "
-        "pre-realized elementwise route-entry, base memory movement, "
-        "or supported contraction dot-reduction tcrv_rvv bodies; "
-        "selected-boundary-only bodies, including segment2 memory, must use "
-        "the public selected lowering-boundary producer before provider route "
-        "construction");
-
-  return (*owner)->realize(request, *bodyOp);
+  (void)request;
+  return makeRVVPluginError(
+      "direct pre-realized RVV route-entry realization is retired; "
+      "pre-realized RVV selected bodies must use public selected "
+      "lowering-boundary materialization before provider route construction");
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>

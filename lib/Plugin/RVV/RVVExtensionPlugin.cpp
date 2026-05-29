@@ -121,7 +121,7 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-getOrRealizeRVVSelectedBodyRouteBoundary(
+requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
     const VariantLoweringBoundaryRequest &request) {
   llvm::Expected<tcrv::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
@@ -138,7 +138,9 @@ getOrRealizeRVVSelectedBodyRouteBoundary(
     return std::move(boundaryError);
   llvm::consumeError(std::move(boundaryError));
 
-  return rvv::realizePreRealizedRVVRouteEntrySelectedBody(request);
+  return makeRVVPluginError(
+      "pre-realized RVV selected body must use public selected "
+      "lowering-boundary materialization before provider route construction");
 }
 
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(
@@ -426,7 +428,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
 
   mlir::OpBuilder builder(request.getVariant().getContext());
   llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      getOrRealizeRVVSelectedBodyRouteBoundary(
+      requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
           VariantLoweringBoundaryRequest(
               request.getVariant(), request.getKernel(),
               request.getCapabilities(), request.getRole(), builder));
@@ -549,7 +551,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
 
   mlir::OpBuilder builder(request.getVariant().getContext());
   llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      getOrRealizeRVVSelectedBodyRouteBoundary(
+      requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
           VariantLoweringBoundaryRequest(
               request.getVariant(), request.getKernel(),
               request.getCapabilities(), request.getRole(), builder));

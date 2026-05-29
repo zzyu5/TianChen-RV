@@ -8,8 +8,8 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
-``--direct-pre-realized-route-entry`` shortcut fails closed before bundle
-generation for selected pre-realized op kinds that are selected-boundary-only.
+``--direct-pre-realized-route-entry`` shortcut is retired and fails closed
+before bundle generation for selected pre-realized op kinds.
 The legacy ``--source-seed`` mode is unsupported and exits before bundle
 generation. The script does not
 implement compiler IR, lowering, plugin selection, emission, descriptors,
@@ -19949,9 +19949,14 @@ def generate_bundle(
     timeout: int,
     direct_pre_realized_route_entry: bool,
 ) -> dict[str, Any]:
+    if direct_pre_realized_route_entry:
+        raise EvidenceError(
+            "--direct-pre-realized-route-entry is retired and must fail closed "
+            "before target bundle export"
+        )
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
-    if expectation.is_pre_realized and not direct_pre_realized_route_entry:
+    if expectation.is_pre_realized:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
     materialize_command.extend(
         ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]
@@ -20008,25 +20013,15 @@ def generate_bundle(
     }
     if expectation.is_pre_realized:
         result["front_door"] = "pre-realized-selected-tcrv-exec-rvv-body"
-        if direct_pre_realized_route_entry:
-            result["materializer"] = "rvv-route-entry-selected-body-realization"
-            result["route_entry_realization"] = True
-            result["realization_boundary"] = (
-                "RVV production emission-plan route-entry consumed the "
-                "pre-realized typed tcrv_rvv body before provider route "
-                "construction"
-            )
-        else:
-            result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
-            result["route_entry_realization"] = False
-            result["selected_body_realization_producer"] = (
-                "rvv-plugin-local-selected-body-realization-owner-registry"
-            )
-            result["realization_boundary"] = (
-                "public selected lowering-boundary materialization consumed the "
-                "pre-realized typed tcrv_rvv body before provider route "
-                "construction"
-            )
+        result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
+        result["route_entry_realization"] = False
+        result["selected_body_realization_producer"] = (
+            "rvv-plugin-local-selected-body-realization-owner-registry"
+        )
+        result["realization_boundary"] = (
+            "public selected lowering-boundary materialization consumed the "
+            "pre-realized typed tcrv_rvv body before provider route construction"
+        )
     return result
 
 
@@ -20184,8 +20179,8 @@ def direct_pre_realized_route_entry_unsupported_message(
     op_list = ", ".join(unsupported_direct)
     return (
         "--direct-pre-realized-route-entry is unsupported for selected "
-        f"pre-realized op kind(s): {op_list}; these fixtures are "
-        "selected-boundary-only and must use the public selected "
+        f"pre-realized op kind(s): {op_list}; the direct route-entry shortcut "
+        "is retired and these fixtures must use the public selected "
         "lowering-boundary producer before target bundle export"
     )
 
@@ -24748,9 +24743,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "with --pre-realized-selected-body, request the deprecated direct "
-            "route-entry shortcut; selected-boundary-only pre-realized op "
-            "kinds fail closed with an op-specific diagnostic before target "
-            "bundle export"
+            "route-entry shortcut; selected pre-realized op kinds fail closed "
+            "with an op-specific diagnostic before target bundle export"
         ),
     )
     parser.add_argument(

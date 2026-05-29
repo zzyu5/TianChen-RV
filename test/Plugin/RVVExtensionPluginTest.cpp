@@ -1240,18 +1240,11 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
       return result;
   }
 
-  const llvm::StringRef routeEntryOwners[] = {"elementwise/compare-select",
-                                              "contraction",
-                                              "base memory movement"};
   for (const RVVSelectedBodyRealizationOwner &owner : owners) {
-    bool expectedRouteEntry = false;
-    for (llvm::StringRef routeEntryOwner : routeEntryOwners)
-      expectedRouteEntry |= owner.familyName == routeEntryOwner;
     if (int result =
-            expect((owner.isRouteEntryConsumer != nullptr) ==
-                       expectedRouteEntry,
-                   "selected-body realization route-entry eligibility is "
-                   "explicitly owner-scoped"))
+            expect(owner.isRouteEntryConsumer == nullptr,
+                   "selected-body realization owners no longer carry active "
+                   "direct route-entry predicates"))
       return result;
   }
 
@@ -1668,149 +1661,81 @@ module {
                    llvm::Twine("pre-realized @") + variantName +
                        " is owned by the expected realization family"))
       return result;
-    const bool expectsSelectedBoundaryProducer =
-        expectedProviderPlanID ==
-            "rvv-plain-compare-select-route-family-plan.v1" ||
-        expectedProviderPlanID ==
-            "rvv-computed-mask-select-route-family-plan.v1" ||
-        expectedProviderPlanID ==
-            "rvv-standalone-reduction-route-family-plan.v1" ||
-        expectedProviderPlanID ==
-            "rvv-scalar-broadcast-elementwise-route-family-plan.v1" ||
-        expectedProviderPlanID ==
-            "rvv-runtime-scalar-splat-store-route-family-plan.v1" ||
-        expectedProviderPlanID ==
-            "rvv-widening-conversion-route-family-plan.v1" ||
-        expectedProviderPlanID == "rvv-plain-macc-route-family-plan.v1" ||
-        expectedProviderPlanID ==
-            "rvv-scalar-broadcast-macc-route-family-plan.v1" ||
-        variantName == "rvv_pre_route_strided_load_unit_store" ||
-        variantName == "rvv_pre_route_segment2_deinterleave_unit_store" ||
-        variantName == "rvv_pre_route_segment2_interleave_unit_load" ||
-        variantName ==
-            "rvv_pre_route_computed_masked_segment2_load_unit_store" ||
-        variantName ==
-            "rvv_pre_route_computed_masked_segment2_store_unit_load" ||
-        variantName ==
-            "rvv_pre_route_computed_masked_segment2_update_unit_load" ||
-        ((variantName == "rvv_pre_route_computed_masked_macc_add" ||
-          variantName ==
-              "rvv_pre_route_runtime_scalar_computed_masked_macc_add") &&
-         expectedProviderPlanID ==
-             "rvv-computed-mask-accumulation-route-family-plan.v1");
     const bool routeEntryEligible = (*owner)->isRouteEntryConsumer != nullptr &&
                                     (*owner)->isRouteEntryConsumer(preRealized);
-    if (expectsSelectedBoundaryProducer) {
-      if (int result = expect(
-              !routeEntryEligible,
-              llvm::Twine("pre-realized @") + variantName +
-                  " is consumed by the selected-body realization producer "
-                  "rather than the route-entry shortcut"))
-        return result;
-    } else if (int result = expect(
-                   routeEntryEligible,
-                   llvm::Twine("pre-realized @") + variantName +
-                       " is route-entry eligible through its owner registry "
-                       "entry")) {
+    if (int result = expect(
+            !routeEntryEligible,
+            llvm::Twine("pre-realized @") + variantName +
+                " is consumed by the selected-body realization producer rather "
+                "than the retired direct route-entry shortcut"))
       return result;
-    }
 
     if (buildRouteBeforePlan) {
-      if (routeEntryEligible) {
-        tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-        if (int result = expectSuccess(
-                registry.buildVariantEmitCLowerableRoute(
-                    VariantEmitCLowerableRequest(
-                        variant, kernel, capabilities,
-                        VariantEmissionRole::DirectVariant),
-                    route),
-                llvm::Twine("provider route entry realizes pre-realized @") +
-                    variantName))
-          return result;
-        if (int result =
-                expect(route.getForLoops().size() == 1,
-                       llvm::Twine("provider route entry emits one "
-                                   "statement-plan loop for @") +
-                           variantName))
-          return result;
-      } else {
-        if (int result = expect(
-                expectsSelectedBoundaryProducer,
-                llvm::Twine("pre-realized @") + variantName +
-                    " is selected-boundary producer eligible when it is not "
-                    "route-entry eligible"))
-          return result;
-        if (expectedProviderPlanID ==
-                "rvv-widening-conversion-route-family-plan.v1" ||
-            expectedProviderPlanID ==
-                "rvv-plain-compare-select-route-family-plan.v1" ||
-            expectedProviderPlanID ==
-                "rvv-standalone-reduction-route-family-plan.v1" ||
-            variantName == "rvv_pre_route_strided_load_unit_store" ||
-            variantName == "rvv_pre_route_segment2_deinterleave_unit_store" ||
-            variantName == "rvv_pre_route_segment2_interleave_unit_load" ||
-            variantName ==
-                "rvv_pre_route_computed_masked_segment2_load_unit_store" ||
-            variantName ==
-                "rvv_pre_route_computed_masked_segment2_store_unit_load" ||
-            variantName ==
-                "rvv_pre_route_computed_masked_segment2_update_unit_load") {
-          mlir::OpBuilder directRouteEntryBuilder(module->getContext());
-          llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
-              tianchenrv::plugin::rvv::
-                  realizePreRealizedRVVRouteEntrySelectedBody(
-                      VariantLoweringBoundaryRequest(
-                          variant, kernel, capabilities,
-                          VariantEmissionRole::DirectVariant,
-                          directRouteEntryBuilder));
-          if (directRouteEntry)
-            return fail(llvm::Twine("direct route-entry accepted ") +
-                        variantName +
-                        " instead of requiring the selected-body realization "
-                        "producer");
-          if (int result = expectErrorContains(
-                  directRouteEntry.takeError(),
-                  {"selected-body route-entry realization currently supports "
-                   "only",
-                   "selected-boundary-only bodies"}))
-            return result;
-        }
-        mlir::OpBuilder producerBuilder(module->getContext());
-        VariantLoweringBoundaryResult boundaryResult;
-        if (int result = expectSuccess(
-                registry.materializeSelectedLoweringBoundary(
-                    VariantLoweringBoundaryRequest(
-                        variant, kernel, capabilities,
-                        VariantEmissionRole::DirectVariant, producerBuilder),
-                    boundaryResult),
-                llvm::Twine("selected-body realization producer consumes "
-                            "pre-realized @") +
-                    variantName))
-          return result;
-        if (int result = expect(
-                boundaryResult.isMaterialized(),
-                llvm::Twine("selected-body realization producer materializes "
-                            "a typed RVV boundary for @") +
-                    variantName))
-          return result;
-        tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-        if (int result = expectSuccess(
-                tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
-                    VariantEmitCLowerableRequest(
-                        variant, kernel, capabilities,
-                        VariantEmissionRole::DirectVariant),
-                    route),
-                llvm::Twine("provider consumes producer-realized typed body "
-                            "for @") +
-                    variantName))
-          return result;
-        if (int result = expect(
-                route.getForLoops().size() == 1,
-                llvm::Twine("provider emits one statement-plan loop for "
-                            "producer-realized @") +
-                    variantName))
-          return result;
-      }
+      tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+      llvm::Error directRouteError =
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              directRoute);
+      if (int result = expectErrorContains(
+              std::move(directRouteError),
+              {"pre-realized RVV selected body must use public selected "
+               "lowering-boundary materialization",
+               "before provider route construction"}))
+        return result;
+
+      mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+      llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> directRouteEntry =
+          tianchenrv::plugin::rvv::realizePreRealizedRVVRouteEntrySelectedBody(
+              VariantLoweringBoundaryRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant, directRouteEntryBuilder));
+      if (directRouteEntry)
+        return fail(llvm::Twine("direct route-entry accepted ") + variantName +
+                    " instead of requiring the selected-body realization "
+                    "producer");
+      if (int result = expectErrorContains(
+              directRouteEntry.takeError(),
+              {"direct pre-realized RVV route-entry realization is retired",
+               "public selected lowering-boundary materialization",
+               "before provider route construction"}))
+        return result;
+
+      mlir::OpBuilder producerBuilder(module->getContext());
+      VariantLoweringBoundaryResult boundaryResult;
+      if (int result = expectSuccess(
+              registry.materializeSelectedLoweringBoundary(
+                  VariantLoweringBoundaryRequest(
+                      variant, kernel, capabilities,
+                      VariantEmissionRole::DirectVariant, producerBuilder),
+                  boundaryResult),
+              llvm::Twine("selected-body realization producer consumes "
+                          "pre-realized @") +
+                  variantName))
+        return result;
+      if (int result = expect(
+              boundaryResult.isMaterialized(),
+              llvm::Twine("selected-body realization producer materializes "
+                          "a typed RVV boundary for @") +
+                  variantName))
+        return result;
+      tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                  VariantEmitCLowerableRequest(
+                      variant, kernel, capabilities,
+                      VariantEmissionRole::DirectVariant),
+                  route),
+              llvm::Twine("provider consumes producer-realized typed body "
+                          "for @") +
+                  variantName))
+        return result;
+      if (int result = expect(
+              route.getForLoops().size() == 1,
+              llvm::Twine("provider emits one statement-plan loop for "
+                          "producer-realized @") +
+                  variantName))
+        return result;
     }
 
     VariantEmissionPlan plan;
@@ -2223,9 +2148,9 @@ module {
   if (int result = expect(
           elementwiseCompareSelectOwner != nullptr &&
               elementwiseCompareSelectOwner->realize != nullptr &&
-              elementwiseCompareSelectOwner->isRouteEntryConsumer != nullptr,
-          "found elementwise/compare-select direct route-entry realization "
-          "hook"))
+              elementwiseCompareSelectOwner->isRouteEntryConsumer == nullptr,
+          "found elementwise/compare-select selected-body realization hook "
+          "without active direct route-entry predicate"))
     return result;
   mlir::Builder attrBuilder(module->getContext());
   VariantOp negativeScalarBroadcastVariant =
@@ -2239,10 +2164,9 @@ module {
                           "owner-local negative tests"))
     return result;
   if (int result = expect(
-          !elementwiseCompareSelectOwner->isRouteEntryConsumer(
-              negativeScalarBroadcastBody.getOperation()),
-          "scalar_broadcast_add fixture is not route-entry eligible and must "
-          "use the selected-body realization producer"))
+          elementwiseCompareSelectOwner->isRouteEntryConsumer == nullptr,
+          "scalar_broadcast_add fixture has no active route-entry predicate and "
+          "must use the selected-body realization producer"))
     return result;
   {
     mlir::OpBuilder directRouteEntryBuilder(module->getContext());
@@ -2256,8 +2180,9 @@ module {
                   "of requiring the selected-body realization producer");
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
-            {"selected-body route-entry realization currently supports only",
-             "selected-boundary-only bodies"}))
+            {"direct pre-realized RVV route-entry realization is retired",
+             "public selected lowering-boundary materialization",
+             "before provider route construction"}))
       return result;
   }
 
@@ -2694,8 +2619,9 @@ module {
                   negativeComputedMaskSegment2StoreVariant, kernel,
                   capabilities, VariantEmissionRole::DirectVariant),
               staleSegment2StoreRoute),
-          {"selected-body route-entry realization currently supports only",
-           "selected-boundary-only bodies"}))
+          {"pre-realized RVV selected body must use public selected "
+           "lowering-boundary materialization",
+           "before provider route construction"}))
     return result;
   negativeComputedMaskSegment2StoreBody->setAttr(
       "op_kind",
@@ -2815,8 +2741,9 @@ module {
                   "selected-body producer realization");
     if (int result = expectErrorContains(
             plainMAccRouteEntry.takeError(),
-            {"selected-body route-entry realization currently supports only",
-             "selected-boundary-only bodies"}))
+            {"direct pre-realized RVV route-entry realization is retired",
+             "public selected lowering-boundary materialization",
+             "before provider route construction"}))
       return result;
   }
 
@@ -2841,8 +2768,9 @@ module {
                   "instead of requiring selected-body producer realization");
     if (int result = expectErrorContains(
             scalarBroadcastMAccRouteEntry.takeError(),
-            {"selected-body route-entry realization currently supports only",
-             "selected-boundary-only bodies"}))
+            {"direct pre-realized RVV route-entry realization is retired",
+             "public selected lowering-boundary materialization",
+             "before provider route construction"}))
       return result;
   }
 
@@ -2891,8 +2819,9 @@ module {
                   "producer");
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
-            {"selected-body route-entry realization currently supports only",
-             "selected-boundary-only bodies"}))
+            {"direct pre-realized RVV route-entry realization is retired",
+             "public selected lowering-boundary materialization",
+             "before provider route construction"}))
       return result;
   }
   auto expectComputedMaskMAccOwnerError =
@@ -3008,8 +2937,9 @@ module {
                   "the selected-body realization producer");
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
-            {"selected-body route-entry realization currently supports only",
-             "selected-boundary-only bodies"}))
+            {"direct pre-realized RVV route-entry realization is retired",
+             "public selected lowering-boundary materialization",
+             "before provider route construction"}))
       return result;
   }
   auto expectRuntimeScalarComputedMaskMAccOwnerError =
@@ -3170,8 +3100,9 @@ module {
               VariantEmissionRequest(reduceVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               reducePlan),
-          {"selected-body route-entry realization currently supports only",
-           "selected-boundary-only bodies"}))
+          {"pre-realized RVV selected body must use public selected "
+           "lowering-boundary materialization",
+           "before provider route construction"}))
     return result;
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute reduceRoute;
   return expectErrorContains(
@@ -3179,8 +3110,9 @@ module {
           VariantEmitCLowerableRequest(reduceVariant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
           reduceRoute),
-      {"selected-body route-entry realization currently supports only",
-       "selected-boundary-only bodies"});
+      {"pre-realized RVV selected body must use public selected "
+       "lowering-boundary materialization",
+       "before provider route construction"});
 }
 
 int runPreRealizedContractionRouteEntryOwnerTest(
@@ -3324,12 +3256,11 @@ module {
                   llvm::toString(owner.takeError()));
     if (int result = expect(
             (*owner)->familyName == "contraction" &&
-                (*owner)->isRouteEntryConsumer != nullptr &&
-                !(*owner)->isRouteEntryConsumer(preRealized),
+                (*owner)->isRouteEntryConsumer == nullptr,
             llvm::Twine("pre-realized contraction @") +
                 routeCase.variantName +
                 " dispatches through the contraction realization owner "
-                "without direct route-entry authority"))
+                "without direct route-entry predicate"))
       return result;
 
     mlir::OpBuilder directRouteEntryBuilder(module->getContext());
@@ -3345,8 +3276,9 @@ module {
                   "realization");
     if (int result = expectErrorContains(
             directRouteEntry.takeError(),
-            {"selected-body route-entry realization currently supports only",
-             "selected-boundary-only bodies"}))
+            {"direct pre-realized RVV route-entry realization is retired",
+             "public selected lowering-boundary materialization",
+             "before provider route construction"}))
       return result;
 
     mlir::OpBuilder selectedBuilder(module->getContext());
@@ -3483,8 +3415,9 @@ module {
   if (int result =
           expect(contractionOwner != nullptr &&
                      contractionOwner->realize != nullptr &&
-                     contractionOwner->isRouteEntryConsumer != nullptr,
-                 "found route-entry-capable contraction realization owner"))
+                     contractionOwner->isRouteEntryConsumer == nullptr,
+                 "found contraction realization owner without active direct "
+                 "route-entry predicate"))
     return result;
 
   VariantOp wideningMAccVariant =
@@ -3510,10 +3443,9 @@ module {
                 llvm::toString(wideningMAccOwner.takeError()));
   if (int result = expect(
           (*wideningMAccOwner)->familyName == "contraction" &&
-              (*wideningMAccOwner)->isRouteEntryConsumer != nullptr &&
-              !(*wideningMAccOwner)->isRouteEntryConsumer(wideningMAccBody),
+              (*wideningMAccOwner)->isRouteEntryConsumer == nullptr,
           "widening_macc_add dispatches through the contraction realization "
-          "owner without direct route-entry authority"))
+          "owner without direct route-entry predicate"))
     return result;
 
   mlir::OpBuilder directWideningMAccBuilder(module->getContext());
@@ -3529,8 +3461,9 @@ module {
                 "requiring selected lowering-boundary realization");
   if (int result = expectErrorContains(
           directWideningMAccRouteEntry.takeError(),
-          {"selected-body route-entry realization currently supports only",
-           "selected-boundary-only bodies"}))
+          {"direct pre-realized RVV route-entry realization is retired",
+           "public selected lowering-boundary materialization",
+           "before provider route construction"}))
     return result;
 
   mlir::OpBuilder selectedWideningMAccBuilder(module->getContext());
@@ -3638,10 +3571,9 @@ module {
                 llvm::toString(wideningDotOwner.takeError()));
   if (int result = expect(
           (*wideningDotOwner)->familyName == "contraction" &&
-              (*wideningDotOwner)->isRouteEntryConsumer != nullptr &&
-              !(*wideningDotOwner)->isRouteEntryConsumer(wideningDotBody),
+              (*wideningDotOwner)->isRouteEntryConsumer == nullptr,
           "widening_dot_reduce_add dispatches through the contraction "
-          "realization owner without direct route-entry authority"))
+          "realization owner without direct route-entry predicate"))
     return result;
 
   mlir::OpBuilder directWideningDotBuilder(module->getContext());
@@ -3657,8 +3589,9 @@ module {
                 "of requiring selected lowering-boundary realization");
   if (int result = expectErrorContains(
           directWideningDotRouteEntry.takeError(),
-          {"selected-body route-entry realization currently supports only",
-           "selected-boundary-only bodies"}))
+          {"direct pre-realized RVV route-entry realization is retired",
+           "public selected lowering-boundary materialization",
+           "before provider route construction"}))
     return result;
 
   mlir::OpBuilder selectedWideningDotBuilder(module->getContext());
@@ -3775,11 +3708,9 @@ module {
                 llvm::toString(stridedWideningDotOwner.takeError()));
   if (int result = expect(
           (*stridedWideningDotOwner)->familyName == "contraction" &&
-              (*stridedWideningDotOwner)->isRouteEntryConsumer != nullptr &&
-              !(*stridedWideningDotOwner)
-                   ->isRouteEntryConsumer(stridedWideningDotBody),
+              (*stridedWideningDotOwner)->isRouteEntryConsumer == nullptr,
           "strided_input_widening_dot_reduce_add dispatches through the "
-          "contraction realization owner without direct route-entry authority"))
+          "contraction realization owner without direct route-entry predicate"))
     return result;
 
   mlir::OpBuilder directStridedWideningDotBuilder(module->getContext());
@@ -3796,8 +3727,9 @@ module {
                 "selected lowering-boundary realization");
   if (int result = expectErrorContains(
           directStridedWideningDotRouteEntry.takeError(),
-          {"selected-body route-entry realization currently supports only",
-           "selected-boundary-only bodies"}))
+          {"direct pre-realized RVV route-entry realization is retired",
+           "public selected lowering-boundary materialization",
+           "before provider route construction"}))
     return result;
 
   mlir::OpBuilder selectedStridedWideningDotBuilder(module->getContext());
@@ -3940,11 +3872,9 @@ module {
                 llvm::toString(maskedWideningDotOwner.takeError()));
   if (int result = expect(
           (*maskedWideningDotOwner)->familyName == "contraction" &&
-              (*maskedWideningDotOwner)->isRouteEntryConsumer != nullptr &&
-              !(*maskedWideningDotOwner)
-                   ->isRouteEntryConsumer(maskedWideningDotBody),
+              (*maskedWideningDotOwner)->isRouteEntryConsumer == nullptr,
           "computed_masked_widening_dot_reduce_add dispatches through the "
-          "contraction realization owner without direct route-entry authority"))
+          "contraction realization owner without direct route-entry predicate"))
     return result;
 
   mlir::OpBuilder directMaskedWideningDotBuilder(module->getContext());
@@ -3961,8 +3891,9 @@ module {
                 "selected lowering-boundary realization");
   if (int result = expectErrorContains(
           directMaskedWideningDotRouteEntry.takeError(),
-          {"selected-body route-entry realization currently supports only",
-           "selected-boundary-only bodies"}))
+          {"direct pre-realized RVV route-entry realization is retired",
+           "public selected lowering-boundary materialization",
+           "before provider route construction"}))
     return result;
 
   mlir::OpBuilder selectedMaskedWideningDotBuilder(module->getContext());

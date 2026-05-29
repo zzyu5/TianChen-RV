@@ -250,16 +250,20 @@ getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
 ```
 
 `realizePreRealizedRVVSelectedBody(...)` must dispatch through this owner
-registry. Direct route-entry realization must use the same registry and then
-check `isRouteEntryConsumer`, not a separate route-entry allowlist as route
-authority.
+registry. Direct route-entry realization is retired for active production route
+construction. Any remaining `isRouteEntryConsumer` field, route-entry registry,
+or route-entry helper is diagnostic/negative-test inventory only and must not
+provide executable route support.
 
 ### 3. Contracts
 
 The registry owns only selected-body realization family classification and
 realization dispatch. Each owner must have an explicit family name, a
-structural consumer predicate, and a realization hook. Route-entry eligibility
-is narrower than realization support and must remain owner-scoped.
+structural consumer predicate, and a realization hook. Current active owner
+entries must not be route-entry capable; pre-realized selected bodies are
+consumed by the public selected lowering-boundary materialization producer
+before route facts, route-control provider plans, statement plans,
+`TCRVEmitCLowerableRoute`, common EmitC, or target artifact export.
 
 Currently supported realization-owner families are:
 
@@ -284,71 +288,21 @@ derive realization or route support from route ids, artifact names, test names,
 ABI strings, descriptors, scripts, common EmitC, source-front-door markers, or
 legacy i32 helper names.
 
-For `elementwise/compare-select`, route-entry eligibility is narrower than the
-realization owner family. Plain elementwise bodies may be route-entry capable
-when their realized arithmetic structure feeds the verified elementwise provider
-plan. Plain compare-select and computed-mask select bodies are owned by the same
-selected-body realization family, but they must use the explicit selected
-lowering-boundary producer path unless a later owner task adds direct
-route-entry support with matching predicate/mask provenance, mask/tail policy,
-runtime ABI, provider facts, diagnostics, generated-bundle evidence, and real
-RVV evidence for executable claims.
-
-For `standalone reduction`, route-entry eligibility is narrower than the
-realization owner family. Bounded `standalone_reduce_add` belongs to the
-standalone-reduction selected-body realization owner, but it is
-selected-boundary-only: it must be consumed through the public selected
-lowering-boundary producer before standalone-reduction route-family facts, math
-operand-binding facts, route-control provider facts, migrated statement-plan
-facts, provider route construction, common EmitC, and target artifact export.
-The direct route-entry bridge must fail closed for `standalone_reduce_add` even
-though the same typed body is accepted by the standalone-reduction realization
-owner. A later task may add direct route-entry support only by changing the
-owner-scoped route-entry predicate and adding matching provider facts,
-diagnostics, generated-bundle evidence, and real RVV evidence for executable
-claims.
-
-For `base memory movement`, route-entry eligibility is narrower than the
-realization owner family. A typed pre-realized base-memory body may belong to
-the base-memory selected-body realization owner and still be selected-boundary
-only. In particular, `strided_load_unit_store` is selected-boundary-only: it
+All current realization-owner families are selected-boundary-only for
+production route construction. This includes plain elementwise, compare/select,
+computed-mask select, runtime scalar splat-store, runtime scalar computed-mask
+store/load-store, reduction, standalone reduction, MAcc, computed-mask MAcc,
+contraction, widening conversion, base memory movement, computed-mask memory,
+and segment2 memory. A pre-realized body may belong to an owner family, but it
 must be consumed through the public selected lowering-boundary producer before
-base-memory route-family facts, memory operand-binding facts, statement-plan
-facts, provider route construction, common EmitC, and target artifact export.
-The direct route-entry bridge must fail closed for
-`strided_load_unit_store` even though the same typed body is accepted by the
-base-memory realization owner. A later task may add direct route-entry support
-only by changing the owner-scoped route-entry predicate and adding matching
+provider facts are collected. A later task may reintroduce direct route-entry
+support only by explicitly adding owner-scoped predicates plus matching
 provider facts, diagnostics, generated-bundle evidence, and real RVV evidence
 for executable claims.
 
-For `segment2 memory`, route-entry eligibility is currently narrower than the
-realization owner family. Bounded plain `segment2_deinterleave_unit_store` and
-`segment2_interleave_unit_load` pre-realized bodies belong to the segment2
-selected-body realization owner, but they are selected-boundary-only: they must
-be consumed through the public selected lowering-boundary producer before their
-realized `segment2_load/move/move/store/store` or `load/load/segment2_store`
-bodies feed the verified segment2 family plan, route-control provider plan,
-memory operand-binding facts, segment2 statement-plan boundary, provider route
-construction, common EmitC, and target artifact export. Bounded computed-mask
-`computed_masked_segment2_load_unit_store`,
-`computed_masked_segment2_store_unit_load`, and
-`computed_masked_segment2_update_unit_load` bodies belong to the segment2
-selected-body realization owner, but they are selected-boundary-only: they must
-be consumed through the public selected lowering-boundary producer before
-computed-mask memory facts, segment2 family facts, route-control provider facts,
-memory operand-binding facts, segment2 statement-plan facts, provider route
-construction, common EmitC, and target artifact export. The direct route-entry
-bridge must fail closed for all plain and computed-mask segment2 bodies even
-when the same typed body can be realized by the segment2 owner. A later task
-may add direct route-entry support only by changing the owner-scoped predicate
-and adding matching direction, mask/source, lane-role, update/passthrough,
-runtime ABI, provider, target artifact, generated-bundle, and `ssh rvv`
-evidence.
-
-The segment2 memory realization owner must not keep all direct route-entry
-classification as a single broad predicate. It dispatches through a plugin-local
-segment2 route-entry family owner registry:
+The segment2 route-entry family registry is retained as negative diagnostic
+inventory. It must remain empty unless a later explicit owner task reintroduces
+direct support with matching facts and evidence:
 
 ```c++
 struct RVVSelectedBodySegment2RouteEntryFamilyOwner {
@@ -369,22 +323,19 @@ bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
 
 There are currently no active segment2 direct route-entry family entries. Plain
 and computed-mask segment2 selected bodies must produce no segment2 route-entry
-family owner until a later explicit owner task reintroduces direct support with
-matching facts and evidence. A stale `route_id`, artifact name, script option,
-or mirror metadata cannot repair a mismatched typed `op_kind`, memory form,
-segment count, mask facts, field roles, SEW/LMUL, policy, update arithmetic, or
-runtime binding facts. No-match and ambiguous-match cases fail before
-selected-body route-entry realization and before provider/common EmitC route
-construction.
+family owner. A stale `route_id`, artifact name, script option, or mirror
+metadata cannot repair a mismatched typed `op_kind`, memory form, segment
+count, mask facts, field roles, SEW/LMUL, policy, update arithmetic, or runtime
+binding facts.
 
-Tests for segment2 route-entry owner changes must assert registry membership,
-empty/no-match classification for plain deinterleave/interleave and
-computed-mask segment2, stale metadata no-match behavior, selected-boundary
-realization, and direct route-entry fail-closed behavior. Positive executable
-tests must prove the public selected lowering-boundary producer consumes the
-selected pre-realized body before provider facts are collected and that the
-realized typed `tcrv_rvv` body feeds the verified segment2 route-family plan
-and segment2 statement-plan boundary.
+Tests for route-entry inventory must assert no active route-entry owner
+predicate, empty/no-match classification where registries remain, stale
+metadata no-match behavior, selected-boundary realization, and direct
+route-entry fail-closed behavior. Positive executable tests must prove the
+public selected lowering-boundary producer consumes the selected pre-realized
+body before provider facts are collected and that the realized typed
+`tcrv_rvv` body feeds the verified route-family plan and statement-plan
+boundary.
 
 ### 4. Validation & Error Matrix
 
@@ -392,8 +343,9 @@ and segment2 statement-plan boundary.
 - No matching owner for a pre-realized body -> fail closed before realization.
 - More than one owner matches a body -> fail closed before realization.
 - Owner has no realization hook -> fail closed before creating realized ops.
-- Direct route-entry path reaches a realized-but-not-route-entry owner ->
-  fail closed with a route-entry realization diagnostic.
+- Any direct route-entry request for a pre-realized selected RVV body -> fail
+  closed with a retired route-entry diagnostic before provider route
+  construction.
 - Owner-specific validator rejects runtime AVL/VL source, ABI role/order,
   mem_window/imported value role, typed config, SEW/LMUL, policy,
   operation kind, memory form, mask/passthrough, accumulator/result layout, or
@@ -407,30 +359,27 @@ and segment2 statement-plan boundary.
   owner validates typed/config/runtime/capability facts -> realized
   `tcrv_rvv` body -> route-family analysis -> route-control provider plan ->
   provider-built route.
-- Good: direct route-entry bridge -> registry selects a route-entry-capable
-  owner -> pre-realized body is consumed -> target artifact mirrors provider
-  route facts after construction.
-- Base: a supported selected-body realization family that is not route-entry
-  capable still realizes through the owner registry when the explicit selected
-  lowering-boundary path is used.
-- Bad: route-entry realization keeps a separate central allowlist that can
-  drift from the production realization registry.
+- Base: every supported selected-body realization family realizes through the
+  owner registry when the explicit selected lowering-boundary path is used.
+- Bad: production route construction auto-realizes a pre-realized selected body
+  through a direct route-entry fallback.
+- Bad: route-entry realization keeps an active central allowlist or active
+  owner predicate that can bypass the selected lowering-boundary producer.
 - Bad: common EmitC, target artifacts, scripts, descriptors, route ids, or ABI
   strings infer realization family, dtype, SEW/LMUL, policy, or route support.
 
 ### 6. Tests Required
 
 - C++ registry tests must assert owner names, owner count, non-null consumer
-  and realization hooks, and route-entry eligibility being narrower than
-  realization support.
-- C++ route-path tests must prove at least one elementwise/compare-select
-  owner and one route-entry owner realize a pre-realized body before provider
-  facts are collected.
-- Negative tests must prove unsupported route-entry families still fail
-  closed before route construction.
+  and realization hooks, and no active direct route-entry predicates.
+- C++ or lit route-path tests must prove pre-realized bodies fail closed when
+  they reach route construction without the public selected lowering-boundary
+  producer.
+- Negative tests must prove direct route-entry requests fail closed before
+  provider route construction.
 - Representative lit/FileCheck or generated-bundle dry-runs must prove
-  pre-realized route-entry artifacts still consume the pre-realized body and
-  explicit selected-body artifacts remain unaffected.
+  pre-realized selected-boundary artifacts still consume the pre-realized body
+  and explicit selected-body artifacts remain unaffected.
 - Changed-line scans must show no new name-, route-id-, metadata-,
   descriptor-, ABI-string-, script-, artifact-, common-EmitC-,
   source-front-door-, or legacy-i32-derived realization authority.
@@ -585,45 +534,34 @@ selected pre-realized elementwise/compare-select tcrv_rvv body
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
-## Selected-Body Route-Entry Realization Bridge
+## Retired Direct Route-Entry Diagnostic Inventory
 
 ### 1. Scope / Trigger
 
-RVV production route/emission entries must use an RVV plugin-owned
-selected-body route-entry realization bridge when a selected variant reaches
-route construction with a supported pre-realized selected body. This bridge is
-for statement-plan-backed selected-body families whose realization already
-exists in RVV plugin code. It must not turn provider/common EmitC into a
-semantic realization fallback.
+RVV production route/emission entries must require an already materialized
+selected lowering boundary before provider route facts are collected. If a
+selected variant still contains a pre-realized `tcrv_rvv` selected body at
+emission-plan or EmitC route construction time, production must fail closed with
+a targeted diagnostic. Production must not auto-realize the body through a
+direct route-entry fallback.
 
-The route-entry bridge may support bounded family groups such as:
+The public selected lowering-boundary materialization path remains the only
+active path that consumes selected pre-realized RVV bodies:
 
-- plain elementwise pre-realized bodies owned by
-  `realizePreRealizedRVVElementwiseCompareSelectCluster(...)`. Plain
-  compare-select bodies remain selected-boundary-only unless a later owner task
-  explicitly adds direct route-entry support.
-- bounded base memory movement pre-realized bodies that the owner-scoped
-  route-entry predicate explicitly declares route-entry capable and whose
-  realized structure already feeds RVV-owned base-memory materialization facts,
-  memory operand-binding facts, and statement plans. Base-memory
-  selected-boundary-only bodies, including `strided_load_unit_store`, must
-  fail closed at this bridge and use the public selected lowering-boundary
-  producer path instead.
-- contraction pre-realized bodies whose realized structure already feeds
-  RVV-owned contraction family plans, materialization facts, math
-  operand-binding facts, direct contraction provider plans, and direct
-  contraction owner statement plans.
-Current segment2 pre-realized bodies are not in the route-entry bridge support
-set. Plain and computed-mask segment2 bodies must fail closed at the
-route-entry bridge unless a later owner task explicitly adds direct support
-with matching facts, statement-plan, target artifact, generated-bundle, and
-`ssh rvv` evidence. Other unlisted pre-realized families must also fail closed
-unless their owning route-entry support is explicitly added with matching
-facts, statement-plan, and tests.
+```text
+selected pre-realized tcrv_rvv body
+  -> public selected lowering-boundary materialization
+  -> RVV owner registry realization
+  -> realized typed tcrv_rvv body
+  -> provider route facts
+  -> TCRVEmitCLowerableRoute
+  -> common EmitC materialization
+```
 
 ### 2. Signatures
 
-The durable route-entry predicates/helpers are:
+The route-entry inventory helpers may remain for negative tests and future
+explicit owner work:
 
 ```c++
 bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
@@ -634,68 +572,68 @@ realizePreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request);
 ```
 
+In active production, `variantContainsPreRealizedRVVRouteEntrySelectedBody(...)`
+must return false for all current selected pre-realized bodies, and
+`realizePreRealizedRVVRouteEntrySelectedBody(...)` must be diagnostic-only. It
+must not create `setvl`, `with_vl`, loads, stores, compute, masks, statement
+plans, or provider routes.
+
 `RVVExtensionPlugin::buildVariantEmissionPlan(...)` and
-`RVVExtensionPlugin::buildVariantEmitCLowerableRoute(...)` must call a
-route-entry helper that either returns the existing unique realized
-`tcrv_rvv.with_vl` boundary or invokes
-`realizePreRealizedRVVRouteEntrySelectedBody(...)` before route facts are
-collected.
+`RVVExtensionPlugin::buildVariantEmitCLowerableRoute(...)` must call a boundary
+requirement helper that either returns the existing unique realized
+`tcrv_rvv.with_vl` boundary or fails closed if a pre-realized body still needs
+selected lowering-boundary materialization. They must not call
+`realizePreRealizedRVVRouteEntrySelectedBody(...)`.
 
 ### 3. Contracts
 
-The route-entry bridge consumes only RVV-owned inputs:
+The retired route-entry inventory is not route support. It must not infer RVV
+family, dtype, SEW, LMUL, policy, operation kind, memory form, mask/source
+facts, statement shape, intrinsic spelling, route id, target artifact support,
+or executable status from:
 
-- selected `tcrv.exec.kernel` and `tcrv.exec.variant`;
-- typed pre-realized `tcrv_rvv` body structure;
-- runtime ABI SSA imports and selected variant `requires` metadata;
-- attrs carried by the pre-realized body, such as SEW, LMUL, policy, operation
-  kind, memory form, predicate/mask/layout, stride/index facts, and runtime
-  `n`/AVL values.
+- typed pre-realized op names;
+- route ids or artifact names;
+- emission-plan or artifact metadata;
+- descriptors or source-front-door markers;
+- ABI strings, test names, scripts, or exact intrinsic spellings;
+- legacy i32 helper names.
 
-It produces a realized `tcrv_rvv.with_vl` boundary by calling the owning RVV
-realization path. It does not build `TCRVEmitCLowerableRoute`; route
-construction still occurs after route analysis, materialization facts,
-operand-binding facts, and family statement plans validate realized typed body
-structure.
+Any future reintroduction of direct route-entry support requires a new explicit
+owner task that updates this spec, adds owner-scoped predicates, proves provider
+facts and statement plans, adds generated-bundle evidence, and supplies real
+`ssh rvv` evidence for executable claims.
 
 ### 4. Validation & Error Matrix
 
-- Missing kernel or variant -> fail closed before realization.
 - Existing realized `setvl`/`with_vl` boundary and no pre-realized body ->
-  return the realized boundary.
-- Existing realized `setvl`/`with_vl` boundary mixed with any pre-realized
-  body -> fail closed before route construction.
+  production route construction may continue.
+- Existing realized `setvl`/`with_vl` boundary mixed with any pre-realized body
+  -> fail closed before route construction.
 - No realized boundary and no pre-realized body -> preserve the structural
   missing-boundary diagnostic.
-- No realized boundary and an unsupported pre-realized route-entry family ->
-  fail closed with a route-entry realization diagnostic.
-- Supported route-entry family with malformed runtime ABI roles, attrs, or
-  incomplete realization facts -> fail closed in the owning RVV realization
-  path before provider/common route construction.
+- No realized boundary and any pre-realized body -> fail closed with a
+  diagnostic requiring public selected lowering-boundary materialization before
+  provider route construction.
+- Direct route-entry helper invoked directly -> fail closed with a retired
+  route-entry diagnostic.
 - Provider route analysis sees any pre-realized body -> fail closed with a
   selected-body realization diagnostic; provider/common code must not invent
   missing typed structure.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: selected RVV variant -> pre-realized plain elementwise, route-entry
-  capable base-memory, or supported contraction body -> route-entry
-  realization bridge -> realized `tcrv_rvv` body -> RVV-owned facts/statement
-  plan -> provider-built route -> common EmitC.
-- Base: standalone-reduction and compare/select pre-realized selected bodies are
-  realization-owner families but selected-boundary-only; direct route-entry must
-  fail closed until an explicit later owner task adds matching support and
-  evidence.
-- Base: computed-mask segment2 load/store/update pre-realized selected bodies
-  are realization-owner families but selected-boundary-only; direct route-entry
-  must fail closed while the public selected lowering-boundary producer remains
-  the executable path.
-- Base: plain segment2 deinterleave/interleave pre-realized selected bodies are
-  realization-owner families but selected-boundary-only; direct route-entry
-  must fail closed while the public selected lowering-boundary producer remains
-  the executable path.
-- Base: explicit already-realized selected body -> route-entry helper returns
-  the unique `with_vl` boundary and preserves existing route behavior.
+- Good: selected pre-realized RVV variant -> public selected
+  lowering-boundary materialization -> owner validates and realizes typed body
+  -> route-family facts -> statement plan -> provider-built route -> common
+  EmitC.
+- Good: selected RVV variant already contains exactly one valid realized
+  `setvl/with_vl` boundary and no pre-realized body -> provider route facts are
+  collected.
+- Base: retained route-entry helper exists only so negative tests can assert the
+  retired diagnostic.
+- Bad: production route construction calls route-entry realization to create a
+  selected boundary.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
   setvl/load/store/compare/select/memory structure itself.
 - Bad: common EmitC infers RVV dtype, operation kind, memory form, intrinsic
@@ -704,23 +642,16 @@ structure.
 
 ### 6. Tests Required
 
-- C++ tests showing production emission/provider route entries realize at
-  least one plain elementwise pre-realized body, one route-entry capable
-  base-memory pre-realized body, and one supported contraction pre-realized
-  body before route facts are collected.
-- C++ or lit tests showing selected-boundary-only realization-owner families,
-  including standalone reduction, compare/select, plain segment2
-  deinterleave/interleave, and computed-mask segment2 load/store/update, still
-  realize through the public selected lowering-boundary producer and fail closed
-  when requested as direct route-entry shortcuts.
-- C++ fail-closed coverage for an unsupported route-entry family or incomplete
-  realization dependency.
-- Representative lit/FileCheck coverage proving active direct pre-realized
-  route materialization works without first running
-  `--tcrv-materialize-selected-lowering-boundaries`.
-- Regression coverage showing explicit already-realized selected-body
-  artifacts and explicit selected-boundary materialization still pass.
-- Bounded scans showing common EmitC/export and provider/common code did not
+- C++ registry tests must assert owner names, owner count, non-null consumer and
+  realization hooks, and no active route-entry predicates.
+- C++ or lit tests must show production emission-plan and EmitC route
+  construction fail closed when pre-realized bodies arrive without selected
+  lowering-boundary materialization.
+- C++ or lit tests must show the direct route-entry helper is diagnostic-only.
+- Regression coverage must show selected-boundary materialization and already
+  realized selected-body artifacts still pass.
+- Generated-bundle direct pre-realized CLI tests must remain fail-closed.
+- Bounded scans must show common EmitC/export and provider/common code did not
   become semantic realization owners.
 
 ### 7. Wrong vs Correct
@@ -728,16 +659,17 @@ structure.
 Wrong:
 
 ```text
-provider/common EmitC:
-  sees pre-realized body or route metadata
-  -> chooses RVV family, memory form, dtype, and statement sequence
+production route construction
+  -> sees pre-realized body
+  -> invokes direct route-entry realization
+  -> provider route facts
 ```
 
 Correct:
 
 ```text
 selected pre-realized tcrv_rvv body
-  -> RVV route-entry realization bridge
+  -> public selected lowering-boundary materialization
   -> realized typed tcrv_rvv body
   -> existing RVV facts / operand bindings / statement plan
   -> provider-built TCRVEmitCLowerableRoute

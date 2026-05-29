@@ -1,9 +1,8 @@
-// RUN: tcrv-opt %s --split-input-file --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+// RUN: not tcrv-opt %s --split-input-file --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
 
-// The RVV provider route entry should still invoke plugin-owned selected-body
-// realization for bounded direct route-entry arithmetic bodies. Plain
-// compare/select is intentionally not covered here; it must pass through the
-// selected lowering-boundary producer before EmitC route materialization.
+// Pre-realized RVV selected bodies must pass through the public selected
+// lowering-boundary materialization producer before provider route
+// construction. The retired direct route-entry fallback must fail closed here.
 
 module {
   tcrv.exec.kernel @pre_route_add_kernel {
@@ -18,9 +17,5 @@ module {
   }
 }
 
-// CHECK-LABEL: emitc.func @tcrv_emitc_pre_route_add_kernel_rvv_pre_route_add
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.binary role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+// CHECK: pre-realized RVV selected body must use public selected lowering-boundary materialization before provider route construction
+// CHECK-NOT: emitc.func
