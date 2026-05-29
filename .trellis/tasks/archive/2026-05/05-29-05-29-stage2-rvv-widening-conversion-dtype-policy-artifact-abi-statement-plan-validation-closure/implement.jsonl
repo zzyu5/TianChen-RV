@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV conversion dtype-policy cluster, provider facts, target artifact route-family validator contract, mirror-only metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary; mem_window/runtime_param strings are not compute or dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused target artifact C++ test and evidence requirements for RVV route validation changes."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing checklist for RVV route, lowering, artifact, and testing changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-macc-artifact-abi-statement-plan-closure/prd.md", "reason": "Adjacent target artifact closure pattern for replacing callee-presence acceptance with exact statement-plan validation."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-vector-reduction-artifact-abi-statement-plan-closure/prd.md", "reason": "Route-clone negative and provider-built statement validation precedent."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-standalone-reduction-accumulation-artifact-abi-statement-plan-validation-closure/prd.md", "reason": "Immediate previous closure and bounded routeLoopContainsCallee demotion precedent."}

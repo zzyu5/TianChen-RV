@@ -752,3 +752,40 @@ Closed standalone reduction/accumulation target artifact ABI statement-plan vali
 ### Next Steps
 
 - None - task complete
+
+
+## Session 316: Stage2 RVV widening conversion artifact ABI validation
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV widening conversion artifact ABI validation
+**Branch**: `main`
+
+### Summary
+
+Closed widening conversion dtype-policy target artifact validation with exact provider statement-plan and ABI checks.
+
+### Main Changes
+
+- Replaced widening conversion dtype-policy callee-presence acceptance with exact provider-built statement validation for pre-loop setvl, loop setvl, source load, widening conversion, and output store.
+- Added provider fact checks for lhs,out,n ABI order and roles, typed tcrv_rvv.widening_convert provenance, source/result dtype policy, SEW/LMUL, vector C types, conversion relation, C type mapping, provider support mirror, and target leaf profile.
+- Added TargetArtifactExportTest positive coverage for widen_i16_to_i32 and widen_i32_to_i64 plus route/provider/candidate clone negatives for stale operands, results, C types, ABI roles/order, VL facts, provenance, and mirror metadata.
+- Checks: ninja -C build tianchenrv-target-artifact-export-test; ./build/bin/tianchenrv-target-artifact-export-test; git diff --check; ninja -C build check-tianchenrv (459/459 passed).
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

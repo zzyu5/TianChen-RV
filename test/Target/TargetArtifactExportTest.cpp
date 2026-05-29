@@ -1425,6 +1425,58 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
+  if (op == OperationKind::WidenI32ToI64 ||
+      op == OperationKind::WidenI16ToI32) {
+    const bool isWidenI16ToI32 = op == OperationKind::WidenI16ToI32;
+    llvm::StringRef sourceCType =
+        isWidenI16ToI32 ? "const int16_t *" : "const int32_t *";
+    llvm::StringRef outCType = isWidenI16ToI32 ? "int32_t *" : "int64_t *";
+    llvm::StringRef sourceVectorType =
+        isWidenI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
+                        : "!tcrv_rvv.vector<i32, \"m1\">";
+    llvm::StringRef resultVectorType =
+        isWidenI16ToI32 ? "!tcrv_rvv.vector<i32, \"m1\">"
+                        : "!tcrv_rvv.vector<i64, \"m2\">";
+    llvm::StringRef resultLMUL = isWidenI16ToI32 ? "m1" : "m2";
+    int64_t resultSEW = isWidenI16ToI32 ? 32 : 64;
+    llvm::StringRef conversionKind =
+        isWidenI16ToI32 ? "sign_extend_widen_vf2" : "widen_i32_to_i64";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = ")mlir"
+       << sourceCType << R"mlir(", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-conversion:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = ")mlir"
+       << outCType << R"mlir(", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-conversion:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-conversion:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << resultLMUL
+       << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = )mlir"
+       << resultSEW << R"mlir( : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << resultLMUL
+       << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = )mlir" << resultSEW
+       << R"mlir( : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << sourceVectorType << R"mlir(
+        %widened_vec = tcrv_rvv.widening_convert %lhs_vec, %vl {kind = ")mlir"
+       << conversionKind << R"mlir("} : )mlir" << sourceVectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << resultVectorType
+       << R"mlir(
+        tcrv_rvv.store %out, %widened_vec, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << resultVectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   if (op == OperationKind::WideningDotReduceAdd ||
       op == OperationKind::StridedInputWideningDotReduceAdd) {
     const bool isStrided =
@@ -5064,6 +5116,289 @@ bool expectRVVTargetArtifactExporterShape(
           "stale scalar-result type mirror",
           {"standalone_reduction_scalar_result_vector_c_type", "vint32m1_t",
            "vint32m2_t"}))
+    return false;
+
+  auto expectWideningConversionPositive =
+      [&](llvm::StringRef fixtureContext,
+          RVVTargetArtifactCandidateFixture &fixture,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription &description) -> bool {
+    if (!expectRVVTargetArtifactCandidateFixtureReady(
+            fixture,
+            (llvm::Twine("build valid RVV ") + fixtureContext +
+             " selected-body candidate fixture")
+                .str()))
+      return false;
+    if (!expectSuccess(
+            validateTargetArtifactCandidateAgainstExporter(
+                fixture.candidate, *exporter),
+            (llvm::Twine("validate RVV ") + fixtureContext +
+             " target artifact candidate through exporter")
+                .str()))
+      return false;
+    if (!buildRVVRouteValidationInputs(
+            fixture, route, description,
+            (llvm::Twine("rebuild RVV ") + fixtureContext +
+             " route validator inputs")
+                .str()))
+      return false;
+    RVVRouteValidationContext context{fixture.candidate, route, description};
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(context),
+            (llvm::Twine(fixtureContext) +
+             " registry accepts provider facts")
+                .str()))
+      return false;
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(context),
+        (llvm::Twine(fixtureContext) + " registry accepts candidate mirrors")
+            .str());
+  };
+
+  RVVTargetArtifactCandidateFixture widenI16Fixture(OperationKind::WidenI16ToI32);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute widenI16Route;
+  RVVRouteDescription widenI16Description;
+  if (!expectWideningConversionPositive("widen_i16_to_i32",
+                                         widenI16Fixture, widenI16Route,
+                                         widenI16Description))
+    return false;
+
+  RVVTargetArtifactCandidateFixture widenI32Fixture(OperationKind::WidenI32ToI64);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute widenI32Route;
+  RVVRouteDescription widenI32Description;
+  if (!expectWideningConversionPositive("widen_i32_to_i64",
+                                         widenI32Fixture, widenI32Route,
+                                         widenI32Description))
+    return false;
+
+  auto expectWideningConversionProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{widenI16Fixture.candidate,
+                                             widenI16Route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectWideningConversionRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        widenI16Fixture.candidate, mutatedRoute, widenI16Description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectWideningConversionCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{mutated, widenI16Route,
+                                             widenI16Description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleWideningConversionProvider =
+      widenI16Description;
+  staleWideningConversionProvider.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-widening-conversion";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionProvider,
+          "widening conversion registry rejects metadata-only provider "
+          "support",
+          {"provider-owned support", "metadata-only-widening-conversion"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionABIOrder = widenI16Description;
+  staleWideningConversionABIOrder.runtimeABIOrder = "lhs,n,out";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionABIOrder,
+          "widening conversion registry rejects stale runtime ABI order",
+          {"runtime ABI order", "lhs,out,n", "lhs,n,out"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionOutputRole =
+      widenI16Description;
+  staleWideningConversionOutputRole.runtimeABIParameters[1].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionOutputRole,
+          "widening conversion registry rejects stale output ABI role",
+          {"runtime ABI parameter 1", "out", "output-buffer"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionDType = widenI16Description;
+  staleWideningConversionDType.sourceVectorCType = "vint32m1_t";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionDType,
+          "widening conversion registry rejects stale source/result dtype "
+          "policy",
+          {"source/result dtype policy", "widen_i16_to_i32"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionRelation =
+      widenI16Description;
+  staleWideningConversionRelation.conversionRelation =
+      "metadata-derived-conversion-relation";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionRelation,
+          "widening conversion registry rejects stale conversion relation",
+          {"conversion relation", "metadata-derived-conversion-relation"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionNonFamily =
+      widenI16Description;
+  staleWideningConversionNonFamily.elementwiseArithmeticRouteFamilyPlanID =
+      "metadata-derived-elementwise";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionNonFamily,
+          "widening conversion registry rejects stale non-conversion "
+          "provider facts",
+          {"stale", "non-conversion route-family facts"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              widenI16Route, /*stepIndex=*/0, /*operandIndex=*/0,
+              "metadata_n"),
+          "widening conversion registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl operand[0]", "n", "metadata_n"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "metadata_remaining_avl"),
+          "widening conversion registry rejects stale loop setvl remaining "
+          "AVL",
+          {"loop setvl operand[0]", "n - offset",
+           "metadata_remaining_avl"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "out + offset"),
+          "widening conversion registry rejects stale source load pointer",
+          {"source vector load operand[0]", "lhs + offset",
+           "out + offset"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/1,
+              "metadata_lhs_vec"),
+          "widening conversion registry rejects stale source load result",
+          {"source vector load result", "lhs_vec", "metadata_lhs_vec"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "metadata_lhs_vec"),
+          "widening conversion registry rejects stale conversion operand",
+          {"widening conversion operand[0]", "lhs_vec",
+           "metadata_lhs_vec"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/2,
+              "metadata_widened_vec"),
+          "widening conversion registry rejects stale conversion result",
+          {"widening conversion result", widenI16Description.resultName,
+           "metadata_widened_vec"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/0, "out"),
+          "widening conversion registry rejects stale output store pointer",
+          {"output store operand[0]", "out + offset", "out"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/1, "lhs_vec"),
+          "widening conversion registry rejects stale output store value",
+          {"output store operand[1]", widenI16Description.resultName,
+           "lhs_vec"}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/2, widenI16Description.emitCFullChunkVLName),
+          "widening conversion registry rejects stale output store VL",
+          {"output store operand[2]", widenI16Description.emitCLoopVLName,
+           widenI16Description.emitCFullChunkVLName}))
+    return false;
+
+  if (!expectWideningConversionRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+              widenI16Route, /*loopIndex=*/0, /*stepIndex=*/2,
+              "metadata-derived-route-source"),
+          "widening conversion registry rejects stale loop statement "
+          "source provenance",
+          {"loop statements", "selected typed RVV source provenance"}))
+    return false;
+
+  TargetArtifactCandidate missingWideningConversionProviderMirror =
+      widenI16Fixture.candidate;
+  if (!eraseArtifactMetadataKey(missingWideningConversionProviderMirror,
+                                "tcrv_rvv.provider_supported_mirror")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "provider support mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          missingWideningConversionProviderMirror,
+          "widening conversion registry rejects missing provider-supported "
+          "mirror metadata",
+          {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionRelationMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningConversionRelationMirror,
+          "tcrv_rvv.conversion_relation",
+          "metadata-derived-conversion-relation")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "relation mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionRelationMirror,
+          "widening conversion registry rejects stale conversion relation "
+          "mirror",
+          {"conversion_relation", "signed-i16mf2-to-i32m1",
+           "metadata-derived-conversion-relation"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionNonFamilyMirror =
+      widenI16Fixture.candidate;
+  staleWideningConversionNonFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+          "metadata-derived-elementwise"));
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionNonFamilyMirror,
+          "widening conversion registry rejects stale non-conversion "
+          "candidate route-family mirror",
+          {"must not carry",
+           "selected typed RVV non-conversion route-family mirror"}))
     return false;
 
   RVVTargetArtifactCandidateFixture wideningMAccFixture(

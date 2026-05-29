@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance check against global TianChen-RV authority chain and red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check conversion dtype-policy artifact validation consumes provider-built facts and keeps metadata mirror-only."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime roles remain organizational and not compute/dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-built route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused target artifact tests and evidence boundaries."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Final RVV route/artifact/testing checklist."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-macc-artifact-abi-statement-plan-closure/prd.md", "reason": "Compare against adjacent exact statement validation evidence and checks."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-vector-reduction-artifact-abi-statement-plan-closure/prd.md", "reason": "Compare against route-clone negative style and target artifact coverage expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-standalone-reduction-accumulation-artifact-abi-statement-plan-validation-closure/prd.md", "reason": "Compare against previous routeLoopContainsCallee removal boundary and check-tianchenrv evidence."}
