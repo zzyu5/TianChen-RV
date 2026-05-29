@@ -695,7 +695,13 @@ Closed base memory-movement target artifact ABI statement-plan validation throug
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task `.trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-runtime-scalar-cmp-masked-load-store-executable-artifact` from the Hermes direction brief.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-load-store-dry-run.test` to lock the focused selected-boundary generated-bundle dry-run path for `runtime_scalar_cmp_masked_load_store`.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-load-store-fail-closed.test` to keep the direct pre-realized route-entry shortcut unsupported for this selected-boundary-only family.
+- The dry-run evidence checks `route_entry_realization: false`, selected-boundary materialization, runtime ABI order `lhs,rhs_scalar,src,dst,n`, provider-supported mirror, computed-mask memory route-family plan, route operand binding facts, emitted compare/splat/old-destination passthrough masked-load/store boundary, inactive-lane preserve-output semantics, source preservation, counts `0,1,16,23,257`, and scalar thresholds `-37,91`.
+- Evidence: real `ssh rvv` generated-bundle execution passed counts `0,1,16,23,257` with runtime scalar values `-37,91`; output showed active lanes loading/storing source payload, inactive lanes preserving old `dst`, source preserved, tail preserved, and final PASS marker.
+- Non-regression: focused lit filter for adjacent `runtime_scalar_cmp_masked_store` generated-bundle dry-run/direct-route fail-closed and target fixtures passed 6/6.
+- Checks passed: new focused load-store lit filter passed 6/6; bounded authority scan; `git diff --cached --check`; unstaged `git diff --check`; `cmake --build build --target check-tianchenrv -j2` passed 464/464.
 
 ### Git Commits
 
@@ -705,7 +711,13 @@ Closed base memory-movement target artifact ABI statement-plan validation throug
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] focused load-store lit filter passed 6/6
+- [OK] `ssh rvv` generated-bundle run passed counts 0,1,16,23,257 with rhs scalars -37 and 91
+- [OK] focused adjacent masked-store lit non-regression passed 6/6
+- [OK] bounded authority scan
+- [OK] `git diff --cached --check`
+- [OK] unstaged `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
 
 ### Status
 
@@ -976,6 +988,39 @@ Closed runtime_scalar_cmp_masked_store generated-bundle executable artifact evid
 - [OK] bounded authority scan
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` passed 462/462
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 321: Stage2 RVV runtime-scalar compare masked load-store executable artifact closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV runtime-scalar compare masked load-store executable artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed runtime_scalar_cmp_masked_load_store generated-bundle executable artifact evidence with focused selected-boundary dry-run lit coverage, direct-route-entry fail-closed coverage, ssh rvv correctness, adjacent masked-store non-regression, bounded authority scan, and check-tianchenrv 464/464.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
