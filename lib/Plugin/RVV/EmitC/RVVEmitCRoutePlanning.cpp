@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -29667,23 +29668,6 @@ constexpr llvm::StringLiteral
     kRVVStatementPlanEmitCLowerableOpInterfaceName(
         "TCRVEmitCLowerableOpInterface");
 
-bool isRVVSelectedBodyElementwiseArithmeticStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(
-          description.operation))
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad ||
-           description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
-  if (isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
-          description.operation))
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
-  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
-          description.operation))
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  return description.operation == RVVSelectedBodyOperationKind::StridedAdd &&
-         description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
-}
-
 llvm::Error requireRVVElementwiseArithmeticStatementPlanLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -29801,24 +29785,6 @@ llvm::Error addRVVElementwiseArithmeticStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
-bool isRVVSelectedBodyCompareSelectStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect)
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  if (description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect)
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect;
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect)
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect;
-  return description.operation ==
-             RVVSelectedBodyOperationKind::
-                 RuntimeScalarDualCompareMaskAndSelect &&
-         description.memoryForm ==
-             RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
-}
-
 llvm::Error requireRVVCompareSelectStatementPlanLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -29930,23 +29896,6 @@ llvm::Error addRVVCompareSelectStatementPlanLoopStep(
     return step.takeError();
   plan.loop.bodySteps.push_back(std::move(*step));
   return llvm::Error::success();
-}
-
-bool isRVVSelectedBodyWideningConversionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  return isRVVSelectedBodyWideningConversionRouteControlConsumer(description);
-}
-
-bool isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  return isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
-      description);
-}
-
-bool isRVVSelectedBodyReductionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  return description.operation == RVVSelectedBodyOperationKind::ReduceAdd &&
-         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
 }
 
 llvm::Error requireRVVWideningConversionStatementPlanLeaf(
@@ -30180,33 +30129,6 @@ llvm::Error addRVVRuntimeScalarSplatStoreStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
-bool isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
-  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
-  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
-  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
-  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
-  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
-    return description.memoryForm == RVVSelectedBodyMemoryForm::
-                                         ComputedMaskUnitStrideStandaloneReduction;
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceAdd:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMin:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMax:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::
-               RuntimeScalarComputedMaskUnitStrideStandaloneReduction;
-  default:
-    return false;
-  }
-}
-
 llvm::StringRef getRVVStandaloneReductionStatementPlanInactiveNeutral(
     RVVSelectedBodyOperationKind operation, std::int64_t sew) {
   switch (operation) {
@@ -30347,16 +30269,6 @@ llvm::Error addRVVStandaloneReductionStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
-bool isRVVSelectedBodyPlainMAccStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.operation == RVVSelectedBodyOperationKind::MAccAdd)
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  return description.operation ==
-             RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd &&
-         description.memoryForm ==
-             RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc;
-}
-
 llvm::Error requireRVVPlainMAccStatementPlanLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -30466,31 +30378,6 @@ llvm::Error addRVVPlainMAccStatementPlanLoopStep(
     return step.takeError();
   plan.loop.bodySteps.push_back(std::move(*step));
   return llvm::Error::success();
-}
-
-bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
-  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
-  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::IndexedLoadUnitStore;
-  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitLoadIndexedStore;
-  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::MaskedUnitLoadStore;
-  case RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return description.memoryForm == RVVSelectedBodyMemoryForm::MaskedUnitStore;
-  default:
-    return false;
-  }
 }
 
 llvm::Error requireRVVBaseMemoryMovementStatementPlanLeaf(
@@ -30607,35 +30494,6 @@ llvm::Error addRVVBaseMemoryMovementStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
-bool isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
-  default:
-    return false;
-  }
-}
-
 llvm::Error requireRVVComputedMaskMemoryStatementPlanLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -30748,27 +30606,6 @@ llvm::Error addRVVComputedMaskMemoryStatementPlanLoopStep(
     return step.takeError();
   plan.loop.bodySteps.push_back(std::move(*step));
   return llvm::Error::success();
-}
-
-bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
-  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
-  default:
-    return false;
-  }
 }
 
 llvm::Error requireRVVSegment2MemoryStatementPlanLeaf(
@@ -31478,20 +31315,6 @@ getRVVSelectedBodySegment2RouteFamilyProviderPlan(
 
 namespace {
 
-bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc;
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskUnitStrideMAcc;
-  default:
-    return false;
-  }
-}
-
 llvm::Error requireRVVComputedMaskAccumulationStatementPlanLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -31666,49 +31489,6 @@ llvm::Error setRVVSelectedBodyMigratedRouteStatementPlan(
   preLoopSteps.clear();
   out.loop = std::move(loop);
   return llvm::Error::success();
-}
-
-llvm::Error requireRVVSelectedBodyMigratedRouteStatementPlanIfNeeded(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyMigratedRouteStatementPlan &plan,
-    llvm::StringRef context) {
-  if (plan.plansMigratedRoute)
-    return llvm::Error::success();
-
-  const RVVSelectedBodyEmitCRouteDescription &description =
-      analysis.description;
-  llvm::SmallVector<llvm::StringRef, 2> matchingOwners;
-  for (const RVVSelectedBodyMigratedRouteStatementPlanOwner &owner :
-       getRVVSelectedBodyMigratedRouteStatementPlanOwners()) {
-    if (!owner.isConsumer)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " encountered an incomplete migrated statement-plan owner registry "
-          "entry");
-    if (owner.isConsumer(description))
-      matchingOwners.push_back(owner.familyName);
-  }
-
-  if (matchingOwners.empty())
-    return llvm::Error::success();
-  if (matchingOwners.size() > 1)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " migrated statement-plan owner registry matched multiple owners for "
-        "operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) +
-        "', memory_form '" +
-        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
-
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) +
-      " migrated statement-plan boundary requires the RVV-owned " +
-      matchingOwners.front() +
-      " statement plan before generic provider-local statement assembly for "
-      "operation '" +
-      stringifyRVVSelectedBodyOperationKind(description.operation) +
-      "', memory_form '" +
-      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
 }
 
 llvm::Error buildElementwiseArithmeticMigratedRouteStatementPlan(
@@ -32000,11 +31780,6 @@ llvm::Error buildComputedMaskAccumulationMigratedRouteStatementPlan(
       RVVSelectedBodyMigratedRouteStatementPlanFamily::
           ComputedMaskAccumulation,
       plan->preLoopSteps, plan->loop, analysis.description, context);
-}
-
-bool isRVVSelectedBodyDirectContractionRouteProviderOwnerConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  return isRVVSelectedBodyContractionRouteFamilyConsumer(description.operation);
 }
 
 llvm::Error requireRVVDirectContractionStatementPlanLeaf(
@@ -32488,6 +32263,204 @@ llvm::Error buildDirectContractionRouteStatementPlan(
 }
 
 } // namespace
+
+llvm::Error buildRVVSelectedBodyElementwiseArithmeticMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildElementwiseArithmeticMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildCompareSelectMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildWideningConversionMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error
+buildRVVSelectedBodyRuntimeScalarSplatStoreMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildRuntimeScalarSplatStoreMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyReductionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildReductionMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyStandaloneReductionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildStandaloneReductionMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyPlainMAccMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildPlainMAccMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyBaseMemoryMovementMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildBaseMemoryMovementMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildComputedMaskMemoryMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildSegment2MemoryMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error
+buildRVVSelectedBodyComputedMaskAccumulationMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildComputedMaskAccumulationMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    llvm::StringRef context) {
+  return buildDirectContractionRouteStatementPlan(analysis, providerPlan, plan,
+                                                  context);
+}
 
 llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
 getRVVSelectedBodyDirectContractionRouteProviderPlan(
@@ -36804,233 +36777,6 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
     return std::move(error);
 
   return plan;
-}
-
-llvm::ArrayRef<RVVSelectedBodyDirectContractionRouteProviderOwner>
-getRVVSelectedBodyDirectContractionRouteProviderOwners() {
-  static const RVVSelectedBodyDirectContractionRouteProviderOwner owners[] = {
-      {"direct-provider contraction",
-       isRVVSelectedBodyDirectContractionRouteProviderOwnerConsumer,
-       buildDirectContractionRouteStatementPlan},
-  };
-  return owners;
-}
-
-bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  for (const RVVSelectedBodyDirectContractionRouteProviderOwner &owner :
-       getRVVSelectedBodyDirectContractionRouteProviderOwners())
-    if (owner.isConsumer && owner.isConsumer(description))
-      return true;
-  return false;
-}
-
-llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-getRVVSelectedBodyDirectContractionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
-    llvm::StringRef context) {
-  const RVVSelectedBodyEmitCRouteDescription &description =
-      analysis.description;
-  RVVSelectedBodyDirectContractionRouteStatementPlan plan;
-
-  llvm::SmallVector<const RVVSelectedBodyDirectContractionRouteProviderOwner *, 2>
-      selectedOwners;
-  for (const RVVSelectedBodyDirectContractionRouteProviderOwner &owner :
-       getRVVSelectedBodyDirectContractionRouteProviderOwners()) {
-    if (!owner.isConsumer || !owner.buildStatementPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " encountered an incomplete direct contraction route-provider owner "
-          "registry entry");
-    if (owner.isConsumer(description))
-      selectedOwners.push_back(&owner);
-  }
-
-  if (selectedOwners.size() > 1) {
-    std::string owners;
-    llvm::raw_string_ostream os(owners);
-    for (const RVVSelectedBodyDirectContractionRouteProviderOwner *owner :
-         selectedOwners) {
-      if (!owners.empty())
-        os << ", ";
-      os << owner->familyName;
-    }
-    os.flush();
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction route-provider owner registry matched multiple "
-        "owners for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) +
-        "', memory_form '" +
-        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "': " +
-        owners);
-  }
-
-  if (selectedOwners.empty()) {
-    if (providerPlan.plansDirectContractionRoute)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " direct contraction route-provider owner registry has no owner for "
-          "a prevalidated provider plan for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    return plan;
-  }
-
-  if (!providerPlan.plansDirectContractionRoute)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction route-provider owner requires a prevalidated "
-        "direct contraction provider plan before statement construction for "
-        "operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-
-  const RVVSelectedBodyDirectContractionRouteProviderOwner &owner =
-      *selectedOwners.front();
-  if (llvm::Error error = owner.buildStatementPlan(
-          analysis, providerPlan, plan, context))
-    return std::move(error);
-  if (!plan.plansDirectContractionRoute)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction route-provider owner '" + owner.familyName +
-        "' failed to produce a provider statement plan before route construction "
-        "for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-  return plan;
-}
-
-llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
-getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
-  static const RVVSelectedBodyMigratedRouteStatementPlanOwner owners[] = {
-      {"elementwise arithmetic",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::ElementwiseArithmetic,
-       isRVVSelectedBodyElementwiseArithmeticStatementPlanConsumer,
-       buildElementwiseArithmeticMigratedRouteStatementPlan},
-      {"compare/select",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect,
-       isRVVSelectedBodyCompareSelectStatementPlanConsumer,
-       buildCompareSelectMigratedRouteStatementPlan},
-      {"widening conversion",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion,
-       isRVVSelectedBodyWideningConversionStatementPlanConsumer,
-       buildWideningConversionMigratedRouteStatementPlan},
-      {"runtime scalar splat-store",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::
-           RuntimeScalarSplatStore,
-       isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer,
-       buildRuntimeScalarSplatStoreMigratedRouteStatementPlan},
-      {"reduction", RVVSelectedBodyMigratedRouteStatementPlanFamily::Reduction,
-       isRVVSelectedBodyReductionStatementPlanConsumer,
-       buildReductionMigratedRouteStatementPlan},
-      {"standalone reduction",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction,
-       isRVVSelectedBodyStandaloneReductionStatementPlanConsumer,
-       buildStandaloneReductionMigratedRouteStatementPlan},
-      {"plain MAcc", RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc,
-       isRVVSelectedBodyPlainMAccStatementPlanConsumer,
-       buildPlainMAccMigratedRouteStatementPlan},
-      {"base memory movement",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::BaseMemoryMovement,
-       isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer,
-       buildBaseMemoryMovementMigratedRouteStatementPlan},
-      {"computed-mask memory",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::ComputedMaskMemory,
-       isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer,
-       buildComputedMaskMemoryMigratedRouteStatementPlan},
-      {"segment2 memory",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::Segment2Memory,
-       isRVVSelectedBodySegment2MemoryStatementPlanConsumer,
-       buildSegment2MemoryMigratedRouteStatementPlan},
-      {"computed-mask accumulation",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::
-           ComputedMaskAccumulation,
-       isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer,
-       buildComputedMaskAccumulationMigratedRouteStatementPlan},
-  };
-  return owners;
-}
-
-bool isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  for (const RVVSelectedBodyMigratedRouteStatementPlanOwner &owner :
-       getRVVSelectedBodyMigratedRouteStatementPlanOwners())
-    if (owner.isConsumer && owner.isConsumer(description))
-      return true;
-  return false;
-}
-
-llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
-getRVVSelectedBodyMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    llvm::StringRef context) {
-  const RVVSelectedBodyEmitCRouteDescription &description =
-      analysis.description;
-  RVVSelectedBodyMigratedRouteStatementPlan migratedPlan;
-
-  llvm::SmallVector<const RVVSelectedBodyMigratedRouteStatementPlanOwner *, 2>
-      selectedOwners;
-  for (const RVVSelectedBodyMigratedRouteStatementPlanOwner &owner :
-       getRVVSelectedBodyMigratedRouteStatementPlanOwners()) {
-    if (!owner.isConsumer || !owner.buildStatementPlan)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " encountered an incomplete migrated statement-plan owner registry "
-          "entry");
-    if (owner.isConsumer(description))
-      selectedOwners.push_back(&owner);
-  }
-
-  if (selectedOwners.size() > 1) {
-    std::string owners;
-    llvm::raw_string_ostream os(owners);
-    for (const RVVSelectedBodyMigratedRouteStatementPlanOwner *owner :
-         selectedOwners) {
-      if (!owners.empty())
-        os << ", ";
-      os << owner->familyName;
-    }
-    os.flush();
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " migrated statement-plan owner registry matched multiple owners for "
-        "operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) +
-        "', memory_form '" +
-        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "': " +
-        owners);
-  }
-
-  if (!selectedOwners.empty()) {
-    const RVVSelectedBodyMigratedRouteStatementPlanOwner &owner =
-        *selectedOwners.front();
-    if (llvm::Error error = owner.buildStatementPlan(
-            analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
-            memoryOperandBindingFacts, mathOperandBindingFacts,
-            residualOperandBindingFacts, migratedPlan, context))
-      return std::move(error);
-    if (!migratedPlan.plansMigratedRoute || migratedPlan.family != owner.family)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " migrated statement-plan owner '" + owner.familyName +
-          "' failed to produce its registered family plan before provider "
-          "route construction for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-  }
-
-  if (llvm::Error error =
-          requireRVVSelectedBodyMigratedRouteStatementPlanIfNeeded(
-              analysis, migratedPlan, context))
-    return std::move(error);
-  return migratedPlan;
 }
 
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage2 typed selected-body route-provider boundary, common EmitC neutrality, mirror-only metadata constraints, and no descriptor/source-front-door authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Migrated statement-plan provider consumption boundary, direct-contraction route-provider owner boundary, exact-one owner classification, fail-closed diagnostics, and provider neutrality requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC materialization neutrality; invalid RVV route inputs and metadata mirror constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ plugin testing, generated-bundle dry-run evidence, authority scans, and ssh rvv evidence policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for keeping RVV statement-plan ownership plugin-local and out of central/common semantic code."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Checklist for keeping typed body/config/capability/runtime facts as authority rather than names, ABI strings, route ids, mirrors, or artifacts."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for keeping compute semantics in RVV extension-family bodies and out of tcrv.exec/common EmitC."}
+{"file": ".trellis/tasks/05-30-stage2-rvv-statement-plan-owner-registry-extraction/prd.md", "reason": "Task-specific goal, scope, requirements, acceptance criteria, non-goals, technical approach, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-statement-plan-owner-boundary/prd.md", "reason": "Immediate predecessor boundary state: provider consumes statement-plan owner selection but registry authority still remains in planning."}

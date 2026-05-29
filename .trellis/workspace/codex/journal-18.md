@@ -1119,7 +1119,13 @@ Closed runtime_scalar_cmp_masked_load_store generated-bundle executable artifact
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task `.trellis/tasks/archive/2026-05/05-30-stage2-rvv-statement-plan-owner-registry-extraction` from the Hermes direction brief.
+- Moved migrated and direct-contraction statement-plan owner structs, registry getters, aggregate consumer predicates, aggregate statement-plan getters, exact-one selection, missing/multiple-owner diagnostics, and provider-facing statement attachment authority into `RVVEmitCStatementPlanOwners`.
+- Removed provider-facing migrated/direct owner registry and aggregate getter declarations/implementations from `RVVEmitCRoutePlanning.{h,cpp}`.
+- Kept `RVVEmitCRoutePlanning` as the owner of route analysis, materialization facts, operand-binding facts, route-control/provider-plan facts, and low-level statement builder hooks reused by the owner module.
+- Preserved `RVVEmitCRouteProvider.cpp` as a neutral `TCRVEmitCLowerableRoute` assembler that consumes the owner-selection/attach boundary rather than migrated/direct family sequencing.
+- Representative generated-bundle dry-run passed for `reduce_add` and `widening_dot_reduce_add`; both per-op evidence files report `route_entry_realization: false`.
+- No spec update was needed; this round implemented existing RVV plugin and common EmitC route contracts without changing durable architecture.
 
 ### Git Commits
 
@@ -1129,7 +1135,14 @@ Closed runtime_scalar_cmp_masked_load_store generated-bundle executable artifact
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] representative generated-bundle dry-run for `reduce_add` and `widening_dot_reduce_add`
+- [OK] bounded planning/provider registry authority scans
+- [OK] diff-only authority drift scan over touched files
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
 
 ### Status
 
@@ -1224,6 +1237,39 @@ Closed residual direct route-entry production API residue after fallback retirem
 
 - None - task complete
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 324: Stage2 RVV statement-plan owner registry extraction
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV statement-plan owner registry extraction
+**Branch**: `main`
+
+### Summary
+
+Moved migrated and direct-contraction selected-body statement-plan owner registries and exact-one selection into RVVEmitCStatementPlanOwners, preserved neutral provider route assembly, validated representative reduce_add and widening_dot_reduce_add dry-runs, and passed check-tianchenrv 464/464.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

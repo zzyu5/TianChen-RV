@@ -1412,25 +1412,6 @@ struct RVVSelectedBodyDirectContractionRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
-struct RVVSelectedBodyDirectContractionRouteProviderOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using StatementPlanBuilder = llvm::Error (*)(
-      RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyDirectContractionRouteProviderPlan &,
-      RVVSelectedBodyDirectContractionRouteStatementPlan &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  StatementPlanBuilder buildStatementPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyDirectContractionRouteProviderOwner>
-getRVVSelectedBodyDirectContractionRouteProviderOwners();
-
-bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-
 enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
   None,
   ElementwiseArithmetic,
@@ -1456,31 +1437,6 @@ struct RVVSelectedBodyMigratedRouteStatementPlan {
       preLoopSteps;
   conversion::emitc::TCRVEmitCForLoop loop;
 };
-
-struct RVVSelectedBodyMigratedRouteStatementPlanOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using StatementPlanBuilder = llvm::Error (*)(
-      RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts &,
-      const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
-      const RVVSelectedBodyMathRouteOperandBindingFacts &,
-      const RVVSelectedBodyResidualRouteOperandBindingFacts &,
-      RVVSelectedBodyMigratedRouteStatementPlan &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  RVVSelectedBodyMigratedRouteStatementPlanFamily family =
-      RVVSelectedBodyMigratedRouteStatementPlanFamily::None;
-  ConsumerPredicate isConsumer = nullptr;
-  StatementPlanBuilder buildStatementPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
-getRVVSelectedBodyMigratedRouteStatementPlanOwners();
-
-bool isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
 
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
@@ -1889,21 +1845,7 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
-getRVVSelectedBodyDirectContractionRouteProviderPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-getRVVSelectedBodyDirectContractionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
-getRVVSelectedBodyMigratedRouteStatementPlan(
+llvm::Error buildRVVSelectedBodyElementwiseArithmeticMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
@@ -1913,6 +1855,141 @@ getRVVSelectedBodyMigratedRouteStatementPlan(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     const RVVSelectedBodyResidualRouteOperandBindingFacts
         &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error
+buildRVVSelectedBodyRuntimeScalarSplatStoreMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyReductionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyStandaloneReductionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyPlainMAccMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyBaseMemoryMovementMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error
+buildRVVSelectedBodyComputedMaskAccumulationMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
+getRVVSelectedBodyDirectContractionRouteProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
     llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
