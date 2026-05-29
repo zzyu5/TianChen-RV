@@ -8174,8 +8174,8 @@ module {
                 providerPlan->baseMemoryMovementPlan ==
                     statementPlan->baseMemoryMovementPlan &&
                 providerPlan->bindingPlan == &analysis.routeOperandBindingPlan,
-            "base memory provider plan joins the family plan, binding plan, "
-            "and statement plan"))
+            "base memory provider plan joins the family plan and binding plan "
+            "while statement construction stays in the owner boundary"))
       return result;
     if (int result = expect(
             providerPlan->familyPlanIDMirror ==
@@ -8191,14 +8191,6 @@ module {
             "base memory provider plan carries validated mirror payloads from "
             "the RVV family owner"))
       return result;
-    if (int result = expect(
-            providerPlan->statementPlan.preLoopSteps.size() == 1 &&
-                providerPlan->statementPlan.loop.bodySteps.size() ==
-                    expectedBodyCallees.size(),
-            "base memory provider plan owns the ordered statement plan "
-            "consumed by route construction"))
-      return result;
-
     KernelOp kernel = findKernel(*module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);
     TCRVEmitCLowerableRoute route;
@@ -8312,7 +8304,8 @@ module {
               *stridedLoadBindingFacts,
               "base memory statement plan stale dependency unit test")
               .takeError(),
-          {"base memory movement statement plan requires the verified base "
+          {"base memory movement statement-plan owner requires the verified "
+           "base "
            "memory movement route-family plan",
            "before route statement construction"}))
     return result;
@@ -9509,7 +9502,7 @@ module {
               *runtimeScalarBindingFacts,
               "computed-mask memory statement plan missing dependency test")
               .takeError(),
-          {"computed-mask memory statement plan requires the verified "
+          {"computed-mask memory statement-plan owner requires the verified "
            "computed-mask memory route-family plan",
            "before route statement construction"}))
     return result;
@@ -9611,7 +9604,8 @@ module {
               staleRuntimeScalarOperandBindingFacts,
               "computed-mask memory stale operand-binding unit test")
               .takeError(),
-          {"computed-mask memory statement plan requires computed-mask memory "
+          {"computed-mask memory statement-plan owner requires computed-mask "
+           "memory "
            "operand-binding facts",
            "before route statement construction"}))
     return result;
@@ -9622,7 +9616,7 @@ module {
               *copiedRuntimeScalarMemoryFacts,
               "computed-mask memory stale operand-binding ownership unit test")
               .takeError(),
-          {"computed-mask memory statement plan requires memory "
+          {"computed-mask memory statement-plan owner requires memory "
            "operand-binding facts from the same selected route analysis",
            "before route statement construction"}))
     return result;

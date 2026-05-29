@@ -1343,3 +1343,59 @@ Moved migrated and direct-contraction selected-body statement-plan owner registr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 325: Stage2 RVV memory statement-plan owner boundary extraction
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV memory statement-plan owner boundary extraction
+**Branch**: `main`
+
+### Summary
+
+Moved base memory, computed-mask memory, and segment2 migrated RVV statement-plan construction into owner-local boundaries, kept planning/provider neutral, validated generated-bundle dry-runs, and passed check-tianchenrv 464/464.
+
+### Main Changes
+
+### Main Changes
+
+- Added owner-local memory statement-plan construction in `RVVEmitCMemoryStatementPlanOwners.cpp` for base memory movement, computed-mask memory, and segment2 memory families.
+- Removed planning-owned memory migrated statement-plan builder/getter APIs from `RVVEmitCRoutePlanning.h` and demoted `RVVEmitCRoutePlanning.cpp` to neutral provider-plan validation and shared data structures for this scope.
+- Updated statement-plan owner declarations and CMake wiring, and adjusted RVV plugin C++ coverage to prove owner-local memory statement selection and provider neutrality.
+- Archived Trellis task `stage2-rvv-memory-statement-plan-owner-boundary` with completion evidence.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-30-stage2-rvv-memory-statement-plan-owner-boundary`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Representative generated-bundle dry-run for `strided_load_unit_store`, `computed_masked_strided_load_unit_store`, and `computed_masked_segment2_update_unit_load`
+- [OK] Bounded planning/provider/authority scans
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

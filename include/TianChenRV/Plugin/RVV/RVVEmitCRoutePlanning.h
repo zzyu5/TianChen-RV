@@ -1252,8 +1252,6 @@ struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   llvm::StringRef routeOperandBindingSummaryMirror;
   llvm::StringRef requiredHeaderDeclarationsMirror;
   llvm::StringRef cTypeMappingSummaryMirror;
-
-  RVVSelectedBodyBaseMemoryMovementRouteStatementPlan statementPlan;
 };
 
 struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
@@ -1778,32 +1776,8 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
-getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
 llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
 getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
-getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
-getRVVSelectedBodySegment2MemoryRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMemoryRouteOperandBindingFacts
@@ -1919,42 +1893,6 @@ llvm::Error buildRVVSelectedBodyStandaloneReductionMigratedRouteStatementPlan(
     RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
 
 llvm::Error buildRVVSelectedBodyPlainMAccMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodyBaseMemoryMovementMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts

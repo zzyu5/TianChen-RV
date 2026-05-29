@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification of global architecture and evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final verification of RVV memory statement-plan ownership, provider neutrality, fail-closed diagnostics, and authority-leak constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final verification that common EmitC remains neutral and route payloads remain provider-built."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-direct-contraction-statement-plan-owner-boundary/prd.md", "reason": "Compare against predecessor extraction pattern and evidence expectations."}

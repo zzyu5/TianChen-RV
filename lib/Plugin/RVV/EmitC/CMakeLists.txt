@@ -1,6 +1,7 @@
 add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVEmitCRoutePlanning.cpp
   RVVEmitCRouteProvider.cpp
+  RVVEmitCMemoryStatementPlanOwners.cpp
   RVVEmitCStatementPlanOwners.cpp
 
   DEPENDS

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants: C++/MLIR stack, RVV-first authority chain, descriptor/source-front-door bans, and Stage1/Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin rules for selected-body realization, memory movement, mask/tail policy, route-control facts, statement-plan ownership, fail-closed diagnostics, and authority boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-direct-contraction-statement-plan-owner-boundary/prd.md", "reason": "Predecessor owner-boundary extraction pattern: move provider-ready statement construction to owner boundary while keeping planning fact collection neutral."}
