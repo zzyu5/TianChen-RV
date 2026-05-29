@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack, authority, and stage invariants after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV statement-plan ownership, provider neutrality, fail-closed diagnostics, and authority-drift constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built route payloads only."}
+{"file": ".trellis/tasks/05-30-stage2-rvv-reduction-accumulation-owner-boundary/prd.md", "reason": "Check changed files and evidence against current task acceptance criteria."}

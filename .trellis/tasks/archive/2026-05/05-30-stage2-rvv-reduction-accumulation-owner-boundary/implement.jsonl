@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, RVV-first stage, and source-of-truth invariants for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, reduction/accumulation statement-plan boundaries, migrated owner boundary, provider neutrality, fail-closed diagnostics, and mirror rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract: provider-built lowerable routes, common materialization neutrality, and mirror-only metadata."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-memory-statement-plan-owner-boundary/prd.md", "reason": "Immediate predecessor extraction pattern for moving statement-plan construction from planning into owner-local implementation."}
+{"file": ".trellis/tasks/05-30-stage2-rvv-reduction-accumulation-owner-boundary/prd.md", "reason": "Current task goal, boundaries, requirements, acceptance criteria, and validation plan."}

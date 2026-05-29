@@ -1399,3 +1399,36 @@ Moved base memory, computed-mask memory, and segment2 migrated RVV statement-pla
 ### Next Steps
 
 - None - task complete
+
+
+## Session 326: Stage2 RVV reduction accumulation owner extraction
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV reduction accumulation owner extraction
+**Branch**: `main`
+
+### Summary
+
+Moved migrated RVV reduction, standalone reduction, plain MAcc, and computed-mask accumulation statement-plan construction from route planning into owner-local EmitC implementation; checks passed including plugin test, dry-run evidence, and check-tianchenrv 464/464.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
