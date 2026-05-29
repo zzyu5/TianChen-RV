@@ -1685,21 +1685,51 @@ Closed RVV target artifact route-family validator coverage gaps, added fail-clos
 
 ### Summary
 
-Hardened reduce_add vector-reduction target validator facts, added generated-bundle vector_reduction_boundary evidence, added fail-closed target coverage, passed local checks; task remains open because ssh rvv is currently unroutable before remote setup.
+Completed the selected typed RVV `reduce_add` vector-reduction artifact/runtime
+ABI closure. The route remains provider/target-validator backed, generated
+bundle evidence now covers signed inputs and nonzero RHS seed behavior, and live
+`ssh rvv` correctness evidence passes the required zero, one, exact-VL, tail,
+and stress counts.
 
 ### Main Changes
 
-(Add details)
+- Preserved the selected typed path:
+  `tcrv.exec` RVV variant -> typed `tcrv_rvv.reduce` body -> RVV provider
+  route facts -> target-owned vector-reduction validator -> generated bundle.
+- Hardened the generated `reduce_add` harness inputs to include signed
+  `int32_t` source values and signed/nonzero RHS seed values.
+- Added self-test coverage so harness generation cannot silently lose signed
+  `reduce_add` inputs or the `rhs_seed` mismatch diagnostic.
+- Re-ran generated-bundle dry-run and live `ssh rvv` evidence for counts
+  `0`, `1`, `16`, `17`, and `257`; remote compile and run succeeded.
+- Spec sync: no `.trellis/spec/**` update was needed. Existing specs already
+  cover provider-derived typed `tcrv_rvv` authority, target-owned
+  route-family validation, mirror-only artifact metadata, and real `ssh rvv`
+  evidence for RVV runtime/correctness claims.
 
 ### Git Commits
 
 | Hash | Message |
 |------|---------|
-| `same commit` | (see git log) |
+| `final-round-commit` | `rvv: close vector reduction runtime abi evidence` |
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `ssh -o BatchMode=yes -o ConnectTimeout=8 rvv 'echo rvv-ok'`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --run-id codex-reduce-add-ssh-rvv --overwrite`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind reduce_add --dry-run --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --run-id codex-reduce-add-dryrun-boundary --overwrite`
+- [OK] Evidence JSON assertion for ssh success, counts, signed inputs,
+  provider-derived `vector_reduction_boundary`, mirror-only metadata label, and
+  direct pre-realized route-entry remaining false.
+- [OK] `cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] Bounded authority scan over the changed script diff for descriptor,
+  source-front-door/source-artifact, route-id, common-EmitC, direct-route-entry,
+  exact-intrinsic, and legacy-i32 authority drift.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 456/456.
 
 ### Status
 

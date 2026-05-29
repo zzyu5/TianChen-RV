@@ -98,11 +98,10 @@ correctness evidence.
       or stale candidate mirrors fail closed before artifact acceptance.
 - [x] Direct route-entry support remains false for this family unless a later
       task changes that architecture.
-- [ ] `ssh rvv` non-dry-run evidence passes for counts `0`, `1`, exact-VL,
+- [x] `ssh rvv` non-dry-run evidence passes for counts `0`, `1`, exact-VL,
       tail, and stress, including signed data and nonzero accumulator/seed
-      cases. Current blocker: `ssh rvv` fails before remote setup with
-      `No route to host` / `kex_exchange_identification: Connection closed by
-      remote host`.
+      cases. Evidence:
+      `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-reduce-add-ssh-rvv`.
 - [x] Focused target/generated-bundle tests pass.
 - [x] Route-family validator fail-closed regression remains covered.
 - [x] Bounded touched-file authority scan finds no central ad hoc,
@@ -113,7 +112,7 @@ correctness evidence.
       support authority.
 - [x] `git diff --check` passes.
 - [x] `check-tianchenrv` passes, or an exact blocker is recorded.
-- [ ] Trellis task status, journal/archive state, and commit state are
+- [x] Trellis task status, journal/archive state, and commit state are
       truthful at the end of the round.
 
 ## Current Round Status
@@ -123,16 +122,21 @@ correctness evidence.
   bundle dry-run evidence, and fail-closed C++ coverage.
 - Generated-bundle dry-run evidence:
   `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-reduce-add-dryrun-boundary`.
-- Attempted `ssh rvv` evidence:
+- Completed `ssh rvv` evidence:
   `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-reduce-add-ssh-rvv`.
-  The run did not reach remote compile or harness execution because the SSH
-  setup command failed with `No route to host` and
-  `kex_exchange_identification: Connection closed by remote host`.
-- Exact continuation point: rerun
+  The rerun reached the real `rvv` target, compiled with remote `riscv64`
+  clang, and passed counts `0`, `1`, `16`, `17`, and `257`.
+- The generated harness now uses signed `int32_t` input patterns for both the
+  reduction source and RHS seed input, checks the scalar lane-0 result, reports
+  `rhs_seed` in mismatch diagnostics, and preserves non-result-lane sentinels.
+- Final evidence command:
   `python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind reduce_add
   --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17
-  --runtime-count 257 --run-id codex-reduce-add-ssh-rvv --overwrite` once
-  `ssh rvv` is routable.
+  --runtime-count 257 --run-id codex-reduce-add-ssh-rvv --overwrite`.
+- Spec-update judgment: no `.trellis/spec/**` edit is needed. This round
+  follows existing specs for provider-derived typed `tcrv_rvv` authority,
+  target-owned route-family validation, mirror-only artifact metadata, and real
+  `ssh rvv` evidence.
 
 ## Out Of Scope
 

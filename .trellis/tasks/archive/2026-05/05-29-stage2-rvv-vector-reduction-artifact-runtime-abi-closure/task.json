@@ -3,7 +3,7 @@
   "name": "stage2-rvv-vector-reduction-artifact-runtime-abi-closure",
   "title": "Stage2 RVV vector-reduction artifact/runtime ABI closure",
   "description": "Hermes direction: make vector-reduction reduce_add artifact generation and runtime evidence validator-backed end to end from selected typed RVV body through provider facts, target validator, generated bundle, and ssh rvv correctness.",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp; lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp; lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp; lib/Target/RVV/RVVTargetSupportBundle.cpp; scripts/rvv_generated_bundle_abi_e2e.py; test/Target/TargetArtifactExportTest.cpp; test/Plugin/RVVExtensionPluginTest.cpp",
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "codex",
   "assignee": "codex",
   "createdAt": "2026-05-29",
-  "completedAt": null,
+  "completedAt": "2026-05-29",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Local vector-reduction reduce_add validator/evidence closure implemented and validated. Task remains open because ssh rvv is currently unroutable before remote setup: No route to host / kex_exchange_identification closed.",
+  "notes": "Vector-reduction reduce_add artifact/runtime ABI closure completed. Local dry-run, signed/nonzero-seed generated harness checks, target/plugin tests, live ssh rvv evidence over counts 0/1/16/17/257, authority scan, git diff --check, and check-tianchenrv 456/456 passed.",
   "meta": {}
 }

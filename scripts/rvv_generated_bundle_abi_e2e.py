@@ -3062,8 +3062,14 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-reduce-add-emitc-route",
         typed_compute_op="tcrv_rvv.reduce",
         memory_form="vector-rhs-load",
-        lhs_initializer="(int32_t)(1 + (int32_t)(index % 11))",
-        rhs_initializer="(int32_t)(1000 + (int32_t)(index * 3))",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) < 2) ? -((int32_t)(index % 29) + 1) "
+            ": ((int32_t)(index % 31) + 3))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 3) == 0) ? -((int32_t)(1000 + index)) "
+            ": (int32_t)(1000 + (int32_t)(index * 3)))"
+        ),
         expected_expression="rhs[chunk_start] + sum(lhs[chunk_start:chunk_start+vl])",
     ),
     "masked_add": OpExpectation(
@@ -22985,6 +22991,15 @@ def run_self_test() -> int:
             ):
                 raise AssertionError(
                     f"self-test harness generation lost {expectation.kind} ABI call"
+                )
+            if expectation.is_reduce_add and (
+                "-((int32_t)(index % 29) + 1)" not in harness
+                or "-((int32_t)(1000 + index))" not in harness
+                or "rhs_seed=%d" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost reduce_add signed "
+                    "input or nonzero seed coverage"
                 )
             scalar_literal_suffix = (
                 "LL" if expectation.element_c_type == "int64_t" else ""
