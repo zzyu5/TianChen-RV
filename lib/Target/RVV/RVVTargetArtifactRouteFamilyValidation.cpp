@@ -5131,6 +5131,575 @@ llvm::Error validateRVVSegment2MemoryRouteABIMappings(
   return llvm::Error::success();
 }
 
+constexpr llvm::StringLiteral kRVVComputedMaskMemoryRouteFamilyPlanID(
+    "rvv-computed-mask-memory-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskProducerSource(
+    "vector-compare-rhs-load");
+constexpr llvm::StringLiteral kRVVSegment2RequiredHeaders(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVSegment2TupleCType("vint32m1x2_t");
+constexpr llvm::StringLiteral kRVVSegment2Field0OutputRole(
+    "segment-field0-output-buffer");
+constexpr llvm::StringLiteral kRVVSegment2Field1OutputRole(
+    "segment-field1-output-buffer");
+constexpr llvm::StringLiteral kRVVSegment2Field0InputRole(
+    "segment-field0-input-buffer");
+constexpr llvm::StringLiteral kRVVSegment2Field1InputRole(
+    "segment-field1-input-buffer");
+constexpr llvm::StringLiteral kRVVSegment2UnitStrideMemoryForm(
+    "unit-stride-load");
+constexpr llvm::StringLiteral kRVVSegment2UnitStrideStoreMemoryForm(
+    "unit-stride-store");
+constexpr llvm::StringLiteral kRVVSegment2InterleavedLoadMemoryForm(
+    "segment2-interleaved-unit-stride-load");
+constexpr llvm::StringLiteral kRVVSegment2InterleavedStoreMemoryForm(
+    "segment2-interleaved-unit-stride-store");
+constexpr llvm::StringLiteral kRVVSegment2MaskedMemoryInactiveLaneContract(
+    "masked-off-lanes-preserve-old-destination");
+constexpr llvm::StringLiteral kRVVSegment2MaskedMemoryPassthroughLayout(
+    "old-destination-vector-preserves-inactive-lanes");
+constexpr llvm::StringLiteral kRVVSegment2MaskedStoreInactiveLaneContract(
+    "masked-store-false-lanes-preserve-output-buffer");
+constexpr llvm::StringLiteral kRVVSegment2MaskedStorePassthroughLayout(
+    "masked-store-has-no-passthrough-load");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadMemoryLayout(
+    "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreMemoryLayout(
+    "unit-stride-compare-field-payloads-segment2-masked-destination-runtime-abi");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateMemoryLayout(
+    "unit-stride-compare-field-payloads-arithmetic-segment2-masked-destination-runtime-abi");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRouteOperandPlan(
+    "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRouteOperandSummary(
+    "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+    "src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem;"
+    "out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|"
+    "f0-store|f0-role|dst-mem|hdr;"
+    "out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|"
+    "f1-store|f1-role|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRouteOperandPlan(
+    "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRouteOperandSummary(
+    "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+    "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem;"
+    "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem;"
+    "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRouteOperandPlan(
+    "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRouteOperandSummary(
+    "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+    "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|"
+    "add-lhs|tuple0|f0-role|src0-mem;"
+    "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|"
+    "add-rhs|tuple1|f1-role|src1-mem;"
+    "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadTargetLeafProfile(
+    "rvv-v1-e32m1-computed-mask-segment2-load-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreTargetLeafProfile(
+    "rvv-v1-e32m1-computed-mask-segment2-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateTargetLeafProfile(
+    "rvv-v1-e32m1-computed-mask-segment2-update-add-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadProviderMirror(
+    "provider_supported_mirror:rvv-computed-mask-segment2-load-plan-validated");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreProviderMirror(
+    "provider_supported_mirror:rvv-computed-mask-segment2-store-plan-validated");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateProviderMirror(
+    "provider_supported_mirror:rvv-computed-mask-segment2-update-add-plan-validated");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadCTypeMapping(
+    "vl:size_t,compare/source/passthrough-fields:signed-e32m1,mask:b32,"
+    "segment2:vint32m1x2,result:masked-segment2-load-store");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreCTypeMapping(
+    "vl:size_t,compare/field-payloads:signed-e32m1,mask:b32,"
+    "segment2:vint32m1x2,dst:masked-segment2-store");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateCTypeMapping(
+    "vl:size_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,"
+    "segment2:vint32m1x2,dst:masked-segment2-update-store");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,src,out0,out1,n");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,src0,src1,dst,n");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadField0Name(
+    "masked_segment2_field0_vec");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadField1Name(
+    "masked_segment2_field1_vec");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreField0Name(
+    "masked_segment2_store_field0_vec");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreField1Name(
+    "masked_segment2_store_field1_vec");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateField0Name(
+    "masked_segment2_update_field0_vec");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateField1Name(
+    "masked_segment2_update_field1_vec");
+constexpr llvm::StringLiteral kRVVSegment2UpdateArithmeticKind("add");
+
+plugin::rvv::RVVSelectedBodyMemoryForm
+getRVVSegment2MemoryExpectedMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::
+        ComputedMaskSegment2LoadUnitStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::
+        ComputedMaskUnitLoadSegment2Store;
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return plugin::rvv::RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
+  default:
+    llvm_unreachable("queried segment2 memory form for non-segment2 operation");
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedTypedComputeOp(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return "tcrv_rvv.masked_segment2_load";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return "tcrv_rvv.masked_segment2_store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return "tcrv_rvv.binary";
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedRuntimeABIOrder(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVComputedMaskSegment2LoadRuntimeABIOrder;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVComputedMaskSegment2StoreRuntimeABIOrder;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedRouteOperandPlan(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadRouteOperandPlan;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreRouteOperandPlan;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateRouteOperandPlan;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedRouteOperandSummary(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadRouteOperandSummary;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreRouteOperandSummary;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateRouteOperandSummary;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedTargetLeafProfile(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadTargetLeafProfile;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreTargetLeafProfile;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateTargetLeafProfile;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedProviderMirror(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadProviderMirror;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreProviderMirror;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateProviderMirror;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedCTypeMapping(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadCTypeMapping;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreCTypeMapping;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateCTypeMapping;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedSegmentMemoryLayout(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadMemoryLayout;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreMemoryLayout;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateMemoryLayout;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedInactiveLaneContract(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2MaskedMemoryInactiveLaneContract;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2MaskedStoreInactiveLaneContract;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedMaskedPassthroughLayout(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2MaskedMemoryPassthroughLayout;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2MaskedStorePassthroughLayout;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedSourceMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2InterleavedLoadMemoryForm;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2UnitStrideMemoryForm;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedDestinationMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2UnitStrideStoreMemoryForm;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2InterleavedStoreMemoryForm;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedField0Role(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2Field0OutputRole;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2Field0InputRole;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedField1Role(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2Field1OutputRole;
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2Field1InputRole;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedField0Name(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadField0Name;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreField0Name;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateField0Name;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedField1Name(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadField1Name;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreField1Name;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateField1Name;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedFieldSourceMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2StoreUnitLoad ||
+      operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2UpdateUnitLoad)
+    return kRVVSegment2UnitStrideMemoryForm;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedFieldDestinationMemoryForm(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2UnitStrideStoreMemoryForm;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedUpdateArithmeticKind(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2UpdateUnitLoad)
+    return kRVVSegment2UpdateArithmeticKind;
+  return {};
+}
+
+llvm::Error requireRVVSegment2MemoryProviderField(
+    llvm::StringRef label, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  if (expected.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer rejects stale "
+                    "provider-derived ") +
+        label + " fact '" + actual + "'");
+  if (actual.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "provider-derived ") +
+        label + " '" + expected + "' before artifact export");
+  return makeRVVTargetRouteError(
+      llvm::Twine("segment2-memory target artifact consumer requires "
+                  "provider-derived ") +
+      label + " '" + expected + "' but was '" + actual + "'");
+}
+
+llvm::Error validateRVVComputedMaskSegment2MemoryProviderFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const plugin::rvv::RVVSelectedBodyOperationKind operation =
+      description.operation;
+  const plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm =
+      getRVVSegment2MemoryExpectedMemoryForm(operation);
+  if (description.memoryForm != expectedMemoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer requires "
+                    "selected typed RVV memory form '") +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(expectedMemoryForm) +
+        "' before artifact export but saw '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "typed compute op", description.typedComputeOpName,
+          getRVVComputedMaskSegment2ExpectedTypedComputeOp(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "runtime ABI order", description.runtimeABIOrder,
+          getRVVComputedMaskSegment2ExpectedRuntimeABIOrder(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "route operand binding plan", description.routeOperandBindingPlanID,
+          getRVVComputedMaskSegment2ExpectedRouteOperandPlan(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "route operand binding summary",
+          description.routeOperandBindingSummary,
+          getRVVComputedMaskSegment2ExpectedRouteOperandSummary(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "target leaf profile", description.targetLeafProfile,
+          getRVVComputedMaskSegment2ExpectedTargetLeafProfile(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "provider-supported mirror", description.providerSupportedMirror,
+          getRVVComputedMaskSegment2ExpectedProviderMirror(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "required header declarations",
+          description.requiredHeaderDeclarations, kRVVSegment2RequiredHeaders))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "C type mapping", description.cTypeMappingSummary,
+          getRVVComputedMaskSegment2ExpectedCTypeMapping(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "computed-mask route-family plan",
+          description.computedMaskMemoryRouteFamilyPlanID,
+          kRVVComputedMaskMemoryRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "computed-mask producer source",
+          description.computedMaskMemoryMaskProducerSource,
+          kRVVComputedMaskMemoryMaskProducerSource))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask role", description.maskRole, kRVVComputedMaskRole))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask source", description.maskSource, kRVVComputedMaskSource))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask memory form", description.maskMemoryForm,
+          kRVVComputedMaskMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "compare predicate", description.comparePredicateKind,
+          kRVVComputedMaskComparePredicateKind))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "compare intrinsic", description.compareIntrinsic,
+          kRVVComputedMaskCompareIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "compare/source load intrinsic", description.vectorLoadIntrinsic,
+          kRVVComputedMaskCompareLoadIntrinsic))
+    return error;
+  if (description.tailPolicy != "agnostic" || description.maskPolicy != "agnostic")
+    return makeRVVTargetRouteError(
+        "computed-mask segment2-memory target artifact consumer requires "
+        "provider-derived agnostic tail/mask policy before artifact export");
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "inactive lane contract", description.inactiveLaneContract,
+          getRVVComputedMaskSegment2ExpectedInactiveLaneContract(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "masked passthrough layout", description.maskedPassthroughLayout,
+          getRVVComputedMaskSegment2ExpectedMaskedPassthroughLayout(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment memory layout", description.segmentMemoryLayout,
+          getRVVComputedMaskSegment2ExpectedSegmentMemoryLayout(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "source memory form", description.sourceMemoryForm,
+          getRVVComputedMaskSegment2ExpectedSourceMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "destination memory form", description.destinationMemoryForm,
+          getRVVComputedMaskSegment2ExpectedDestinationMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment tuple C type", description.segmentTupleCType,
+          kRVVSegment2TupleCType))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 role", description.field0Role,
+          getRVVComputedMaskSegment2ExpectedField0Role(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 role", description.field1Role,
+          getRVVComputedMaskSegment2ExpectedField1Role(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 name", description.field0Name,
+          getRVVComputedMaskSegment2ExpectedField0Name(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 name", description.field1Name,
+          getRVVComputedMaskSegment2ExpectedField1Name(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 source memory form", description.field0SourceMemoryForm,
+          getRVVComputedMaskSegment2ExpectedFieldSourceMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 source memory form", description.field1SourceMemoryForm,
+          getRVVComputedMaskSegment2ExpectedFieldSourceMemoryForm(operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 destination memory form",
+          description.field0DestinationMemoryForm,
+          getRVVComputedMaskSegment2ExpectedFieldDestinationMemoryForm(
+              operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 destination memory form",
+          description.field1DestinationMemoryForm,
+          getRVVComputedMaskSegment2ExpectedFieldDestinationMemoryForm(
+              operation)))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment2 update arithmetic kind",
+          description.segment2UpdateArithmeticKind,
+          getRVVComputedMaskSegment2ExpectedUpdateArithmeticKind(operation)))
+    return error;
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2UpdateUnitLoad) {
+    if (description.segment2UpdateArithmeticIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          "computed-mask segment2 update target artifact consumer requires "
+          "provider-derived update arithmetic callee before artifact export");
+  } else if (!description.segment2UpdateArithmeticIntrinsic.empty()) {
+    return makeRVVTargetRouteError(
+        llvm::Twine("segment2-memory target artifact consumer rejects stale "
+                    "provider-derived segment2 update arithmetic callee fact '") +
+        description.segment2UpdateArithmeticIntrinsic + "'");
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -5217,12 +5786,9 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     break;
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskSegment2UpdateUnitLoad:
-    if (description.intrinsic.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask segment2 update target artifact consumer requires "
-          "provider-derived update arithmetic facts before artifact export");
     if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-        !routeLoopContainsCallee(loop, description.intrinsic) ||
+        !routeLoopContainsCallee(loop,
+                                 description.segment2UpdateArithmeticIntrinsic) ||
         !routeLoopContainsCallee(loop, description.segmentStoreIntrinsic) ||
         !routeLoopContainsCallee(loop,
                                  description.segmentFieldExtractIntrinsic))
@@ -5285,11 +5851,15 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
     if (description.computedMaskMemoryRouteFamilyPlanID.empty() ||
         description.computedMaskMemoryMaskProducerSource.empty() ||
         description.maskRole.empty() || description.maskSource.empty() ||
-        description.maskMemoryForm.empty() || description.compareIntrinsic.empty())
+        description.maskMemoryForm.empty() ||
+        description.compareIntrinsic.empty())
       return makeRVVTargetRouteError(
           "computed-mask segment2-memory target artifact consumer requires "
           "provider-derived computed-mask family, producer, role, source, "
           "memory-form, and compare facts before artifact export");
+    if (llvm::Error error =
+            validateRVVComputedMaskSegment2MemoryProviderFacts(description))
+      return error;
     if (!description.segment2MemoryRouteFamilyPlanID.empty())
       return makeRVVTargetRouteError(
           "computed-mask segment2-memory target artifact consumer rejects "
@@ -5375,6 +5945,11 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
           description.providerSupportedMirror,
           "selected typed RVV segment2-memory provider support"))
     return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.target_leaf_profile",
+          description.targetLeafProfile,
+          "selected typed RVV segment2-memory target leaf profile"))
+    return error;
 
   if (isRVVPlainSegment2MemoryRouteFamilyOperation(description.operation)) {
     if (llvm::Error error = requireCandidateMetadataMirror(
@@ -5449,6 +6024,16 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
   if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
           description.operation)) {
     if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind",
+            description.comparePredicateKind,
+            "selected typed RVV computed-mask segment2 compare predicate"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_memory_layout",
+            description.segmentMemoryLayout,
+            "selected typed RVV computed-mask segment2 masked memory layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.computed_mask_memory_mask_producer_source",
             description.computedMaskMemoryMaskProducerSource,
             "selected typed RVV computed-mask segment2 producer source"))
@@ -5464,6 +6049,115 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.mask_memory_form", description.maskMemoryForm,
             "selected typed RVV computed-mask segment2 mask memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.inactive_lane_contract",
+            description.inactiveLaneContract,
+            "selected typed RVV computed-mask segment2 inactive lane contract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_passthrough_layout",
+            description.maskedPassthroughLayout,
+            "selected typed RVV computed-mask segment2 passthrough layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_tuple_c_type",
+            description.segmentTupleCType,
+            "selected typed RVV computed-mask segment2 tuple C type"))
+      return error;
+    if (description.operation ==
+        plugin::rvv::RVVSelectedBodyOperationKind::
+            ComputedMaskSegment2LoadUnitStore) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_load_intrinsic",
+              description.segmentLoadIntrinsic,
+              "selected typed RVV computed-mask segment2 load callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_store_intrinsic",
+              description.segmentStoreIntrinsic,
+              "selected typed RVV computed-mask segment2 tuple materializer"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_field_extract_intrinsic",
+              description.segmentFieldExtractIntrinsic,
+              "selected typed RVV computed-mask segment2 field extract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_tuple_create_intrinsic", "",
+              "selected typed RVV computed-mask segment2 tuple create"))
+        return error;
+    } else {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_load_intrinsic", "",
+              "selected typed RVV computed-mask segment2 load callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_store_intrinsic",
+              description.segmentStoreIntrinsic,
+              "selected typed RVV computed-mask segment2 masked store callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
+              description.segmentFieldExtractIntrinsic,
+              "selected typed RVV computed-mask segment2 tuple create"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_field_extract_intrinsic", "",
+              "selected typed RVV computed-mask segment2 field extract"))
+        return error;
+    }
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_role", description.field0Role,
+            "selected typed RVV computed-mask segment2 field0 role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_role", description.field1Role,
+            "selected typed RVV computed-mask segment2 field1 role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_name", description.field0Name,
+            "selected typed RVV computed-mask segment2 field0 binding"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_name", description.field1Name,
+            "selected typed RVV computed-mask segment2 field1 binding"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_source_memory_form",
+            description.field0SourceMemoryForm,
+            "selected typed RVV computed-mask segment2 field0 source memory "
+            "form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_source_memory_form",
+            description.field1SourceMemoryForm,
+            "selected typed RVV computed-mask segment2 field1 source memory "
+            "form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_destination_memory_form",
+            description.field0DestinationMemoryForm,
+            "selected typed RVV computed-mask segment2 field0 destination "
+            "memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_destination_memory_form",
+            description.field1DestinationMemoryForm,
+            "selected typed RVV computed-mask segment2 field1 destination "
+            "memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment2_update_arithmetic_kind",
+            description.segment2UpdateArithmeticKind,
+            "selected typed RVV computed-mask segment2 update arithmetic "
+            "kind"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment2_update_arithmetic_intrinsic",
+            description.segment2UpdateArithmeticIntrinsic,
+            "selected typed RVV computed-mask segment2 update arithmetic "
+            "callee"))
       return error;
   } else {
     if (llvm::Error error = requireCandidateMetadataMirror(
@@ -5481,6 +6175,14 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrors(
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.mask_memory_form", "",
             "selected typed RVV computed-mask segment2 mask memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind", "",
+            "selected typed RVV computed-mask segment2 compare predicate"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_memory_layout", "",
+            "selected typed RVV computed-mask segment2 masked memory layout"))
       return error;
   }
 

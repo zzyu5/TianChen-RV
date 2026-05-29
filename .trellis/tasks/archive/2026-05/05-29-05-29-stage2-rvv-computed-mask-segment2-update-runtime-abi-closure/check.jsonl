@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global source-of-truth and authority-leak checks."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-boundary, provider fact, segment2, mask/tail, and fail-closed behavior checks."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains ABI/runtime envelope only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider routes only."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Rebuilt and ran build/bin/tianchenrv-target-artifact-export-test; covers target-owned artifact validator positive and negative computed-mask segment2 update cases."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Focused lit passed 14/14 for computed-mask segment2 update/load/store after self-repairing explicit FileCheck expectation."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Focused lit passed 14/14 and pre-realized residue test preserves target leaf while injecting stale non-family mirror."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-segment2-update-dry-run.test", "reason": "Generated-bundle lit coverage passed as part of the focused computed-mask segment2 update set."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile and --self-test passed; explicit selected-body update dry-run passed for counts 0,1,16,17,257."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Pre-realized selected-boundary update dry-run passed for counts 0,1,16,17,257."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Direct pre-realized route-entry dry-run intentionally failed closed with selected-boundary-only diagnostic."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Explicit selected-body ssh rvv correctness passed for counts 0,1,16,17,257 with active/inactive/tail preservation."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Pre-realized selected-boundary ssh rvv correctness passed for counts 0,1,16,17,257 with active/inactive/tail preservation."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Computed-mask segment2 load/store and completed computed-mask widening-dot non-regression dry-runs passed for counts 0,1,16,17,257."}
+{"file": ".trellis/spec/index.md", "reason": "git diff --check passed; touched-file authority scan found only negative/rejection fixtures or existing legacy rejection strings."}
+{"file": ".trellis/spec/testing/index.md", "reason": "check-tianchenrv passed 458/458 after repairing two FileCheck expectation mismatches found in the first full run."}

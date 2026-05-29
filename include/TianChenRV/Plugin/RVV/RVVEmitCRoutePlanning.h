@@ -1325,6 +1325,7 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef arithmeticKind;
   llvm::StringRef arithmeticIntrinsic;
   llvm::StringRef segmentLoadIntrinsic;
   llvm::StringRef segmentStoreIntrinsic;

@@ -246,6 +246,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef segmentLoadIntrinsic;
   llvm::StringRef segmentStoreIntrinsic;
   llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef segment2UpdateArithmeticKind;
+  llvm::StringRef segment2UpdateArithmeticIntrinsic;
   llvm::StringRef field0Role;
   llvm::StringRef field1Role;
   llvm::StringRef field0Name;

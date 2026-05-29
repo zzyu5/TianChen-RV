@@ -3688,6 +3688,35 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="slt",
     ),
+    "computed_masked_segment2_update_unit_load": OpExpectation(
+        kind="computed_masked_segment2_update_unit_load",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_cmseg_update",
+        external_abi_name="rvv-generic-computed-masked-segment2-update-unit-load-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_cmseg_update_kernel_explicit_selected_body_rvv_cmseg_update",
+        emitc_route="rvv-generic-computed-masked-segment2-update-unit-load-emitc-route",
+        typed_compute_op="tcrv_rvv.binary",
+        memory_form="computed-mask-unit-load-segment2-store",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(10 + (int32_t)index) "
+            ": (int32_t)(100 + (int32_t)index))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(50 + (int32_t)index) "
+            ": (int32_t)(20 + (int32_t)index))"
+        ),
+        source_initializer="(int32_t)(7100 + (int32_t)(index * 59))",
+        out_initializer="(int32_t)(-19000 - (int32_t)(index * 41))",
+        expected_expression=(
+            "cmp_lhs[index] < cmp_rhs[index] ? "
+            "(src0[index] + src1[index]) : old_dst[2 * index + field]"
+        ),
+        compare_predicate_kind="slt",
+    ),
     "segment2_deinterleave_unit_store": OpExpectation(
         kind="segment2_deinterleave_unit_store",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-segment2-deinterleave-unit-store.mlir"),

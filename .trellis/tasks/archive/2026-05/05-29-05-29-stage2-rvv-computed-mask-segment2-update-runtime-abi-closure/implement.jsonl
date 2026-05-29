@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundary, RVV stage order, and source-of-truth rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, provider construction, mask/tail policy, segment2 memory movement, runtime ABI binding, mirror metadata, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Execution envelope and ABI/runtime role boundary for selected RVV variants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Neutral EmitC route/materialization boundary and target artifact authority rules."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added provider route description fields for computed-mask segment2 update arithmetic kind/callee so target validation consumes provider-derived facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Threaded computed-mask segment2 update arithmetic provider plan state into the segment2 route-family provider plan."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived and emitted segment2 update arithmetic facts from RVV provider planning, not target-side hard-coded intrinsic authority."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Closed target-owned computed_masked_segment2_update_unit_load artifact validation over provider-derived mask, tuple, update, ABI, header/type, and stale-rejection facts."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added explicit selected-body generated-bundle ABI expectation and correctness oracle for computed-mask segment2 update."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added C++ target artifact validation coverage for positive update export and stale provider/candidate fact rejection."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Added explicit selected-body artifact fixture with positive and fail-closed update runtime ABI checks."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Adjusted pre-realized selected-boundary residue check to preserve target leaf facts while injecting stale mirrors."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-segment2-update-dry-run.test", "reason": "Added generated-bundle dry-run lit coverage for the explicit computed-mask segment2 update path."}

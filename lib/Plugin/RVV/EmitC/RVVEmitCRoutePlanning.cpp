@@ -9461,7 +9461,9 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   plan.compareIntrinsic = targetLeaves.compareIntrinsic;
   plan.arithmeticKind = isComputedMaskSegment2Update ? "add" : "";
   plan.arithmeticIntrinsic =
-      isComputedMaskSegment2Update ? "__riscv_vadd_vv_i32m1" : "";
+      isComputedMaskSegment2Update
+          ? getRVVSelectedBodyArithmeticIntrinsic(operation, configProfile)
+          : llvm::StringRef();
   plan.maskedLoadIntrinsic =
       (isLoadMerge || isComputedMaskSegment2Load) ? targetLeaves.intrinsic : "";
   plan.maskedStoreIntrinsic =
@@ -9679,6 +9681,8 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   description.segmentLoadIntrinsic = plan.segmentLoadIntrinsic;
   description.segmentStoreIntrinsic = plan.segmentStoreIntrinsic;
   description.segmentFieldExtractIntrinsic = plan.segmentFieldExtractIntrinsic;
+  description.segment2UpdateArithmeticKind = plan.arithmeticKind;
+  description.segment2UpdateArithmeticIntrinsic = plan.arithmeticIntrinsic;
   description.field0Role = plan.field0Role;
   description.field1Role = plan.field1Role;
   description.field0Name = plan.field0Name;
@@ -31074,6 +31078,9 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     plan.vectorLoadIntrinsic = computedPlan.vectorLoadIntrinsic;
     plan.storeIntrinsic = computedPlan.maskedStoreIntrinsic;
     plan.compareIntrinsic = computedPlan.compareIntrinsic;
+    plan.arithmeticKind =
+        isComputedMaskSegment2Update ? computedPlan.arithmeticKind
+                                     : llvm::StringRef();
     plan.arithmeticIntrinsic =
         isComputedMaskSegment2Update ? computedPlan.arithmeticIntrinsic
                                      : llvm::StringRef();
@@ -36772,9 +36779,10 @@ void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     metadata.push_back({"tcrv_rvv.field1_source_memory_form",
                         description.field1SourceMemoryForm});
     if (isUpdate) {
-      metadata.push_back({"tcrv_rvv.segment2_update_arithmetic_kind", "add"});
+      metadata.push_back({"tcrv_rvv.segment2_update_arithmetic_kind",
+                          description.segment2UpdateArithmeticKind});
       metadata.push_back({"tcrv_rvv.segment2_update_arithmetic_intrinsic",
-                          "__riscv_vadd_vv_i32m1"});
+                          description.segment2UpdateArithmeticIntrinsic});
     }
     return;
   }

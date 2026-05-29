@@ -513,6 +513,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.masked_segment2_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
     return "tcrv_rvv.masked_segment2_store";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
     return "tcrv_rvv.move";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
@@ -587,6 +589,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "computed_masked_segment2_load_unit_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
     return "computed_masked_segment2_store_unit_load";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return "computed_masked_segment2_update_unit_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
     return "segment2_deinterleave_unit_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
@@ -649,6 +653,57 @@ module {
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
   using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  if (op == OperationKind::ComputedMaskSegment2UpdateUnitLoad) {
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    std::string maskType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.mask<i32, \"m2\">"
+            : "!tcrv_rvv.mask<i32, \"m1\">";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:cmp-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:cmp-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:src0", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:src1", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:dst", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-computed-mask-segment2-update:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %field0 = tcrv_rvv.load %src0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %field1 = tcrv_rvv.load %src1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << maskType << R"mlir(
+        %updated = tcrv_rvv.binary %field0, %field1, %vl {kind = "add"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
+        tcrv_rvv.masked_segment2_store %dst, %mask, %updated, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, )mlir"
+       << maskType << R"mlir(, )mlir" << vectorType << R"mlir(, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   if (op == OperationKind::StridedLoadUnitStore ||
       op == OperationKind::IndexedGatherUnitStore ||
       op == OperationKind::MaskedUnitLoadStore) {
@@ -2413,6 +2468,352 @@ bool expectRVVTargetArtifactExporterShape(
           "mirror",
           {"must not carry",
            "selected typed RVV non-widening-dot route-family mirror"}))
+    return false;
+
+  auto expectComputedMaskSegment2Positive =
+      [&](llvm::StringRef fixtureContext,
+          const RVVTargetArtifactCandidateFixture &fixture,
+          tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+          RVVRouteDescription &description) -> bool {
+    if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))
+      return false;
+    std::string validateContext =
+        (llvm::Twine("validate RVV computed-mask segment2 target artifact "
+                     "candidate through exporter for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                           fixture.candidate, *exporter),
+                       validateContext))
+      return false;
+    std::string rebuildContext =
+        (llvm::Twine("rebuild RVV computed-mask segment2 route validator "
+                     "inputs for ") +
+         fixtureContext)
+            .str();
+    if (!buildRVVRouteValidationInputs(
+            fixture, route, description, rebuildContext))
+      return false;
+
+    RVVRouteValidationContext context{fixture.candidate, route, description};
+    std::string providerContext =
+        (llvm::Twine("computed-mask segment2 registry accepts provider facts "
+                     "for ") +
+         fixtureContext)
+            .str();
+    if (!expectSuccess(
+            tianchenrv::target::rvv::
+                validateRVVTargetArtifactRouteFamilyProviderFacts(context),
+            providerContext))
+      return false;
+    std::string mirrorContext =
+        (llvm::Twine("computed-mask segment2 registry accepts candidate "
+                     "mirrors for ") +
+         fixtureContext)
+            .str();
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(context),
+        mirrorContext);
+  };
+
+  RVVTargetArtifactCandidateFixture computedMaskSegment2UpdateFixture(
+      OperationKind::ComputedMaskSegment2UpdateUnitLoad);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskSegment2UpdateRoute;
+  RVVRouteDescription computedMaskSegment2UpdateDescription;
+  if (!expectComputedMaskSegment2Positive(
+          "computed-mask segment2 update-unit-load",
+          computedMaskSegment2UpdateFixture, computedMaskSegment2UpdateRoute,
+          computedMaskSegment2UpdateDescription))
+    return false;
+
+  auto expectComputedMaskSegment2ProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        computedMaskSegment2UpdateFixture.candidate,
+        computedMaskSegment2UpdateRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectComputedMaskSegment2CandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, computedMaskSegment2UpdateRoute,
+        computedMaskSegment2UpdateDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription wrongSegment2Operation =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2Operation.operation =
+      OperationKind::ComputedMaskSegment2StoreUnitLoad;
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2Operation,
+          "computed-mask segment2 registry rejects wrong operation facts",
+          {"typed compute op", "tcrv_rvv.masked_segment2_store",
+           "tcrv_rvv.binary"}))
+    return false;
+
+  RVVRouteDescription staleSegment2RouteID =
+      computedMaskSegment2UpdateDescription;
+  staleSegment2RouteID.emitCRouteID =
+      "rvv-script-derived-segment2-update-route";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          staleSegment2RouteID,
+          "computed-mask segment2 registry rejects route-id-derived support",
+          {"route id", "rvv-script-derived-segment2-update-route",
+           computedMaskSegment2UpdateRoute.getRouteID()}))
+    return false;
+
+  RVVRouteDescription staleSegment2PlainFamily =
+      computedMaskSegment2UpdateDescription;
+  staleSegment2PlainFamily.segment2MemoryRouteFamilyPlanID =
+      "metadata-derived-plain-segment2";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          staleSegment2PlainFamily,
+          "computed-mask segment2 registry rejects stale plain segment2 "
+          "family facts",
+          {"stale plain segment2 route-family facts"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2MaskBinding =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2MaskBinding.maskSource = "metadata-derived-mask";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2MaskBinding,
+          "computed-mask segment2 registry rejects wrong mask binding",
+          {"mask source", "compare-produced-mask-same-vl-scope",
+           "metadata-derived-mask"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2FieldRole =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2FieldRole.field0Role = "segment-field0-output-buffer";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2FieldRole,
+          "computed-mask segment2 registry rejects wrong tuple field role",
+          {"field0 role", "segment-field0-input-buffer",
+           "segment-field0-output-buffer"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2Passthrough =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2Passthrough.inactiveLaneContract =
+      "metadata-derived-passthrough";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2Passthrough,
+          "computed-mask segment2 registry rejects wrong update passthrough",
+          {"inactive lane contract",
+           "masked-store-false-lanes-preserve-output-buffer",
+           "metadata-derived-passthrough"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2RuntimeABIOrder =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2RuntimeABIOrder.runtimeABIOrder =
+      "cmp_lhs,src0,cmp_rhs,src1,dst,n";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2RuntimeABIOrder,
+          "computed-mask segment2 registry rejects wrong runtime ABI order",
+          {"runtime ABI order", "cmp_lhs,cmp_rhs,src0,src1,dst,n",
+           "cmp_lhs,src0,cmp_rhs,src1,dst,n"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2ProviderMirror =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2ProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-segment2-update";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2ProviderMirror,
+          "computed-mask segment2 registry rejects metadata-only provider "
+          "mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-computed-mask-segment2-update-add-plan-validated",
+           "metadata-only-segment2-update"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2Headers =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2Headers.requiredHeaderDeclarations = "stddef.h,stdint.h";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2Headers,
+          "computed-mask segment2 registry rejects wrong route headers",
+          {"required header declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2TypeMapping =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2TypeMapping.cTypeMappingSummary = "metadata-only-type-map";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2TypeMapping,
+          "computed-mask segment2 registry rejects wrong route type mapping",
+          {"C type mapping", "masked-segment2-update-store",
+           "metadata-only-type-map"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2RuntimePlan =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2RuntimePlan.emitCFullChunkVLName =
+      "metadata_derived_full_chunk_vl";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2RuntimePlan,
+          "computed-mask segment2 registry rejects wrong VL/AVL runtime "
+          "relation",
+          {"pre-loop setvl statement", "full-chunk VL"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2MaskMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2MaskMirror,
+                                    "tcrv_rvv.mask_source",
+                                    "metadata-derived-mask")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "mask source metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2MaskMirror,
+          "computed-mask segment2 registry rejects stale mask mirror",
+          {"mask_source", "compare-produced-mask-same-vl-scope",
+           "metadata-derived-mask"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2FieldMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2FieldMirror,
+                                    "tcrv_rvv.field0_role",
+                                    "segment-field0-output-buffer")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "field role metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2FieldMirror,
+          "computed-mask segment2 registry rejects stale field role mirror",
+          {"field0_role", "segment-field0-input-buffer",
+           "segment-field0-output-buffer"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2UpdateMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2UpdateMirror,
+                                    "tcrv_rvv.segment2_update_arithmetic_kind",
+                                    "metadata-derived-sub")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "update arithmetic metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2UpdateMirror,
+          "computed-mask segment2 registry rejects stale update arithmetic "
+          "mirror",
+          {"segment2_update_arithmetic_kind", "add",
+           "metadata-derived-sub"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2RuntimeABIMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2RuntimeABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "cmp_lhs,src0,cmp_rhs,src1,dst,n")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "runtime ABI order metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2RuntimeABIMirror,
+          "computed-mask segment2 registry rejects stale ABI order mirror",
+          {"runtime_abi_order", "cmp_lhs,cmp_rhs,src0,src1,dst,n",
+           "cmp_lhs,src0,cmp_rhs,src1,dst,n"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2ProviderMirrorCandidate =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongSegment2ProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:metadata-only-segment2-update")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "provider mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2ProviderMirrorCandidate,
+          "computed-mask segment2 registry rejects stale provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-computed-mask-segment2-update-add-plan-validated",
+           "metadata-only-segment2-update"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2HeaderMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2HeaderMirror,
+                                    "tcrv_rvv.required_header_declarations",
+                                    "stddef.h,stdint.h")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "required header metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2HeaderMirror,
+          "computed-mask segment2 registry rejects stale header mirror",
+          {"required_header_declarations",
+           "stddef.h,stdint.h,riscv_vector.h", "stddef.h,stdint.h"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2TypeMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2TypeMirror,
+                                    "tcrv_rvv.c_type_mapping",
+                                    "metadata-only-type-map")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "type mapping metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2TypeMirror,
+          "computed-mask segment2 registry rejects stale type mirror",
+          {"c_type_mapping", "masked-segment2-update-store",
+           "metadata-only-type-map"}))
+    return false;
+
+  TargetArtifactCandidate wrongSegment2RuntimePlanMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongSegment2RuntimePlanMirror,
+                                    "tcrv_rvv.runtime_control_plan",
+                                    "metadata-derived-runtime-plan")) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "runtime control metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          wrongSegment2RuntimePlanMirror,
+          "computed-mask segment2 registry rejects stale runtime plan mirror",
+          {"runtime_control_plan", "rvv-runtime-avl-vl-control-plan.v1",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
+  TargetArtifactCandidate staleSegment2RouteFamilyMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  staleSegment2RouteFamilyMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.segment2_memory_route_family_plan",
+          "metadata-derived-plain-segment2"));
+  if (!expectComputedMaskSegment2CandidateFailure(
+          staleSegment2RouteFamilyMirror,
+          "computed-mask segment2 registry rejects stale route-family mirror",
+          {"segment2_memory_route_family_plan",
+           "selected typed RVV segment2 route-family plan"}))
     return false;
 
   auto expectBaseMemoryPositive =

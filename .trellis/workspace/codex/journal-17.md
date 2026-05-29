@@ -1866,3 +1866,34 @@ Closed computed-mask unit and strided widening dot runtime ABI/artifact evidence
 ### Next Steps
 
 - None - task complete
+
+
+## Session 304: Stage2 RVV computed-mask segment2 update runtime ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV computed-mask segment2 update runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed computed_masked_segment2_update_unit_load explicit and pre-realized runtime ABI path through provider-derived target validation, generated bundle evidence, ssh rvv correctness, and check-tianchenrv 458/458.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
