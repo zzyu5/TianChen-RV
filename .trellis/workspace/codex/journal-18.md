@@ -61,6 +61,62 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 324: Stage2 RVV selected-body statement-plan fallback retirement
+
+**Date**: 2026-05-30
+**Task**: Switch: Stage2 RVV selected-body statement-plan fallback retirement
+**Branch**: `main`
+
+### Summary
+
+Retired the residual selected-body provider-local statement fallback after
+migrated and direct-contraction owner dispatch. Supported selected-body route
+statements now come from explicit RVV-owned statement-plan owners, and unowned
+routes fail closed before central semantic reconstruction.
+
+### Main Changes
+
+- Created and archived Trellis task `.trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-selected-body-statement-plan-fallback-retirement` from the Hermes direction brief.
+- Added an explicit migrated statement-plan owner family for ordinary vector
+  `reduce_add` with `VectorRHSLoad`, producing full-chunk `setvl`, loop
+  `setvl`, lhs/rhs loads, reduction compute, and indexed output store
+  statements from same-analysis math operand-binding and materialization facts.
+- Removed the large residual `RVVEmitCRouteProvider.cpp` fallback that rebound
+  ABI operands and rebuilt setvl/load/compute/store statements from operation
+  and memory-form switches after migrated/direct-contraction owner dispatch.
+- Added `diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner(...)` so
+  unowned selected-body routes fail closed with operation and memory-form
+  context before provider-local statement construction.
+- Updated C++ plugin coverage for migrated owner registry membership,
+  reduction statement-plan/provider consumption, direct-contraction
+  non-regression, and unowned fail-closed diagnostics.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record ordinary
+  vector reduction as a migrated statement-plan owner boundary.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Representative selected-boundary generated-bundle dry-run for
+  `reduce_add` and `widening_dot_reduce_add`; both evidence files record
+  `local_bundle_generation.route_entry_realization: false`.
+- [OK] Bounded scans over touched RVV production files found no active
+  provider-local central statement fallback after owner dispatch, no active
+  route-entry production API, and only retired route-entry/legacy-i32
+  fail-closed diagnostics.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 315: Stage2 RVV MAcc artifact ABI statement-plan validation closure
 
 **Date**: 2026-05-29

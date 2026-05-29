@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage2 selected-body realization scope, typed tcrv_rvv body authority, mirror-only metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, migrated statement-plan provider boundary, direct-contraction owner boundary, fail-closed diagnostics, and provider-built route requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and common EmitC neutrality; invalid RVV route inputs and target artifact handoff rules."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin-locality constraints and prohibition on core/common semantic selection or descriptor-driven route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ route-provider tests, generated-bundle evidence rules, and ssh rvv requirement only for runtime/correctness/performance claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review checklist for keeping RVV route provider output and extension-specific mapping plugin-owned."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Checklist for keeping typed tcrv_rvv body/config/capability facts as authority rather than mirrors or route ids."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for keeping compute semantics in RVV extension-family bodies and out of core/common EmitC."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-selected-boundary-api-closure/prd.md", "reason": "Immediate predecessor evidence and exact boundary already completed: selected-boundary route APIs were closed and direct route-entry production APIs removed."}
+{"file": ".trellis/workspace/codex/journal-18.md", "reason": "Sessions 322 and 323 summarize predecessor route-entry fallback retirement and selected-boundary API closure evidence."}

@@ -6910,6 +6910,8 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
+      diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMigratedRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMigratedRouteStatementPlanOwners;
@@ -6920,9 +6922,9 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
                      RVVSelectedBodyMigratedRouteStatementPlanOwner>
       owners = getRVVSelectedBodyMigratedRouteStatementPlanOwners();
   if (int result =
-          expect(owners.size() == 10,
+          expect(owners.size() == 11,
                  "migrated route statement-plan owner registry has exactly "
-                 "ten active family entries"))
+                 "eleven active family entries"))
     return result;
 
   struct ExpectedOwner {
@@ -6939,6 +6941,7 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
       {"runtime scalar splat-store",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::
            RuntimeScalarSplatStore},
+      {"reduction", RVVSelectedBodyMigratedRouteStatementPlanFamily::Reduction},
       {"standalone reduction",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction},
       {"plain MAcc", RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc},
@@ -6982,6 +6985,8 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
       {RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
        RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
        "runtime scalar splat-store"},
+      {RVVSelectedBodyOperationKind::ReduceAdd,
+       RVVSelectedBodyMemoryForm::VectorRHSLoad, "reduction"},
       {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
        RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction,
        "standalone reduction"},
@@ -7060,6 +7065,15 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
               nonConsumerAnalysis.description),
           "non-migrated contraction route remains outside the migrated "
           "statement-plan owner registry"))
+    return result;
+  if (int result = expectErrorContains(
+          diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner(
+              nonConsumerAnalysis.description,
+              "provider owner fallback retirement unit test"),
+          {"requires an explicit migrated or direct-contraction "
+           "statement-plan owner",
+           "widening_dot_reduce_add",
+           "computed-mask-unit-stride-widening-dot-reduce"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingElementwisePlan;
@@ -13630,6 +13644,134 @@ module {
                 "reduction statement plan");
 }
 
+int runReductionStatementPlanBoundaryTest(mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyReductionRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @stmt_reduce_add_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_reduce_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_reduce_add, sew = 32 : i64, source_kernel = "stmt_reduce_add_kernel", status = "selected-lowering-boundary"} {
+        %input = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %acc = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %reduced = tcrv_rvv.reduce %input, %acc, %vl {accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk", kind = "add", result_layout = "store-reduction-lane0-to-output-chunk-base"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse reduction statement-plan module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
+      analyzeRouteInModule(*module, "stmt_reduce_add_kernel", "rvv_reduce_add");
+  if (!analysis)
+    return fail("analyze reduction statement-plan route: " +
+                llvm::toString(analysis.takeError()));
+
+  auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *analysis, "reduction statement plan provider unit test");
+  if (!materializationFacts)
+    return fail("reduction statement-plan materialization facts: " +
+                llvm::toString(materializationFacts.takeError()));
+  auto mathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *analysis, "reduction statement plan provider unit test");
+  if (!mathFacts)
+    return fail("reduction statement-plan math facts: " +
+                llvm::toString(mathFacts.takeError()));
+
+  auto statementPlan = getRVVSelectedBodyReductionRouteStatementPlan(
+      *analysis, *materializationFacts, *mathFacts,
+      "reduction statement plan provider unit test");
+  if (!statementPlan)
+    return fail("reduction statement-plan construction: " +
+                llvm::toString(statementPlan.takeError()));
+  if (int result = expect(
+          statementPlan->plansReductionRoute && statementPlan->plansReduceAdd &&
+              statementPlan->bindingPlan == &analysis->routeOperandBindingPlan &&
+              statementPlan->preLoopSteps.size() == 1 &&
+              statementPlan->loop.bodySteps.size() == 5,
+          "reduction statement plan owns reduce_add pre-loop and loop steps"))
+    return result;
+  if (int result = expect(
+          statementPlan->loop.bodySteps[4].operands.size() >= 1 &&
+              llvm::StringRef(statementPlan->loop.bodySteps[4]
+                                  .operands[0]
+                                  .expression)
+                  .starts_with("out + "),
+          "reduction statement plan advances the output pointer by the loop "
+          "induction"))
+    return result;
+
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+  auto migratedStatementPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      *analysis, *materializationFacts, emptyElementwiseFacts, emptyMemoryFacts,
+      *mathFacts, emptyResidualFacts,
+      "migrated reduction statement-plan unit test");
+  if (!migratedStatementPlan)
+    return fail("migrated reduction statement-plan construction: " +
+                llvm::toString(migratedStatementPlan.takeError()));
+  if (int result = expect(
+          migratedStatementPlan->plansMigratedRoute &&
+              migratedStatementPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::Reduction &&
+              migratedStatementPlan->preLoopSteps.size() == 1 &&
+              migratedStatementPlan->loop.bodySteps.size() == 5,
+          "migrated statement-plan boundary exposes reduce_add as one "
+          "provider-neutral plan"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for reduction statement plan test"))
+    return result;
+  KernelOp kernel = findKernel(*module, "stmt_reduce_add_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_reduce_add");
+  TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "provider consumes reduction statement plan"))
+    return result;
+  return expect(route.getCallOpaqueSteps().size() == 1 &&
+                    route.getForLoops().size() == 1 &&
+                    route.getForLoops().front().bodySteps.size() == 5,
+                "provider route attaches the RVV-owned reduction "
+                "statement-plan steps");
+}
+
 int runPlainMAccStatementPlanBoundaryTest(mlir::MLIRContext &context) {
   using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
   using tianchenrv::plugin::rvv::
@@ -19558,6 +19700,8 @@ int main() {
     return result;
   if (int result =
           runWideningConversionStatementPlanBoundaryTest(context))
+    return result;
+  if (int result = runReductionStatementPlanBoundaryTest(context))
     return result;
   if (int result =
           runStandaloneReductionStatementPlanBoundaryTest(context))

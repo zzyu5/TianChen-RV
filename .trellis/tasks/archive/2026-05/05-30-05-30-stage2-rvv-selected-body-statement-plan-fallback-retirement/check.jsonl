@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Quality gate must preserve global RVV-first authority chain and common EmitC neutrality."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Quality gate must verify migrated/direct-contraction statement-plan owner boundaries and fail-closed unowned route behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Quality gate must verify TCRVEmitCLowerableRoute remains provider-built and common EmitC stays neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Quality gate must verify focused C++ tests, generated-bundle dry-runs, and ssh rvv evidence policy."}
+{"file": ".trellis/tasks/05-30-05-30-stage2-rvv-selected-body-statement-plan-fallback-retirement/prd.md", "reason": "Task-specific acceptance criteria, non-goals, and validation plan for this round."}

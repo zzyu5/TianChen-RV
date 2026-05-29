@@ -3063,9 +3063,10 @@ verified contraction family/materialization/math facts
 
 ### 1. Scope / Trigger
 
-After elementwise arithmetic, compare/select, widening conversion, standalone
-reduction, plain MAcc, base memory, computed-mask memory, segment2 memory, and
-computed-mask accumulation have their own RVV-owned statement plans, the
+After elementwise arithmetic, compare/select, widening conversion, ordinary
+vector reduction, standalone reduction, plain MAcc, base memory,
+computed-mask memory, segment2 memory, and computed-mask accumulation have
+their own RVV-owned statement plans, the
 selected-body RVV provider must consume those migrated families through one
 shared provider-neutral boundary.
 
@@ -3170,6 +3171,11 @@ family statement-plan validators.
   operand-binding facts -> owner registry selects exactly one migrated
   statement-plan owner -> `RVVSelectedBodyMigratedRouteStatementPlan` ->
   provider attaches returned statements into `TCRVEmitCLowerableRoute`.
+- Base: ordinary vector `reduce_add` with `VectorRHSLoad` is a migrated owner
+  family. Its statement plan must be produced from same-analysis math
+  operand-binding facts and materialization facts before the provider attaches
+  it; the provider must not reconstruct its setvl/load/reduce/store sequence
+  from operation names or intrinsic mirrors.
 - Base: widening MAcc, dot-reduction routes, computed-mask standalone reduction
   variants, residual runtime scalar splat-store, and future families remain
   outside this migrated aggregate until their statement plans become migrated
