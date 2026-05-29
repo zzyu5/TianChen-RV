@@ -9795,18 +9795,53 @@ llvm::Error validateRVVWideningMAccContractionRouteTypeMappings(
 llvm::Error validateRVVWideningMAccContractionRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getCallOpaqueSteps().empty())
+  constexpr llvm::StringLiteral consumerLabel(
+      "widening MAcc contraction target artifact consumer");
+  if (description.runtimeABIParameters.size() != 5)
     return makeRVVTargetRouteError(
-        "widening MAcc contraction target artifact consumer requires "
-        "provider-built pre-loop setvl statement facts before artifact export");
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived widening MAcc ABI parameters before "
+        "validating route statements");
+  if (description.resultName.empty() || description.sourceVectorCType.empty() ||
+      description.vectorCType.empty() || description.vlCType.empty() ||
+      description.vectorLoadIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived result, source/result vector C type, "
+        "accumulator load, and VL C type facts before validating route "
+        "statements");
+
+  const support::RuntimeABIParameter &lhsABI =
+      description.runtimeABIParameters[0];
+  const support::RuntimeABIParameter &rhsABI =
+      description.runtimeABIParameters[1];
+  const support::RuntimeABIParameter &accumulatorABI =
+      description.runtimeABIParameters[2];
+  const support::RuntimeABIParameter &outABI =
+      description.runtimeABIParameters[3];
+  const support::RuntimeABIParameter &runtimeNABI =
+      description.runtimeABIParameters[4];
+  const support::RuntimeABIParameter *runtimeElementCount =
+      findRuntimeElementCountABIParameter(description);
+  if (!runtimeElementCount || runtimeElementCount != &runtimeNABI)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI role to match the selected widening "
+        "MAcc ABI order before validating route statements");
+
+  if (route.getCallOpaqueSteps().size() != 1)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exactly one provider-built pre-loop setvl statement "
+        "before artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != description.setVLIntrinsic ||
-      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "widening MAcc contraction target artifact consumer requires rebuilt "
-        "provider route pre-loop setvl statement to define the full-chunk VL");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSetVL, consumerLabel, "pre-loop setvl",
+          description.setVLIntrinsic,
+          {{runtimeNABI.cName, runtimeNABI.cType}},
+          description.emitCFullChunkVLName, description.vlCType))
+    return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -9819,51 +9854,97 @@ llvm::Error validateRVVWideningMAccContractionRouteStatementPlan(
         "widening MAcc contraction target artifact consumer requires exactly "
         "one provider-built runtime AVL/VL loop before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  const support::RuntimeABIParameter *runtimeN =
-      findRuntimeElementCountABIParameter(description);
-  if (!runtimeN)
-    return makeRVVTargetRouteError(
-        "widening MAcc contraction target artifact consumer requires a "
-        "provider-derived runtime element count ABI parameter");
   if (loop.inductionVarName != description.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
       loop.lowerBound.cType != description.vlCType ||
-      loop.upperBound.expression != runtimeN->cName ||
-      loop.upperBound.cType != runtimeN->cType ||
+      loop.upperBound.expression != runtimeNABI.cName ||
+      loop.upperBound.cType != runtimeNABI.cType ||
       loop.step.expression != description.emitCFullChunkVLName ||
       loop.step.cType != description.vlCType)
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
+  if (loop.bodySteps.size() != 6)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exact provider-built widening MAcc loop statement count 6 "
+        "before artifact export");
+
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeN->cName) + " - " +
+      (llvm::StringRef(runtimeNABI.cName) + " - " +
        description.emitCLoopInductionName)
           .str();
-  if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != description.setVLIntrinsic ||
-      loop.bodySteps.front().operands.size() != 1 ||
-      loop.bodySteps.front().operands.front().expression !=
-          expectedRemainingAVL ||
-      loop.bodySteps.front().operands.front().cType != description.vlCType ||
-      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
-                     description.vlCType))
-    return makeRVVTargetRouteError(
-        "widening MAcc contraction target artifact consumer requires "
-        "provider-built loop setvl to derive per-iteration VL from remaining "
-        "runtime AVL");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          description.setVLIntrinsic,
+          {{expectedRemainingAVL, description.vlCType}},
+          description.emitCLoopVLName, description.vlCType))
+    return error;
+
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
       return makeRVVTargetRouteError(
           "widening MAcc contraction target artifact consumer requires loop "
           "statements to carry selected typed RVV source provenance");
 
-  if (!routeLoopContainsCallee(loop, description.sourceVectorLoadIntrinsic) ||
-      !routeLoopContainsCallee(loop, description.intrinsic) ||
-      !routeLoopContainsCallee(loop, description.storeIntrinsic))
-    return makeRVVTargetRouteError(
-        "widening MAcc contraction target artifact consumer requires "
-        "provider-built source load, widening MAcc, and store statements "
-        "before artifact export");
+  auto validateSourceLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi, llvm::StringRef resultName,
+          llvm::StringRef stepLabel) -> llvm::Error {
+    const std::string expectedPointer =
+        (llvm::StringRef(abi.cName) + " + " +
+         description.emitCLoopInductionName)
+            .str();
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
+        {{expectedPointer, abi.cType},
+         {description.emitCLoopVLName, description.vlCType}},
+        resultName, description.sourceVectorCType);
+  };
+
+  if (llvm::Error error =
+          validateSourceLoad(loop.bodySteps[1], lhsABI, "lhs_vec",
+                             "lhs source load"))
+    return error;
+  if (llvm::Error error =
+          validateSourceLoad(loop.bodySteps[2], rhsABI, "rhs_vec",
+                             "rhs source load"))
+    return error;
+
+  const std::string expectedAccumulatorPointer =
+      (llvm::StringRef(accumulatorABI.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[3], consumerLabel, "accumulator load",
+          description.vectorLoadIntrinsic,
+          {{expectedAccumulatorPointer, accumulatorABI.cType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "acc_vec", description.vectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[4], consumerLabel, "widening MAcc",
+          description.intrinsic,
+          {{"acc_vec", description.vectorCType},
+           {"lhs_vec", description.sourceVectorCType},
+           {"rhs_vec", description.sourceVectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.resultName, description.vectorCType))
+    return error;
+
+  const std::string expectedOutPointer =
+      (llvm::StringRef(outABI.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[5], consumerLabel, "output store",
+          description.storeIntrinsic,
+          {{expectedOutPointer, outABI.cType},
+           {description.resultName, description.vectorCType},
+           {description.emitCLoopVLName, description.vlCType}}))
+    return error;
+
   return llvm::Error::success();
 }
 

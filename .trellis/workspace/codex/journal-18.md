@@ -61,6 +61,50 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 314: Stage2 RVV widening MAcc artifact ABI statement-plan closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV widening MAcc artifact ABI statement-plan closure
+**Branch**: `main`
+
+### Summary
+
+Closed `widening_macc_add` target artifact ABI statement-plan validation through exact provider-built route statements, focused target/export mutations, generated-bundle evidence, real `ssh rvv` correctness, widening dot non-regression, and check-tianchenrv 459/459.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so the widening MAcc contraction artifact consumer validates exact pre-loop setvl, loop setvl, lhs/rhs i16 source loads, i32 accumulator load, widening MAcc compute, output store operands/results/C types, runtime n/AVL relation, and selected typed RVV provenance.
+- Added `test/Target/TargetArtifactExportTest.cpp` route-clone mutations proving fail-closed behavior for stale pre-loop/loop AVL, source/accumulator pointers, accumulator result, widening MAcc operand/result, and output store pointer/value/VL.
+- Created and completed `.trellis/tasks/05-29-stage2-rvv-widening-macc-artifact-abi-statement-plan-closure` from the Hermes Direction Brief.
+- Evidence: target artifact export test passed; selected-boundary generated-bundle dry-run passed for `widening_macc_add`; direct pre-realized route-entry failed closed as expected; ssh rvv generated-bundle correctness passed for counts 0,1,16,17,257 with signed widening product accumulation and tail preservation; widening dot statement-plan non-regression dry-run passed; strict touched-diff authority scan found no new metadata/route-id/descriptor/source-front-door/direct-route/legacy-i32/exact-intrinsic authority; git diff --check passed; check-tianchenrv passed 459/459.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --dry-run --op-kind widening_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 ...`
+- [OK] direct pre-realized route-entry fail-closed probe for `widening_macc_add`
+- [OK] `ssh rvv` generated-bundle correctness for `widening_macc_add` counts 0,1,16,17,257
+- [OK] widening dot statement-plan non-regression dry-run
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 459/459
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 315: Stage2 RVV widening dot-reduction artifact ABI statement-plan closure
 
 **Date**: 2026-05-29

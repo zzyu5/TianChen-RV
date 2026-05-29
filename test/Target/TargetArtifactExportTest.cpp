@@ -4738,6 +4738,18 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+  auto expectWideningMAccRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        wideningMAccFixture.candidate, mutatedRoute, wideningMAccDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
 
   RVVRouteDescription staleWideningMAccProviderSupport =
       wideningMAccDescription;
@@ -4812,6 +4824,132 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningMAccNonFamily,
           "widening-MAcc registry rejects stale non-widening provider facts",
           {"stale", "non-widening-MAcc route-family facts"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccPreLoopSetVL =
+          cloneRVVEmitCLowerableRouteWithCallOperand(
+              wideningMAccRoute, /*stepIndex=*/0, /*operandIndex=*/0,
+              "metadata_n");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccPreLoopSetVL,
+          "widening-MAcc registry rejects stale pre-loop setvl AVL",
+          {"pre-loop setvl operand[0]", "n", "metadata_n"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccLoopSetVL =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/0,
+              /*operandIndex=*/0, "metadata_remaining_avl");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccLoopSetVL,
+          "widening-MAcc registry rejects stale loop setvl remaining AVL",
+          {"loop setvl operand[0]", "n - offset",
+           "metadata_remaining_avl"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccLHSLoadPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/1,
+              /*operandIndex=*/0, "rhs + offset");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccLHSLoadPointer,
+          "widening-MAcc registry rejects stale lhs source pointer",
+          {"lhs source load operand[0]", "lhs + offset", "rhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccRHSLoadPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/2,
+              /*operandIndex=*/0, "lhs + offset");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccRHSLoadPointer,
+          "widening-MAcc registry rejects stale rhs source pointer",
+          {"rhs source load operand[0]", "rhs + offset", "lhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccAccumulatorPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/0, "out + offset");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccAccumulatorPointer,
+          "widening-MAcc registry rejects stale accumulator pointer",
+          {"accumulator load operand[0]", "acc + offset",
+           "out + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccAccumulatorResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              "metadata_acc_vec");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccAccumulatorResult,
+          "widening-MAcc registry rejects stale accumulator load result",
+          {"accumulator load result", "acc_vec", "metadata_acc_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              /*operandIndex=*/1, "rhs_vec");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccOperand,
+          "widening-MAcc registry rejects stale widening MAcc operand",
+          {"widening MAcc operand[1]", "lhs_vec", "rhs_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/4,
+              "metadata_widening_macc_sum");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccResult,
+          "widening-MAcc registry rejects stale widening MAcc result",
+          {"widening MAcc result", wideningMAccDescription.resultName,
+           "metadata_widening_macc_sum"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccStorePointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/0, "out");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccStorePointer,
+          "widening-MAcc registry rejects stale output store pointer",
+          {"output store operand[0]", "out + offset", "out"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccStoreValue =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/1, "acc_vec");
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccStoreValue,
+          "widening-MAcc registry rejects stale output store value",
+          {"output store operand[1]", wideningMAccDescription.resultName,
+           "acc_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleWideningMAccStoreVL =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningMAccRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/2, wideningMAccDescription.emitCFullChunkVLName);
+  if (!expectWideningMAccRouteFailure(
+          staleWideningMAccStoreVL,
+          "widening-MAcc registry rejects stale output store VL",
+          {"output store operand[2]", wideningMAccDescription.emitCLoopVLName,
+           wideningMAccDescription.emitCFullChunkVLName}))
     return false;
 
   TargetArtifactCandidate missingWideningMAccProviderMirror =
