@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV standalone reduction source/result channel boundary, route-control provider plan, target artifact route-family validator contract, mirror-only metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute authority and target artifact handoff boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ test and RVV evidence policy for target artifact validation without runtime claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-stage2-rvv-macc-artifact-abi-statement-plan-closure/prd.md", "reason": "Immediate statement-plan closure precedent for replacing callee-presence acceptance in the same validator."}
+{"file": ".trellis/tasks/archive/2026-05/05-28-05-28-stage2-rvv-standalone-reduction-accumulation-artifact-validator-migration/prd.md", "reason": "Prior migration precedent for standalone reduction/accumulation target artifact validator ownership."}
+{"file": ".trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-vector-reduction-artifact-abi-statement-plan-closure/prd.md", "reason": "Adjacent reduction statement-plan closure precedent for exact provider route step validation and route-clone negatives."}

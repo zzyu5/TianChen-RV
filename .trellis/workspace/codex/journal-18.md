@@ -714,3 +714,41 @@ Closed base memory-movement target artifact ABI statement-plan validation throug
 ### Next Steps
 
 - None - task complete
+
+
+## Session 315: Stage2 RVV standalone reduction accumulation artifact ABI statement-plan validation closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV standalone reduction accumulation artifact ABI statement-plan validation closure
+**Branch**: `main`
+
+### Summary
+
+Closed standalone reduction/accumulation target artifact ABI statement-plan validation by replacing the remaining callee-presence acceptance with exact provider-built route statement facts, focused route-clone negatives, and check-tianchenrv 459/459.
+
+### Main Changes
+
+- Hardened `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so runtime-scalar computed-mask standalone reductions validate exact loop setvl, compare lhs load, RHS scalar splat, payload source load, compare predicate, inactive neutral splat, inactive-lane merge, scalar seed splat, reduction, scalar-result store, operand expressions, result names/C types, runtime AVL/VL, and selected typed RVV provenance.
+- Removed the standalone reduction/accumulation `routeLoopContainsCallee` payload acceptance block; callee/intrinsic spelling is now only a checked field inside exact provider-built statements for this family.
+- Extended `test/Target/TargetArtifactExportTest.cpp` with runtime-scalar computed-mask standalone reduction route-clone negatives for RHS scalar splat operand/result/C type, payload source pointer, compare RHS operand, merge mask, reduction input, scalar-result store VL, and min inactive neutral literal.
+- Archived `.trellis/tasks/archive/2026-05/05-29-05-29-stage2-rvv-standalone-reduction-accumulation-artifact-abi-statement-plan-validation-closure`.
+- Evidence: focused target artifact export test passed; git diff --check passed; standalone validator authority scan found no remaining `routeLoopContainsCallee`; added metadata strings are negative route-clone values only; check-tianchenrv passed 459/459.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -4432,6 +4432,19 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+  auto expectRuntimeScalarStandaloneReduceAddRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        runtimeScalarStandaloneReduceAddFixture.candidate, mutatedRoute,
+        runtimeScalarStandaloneReduceAddDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
   auto expectRuntimeScalarStandaloneReduceAddI64CandidateFailure =
       [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -4442,6 +4455,19 @@ bool expectRVVTargetArtifactExporterShape(
         tianchenrv::target::rvv::
             validateRVVTargetArtifactRouteFamilyCandidateMirrors(
                 mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectRuntimeScalarStandaloneReduceAddI64RouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        runtimeScalarStandaloneReduceAddI64Fixture.candidate, mutatedRoute,
+        runtimeScalarStandaloneReduceAddI64Description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
         mutationContext, fragments);
   };
 
@@ -4477,6 +4503,19 @@ bool expectRVVTargetArtifactExporterShape(
         tianchenrv::target::rvv::
             validateRVVTargetArtifactRouteFamilyCandidateMirrors(
                 mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectRuntimeScalarStandaloneReduceMinRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        runtimeScalarStandaloneReduceMinFixture.candidate, mutatedRoute,
+        runtimeScalarStandaloneReduceMinDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
         mutationContext, fragments);
   };
 
@@ -4655,6 +4694,121 @@ bool expectRVVTargetArtifactExporterShape(
           "runtime-scalar computed-mask standalone reduce_add registry "
           "rejects stale scalar carry contract",
           {"scalar carry contract", "metadata-derived-scalar-carry"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddRHSSplatOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/2, /*operandIndex=*/0, "metadata_rhs_scalar");
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddRHSSplatOperand,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale RHS scalar splat operand",
+          {"RHS scalar splat operand[0]", "rhs_scalar",
+           "metadata_rhs_scalar"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddRHSSplatResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/2, "metadata_rhs_vec");
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddRHSSplatResult,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale RHS scalar splat result",
+          {"RHS scalar splat result", "rhs_vec", "metadata_rhs_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddSourceLoadPointer =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/3, /*operandIndex=*/0, "cmp_lhs + offset");
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddSourceLoadPointer,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale payload source pointer",
+          {"payload source vector load operand[0]", "src + offset",
+           "cmp_lhs + offset"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddCompareRHSOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/4, /*operandIndex=*/1, "source_vec");
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddCompareRHSOperand,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale compare RHS operand",
+          {"compare predicate operand[1]", "rhs_vec", "source_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddMergeMask =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/6, /*operandIndex=*/2, "metadata_mask");
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddMergeMask,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale inactive-lane merge mask",
+          {"inactive-lane merge operand[2]",
+           runtimeScalarStandaloneReduceAddDescription.maskName,
+           "metadata_mask"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddReductionInput =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/8, /*operandIndex=*/0, "source_vec");
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddReductionInput,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale reduction input",
+          {"signed min/max/add reduction operand[0]",
+           "standalone_masked_source_vec", "source_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddStoreVL =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddRoute, /*loopIndex=*/0,
+              /*stepIndex=*/9, /*operandIndex=*/2,
+              runtimeScalarStandaloneReduceAddDescription.emitCLoopVLName);
+  if (!expectRuntimeScalarStandaloneReduceAddRouteFailure(
+          staleRuntimeScalarStandaloneAddStoreVL,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects stale scalar-result store VL",
+          {"scalar-result store operand[2]", "1",
+           runtimeScalarStandaloneReduceAddDescription.emitCLoopVLName}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneAddI64RHSSplatType =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceAddI64Route, /*loopIndex=*/0,
+              /*stepIndex=*/2, /*operandIndex=*/0, "rhs_scalar", "int32_t");
+  if (!expectRuntimeScalarStandaloneReduceAddI64RouteFailure(
+          staleRuntimeScalarStandaloneAddI64RHSSplatType,
+          "runtime-scalar computed-mask standalone reduce_add i64 registry "
+          "rejects stale RHS scalar splat C type",
+          {"RHS scalar splat operand[0]", "int64_t", "int32_t"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneMinNeutralLiteral =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceMinRoute, /*loopIndex=*/0,
+              /*stepIndex=*/5, /*operandIndex=*/0, "0");
+  if (!expectRuntimeScalarStandaloneReduceMinRouteFailure(
+          staleRuntimeScalarStandaloneMinNeutralLiteral,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale inactive neutral literal",
+          {"inactive neutral splat operand[0]", "2147483647", "0"}))
     return false;
 
   TargetArtifactCandidate staleRuntimeScalarStandaloneAddABIMirror =

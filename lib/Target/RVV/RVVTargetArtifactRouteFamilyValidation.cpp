@@ -6067,6 +6067,152 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
   return llvm::Error::success();
 }
 
+llvm::Error
+validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
+    const conversion::emitc::TCRVEmitCForLoop &loop,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const support::RuntimeABIParameter &cmpLHS,
+    const support::RuntimeABIParameter &rhsScalar,
+    const support::RuntimeABIParameter &source,
+    const support::RuntimeABIParameter &out,
+    const support::RuntimeABIParameter &runtimeN) {
+  constexpr llvm::StringLiteral consumerLabel(
+      "runtime-scalar computed-mask standalone reduction target artifact "
+      "consumer");
+  if (loop.bodySteps.size() != 10)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-built loop setvl, compare lhs load, RHS scalar "
+        "splat, source load, compare, inactive neutral splat, merge, scalar "
+        "seed, reduction, and scalar-result store statements before artifact "
+        "export");
+
+  const llvm::StringRef scalarCType =
+      getRVVStandaloneReductionScalarCType(description);
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeN.cName) + " - " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          description.setVLIntrinsic,
+          {{expectedRemainingAVL, description.vlCType}},
+          description.emitCLoopVLName, description.vlCType))
+    return error;
+
+  const std::string expectedCmpLHSPointer =
+      (llvm::StringRef(cmpLHS.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[1], consumerLabel, "compare lhs vector load",
+          description.vectorLoadIntrinsic,
+          {{expectedCmpLHSPointer, cmpLHS.cType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "lhs_vec", description.standaloneReductionSourceVectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[2], consumerLabel, "RHS scalar splat",
+          description.rhsBroadcastIntrinsic,
+          {{rhsScalar.cName, rhsScalar.cType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "rhs_vec", description.standaloneReductionSourceVectorCType))
+    return error;
+
+  const std::string expectedSourcePointer =
+      (llvm::StringRef(source.cName) + " + " +
+       description.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[3], consumerLabel, "payload source vector load",
+          description.vectorLoadIntrinsic,
+          {{expectedSourcePointer, source.cType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "source_vec", description.standaloneReductionSourceVectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[4], consumerLabel, "compare predicate",
+          description.compareIntrinsic,
+          {{"lhs_vec", description.standaloneReductionSourceVectorCType},
+           {"rhs_vec", description.standaloneReductionSourceVectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.maskName, description.maskCType))
+    return error;
+
+  const llvm::StringRef inactiveNeutral =
+      getRVVStandaloneReductionInactiveNeutralLiteral(description.operation,
+                                                     description.sew);
+  if (inactiveNeutral.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived operation-specific inactive neutral "
+        "literal before artifact export");
+  const llvm::StringRef expectedSourceSplatIntrinsic =
+      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedRHSBroadcastIntrinsic(
+          description.sew, description.lmul);
+  if (expectedSourceSplatIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived source-vector splat intrinsic before "
+        "artifact export");
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[5], consumerLabel, "inactive neutral splat",
+          expectedSourceSplatIntrinsic,
+          {{inactiveNeutral, scalarCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "standalone_inactive_neutral_vec",
+          description.standaloneReductionSourceVectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[6], consumerLabel, "inactive-lane merge",
+          description.maskedMergeIntrinsic,
+          {{"standalone_inactive_neutral_vec",
+            description.standaloneReductionSourceVectorCType},
+           {"source_vec", description.standaloneReductionSourceVectorCType},
+           {description.maskName, description.maskCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          "standalone_masked_source_vec",
+          description.standaloneReductionSourceVectorCType))
+    return error;
+
+  const std::string expectedOutLane0 =
+      (llvm::StringRef(out.cName) + "[0]").str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[7], consumerLabel, "loop scalar seed splat",
+          description.scalarSeedSplatIntrinsic,
+          {{expectedOutLane0, scalarCType},
+           {description.reductionStoreVL, description.vlCType}},
+          "standalone_acc_vec",
+          description.standaloneReductionScalarResultVectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[8], consumerLabel, "signed min/max/add reduction",
+          description.intrinsic,
+          {{"standalone_masked_source_vec",
+            description.standaloneReductionSourceVectorCType},
+           {"standalone_acc_vec",
+            description.standaloneReductionScalarResultVectorCType},
+           {description.emitCLoopVLName, description.vlCType}},
+          description.resultName,
+          description.standaloneReductionScalarResultVectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[9], consumerLabel, "scalar-result store",
+          description.storeIntrinsic,
+          {{out.cName, out.cType},
+           {description.resultName,
+            description.standaloneReductionScalarResultVectorCType},
+           {description.reductionStoreVL, description.vlCType}}))
+    return error;
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -6077,6 +6223,9 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
           description.operation);
   const bool isComputedMaskStandalone =
       isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
+          description.operation);
+  const bool isRuntimeScalarComputedMaskStandalone =
+      isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
           description.operation);
 
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
@@ -6178,36 +6327,6 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
           "requires loop statements to carry selected typed RVV source "
           "provenance");
 
-  if (!routeLoopContainsCallee(loop, description.vectorLoadIntrinsic) ||
-      !routeLoopContainsCallee(loop, description.intrinsic) ||
-      !routeLoopContainsCallee(loop, description.storeIntrinsic) ||
-      !routeLoopContainsCallee(loop, description.scalarSeedSplatIntrinsic))
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-built vector load, reduction, seed splat, and store "
-        "statements before artifact export");
-
-  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
-          description.operation)) {
-    if (!routeLoopContainsCallee(loop, description.compareIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask standalone reduction/accumulation target artifact "
-          "consumer requires provider-built compare statement facts before "
-          "artifact export");
-    if (!routeLoopContainsCallee(loop, description.maskedMergeIntrinsic))
-      return makeRVVTargetRouteError(
-          "computed-mask standalone reduction/accumulation target artifact "
-          "consumer requires provider-built inactive-lane merge statement "
-          "facts before artifact export");
-    if (isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
-            description.operation) &&
-        !routeLoopContainsCallee(loop, description.rhsBroadcastIntrinsic))
-      return makeRVVTargetRouteError(
-          "runtime-scalar computed-mask standalone reduction/accumulation "
-          "target artifact consumer requires provider-built RHS scalar splat "
-          "statement facts before artifact export");
-  }
-
   if (isPlainStandalone) {
     if (llvm::Error error =
             validateRVVPlainStandaloneReductionLoopStatements(
@@ -6216,6 +6335,12 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
   } else if (isVectorComputedMaskStandalone) {
     if (llvm::Error error =
             validateRVVComputedMaskStandaloneReductionLoopStatements(
+                loop, description, *cmpLHSABI, *cmpRHSABI, *sourceABI,
+                *outABI, *runtimeN))
+      return error;
+  } else if (isRuntimeScalarComputedMaskStandalone) {
+    if (llvm::Error error =
+            validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
                 loop, description, *cmpLHSABI, *cmpRHSABI, *sourceABI,
                 *outABI, *runtimeN))
       return error;
