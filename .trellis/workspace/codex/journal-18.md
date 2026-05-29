@@ -351,3 +351,41 @@ Extended runtime-scalar computed-mask standalone reduce_add target artifact vali
 ### Next Steps
 
 - None - task complete
+
+
+## Session 312: Stage2 RVV base standalone reduce-add ABI closure
+
+**Date**: 2026-05-29
+**Task**: Stage2 RVV base standalone reduce-add ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed standalone_reduce_add and computed_mask_standalone_reduce_add target artifact ABI validation using provider-derived route facts and candidate mirrors, with focused C++ validation, generated-bundle evidence, ssh rvv correctness, and check-tianchenrv 459/459.
+
+### Main Changes
+
+- Extended RVV provider artifact metadata for standalone reduction routes with mirror-only vector-load, scalar-seed-splat, reduction, scalar-result-store, and computed-mask compare/merge leaf facts.
+- Extended RVV target artifact route-family validation to consume provider-derived load/seed/reduction/store/compare/merge facts and candidate mirrors for base standalone and computed-mask standalone reduce_add, while preserving runtime-scalar computed-mask validation.
+- Added target/export C++ positive coverage for standalone_reduce_add and computed_mask_standalone_reduce_add i32 LMUL m1/m2 plus stale provider/candidate mirror fail-closed mutations.
+- Self-repaired LMUL m2 standalone reduction fixtures so scalar-result channels use the required m1 scalar-result vector layout.
+- Evidence: target artifact export test passed; selected-boundary and explicit m1 generated-bundle dry-runs passed; direct pre-realized route-entry failed closed as expected; ssh rvv generated-bundle correctness passed for counts 0,1,16,23,257 and signed seeds -11,17; standalone/computed-mask min/max and runtime-scalar computed-mask reduce_add/min/max non-regression dry-run passed; check-tianchenrv passed 459/459; git diff --check and bounded authority scan passed.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

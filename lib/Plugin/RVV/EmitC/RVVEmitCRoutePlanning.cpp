@@ -41875,6 +41875,29 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.reduction_store_vl", description.reductionStoreVL});
   }
+  if (isRVVSelectedBodyStandaloneReductionRouteOperation(description.operation)) {
+    metadata.push_back({"tcrv_rvv.vector_load_intrinsic",
+                        description.vectorLoadIntrinsic});
+    metadata.push_back({"tcrv_rvv.scalar_seed_splat_intrinsic",
+                        description.scalarSeedSplatIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.reduction_intrinsic", description.intrinsic});
+    metadata.push_back({"tcrv_rvv.scalar_result_store_intrinsic",
+                        description.storeIntrinsic});
+    if (isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
+            description.operation) ||
+        isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+            description.operation)) {
+      metadata.push_back(
+          {"tcrv_rvv.compare_intrinsic", description.compareIntrinsic});
+      metadata.push_back({"tcrv_rvv.masked_merge_intrinsic",
+                          description.maskedMergeIntrinsic});
+    }
+    if (isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+            description.operation))
+      metadata.push_back({"tcrv_rvv.rhs_broadcast_intrinsic",
+                          description.rhsBroadcastIntrinsic});
+  }
   if (description.operation == RVVSelectedBodyOperationKind::MAccAdd ||
       description.operation ==
           RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd ||

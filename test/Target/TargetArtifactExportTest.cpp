@@ -728,6 +728,7 @@ module {
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.vector<i32, \"m2\">"
             : "!tcrv_rvv.vector<i32, \"m1\">";
+    std::string scalarResultVectorType = "!tcrv_rvv.vector<i32, \"m1\">";
     llvm::StringRef reduceKind = getRVVTestStandaloneReductionKind(op);
     os << R"mlir(
 module {
@@ -754,9 +755,9 @@ module {
        << R"mlir(", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : )mlir"
        << vectorType
        << R"mlir(, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
-       << vectorType << R"mlir(
+       << scalarResultVectorType << R"mlir(
         tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
-       << vectorType << R"mlir(, !tcrv_rvv.vl
+       << scalarResultVectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -774,6 +775,7 @@ module {
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.mask<i32, \"m2\">"
             : "!tcrv_rvv.mask<i32, \"m1\">";
+    std::string scalarResultVectorType = "!tcrv_rvv.vector<i32, \"m1\">";
     llvm::StringRef reduceKind =
         getRVVTestComputedMaskStandaloneReductionKind(op);
     os << R"mlir(
@@ -810,9 +812,9 @@ module {
        << R"mlir(", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : )mlir"
        << maskType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
-       << vectorType << R"mlir(
+       << scalarResultVectorType << R"mlir(
         tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
-       << vectorType << R"mlir(, !tcrv_rvv.vl
+       << scalarResultVectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -2169,6 +2171,21 @@ bool expectRVVTargetArtifactExporterShape(
            "selected typed RVV non-vector-reduction route-family mirror"}))
     return false;
 
+  RVVTargetArtifactCandidateFixture standaloneReduceAddFixture(
+      OperationKind::StandaloneReduceAdd);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          standaloneReduceAddFixture,
+          "build valid RVV standalone reduce_add selected-body candidate "
+          "fixture"))
+    return false;
+  RVVTargetArtifactCandidateFixture standaloneReduceAddM2Fixture(
+      OperationKind::StandaloneReduceAdd, /*useRHSBroadcast=*/false,
+      tianchenrv::tcrv::rvv::getRVVLMULM2());
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          standaloneReduceAddM2Fixture,
+          "build valid RVV standalone reduce_add LMUL m2 selected-body "
+          "candidate fixture"))
+    return false;
   RVVTargetArtifactCandidateFixture standaloneReduceMinFixture(
       OperationKind::StandaloneReduceMin);
   if (!expectRVVTargetArtifactCandidateFixtureReady(
@@ -2184,6 +2201,16 @@ bool expectRVVTargetArtifactExporterShape(
           "fixture"))
     return false;
   if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         standaloneReduceAddFixture.candidate, *exporter),
+                     "validate RVV standalone reduce_add target artifact "
+                     "candidate through exporter"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         standaloneReduceAddM2Fixture.candidate, *exporter),
+                     "validate RVV standalone reduce_add LMUL m2 target "
+                     "artifact candidate through exporter"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
                          standaloneReduceMinFixture.candidate, *exporter),
                      "validate RVV standalone reduce_min target artifact "
                      "candidate through exporter"))
@@ -2192,6 +2219,54 @@ bool expectRVVTargetArtifactExporterShape(
                          standaloneReduceMaxFixture.candidate, *exporter),
                      "validate RVV standalone reduce_max target artifact "
                      "candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      standaloneReduceAddRoute;
+  RVVRouteDescription standaloneReduceAddDescription;
+  if (!buildRVVRouteValidationInputs(
+          standaloneReduceAddFixture, standaloneReduceAddRoute,
+          standaloneReduceAddDescription,
+          "rebuild RVV standalone reduce_add route validator inputs"))
+    return false;
+  RVVRouteValidationContext standaloneReduceAddContext{
+      standaloneReduceAddFixture.candidate, standaloneReduceAddRoute,
+      standaloneReduceAddDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  standaloneReduceAddContext),
+          "standalone reduce_add registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  standaloneReduceAddContext),
+          "standalone reduce_add registry accepts candidate mirrors"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      standaloneReduceAddM2Route;
+  RVVRouteDescription standaloneReduceAddM2Description;
+  if (!buildRVVRouteValidationInputs(
+          standaloneReduceAddM2Fixture, standaloneReduceAddM2Route,
+          standaloneReduceAddM2Description,
+          "rebuild RVV standalone reduce_add LMUL m2 route validator inputs"))
+    return false;
+  RVVRouteValidationContext standaloneReduceAddM2Context{
+      standaloneReduceAddM2Fixture.candidate, standaloneReduceAddM2Route,
+      standaloneReduceAddM2Description};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  standaloneReduceAddM2Context),
+          "standalone reduce_add LMUL m2 registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  standaloneReduceAddM2Context),
+          "standalone reduce_add LMUL m2 registry accepts candidate mirrors"))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -2242,6 +2317,51 @@ bool expectRVVTargetArtifactExporterShape(
           "standalone reduce_max registry accepts candidate mirrors"))
     return false;
 
+  auto expectStandaloneReduceAddProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        standaloneReduceAddFixture.candidate, standaloneReduceAddRoute,
+        mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectStandaloneReduceAddM2ProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        standaloneReduceAddM2Fixture.candidate, standaloneReduceAddM2Route,
+        mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectStandaloneReduceAddCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, standaloneReduceAddRoute, standaloneReduceAddDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectStandaloneReduceAddM2CandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, standaloneReduceAddM2Route, standaloneReduceAddM2Description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
   auto expectStandaloneReduceMinProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -2275,6 +2395,222 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+
+  RVVRouteDescription staleStandaloneAddTypedOp = standaloneReduceAddDescription;
+  staleStandaloneAddTypedOp.typedComputeOpName =
+      "metadata-derived-standalone-reduction";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddTypedOp,
+          "standalone reduce_add registry rejects stale typed compute op",
+          {"tcrv_rvv.standalone_reduce",
+           "unit-stride standalone reduction memory form"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddOperation =
+      standaloneReduceAddDescription;
+  staleStandaloneAddOperation.operation = OperationKind::StandaloneReduceMin;
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddOperation,
+          "standalone reduce_add registry rejects stale operation-kind "
+          "authority",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:standalone_reduce_min.v1",
+           "rvv-route-operand-binding:standalone_reduce_add.v1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddMemoryForm =
+      standaloneReduceAddDescription;
+  staleStandaloneAddMemoryForm.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddMemoryForm,
+          "standalone reduce_add registry rejects stale memory form",
+          {"tcrv_rvv.standalone_reduce",
+           "unit-stride standalone reduction memory form"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddABIOrder =
+      standaloneReduceAddDescription;
+  staleStandaloneAddABIOrder.runtimeABIOrder = "lhs,out,acc,n";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddABIOrder,
+          "standalone reduce_add registry rejects stale runtime ABI order",
+          {"runtime ABI order", "lhs,acc,out,n", "lhs,out,acc,n"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddAccumulatorRole =
+      standaloneReduceAddDescription;
+  staleStandaloneAddAccumulatorRole.runtimeABIParameters[1].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddAccumulatorRole,
+          "standalone reduce_add registry rejects stale accumulator ABI role",
+          {"parameter 1", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddM2ScalarResult =
+      standaloneReduceAddM2Description;
+  staleStandaloneAddM2ScalarResult
+      .standaloneReductionScalarResultVectorCType = "vint32m2_t";
+  if (!expectStandaloneReduceAddM2ProviderFailure(
+          staleStandaloneAddM2ScalarResult,
+          "standalone reduce_add LMUL m2 registry rejects stale scalar-result "
+          "channel",
+          {"scalar-result vector type", "vint32m1_t", "vint32m2_t"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddProviderMirror =
+      standaloneReduceAddDescription;
+  staleStandaloneAddProviderMirror.providerSupportedMirror =
+      "metadata-derived-provider-supported";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddProviderMirror,
+          "standalone reduce_add registry rejects stale provider mirror",
+          {"provider mirror",
+           "provider_supported_mirror:rvv-standalone-reduction-plan-validated"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddBindingSummary =
+      standaloneReduceAddDescription;
+  staleStandaloneAddBindingSummary.routeOperandBindingSummary =
+      "metadata-derived-binding";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddBindingSummary,
+          "standalone reduce_add registry rejects stale route operand binding "
+          "summary",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:standalone_reduce_add.v1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddAccumulatorLayout =
+      standaloneReduceAddDescription;
+  staleStandaloneAddAccumulatorLayout.reductionAccumulatorLayout =
+      "metadata-derived-vector-accumulator";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddAccumulatorLayout,
+          "standalone reduce_add registry rejects stale accumulator layout",
+          {"scalar seed accumulator layout",
+           "scalar-i32-seed-lane0-from-accumulator-input"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddM2VectorLoad =
+      standaloneReduceAddM2Description;
+  staleStandaloneAddM2VectorLoad.vectorLoadIntrinsic =
+      "__riscv_vle32_v_i32m1";
+  if (!expectStandaloneReduceAddM2ProviderFailure(
+          staleStandaloneAddM2VectorLoad,
+          "standalone reduce_add LMUL m2 registry rejects stale vector load "
+          "leaf",
+          {"vector load", "__riscv_vle32_v_i32m2"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddM2SeedSplat =
+      standaloneReduceAddM2Description;
+  staleStandaloneAddM2SeedSplat.scalarSeedSplatIntrinsic =
+      "__riscv_vmv_v_x_i32m2";
+  if (!expectStandaloneReduceAddM2ProviderFailure(
+          staleStandaloneAddM2SeedSplat,
+          "standalone reduce_add LMUL m2 registry rejects stale seed splat",
+          {"scalar seed splat", "__riscv_vmv_v_x_i32m1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddIntrinsic =
+      standaloneReduceAddDescription;
+  staleStandaloneAddIntrinsic.intrinsic =
+      "__riscv_vredmin_vs_i32m1_i32m1";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddIntrinsic,
+          "standalone reduce_add registry rejects stale reduction intrinsic",
+          {"signed min/max/add reduction intrinsic",
+           "__riscv_vredsum_vs_i32m1_i32m1"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddM2Store = standaloneReduceAddM2Description;
+  staleStandaloneAddM2Store.storeIntrinsic = "__riscv_vse32_v_i32m2";
+  if (!expectStandaloneReduceAddM2ProviderFailure(
+          staleStandaloneAddM2Store,
+          "standalone reduce_add LMUL m2 registry rejects stale scalar-result "
+          "store",
+          {"scalar result store", "__riscv_vse32_v_i32m1"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneAddOperationMirror =
+      standaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleStandaloneAddOperationMirror,
+                                    "rvv_selected_body_operation",
+                                    "standalone_reduce_min")) {
+    llvm::errs() << "test fixture did not contain standalone reduce_add "
+                    "operation mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceAddCandidateFailure(
+          staleStandaloneAddOperationMirror,
+          "standalone reduce_add registry rejects stale operation mirror",
+          {"rvv_selected_body_operation", "standalone_reduce_add",
+           "standalone_reduce_min"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneAddTypedOpMirror =
+      standaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleStandaloneAddTypedOpMirror,
+                                    "rvv_selected_body_typed_compute_op",
+                                    "metadata-derived-standalone-reduction")) {
+    llvm::errs() << "test fixture did not contain standalone reduce_add typed "
+                    "op mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceAddCandidateFailure(
+          staleStandaloneAddTypedOpMirror,
+          "standalone reduce_add registry rejects stale typed-op mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.standalone_reduce",
+           "metadata-derived-standalone-reduction"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneAddM2VectorLoadMirror =
+      standaloneReduceAddM2Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleStandaloneAddM2VectorLoadMirror,
+                                    "tcrv_rvv.vector_load_intrinsic",
+                                    "__riscv_vle32_v_i32m1")) {
+    llvm::errs() << "test fixture did not contain standalone reduce_add vector "
+                    "load mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceAddM2CandidateFailure(
+          staleStandaloneAddM2VectorLoadMirror,
+          "standalone reduce_add LMUL m2 registry rejects stale vector load "
+          "mirror",
+          {"vector_load_intrinsic", "__riscv_vle32_v_i32m2",
+           "__riscv_vle32_v_i32m1"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneAddReductionMirror =
+      standaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleStandaloneAddReductionMirror,
+                                    "tcrv_rvv.reduction_intrinsic",
+                                    "__riscv_vredmin_vs_i32m1_i32m1")) {
+    llvm::errs() << "test fixture did not contain standalone reduce_add "
+                    "reduction leaf mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceAddCandidateFailure(
+          staleStandaloneAddReductionMirror,
+          "standalone reduce_add registry rejects stale reduction leaf mirror",
+          {"reduction_intrinsic", "__riscv_vredsum_vs_i32m1_i32m1",
+           "__riscv_vredmin_vs_i32m1_i32m1"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneAddComputedMaskMirror =
+      standaloneReduceAddFixture.candidate;
+  staleStandaloneAddComputedMaskMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.compare_intrinsic", "__riscv_vmsle_vv_i32m1_b32"));
+  if (!expectStandaloneReduceAddCandidateFailure(
+          staleStandaloneAddComputedMaskMirror,
+          "standalone reduce_add registry rejects stale computed-mask leaf "
+          "mirror",
+          {"must not carry", "tcrv_rvv.compare_intrinsic",
+           "computed-mask standalone reduction mirror"}))
+    return false;
 
   RVVRouteDescription staleStandaloneMinTypedOp =
       standaloneReduceMinDescription;
@@ -2443,6 +2779,21 @@ bool expectRVVTargetArtifactExporterShape(
            "vint32m2_t"}))
     return false;
 
+  RVVTargetArtifactCandidateFixture computedMaskStandaloneReduceAddFixture(
+      OperationKind::ComputedMaskStandaloneReduceAdd);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          computedMaskStandaloneReduceAddFixture,
+          "build valid RVV computed-mask standalone reduce_add selected-body "
+          "candidate fixture"))
+    return false;
+  RVVTargetArtifactCandidateFixture computedMaskStandaloneReduceAddM2Fixture(
+      OperationKind::ComputedMaskStandaloneReduceAdd,
+      /*useRHSBroadcast=*/false, tianchenrv::tcrv::rvv::getRVVLMULM2());
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          computedMaskStandaloneReduceAddM2Fixture,
+          "build valid RVV computed-mask standalone reduce_add LMUL m2 "
+          "selected-body candidate fixture"))
+    return false;
   RVVTargetArtifactCandidateFixture computedMaskStandaloneReduceMinFixture(
       OperationKind::ComputedMaskStandaloneReduceMin);
   if (!expectRVVTargetArtifactCandidateFixtureReady(
@@ -2459,6 +2810,18 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
   if (!expectSuccess(
           validateTargetArtifactCandidateAgainstExporter(
+              computedMaskStandaloneReduceAddFixture.candidate, *exporter),
+          "validate RVV computed-mask standalone reduce_add target artifact "
+          "candidate through exporter"))
+    return false;
+  if (!expectSuccess(
+          validateTargetArtifactCandidateAgainstExporter(
+              computedMaskStandaloneReduceAddM2Fixture.candidate, *exporter),
+          "validate RVV computed-mask standalone reduce_add LMUL m2 target "
+          "artifact candidate through exporter"))
+    return false;
+  if (!expectSuccess(
+          validateTargetArtifactCandidateAgainstExporter(
               computedMaskStandaloneReduceMinFixture.candidate, *exporter),
           "validate RVV computed-mask standalone reduce_min target artifact "
           "candidate through exporter"))
@@ -2468,6 +2831,64 @@ bool expectRVVTargetArtifactExporterShape(
               computedMaskStandaloneReduceMaxFixture.candidate, *exporter),
           "validate RVV computed-mask standalone reduce_max target artifact "
           "candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskStandaloneReduceAddRoute;
+  RVVRouteDescription computedMaskStandaloneReduceAddDescription;
+  if (!buildRVVRouteValidationInputs(
+          computedMaskStandaloneReduceAddFixture,
+          computedMaskStandaloneReduceAddRoute,
+          computedMaskStandaloneReduceAddDescription,
+          "rebuild RVV computed-mask standalone reduce_add route validator "
+          "inputs"))
+    return false;
+  RVVRouteValidationContext computedMaskStandaloneReduceAddContext{
+      computedMaskStandaloneReduceAddFixture.candidate,
+      computedMaskStandaloneReduceAddRoute,
+      computedMaskStandaloneReduceAddDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  computedMaskStandaloneReduceAddContext),
+          "computed-mask standalone reduce_add registry accepts provider "
+          "facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  computedMaskStandaloneReduceAddContext),
+          "computed-mask standalone reduce_add registry accepts candidate "
+          "mirrors"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      computedMaskStandaloneReduceAddM2Route;
+  RVVRouteDescription computedMaskStandaloneReduceAddM2Description;
+  if (!buildRVVRouteValidationInputs(
+          computedMaskStandaloneReduceAddM2Fixture,
+          computedMaskStandaloneReduceAddM2Route,
+          computedMaskStandaloneReduceAddM2Description,
+          "rebuild RVV computed-mask standalone reduce_add LMUL m2 route "
+          "validator inputs"))
+    return false;
+  RVVRouteValidationContext computedMaskStandaloneReduceAddM2Context{
+      computedMaskStandaloneReduceAddM2Fixture.candidate,
+      computedMaskStandaloneReduceAddM2Route,
+      computedMaskStandaloneReduceAddM2Description};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  computedMaskStandaloneReduceAddM2Context),
+          "computed-mask standalone reduce_add LMUL m2 registry accepts "
+          "provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  computedMaskStandaloneReduceAddM2Context),
+          "computed-mask standalone reduce_add LMUL m2 registry accepts "
+          "candidate mirrors"))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -2528,6 +2949,53 @@ bool expectRVVTargetArtifactExporterShape(
           "mirrors"))
     return false;
 
+  auto expectComputedMaskStandaloneReduceAddProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        computedMaskStandaloneReduceAddFixture.candidate,
+        computedMaskStandaloneReduceAddRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectComputedMaskStandaloneReduceAddM2ProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        computedMaskStandaloneReduceAddM2Fixture.candidate,
+        computedMaskStandaloneReduceAddM2Route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectComputedMaskStandaloneReduceAddCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, computedMaskStandaloneReduceAddRoute,
+        computedMaskStandaloneReduceAddDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectComputedMaskStandaloneReduceAddM2CandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, computedMaskStandaloneReduceAddM2Route,
+        computedMaskStandaloneReduceAddM2Description};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
   auto expectComputedMaskStandaloneReduceMinProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -2562,6 +3030,277 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+
+  RVVRouteDescription staleComputedMaskStandaloneAddTypedOp =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddTypedOp.typedComputeOpName =
+      "metadata-derived-masked-standalone-reduction";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddTypedOp,
+          "computed-mask standalone reduce_add registry rejects stale typed "
+          "compute op",
+          {"tcrv_rvv.masked_standalone_reduce",
+           "computed-mask unit-stride standalone reduction"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddOperation =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddOperation.operation =
+      OperationKind::ComputedMaskStandaloneReduceMin;
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddOperation,
+          "computed-mask standalone reduce_add registry rejects stale "
+          "operation-kind authority",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1",
+           "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddMemoryForm =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddMemoryForm.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+          UnitStrideStandaloneReduction;
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddMemoryForm,
+          "computed-mask standalone reduce_add registry rejects stale memory "
+          "form",
+          {"tcrv_rvv.masked_standalone_reduce",
+           "computed-mask unit-stride standalone reduction"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddABIOrder =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddABIOrder.runtimeABIOrder =
+      "cmp_lhs,src,cmp_rhs,acc,out,n";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddABIOrder,
+          "computed-mask standalone reduce_add registry rejects stale runtime "
+          "ABI order",
+          {"runtime ABI order", "cmp_lhs,cmp_rhs,src,acc,out,n",
+           "cmp_lhs,src,cmp_rhs,acc,out,n"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddSourceRole =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddSourceRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddSourceRole,
+          "computed-mask standalone reduce_add registry rejects stale source "
+          "ABI role",
+          {"parameter 2", "src", "source-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddM2ScalarResult =
+      computedMaskStandaloneReduceAddM2Description;
+  staleComputedMaskStandaloneAddM2ScalarResult
+      .standaloneReductionScalarResultVectorCType = "vint32m2_t";
+  if (!expectComputedMaskStandaloneReduceAddM2ProviderFailure(
+          staleComputedMaskStandaloneAddM2ScalarResult,
+          "computed-mask standalone reduce_add LMUL m2 registry rejects stale "
+          "scalar-result channel",
+          {"scalar-result vector type", "vint32m1_t", "vint32m2_t"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddProviderMirror =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddProviderMirror.providerSupportedMirror =
+      "metadata-derived-provider-supported";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddProviderMirror,
+          "computed-mask standalone reduce_add registry rejects stale provider "
+          "mirror",
+          {"provider mirror",
+           "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddBindingPlan =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddBindingPlan.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddBindingPlan,
+          "computed-mask standalone reduce_add registry rejects stale route "
+          "operand binding plan",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1",
+           "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddInactiveLane =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddInactiveLane.inactiveLaneZeroingRequirement =
+      "masked-standalone-reduction-neutral-inactive-lanes-before-reduction";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddInactiveLane,
+          "computed-mask standalone reduce_add registry rejects stale "
+          "zero-inactive policy",
+          {"inactive-lane requirement",
+           "masked-standalone-reduction-zero-inactive-lanes-before-reduction"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddM2VectorLoad =
+      computedMaskStandaloneReduceAddM2Description;
+  staleComputedMaskStandaloneAddM2VectorLoad.vectorLoadIntrinsic =
+      "__riscv_vle32_v_i32m1";
+  if (!expectComputedMaskStandaloneReduceAddM2ProviderFailure(
+          staleComputedMaskStandaloneAddM2VectorLoad,
+          "computed-mask standalone reduce_add LMUL m2 registry rejects stale "
+          "vector load leaf",
+          {"vector load", "__riscv_vle32_v_i32m2"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddIntrinsic =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddIntrinsic.intrinsic =
+      "__riscv_vredmin_vs_i32m1_i32m1";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddIntrinsic,
+          "computed-mask standalone reduce_add registry rejects stale "
+          "reduction intrinsic",
+          {"signed min/max/add reduction intrinsic",
+           "__riscv_vredsum_vs_i32m1_i32m1"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddM2Compare =
+      computedMaskStandaloneReduceAddM2Description;
+  staleComputedMaskStandaloneAddM2Compare.compareIntrinsic =
+      "__riscv_vmsle_vv_i32m1_b32";
+  if (!expectComputedMaskStandaloneReduceAddM2ProviderFailure(
+          staleComputedMaskStandaloneAddM2Compare,
+          "computed-mask standalone reduce_add LMUL m2 registry rejects stale "
+          "compare leaf",
+          {"compare intrinsic", "__riscv_vmsle_vv_i32m2_b16"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddM2Merge =
+      computedMaskStandaloneReduceAddM2Description;
+  staleComputedMaskStandaloneAddM2Merge.maskedMergeIntrinsic =
+      "__riscv_vmerge_vvm_i32m1";
+  if (!expectComputedMaskStandaloneReduceAddM2ProviderFailure(
+          staleComputedMaskStandaloneAddM2Merge,
+          "computed-mask standalone reduce_add LMUL m2 registry rejects stale "
+          "merge leaf",
+          {"inactive neutral merge", "__riscv_vmerge_vvm_i32m2"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStandaloneAddProducer =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddProducer.accumulationMaskProducerSource =
+      "metadata-derived-mask-producer";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddProducer,
+          "computed-mask standalone reduce_add registry rejects stale "
+          "accumulation producer",
+          {"computed-mask accumulation plan", "vector compare producer"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStandaloneAddOperationMirror =
+      computedMaskStandaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleComputedMaskStandaloneAddOperationMirror,
+                                    "rvv_selected_body_operation",
+                                    "computed_mask_standalone_reduce_min")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add operation mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddCandidateFailure(
+          staleComputedMaskStandaloneAddOperationMirror,
+          "computed-mask standalone reduce_add registry rejects stale operation "
+          "mirror",
+          {"rvv_selected_body_operation", "computed_mask_standalone_reduce_add",
+           "computed_mask_standalone_reduce_min"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStandaloneAddTypedOpMirror =
+      computedMaskStandaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleComputedMaskStandaloneAddTypedOpMirror,
+          "rvv_selected_body_typed_compute_op",
+          "metadata-derived-masked-standalone-reduction")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add typed op mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddCandidateFailure(
+          staleComputedMaskStandaloneAddTypedOpMirror,
+          "computed-mask standalone reduce_add registry rejects stale typed-op "
+          "mirror",
+          {"rvv_selected_body_typed_compute_op",
+           "tcrv_rvv.masked_standalone_reduce",
+           "metadata-derived-masked-standalone-reduction"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStandaloneAddReductionMirror =
+      computedMaskStandaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleComputedMaskStandaloneAddReductionMirror,
+                                    "tcrv_rvv.reduction_intrinsic",
+                                    "__riscv_vredmin_vs_i32m1_i32m1")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add reduction leaf mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddCandidateFailure(
+          staleComputedMaskStandaloneAddReductionMirror,
+          "computed-mask standalone reduce_add registry rejects stale reduction "
+          "leaf mirror",
+          {"reduction_intrinsic", "__riscv_vredsum_vs_i32m1_i32m1",
+           "__riscv_vredmin_vs_i32m1_i32m1"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStandaloneAddM2CompareMirror =
+      computedMaskStandaloneReduceAddM2Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleComputedMaskStandaloneAddM2CompareMirror,
+                                    "tcrv_rvv.compare_intrinsic",
+                                    "__riscv_vmsle_vv_i32m1_b32")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add compare leaf mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddM2CandidateFailure(
+          staleComputedMaskStandaloneAddM2CompareMirror,
+          "computed-mask standalone reduce_add LMUL m2 registry rejects stale "
+          "compare leaf mirror",
+          {"compare_intrinsic", "__riscv_vmsle_vv_i32m2_b16",
+           "__riscv_vmsle_vv_i32m1_b32"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStandaloneAddMergeMirror =
+      computedMaskStandaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleComputedMaskStandaloneAddMergeMirror,
+                                    "tcrv_rvv.masked_merge_intrinsic",
+                                    "__riscv_vmerge_vvm_i32m2")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add merge leaf mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddCandidateFailure(
+          staleComputedMaskStandaloneAddMergeMirror,
+          "computed-mask standalone reduce_add registry rejects stale merge "
+          "leaf mirror",
+          {"masked_merge_intrinsic", "__riscv_vmerge_vvm_i32m1",
+           "__riscv_vmerge_vvm_i32m2"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStandaloneAddInactiveMirror =
+      computedMaskStandaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleComputedMaskStandaloneAddInactiveMirror,
+          "tcrv_rvv.inactive_lane_zeroing_requirement",
+          "masked-standalone-reduction-neutral-inactive-lanes-before-reduction")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add inactive-lane mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddCandidateFailure(
+          staleComputedMaskStandaloneAddInactiveMirror,
+          "computed-mask standalone reduce_add registry rejects stale inactive "
+          "lane mirror",
+          {"inactive_lane_zeroing_requirement",
+           "masked-standalone-reduction-zero-inactive-lanes-before-reduction",
+           "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"}))
+    return false;
 
   RVVRouteDescription staleComputedMaskStandaloneMinTypedOp =
       computedMaskStandaloneReduceMinDescription;

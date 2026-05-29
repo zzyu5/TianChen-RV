@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV route-authority boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 standalone reduction, provider facts, artifact ABI consumer, mirror metadata, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and non-compute authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ target test, generated-bundle, and ssh-rvv evidence obligations."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected typed RVV body authority and mirror-only metadata rules."}
+{"file": ".trellis/tasks/05-29-stage2-rvv-base-standalone-reduce-add-abi-closure/prd.md", "reason": "This task's bounded module goal, acceptance criteria, non-goals, and validation plan."}

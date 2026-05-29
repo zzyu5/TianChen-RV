@@ -3705,6 +3705,19 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(
   return {};
 }
 
+llvm::StringRef getRVVPlainStandaloneReductionExpectedLoadIntrinsic(
+    int64_t sew, llvm::StringRef lmul) {
+  if (sew == 64 && lmul == "m1")
+    return "__riscv_vle64_v_i64m1";
+  if (sew != 32)
+    return {};
+  if (lmul == "m1")
+    return "__riscv_vle32_v_i32m1";
+  if (lmul == "m2")
+    return "__riscv_vle32_v_i32m2";
+  return {};
+}
+
 llvm::StringRef getRVVPlainStandaloneReductionExpectedStoreIntrinsic(
     int64_t sew, llvm::StringRef lmul) {
   if (sew == 64 && lmul == "m1")
@@ -4160,20 +4173,25 @@ llvm::Error validateRVVPlainStandaloneReductionRoutePayloadFacts(
   llvm::StringRef expectedSeedSplat =
       getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(description.sew,
                                                               description.lmul);
+  llvm::StringRef expectedVectorLoad =
+      getRVVPlainStandaloneReductionExpectedLoadIntrinsic(description.sew,
+                                                          description.lmul);
   llvm::StringRef expectedStore =
       getRVVPlainStandaloneReductionExpectedStoreIntrinsic(description.sew,
                                                           description.lmul);
   llvm::StringRef expectedReduction =
       getRVVPlainStandaloneReductionExpectedIntrinsic(
           description.operation, description.sew, description.lmul);
-  if (description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
+  if (description.vectorLoadIntrinsic != expectedVectorLoad ||
+      description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
       description.storeIntrinsic != expectedStore ||
       description.intrinsic != expectedReduction)
     return makeRVVTargetRouteError(
         llvm::Twine("plain standalone reduction target artifact consumer "
-                    "requires provider-derived scalar seed splat '") +
-        expectedSeedSplat + "', signed min/max/add reduction intrinsic '" +
-        expectedReduction + "', and scalar result store '" + expectedStore +
+                    "requires provider-derived vector load '") +
+        expectedVectorLoad + "', scalar seed splat '" + expectedSeedSplat +
+        "', signed min/max/add reduction intrinsic '" + expectedReduction +
+        "', and scalar result store '" + expectedStore +
         "' before artifact export");
 
   return llvm::Error::success();
@@ -4310,6 +4328,9 @@ llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
   llvm::StringRef expectedSeedSplat =
       getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(description.sew,
                                                               description.lmul);
+  llvm::StringRef expectedVectorLoad =
+      getRVVPlainStandaloneReductionExpectedLoadIntrinsic(description.sew,
+                                                          description.lmul);
   llvm::StringRef expectedStore =
       getRVVPlainStandaloneReductionExpectedStoreIntrinsic(description.sew,
                                                           description.lmul);
@@ -4322,16 +4343,18 @@ llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
   llvm::StringRef expectedMerge =
       getRVVComputedMaskStandaloneReductionExpectedMergeIntrinsic(
           description.sew, description.lmul);
-  if (description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
+  if (description.vectorLoadIntrinsic != expectedVectorLoad ||
+      description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
       description.storeIntrinsic != expectedStore ||
       description.intrinsic != expectedReduction ||
       description.compareIntrinsic != expectedCompare ||
       description.maskedMergeIntrinsic != expectedMerge)
     return makeRVVTargetRouteError(
         llvm::Twine("computed-mask standalone reduction target artifact "
-                    "consumer requires provider-derived scalar seed splat '") +
-        expectedSeedSplat + "', signed min/max/add reduction intrinsic '" +
-        expectedReduction + "', compare intrinsic '" + expectedCompare +
+                    "consumer requires provider-derived vector load '") +
+        expectedVectorLoad + "', scalar seed splat '" + expectedSeedSplat +
+        "', signed min/max/add reduction intrinsic '" + expectedReduction +
+        "', compare intrinsic '" + expectedCompare +
         "', inactive neutral merge '" + expectedMerge +
         "', and scalar result store '" + expectedStore +
         "' before artifact export");
@@ -4522,6 +4545,9 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
   llvm::StringRef expectedSeedSplat =
       getRVVPlainStandaloneReductionExpectedSeedSplatIntrinsic(description.sew,
                                                               description.lmul);
+  llvm::StringRef expectedVectorLoad =
+      getRVVPlainStandaloneReductionExpectedLoadIntrinsic(description.sew,
+                                                          description.lmul);
   llvm::StringRef expectedRHSBroadcast =
       getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedRHSBroadcastIntrinsic(
           description.sew, description.lmul);
@@ -4537,7 +4563,8 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
   llvm::StringRef expectedMerge =
       getRVVComputedMaskStandaloneReductionExpectedMergeIntrinsic(
           description.sew, description.lmul);
-  if (description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
+  if (description.vectorLoadIntrinsic != expectedVectorLoad ||
+      description.scalarSeedSplatIntrinsic != expectedSeedSplat ||
       description.rhsBroadcastIntrinsic != expectedRHSBroadcast ||
       description.storeIntrinsic != expectedStore ||
       description.intrinsic != expectedReduction ||
@@ -4545,14 +4572,15 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
       description.maskedMergeIntrinsic != expectedMerge)
     return makeRVVTargetRouteError(
         llvm::Twine("runtime-scalar computed-mask standalone reduction target "
-                    "artifact consumer requires provider-derived scalar seed "
-                    "splat '") +
-        expectedSeedSplat + "', RHS scalar splat '" + expectedRHSBroadcast +
+                    "artifact consumer requires provider-derived vector load '") +
+        expectedVectorLoad + "', scalar seed splat '" + expectedSeedSplat +
+        "', RHS scalar splat '" + expectedRHSBroadcast +
         "', signed min/max/add reduction intrinsic '" + expectedReduction +
         "', compare intrinsic '" + expectedCompare +
         "', inactive neutral merge '" + expectedMerge +
         "', and scalar result store '" + expectedStore +
-        "' before artifact export but saw seed splat '" +
+        "' before artifact export but saw vector load '" +
+        description.vectorLoadIntrinsic + "', seed splat '" +
         description.scalarSeedSplatIntrinsic + "', RHS scalar splat '" +
         description.rhsBroadcastIntrinsic + "', reduction '" +
         description.intrinsic + "', compare '" + description.compareIntrinsic +
@@ -5015,6 +5043,17 @@ validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
       context.description;
 
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "rvv_selected_body_operation",
+          plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+              description.operation),
+          "selected typed RVV standalone reduction operation kind"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "rvv_selected_body_typed_compute_op",
+          description.typedComputeOpName,
+          "selected typed RVV standalone reduction typed compute op"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.route_operand_binding_plan",
           description.routeOperandBindingPlanID,
           "selected typed RVV standalone reduction binding plan"))
@@ -5102,6 +5141,25 @@ validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
           description.reductionStoreVL,
           "selected typed RVV standalone reduction store VL"))
     return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.vector_load_intrinsic",
+          description.vectorLoadIntrinsic,
+          "selected typed RVV standalone reduction vector load leaf"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.scalar_seed_splat_intrinsic",
+          description.scalarSeedSplatIntrinsic,
+          "selected typed RVV standalone reduction scalar seed splat leaf"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.reduction_intrinsic", description.intrinsic,
+          "selected typed RVV standalone reduction intrinsic leaf"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.scalar_result_store_intrinsic",
+          description.storeIntrinsic,
+          "selected typed RVV standalone reduction scalar-result store leaf"))
+    return error;
 
   if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
           description.operation)) {
@@ -5166,6 +5224,27 @@ validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
             "selected typed RVV computed-mask standalone reduction compare "
             "predicate"))
       return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_intrinsic",
+            description.compareIntrinsic,
+            "selected typed RVV computed-mask standalone reduction compare leaf"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_merge_intrinsic",
+            description.maskedMergeIntrinsic,
+            "selected typed RVV computed-mask standalone reduction merge leaf"))
+      return error;
+    const llvm::StringRef expectedRHSBroadcast =
+        isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
+            description.operation)
+            ? description.rhsBroadcastIntrinsic
+            : llvm::StringRef();
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.rhs_broadcast_intrinsic",
+            expectedRHSBroadcast,
+            "selected typed RVV runtime-scalar computed-mask standalone "
+            "reduction RHS broadcast leaf"))
+      return error;
   } else {
     constexpr llvm::StringLiteral staleComputedMaskMirrors[] = {
         "tcrv_rvv.accumulation_route_family_plan",
@@ -5178,7 +5257,10 @@ validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
         "tcrv_rvv.mask_source",
         "tcrv_rvv.mask_memory_form",
         "tcrv_rvv.inactive_lane_zeroing_requirement",
-        "tcrv_rvv.compare_predicate_kind"};
+        "tcrv_rvv.compare_predicate_kind",
+        "tcrv_rvv.compare_intrinsic",
+        "tcrv_rvv.masked_merge_intrinsic",
+        "tcrv_rvv.rhs_broadcast_intrinsic"};
     for (llvm::StringRef key : staleComputedMaskMirrors)
       if (llvm::Error error =
               requireEmptyStandaloneReductionAccumulationStaleMirror(

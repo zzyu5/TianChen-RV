@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and route-authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider-derived artifact validation, standalone reduction, selected-boundary route, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that ABI/runtime roles are not used as compute or dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-built route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused target tests and ssh-rvv evidence obligations."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check selected typed-body authority and mirror-only metadata."}
+{"file": ".trellis/tasks/05-29-stage2-rvv-base-standalone-reduce-add-abi-closure/prd.md", "reason": "Check implementation against task acceptance criteria and non-goals."}
