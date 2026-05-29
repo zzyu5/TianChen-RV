@@ -236,7 +236,6 @@ The durable C++ surface is:
 struct RVVSelectedBodyRealizationOwner {
   llvm::StringLiteral familyName;
   bool (*isConsumer)(mlir::Operation *);
-  bool (*isRouteEntryConsumer)(mlir::Operation *);
   llvm::Expected<tcrv::rvv::WithVLOp> (*realize)(
       const VariantLoweringBoundaryRequest &, mlir::Operation *);
 };
@@ -251,9 +250,18 @@ getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
 
 `realizePreRealizedRVVSelectedBody(...)` must dispatch through this owner
 registry. Direct route-entry realization is retired for active production route
-construction. Any remaining `isRouteEntryConsumer` field, route-entry registry,
-or route-entry helper is diagnostic/negative-test inventory only and must not
-provide executable route support.
+construction. The production owner API must not expose an
+`isRouteEntryConsumer` field, route-entry owner registry, route-entry variant
+query, or `WithVLOp`-returning direct route-entry helper. A retained direct
+route-entry API may only be an explicit retired diagnostic:
+
+```c++
+llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
+    const VariantLoweringBoundaryRequest &request);
+```
+
+This diagnostic function is negative-test inventory only and must not provide
+executable route support.
 
 ### 3. Contracts
 
@@ -296,46 +304,23 @@ contraction, widening conversion, base memory movement, computed-mask memory,
 and segment2 memory. A pre-realized body may belong to an owner family, but it
 must be consumed through the public selected lowering-boundary producer before
 provider facts are collected. A later task may reintroduce direct route-entry
-support only by explicitly adding owner-scoped predicates plus matching
-provider facts, diagnostics, generated-bundle evidence, and real RVV evidence
-for executable claims.
+support only by explicitly adding a new owner API with matching provider facts,
+diagnostics, generated-bundle evidence, and real RVV evidence for executable
+claims.
 
-The segment2 route-entry family registry is retained as negative diagnostic
-inventory. It must remain empty unless a later explicit owner task reintroduces
-direct support with matching facts and evidence:
+Segment2 production planning is selected-body route-family provider planning,
+not segment2 route-entry family ownership. A stale `route_id`, artifact name,
+script option, or mirror metadata cannot repair a mismatched typed `op_kind`,
+memory form, segment count, mask facts, field roles, SEW/LMUL, policy, update
+arithmetic, or runtime binding facts.
 
-```c++
-struct RVVSelectedBodySegment2RouteEntryFamilyOwner {
-  llvm::StringLiteral familyName;
-  bool (*isConsumer)(mlir::Operation *);
-};
-
-llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
-getRVVSelectedBodySegment2RouteEntryFamilyOwners();
-
-llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
-getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
-    mlir::Operation *bodyOp, llvm::StringRef context);
-
-bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
-    mlir::Operation *bodyOp);
-```
-
-There are currently no active segment2 direct route-entry family entries. Plain
-and computed-mask segment2 selected bodies must produce no segment2 route-entry
-family owner. A stale `route_id`, artifact name, script option, or mirror
-metadata cannot repair a mismatched typed `op_kind`, memory form, segment
-count, mask facts, field roles, SEW/LMUL, policy, update arithmetic, or runtime
-binding facts.
-
-Tests for route-entry inventory must assert no active route-entry owner
-predicate, empty/no-match classification where registries remain, stale
-metadata no-match behavior, selected-boundary realization, and direct
-route-entry fail-closed behavior. Positive executable tests must prove the
-public selected lowering-boundary producer consumes the selected pre-realized
-body before provider facts are collected and that the realized typed
-`tcrv_rvv` body feeds the verified route-family plan and statement-plan
-boundary.
+Tests for retired route-entry inventory must assert selected-boundary
+realization, direct route-entry fail-closed behavior, and absence of production
+route-entry API surfaces by bounded scan or compile-time API use. Positive
+executable tests must prove the public selected lowering-boundary producer
+consumes the selected pre-realized body before provider facts are collected and
+that the realized typed `tcrv_rvv` body feeds the verified route-family plan and
+statement-plan boundary.
 
 ### 4. Validation & Error Matrix
 
@@ -370,8 +355,11 @@ boundary.
 
 ### 6. Tests Required
 
-- C++ registry tests must assert owner names, owner count, non-null consumer
-  and realization hooks, and no active direct route-entry predicates.
+- C++ registry tests must assert owner names, owner count, and non-null
+  consumer and realization hooks.
+- Bounded production scans must assert no `isRouteEntryConsumer`,
+  segment2 route-entry registry/query, or route-entry variant query remains in
+  production headers or implementations.
 - C++ or lit route-path tests must prove pre-realized bodies fail closed when
   they reach route construction without the public selected lowering-boundary
   producer.
@@ -560,30 +548,25 @@ selected pre-realized tcrv_rvv body
 
 ### 2. Signatures
 
-The route-entry inventory helpers may remain for negative tests and future
+The route-entry inventory diagnostic may remain for negative tests and future
 explicit owner work:
 
 ```c++
-bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
-    tcrv::exec::VariantOp variant);
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVRouteEntrySelectedBody(
+llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request);
 ```
 
-In active production, `variantContainsPreRealizedRVVRouteEntrySelectedBody(...)`
-must return false for all current selected pre-realized bodies, and
-`realizePreRealizedRVVRouteEntrySelectedBody(...)` must be diagnostic-only. It
-must not create `setvl`, `with_vl`, loads, stores, compute, masks, statement
-plans, or provider routes.
+In active production, the retired diagnostic function must not create `setvl`,
+`with_vl`, loads, stores, compute, masks, statement plans, or provider routes.
+Production/public APIs must not expose a route-entry variant query or a
+`WithVLOp`-returning direct route-entry realization helper.
 
 `RVVExtensionPlugin::buildVariantEmissionPlan(...)` and
 `RVVExtensionPlugin::buildVariantEmitCLowerableRoute(...)` must call a boundary
 requirement helper that either returns the existing unique realized
 `tcrv_rvv.with_vl` boundary or fails closed if a pre-realized body still needs
 selected lowering-boundary materialization. They must not call
-`realizePreRealizedRVVRouteEntrySelectedBody(...)`.
+`diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(...)`.
 
 ### 3. Contracts
 
@@ -615,8 +598,8 @@ facts and statement plans, adds generated-bundle evidence, and supplies real
 - No realized boundary and any pre-realized body -> fail closed with a
   diagnostic requiring public selected lowering-boundary materialization before
   provider route construction.
-- Direct route-entry helper invoked directly -> fail closed with a retired
-  route-entry diagnostic.
+- Retired direct route-entry diagnostic invoked directly -> fail closed with a
+  retired route-entry diagnostic.
 - Provider route analysis sees any pre-realized body -> fail closed with a
   selected-body realization diagnostic; provider/common code must not invent
   missing typed structure.
@@ -630,8 +613,8 @@ facts and statement plans, adds generated-bundle evidence, and supplies real
 - Good: selected RVV variant already contains exactly one valid realized
   `setvl/with_vl` boundary and no pre-realized body -> provider route facts are
   collected.
-- Base: retained route-entry helper exists only so negative tests can assert the
-  retired diagnostic.
+- Base: retained route-entry diagnostic exists only so negative tests can assert
+  the retired diagnostic.
 - Bad: production route construction calls route-entry realization to create a
   selected boundary.
 - Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
@@ -642,17 +625,22 @@ facts and statement plans, adds generated-bundle evidence, and supplies real
 
 ### 6. Tests Required
 
-- C++ registry tests must assert owner names, owner count, non-null consumer and
-  realization hooks, and no active route-entry predicates.
+- C++ registry tests must assert owner names, owner count, and non-null
+  consumer and realization hooks.
 - C++ or lit tests must show production emission-plan and EmitC route
   construction fail closed when pre-realized bodies arrive without selected
   lowering-boundary materialization.
-- C++ or lit tests must show the direct route-entry helper is diagnostic-only.
+- C++ or lit tests must show the retained direct route-entry diagnostic is
+  diagnostic-only.
 - Regression coverage must show selected-boundary materialization and already
   realized selected-body artifacts still pass.
 - Generated-bundle direct pre-realized CLI tests must remain fail-closed.
 - Bounded scans must show common EmitC/export and provider/common code did not
   become semantic realization owners.
+- Bounded scans must show production headers and implementations no longer
+  expose route-entry owner predicates, segment2 route-entry registry/query
+  surfaces, route-entry variant queries, or `WithVLOp`-returning direct
+  route-entry helper APIs.
 
 ### 7. Wrong vs Correct
 
@@ -2226,7 +2214,7 @@ verified route-family plans
 
 ### 1. Scope / Trigger
 
-For production-active segment2 selected-body route-entry families, the RVV
+For production-active segment2 selected-body route families, the RVV
 planning layer must not keep sub-family selection as a local boolean cluster
 inside `getRVVSelectedBodySegment2MemoryRouteStatementPlan(...)`. Segment2
 route-family planning is a plugin-local provider boundary that classifies the
@@ -2359,7 +2347,7 @@ by running its own central predicate cluster after the planning-owner boundary.
   kind, segment count, memory form, mask source, arithmetic kind, ABI order, and
   typed config/policy/capability facts.
 - Generated-bundle dry-run and representative `ssh rvv` evidence when the
-  owner change affects executable segment2 route-entry behavior.
+  owner change affects executable segment2 route-family behavior.
 - Bounded authority scan over touched RVV planning/provider/test files for
   legacy i32/source-front-door/descriptor/direct-C/source-export or
   mirror-only authority drift.

@@ -30937,8 +30937,8 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
         stringifyRVVSelectedBodyOperationKind(description.operation) +
         "', memory_form '" +
         stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
-        "' instead of its registered route-entry family before provider route "
-        "construction");
+        "' instead of its registered selected-body route-family before "
+        "provider route construction");
 
   plan.vlTypeName = "!tcrv_rvv.vl";
 

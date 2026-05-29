@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check implementation preserves RVV-first authority chain and does not move route, dtype, operation, or evidence authority into metadata/common code."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-boundary-only route construction, direct route-entry diagnostic-only status, provider construction, and segment2 route-family wording remain aligned."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains an execution envelope and does not absorb RVV compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral consumer of provider-built TCRVEmitCLowerableRoute."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h", "reason": "Verify public production API no longer exposes route-entry consumer fields, segment2 route-entry registries, route-entry variant queries, or WithVLOp-returning direct helper."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Verify owner registry is selected-body-only, direct-route diagnostic helper cannot materialize routes, and removed public route-entry APIs have no implementation remnants."}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "Verify production emission-plan and EmitC route construction still require selected lowering-boundary materialization before provider facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify route planning diagnostics use selected-body route-family terminology rather than route-entry support wording."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify provider construction consumes realized typed tcrv_rvv facts and does not become a realization fallback."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verify focused C++ coverage matches removed APIs and still proves selected-boundary-only fail-closed diagnostics and provider preconditions."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify direct pre-realized CLI remains fail-closed and selected-boundary dry-runs keep route_entry_realization false if script is touched or used as evidence."}

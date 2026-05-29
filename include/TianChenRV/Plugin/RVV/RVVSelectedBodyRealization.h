@@ -18,15 +18,7 @@ struct RVVSelectedBodyRealizationOwner {
 
   llvm::StringLiteral familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ConsumerPredicate isRouteEntryConsumer = nullptr;
   RealizationHook realize = nullptr;
-};
-
-struct RVVSelectedBodySegment2RouteEntryFamilyOwner {
-  using ConsumerPredicate = bool (*)(mlir::Operation *);
-
-  llvm::StringLiteral familyName;
-  ConsumerPredicate isConsumer = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
@@ -36,22 +28,9 @@ llvm::Expected<const RVVSelectedBodyRealizationOwner *>
 getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
                                           llvm::StringRef context);
 
-llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
-getRVVSelectedBodySegment2RouteEntryFamilyOwners();
-
-llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
-getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
-    mlir::Operation *bodyOp, llvm::StringRef context);
-
-bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
-    mlir::Operation *bodyOp);
-
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
 
 bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
-    tcrv::exec::VariantOp variant);
-
-bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
     tcrv::exec::VariantOp variant);
 
 struct RVVElementwiseCompareSelectRealizationResult {
@@ -68,8 +47,7 @@ llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
     const VariantLoweringBoundaryRequest &request);
 
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVRouteEntrySelectedBody(
+llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request);
 
 llvm::Expected<tcrv::rvv::WithVLOp>

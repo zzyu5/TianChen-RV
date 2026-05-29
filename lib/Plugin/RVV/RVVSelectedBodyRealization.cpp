@@ -888,54 +888,6 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(
       op);
 }
 
-llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
-getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry() {
-  return {};
-}
-
-llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
-getUniqueRVVSelectedBodySegment2RouteEntryFamilyOwner(
-    mlir::Operation *bodyOp, llvm::StringRef context) {
-  if (!bodyOp)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " requires a pre-realized segment2 RVV body op");
-
-  llvm::SmallVector<const RVVSelectedBodySegment2RouteEntryFamilyOwner *, 2>
-      matches;
-  for (const RVVSelectedBodySegment2RouteEntryFamilyOwner &owner :
-       getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry()) {
-    if (!owner.isConsumer)
-      return makeRVVPluginError(
-          llvm::Twine(context) +
-          " encountered an incomplete segment2 route-entry family owner "
-          "registry entry");
-    if (owner.isConsumer(bodyOp))
-      matches.push_back(&owner);
-  }
-
-  if (matches.empty())
-    return makeRVVPluginError(
-        llvm::Twine(context) +
-        " has no segment2 route-entry family owner for pre-realized op '" +
-        bodyOp->getName().getStringRef() + "'");
-  if (matches.size() > 1) {
-    std::string owners;
-    llvm::raw_string_ostream os(owners);
-    for (const RVVSelectedBodySegment2RouteEntryFamilyOwner *owner : matches) {
-      if (!owners.empty())
-        os << ", ";
-      os << owner->familyName;
-    }
-    os.flush();
-    return makeRVVPluginError(
-        llvm::Twine(context) +
-        " found ambiguous segment2 route-entry family owners for "
-        "pre-realized op '" +
-        bodyOp->getName().getStringRef() + "': " + owners);
-  }
-  return matches.front();
-}
-
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVElementwiseCompareSelectOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
@@ -1169,37 +1121,35 @@ llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
 getRVVSelectedBodyRealizationOwnerRegistry() {
   static const RVVSelectedBodyRealizationOwner owners[] = {
       {"elementwise/compare-select",
-       isPreRealizedRVVElementwiseCompareSelectClusterOp, nullptr,
+       isPreRealizedRVVElementwiseCompareSelectClusterOp,
        realizePreRealizedRVVElementwiseCompareSelectOwner},
       {"runtime scalar splat-store",
-       isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp, nullptr,
+       isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp,
        realizePreRealizedRVVRuntimeScalarSplatStoreOwner},
       {"runtime scalar computed-mask store",
-       isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp, nullptr,
+       isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp,
        realizePreRealizedRVVRuntimeScalarComputedMaskStoreOwner},
       {"runtime scalar computed-mask load-store",
-       isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp, nullptr,
+       isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp,
        realizePreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwner},
-      {"reduction", isPreRealizedRVVReductionOwnerOp, nullptr,
+      {"reduction", isPreRealizedRVVReductionOwnerOp,
        realizePreRealizedRVVReductionOwner},
       {"standalone reduction", isPreRealizedRVVStandaloneReductionOwnerOp,
-       nullptr,
        realizePreRealizedRVVStandaloneReductionOwner},
-      {"MAcc", isPreRealizedRVVMAccOwnerOp, nullptr,
+      {"MAcc", isPreRealizedRVVMAccOwnerOp,
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccOwnerOp,
-       nullptr, realizePreRealizedRVVComputedMaskMAccOwner},
-      {"contraction", isPreRealizedRVVContractionOwnerOp, nullptr,
+       realizePreRealizedRVVComputedMaskMAccOwner},
+      {"contraction", isPreRealizedRVVContractionOwnerOp,
        realizePreRealizedRVVContractionOwner},
       {"widening conversion", isPreRealizedRVVWideningConversionOwnerOp,
-       nullptr, realizePreRealizedRVVWideningConversionOwner},
+       realizePreRealizedRVVWideningConversionOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
-       nullptr,
        realizePreRealizedRVVBaseMemoryMovementOwner},
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
-       nullptr, realizePreRealizedRVVComputedMaskMemoryOwner},
+       realizePreRealizedRVVComputedMaskMemoryOwner},
       {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp,
-       nullptr, realizePreRealizedRVVSegment2MemoryOwner}};
+       realizePreRealizedRVVSegment2MemoryOwner}};
   return owners;
 }
 
@@ -7332,33 +7282,10 @@ getRVVSelectedBodyRealizationOwners() {
   return getRVVSelectedBodyRealizationOwnerRegistry();
 }
 
-llvm::ArrayRef<RVVSelectedBodySegment2RouteEntryFamilyOwner>
-getRVVSelectedBodySegment2RouteEntryFamilyOwners() {
-  return getRVVSelectedBodySegment2RouteEntryFamilyOwnerRegistry();
-}
-
 llvm::Expected<const RVVSelectedBodyRealizationOwner *>
 getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
                                           llvm::StringRef context) {
   return getUniqueRVVSelectedBodyRealizationOwner(bodyOp, context);
-}
-
-llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *>
-getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
-    mlir::Operation *bodyOp, llvm::StringRef context) {
-  return getUniqueRVVSelectedBodySegment2RouteEntryFamilyOwner(bodyOp, context);
-}
-
-bool isRVVSelectedBodySegment2RouteEntryFamilyConsumer(
-    mlir::Operation *bodyOp) {
-  llvm::Expected<const RVVSelectedBodySegment2RouteEntryFamilyOwner *> owner =
-      getRVVSelectedBodySegment2RouteEntryFamilyOwnerForBody(
-          bodyOp, "segment2 route-entry family owner registry");
-  if (!owner) {
-    llvm::consumeError(owner.takeError());
-    return false;
-  }
-  return true;
 }
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
@@ -7390,29 +7317,6 @@ bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
     if (found)
       return;
     if (isPreRealizedRVVElementwiseCompareSelectClusterOp(op))
-      found = true;
-  });
-  return found;
-}
-
-bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
-    tcrv::exec::VariantOp variant) {
-  if (!variant || variant.getBody().empty())
-    return false;
-
-  bool found = false;
-  variant.getBody().walk([&](mlir::Operation *op) {
-    if (found)
-      return;
-    llvm::Expected<const RVVSelectedBodyRealizationOwner *> owner =
-        getRVVSelectedBodyRealizationOwnerForBody(
-            op, "selected-body route-entry realization owner lookup");
-    if (!owner) {
-      llvm::consumeError(owner.takeError());
-      return;
-    }
-    if ((*owner)->isRouteEntryConsumer &&
-        (*owner)->isRouteEntryConsumer(op))
       found = true;
   });
   return found;
@@ -7855,8 +7759,7 @@ realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
   return realization->boundary;
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVRouteEntrySelectedBody(
+llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request) {
   (void)request;
   return makeRVVPluginError(

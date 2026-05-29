@@ -1069,3 +1069,67 @@ Retired the production RVV direct pre-realized route-entry fallback so provider 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 323: Stage2 RVV selected-boundary-only route-construction API closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV selected-boundary-only route-construction API closure
+**Branch**: `main`
+
+### Summary
+
+Closed residual direct route-entry production API residue after fallback retirement: selected-body owners no longer expose route-entry predicates, segment2 route-entry registry/query APIs were removed, the retained direct-route surface is an llvm::Error diagnostic, and selected-boundary dry-run plus check-tianchenrv stayed green.
+
+### Main Changes
+
+### Main Changes
+
+- Archived Trellis task `.trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-selected-boundary-api-closure` from the Hermes direction brief.
+- Removed `RVVSelectedBodyRealizationOwner::isRouteEntryConsumer` from the public RVV selected-body owner API and simplified owner registry entries to selected-body consumer plus realization hook.
+- Removed the empty segment2 route-entry family owner registry/query surface and the route-entry variant query from production headers and implementation.
+- Reframed direct pre-realized route-entry C++ coverage through `diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(...)`, an `llvm::Error` fail-closed diagnostic that cannot materialize a `WithVLOp`.
+- Reworded segment2 route planning diagnostics from registered route-entry family to selected-body route-family planning.
+- Updated `test/Plugin/RVVExtensionPluginTest.cpp` to compile against selected-body-only production APIs while retaining retired direct-route diagnostic coverage and provider precondition coverage.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to make the selected-boundary-only public API contract durable.
+- Evidence: focused RVV plugin C++ build and test passed; `tcrv-opt` and `tcrv-translate` built; 30 direct pre-realized generated-bundle fail-closed lit tests passed; selected-boundary dry-run passed for `scalar_broadcast_add` and `computed_masked_segment2_update_unit_load` with `route_entry_realization: false`; script `py_compile` and self-test passed; authority scans found no old route-entry production APIs; `git diff --check` passed; `check-tianchenrv` passed 464/464.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='rvv-generated-bundle-abi-e2e-direct-pre-realized'` from `build/test` passed 30/30
+- [OK] Representative selected-boundary generated-bundle dry-run for `scalar_broadcast_add` and `computed_masked_segment2_update_unit_load`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Bounded route-entry authority scans over RVV production files and common conversion/target code
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
