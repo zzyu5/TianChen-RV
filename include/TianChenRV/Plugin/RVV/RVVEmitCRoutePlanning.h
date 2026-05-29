@@ -1721,14 +1721,6 @@ llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
 getRVVSelectedBodyResidualRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
-getRVVSelectedBodyCompareSelectRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    llvm::StringRef context);
-
 llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
 getRVVSelectedBodyWideningConversionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
@@ -1780,18 +1772,6 @@ getRVVSelectedBodySegment2RouteFamilyProviderPlan(
     const RVVSelectedBodyMemoryRouteOperandBindingFacts
         &memoryOperandBindingFacts,
     llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
 
 llvm::Error buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

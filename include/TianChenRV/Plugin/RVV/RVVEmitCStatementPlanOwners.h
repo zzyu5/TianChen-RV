@@ -91,6 +91,14 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
         &residualOperandBindingFacts,
     llvm::StringRef context);
 
+llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
+getRVVSelectedBodyCompareSelectRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    llvm::StringRef context);
+
 llvm::Expected<RVVSelectedBodyReductionRouteStatementPlan>
 getRVVSelectedBodyReductionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
@@ -144,6 +152,18 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
     llvm::StringRef context);
 
 llvm::Error buildRVVSelectedBodyElementwiseArithmeticMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts

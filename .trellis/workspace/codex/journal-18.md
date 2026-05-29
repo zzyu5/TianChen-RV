@@ -1465,3 +1465,36 @@ Moved migrated RVV elementwise arithmetic statement-plan construction from centr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 328: Stage2 RVV compare/select owner extraction
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV compare/select owner extraction
+**Branch**: `main`
+
+### Summary
+
+Moved migrated RVV compare/select statement-plan construction from central route planning into an owner-local EmitC implementation; focused plugin test, selected-body dry-run, authority scans, and check-tianchenrv 464/464 passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
