@@ -265,3 +265,50 @@ Moved computed-mask segment2 load/store/update selected-body realization to the 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 344: Stage2 RVV elementwise compare-select selected-body owner cleanup
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV elementwise compare-select selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved elementwise and compare/select pre-realized selected-body validation and realization behind an RVV owner-local component while keeping central selected-body realization thin and neutral.
+
+### Main Changes
+
+- Added `RVVElementwiseSelectedBodyRealizationOwner.cpp` as the owner-local realization component for typed elementwise arithmetic, masked arithmetic, scalar-broadcast elementwise, compare/select, computed-mask select, runtime-scalar compare/select, and runtime-scalar dual-compare mask-and-select bodies.
+- Kept `RVVSelectedBodyRealization.cpp` as registry/neutral dispatch plus shared mechanics; removed the elementwise/compare-select family-specific validation and realization branch bodies from central code.
+- Exported owner-local selected-body APIs through `RVVEmitCElementwiseRouteFamilyPlanOwners.h` so realization ownership sits next to elementwise route-family planning rather than in the central materialization branch.
+- Preserved typed selected-boundary facts: op kind, predicate kind, mask source, result layout, scalar/runtime operands, unit/strided/scalar-broadcast memory form, strides, SEW/LMUL/policy, runtime n/AVL/VL, required capabilities, and runtime ABI roles.
+- Preserved generated bundle evidence and route facts through dry-run artifacts under `artifacts/tmp/05-30-stage2-rvv-elementwise-compare-select-selected-body-owner-cleanup/owner-elementwise-compare-select` and ssh rvv artifacts under `artifacts/tmp/05-30-stage2-rvv-elementwise-compare-select-selected-body-owner-cleanup/owner-elementwise-compare-select-ssh`.
+
+Testing:
+- [OK] `ninja -C build TianChenRVRVVPlugin`
+- [OK] focused lit filter for RVV plugin, selected-boundary materialization, generated-bundle elementwise/compare-select dry-runs, direct pre-realized fail-closed tests, and computed-mask segment2 non-regression: 27/27 passed.
+- [OK] generated-bundle dry-run for `add`, `masked_add`, `scalar_broadcast_add`, `cmp_select`, `computed_mask_select`, and `runtime_scalar_cmp_select`.
+- [OK] `ssh rvv` generated-bundle subset for `add`, `cmp_select`, and `runtime_scalar_cmp_select`, counts 5/17/65, rhs scalars 3 and -4 where applicable.
+- [OK] central elementwise/compare-select authority scan and touched-file forbidden-authority scan.
+- [OK] `git diff --check`
+- [OK] `ninja -C build check-tianchenrv` passed 464/464 tests.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

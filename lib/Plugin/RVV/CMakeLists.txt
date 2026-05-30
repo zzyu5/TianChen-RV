@@ -2,6 +2,7 @@ add_subdirectory(Construction)
 add_subdirectory(EmitC)
 
 add_mlir_library(TianChenRVRVVPlugin
+  RVVElementwiseSelectedBodyRealizationOwner.cpp
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
   RVVSelectedBodyRealization.cpp

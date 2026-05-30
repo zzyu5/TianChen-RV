@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, and Stage1/Stage2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, elementwise/compare-select owner boundary, route provider, fail-closed diagnostics, and artifact mirror rules"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec execution envelope, runtime ABI roles, selected variant boundaries, and mirror-only diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute ownership and common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++/script/runtime evidence expectations for compiler behavior"}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-computed-mask-segment2-load-store-update-selected-body-realization-migration/prd.md", "reason": "Immediate prior owner-side selected-body migration pattern and non-regression boundary"}

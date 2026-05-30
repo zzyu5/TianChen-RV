@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global stack and RVV authority boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify owner-local selected-body realization, fail-closed diagnostics, and artifact mirror constraints"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify runtime ABI roles and selected variant responsibilities remain in tcrv.exec without compute authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider/common EmitC separation and no semantic invention in neutral lowering"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and evidence meet project testing contract"}
