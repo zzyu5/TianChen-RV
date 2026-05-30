@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and authority boundaries after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body owner registry, computed-mask memory provider, fail-closed diagnostics, and mirror-only metadata constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains envelope/ABI binding only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-built route consumption."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test, generated-bundle, mask/tail evidence, and runtime-evidence scope."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check the handoff stays plugin-owner-local."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-base-memory-selected-body-provider-handoff-closure/prd.md", "reason": "Check parity with the previous completed handoff pattern."}

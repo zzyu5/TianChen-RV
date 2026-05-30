@@ -88,3 +88,34 @@ dispatch plus realized IR materialization.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 341: Stage2 RVV computed-mask memory handoff
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV computed-mask memory handoff
+**Branch**: `main`
+
+### Summary
+
+Moved non-segment computed-mask memory selected-body validation into RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners; central realization now calls owner-local APIs; focused plugin/generated-bundle/check-tianchenrv validation passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

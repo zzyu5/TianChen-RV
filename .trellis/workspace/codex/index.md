@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-19.md`
-- **Total Sessions**: 340
+- **Total Sessions**: 341
 - **Last Active**: 2026-05-30
 <!-- @@@/auto:current-status -->
 
@@ -19,8 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-19.md` | ~90 | Active |
-| `journal-18.md` | ~1971 | Archived |
+| `journal-19.md` | ~121 | Active |
+| `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
 | `journal-16.md` | ~1976 | Archived |
 | `journal-15.md` | ~1976 | Archived |
@@ -47,6 +47,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 341 | 2026-05-30 | Stage2 RVV computed-mask memory handoff | - | `main` |
 | 340 | 2026-05-30 | Stage2 RVV base-memory selected-body handoff closure | this commit | `main` |
 | 339 | 2026-05-30 | Stage2 RVV contraction selected-body handoff closure | this commit | `main` |
 | 338 | 2026-05-30 | Stage2 RVV MAcc selected-body handoff closure | - | `main` |
