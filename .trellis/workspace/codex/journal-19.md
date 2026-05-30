@@ -64,6 +64,58 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 350: Stage2 RVV elementwise/compare-select selected-body owner interface split
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV elementwise/compare-select selected-body owner interface split
+**Branch**: `main`
+
+### Summary
+
+Split elementwise/compare-select selected-body owner APIs out of the EmitC
+route-family planning header into a dedicated RVV owner header, kept the
+central selected-body registry dependent on the owner interface, and preserved
+route-family planning as route-plan/mirror/operand-binding API only.
+
+### Main Changes
+
+- Added `RVVElementwiseSelectedBodyRealizationOwner.h` for the
+  elementwise/compare-select owner result type, predicate, variant predicate,
+  owner hook, and selected-body helper.
+- Removed owner declarations from
+  `RVVEmitCElementwiseRouteFamilyPlanOwners.h`; it now keeps route-family
+  planning declarations only.
+- Updated `RVVSelectedBodyRealization.cpp`,
+  `RVVElementwiseSelectedBodyRealizationOwner.cpp`, and RVV plugin tests to
+  include the dedicated owner header explicitly.
+- Recorded the owner-header locality contract in
+  `.trellis/spec/extension-plugins/rvv-plugin.md`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | rvv: split elementwise selected-body owner interface |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt -j2`
+- [OK] `cmake --build build --target tcrv-translate -j2`
+- [OK] `git diff --check`
+- [OK] Bounded owner/API and authority scans
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 350: Stage2 RVV widening-conversion selected-body owner cleanup
 
 **Date**: 2026-05-31

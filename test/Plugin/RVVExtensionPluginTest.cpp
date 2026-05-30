@@ -10,6 +10,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"

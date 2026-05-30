@@ -273,6 +273,15 @@ consumed by the public selected lowering-boundary materialization producer
 before route facts, route-control provider plans, statement plans,
 `TCRVEmitCLowerableRoute`, common EmitC, or target artifact export.
 
+Owner-family public predicates, realization hooks, owner-local result types,
+and owner-local diagnostics belong in dedicated owner interfaces such as
+`RVV<Element>SelectedBodyRealizationOwner.h`. The central selected-body
+registry includes these owner interfaces directly. EmitC route-family planning
+headers must not be used as carriers for selected-body owner predicates,
+realization hooks, or owner-local result types; they remain responsible for
+route-plan derivation, application, validation, mirror checks, and operand
+binding APIs after realization.
+
 Currently supported realization-owner families are:
 
 - elementwise/compare-select;
@@ -436,15 +445,29 @@ continue through their own realization path.
 The durable RVV plugin-local API is:
 
 ```c++
+// include/TianChenRV/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h
 struct RVVElementwiseCompareSelectRealizationResult {
   tcrv::rvv::WithVLOp boundary;
   bool applies() const;
 };
 
+bool isPreRealizedRVVElementwiseCompareSelectClusterOp(mlir::Operation *op);
+
+bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
+    tcrv::exec::VariantOp variant);
+
 llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
 realizePreRealizedRVVElementwiseCompareSelectCluster(
     const VariantLoweringBoundaryRequest &request,
     mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVElementwiseCompareSelectOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
+    const VariantLoweringBoundaryRequest &request);
 ```
 
 The production `realizePreRealizedRVVSelectedBody(...)` path must call this
@@ -470,6 +493,15 @@ the consumed pre-realized body. It does not build
 `TCRVEmitCLowerableRoute`; route construction remains provider-owned after
 route analysis, materialization facts, operand-binding facts, and statement
 plans are validated.
+
+Elementwise/compare-select owner declarations must remain in the dedicated
+owner header. The elementwise EmitC route-family planning header may expose
+route operation predicates, route-family consumer predicates, route-plan
+derivation/application/validation, route description mirror validation, and
+operand-binding helpers only. If an implementation unit needs both
+selected-body realization and route-planning helpers, it must include both
+interfaces explicitly instead of making the route-family planning header
+implicitly export owner APIs.
 
 ### 4. Validation & Error Matrix
 
@@ -517,6 +549,10 @@ plans are validated.
   realization dependency before route construction.
 - Representative lit/FileCheck coverage proving pre-realized and explicit
   selected-body elementwise/compare-select artifacts still pass.
+- Bounded include/API scans must assert that the elementwise route-family
+  planning header does not declare selected-body owner predicates,
+  realization hooks, owner-local result types, or selected-body realization
+  helpers.
 - Bounded provider/common scan proving no semantic realization logic moved
   into route planning/provider construction or common EmitC.
 
@@ -539,6 +575,22 @@ selected pre-realized elementwise/compare-select tcrv_rvv body
   -> route analysis / materialization facts / operand-binding facts
   -> RVV-owned statement plan
   -> provider-built TCRVEmitCLowerableRoute
+```
+
+Wrong:
+
+```text
+RVVEmitCElementwiseRouteFamilyPlanOwners.h
+  -> exports selected-body owner predicate / owner hook / owner-local result
+```
+
+Correct:
+
+```text
+RVVElementwiseSelectedBodyRealizationOwner.h
+  -> exports selected-body owner predicate / owner hook / owner-local result
+RVVEmitCElementwiseRouteFamilyPlanOwners.h
+  -> exports route-family plan and mirror/operand-binding APIs only
 ```
 
 ## Retired Direct Route-Entry Diagnostic Inventory

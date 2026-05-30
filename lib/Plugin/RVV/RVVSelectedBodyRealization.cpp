@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
+#include "TianChenRV/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"

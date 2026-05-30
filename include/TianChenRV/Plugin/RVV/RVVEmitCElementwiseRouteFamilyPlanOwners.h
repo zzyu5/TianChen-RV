@@ -11,26 +11,6 @@
 
 namespace tianchenrv::plugin::rvv {
 
-struct RVVElementwiseCompareSelectRealizationResult {
-  tcrv::rvv::WithVLOp boundary;
-
-  bool applies() const { return static_cast<bool>(boundary); }
-};
-
-bool isPreRealizedRVVElementwiseCompareSelectClusterOp(mlir::Operation *op);
-
-llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
-realizePreRealizedRVVElementwiseCompareSelectCluster(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVElementwiseCompareSelectOwner(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
-    const VariantLoweringBoundaryRequest &request);
-
 bool isRVVSelectedBodyElementwiseArithmeticRouteOperation(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(

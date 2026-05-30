@@ -3,7 +3,6 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -30,9 +29,6 @@ getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
                                           llvm::StringRef context);
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
-
-bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
-    tcrv::exec::VariantOp variant);
 
 llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request);
