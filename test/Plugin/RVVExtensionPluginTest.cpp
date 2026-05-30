@@ -4,6 +4,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
@@ -3474,6 +3475,19 @@ module {
                           "found computed-mask MAcc pre-realized body for "
                           "owner-local negative tests"))
     return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isPreRealizedRVVComputedMaskMAccClusterOp(
+                  negativeComputedMaskMAccBody.getOperation()),
+          "computed-mask MAcc owner-local predicate accepts vector-compare "
+          "computed-mask MAcc pre-realized bodies"))
+    return result;
+  if (int result = expect(
+          !tianchenrv::plugin::rvv::
+              isPreRealizedRVVComputedMaskMAccClusterOp(nonOwnedBaseBody),
+          "computed-mask MAcc owner-local predicate excludes base-memory "
+          "pre-realized bodies"))
+    return result;
   {
     mlir::OpBuilder directRouteEntryBuilder(module->getContext());
     llvm::Error directRouteEntry =
@@ -3580,6 +3594,13 @@ module {
           negativeRuntimeScalarComputedMaskMAccBody != nullptr,
           "found runtime-scalar computed-mask MAcc pre-realized body for "
           "owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isPreRealizedRVVComputedMaskMAccClusterOp(
+                  negativeRuntimeScalarComputedMaskMAccBody.getOperation()),
+          "computed-mask MAcc owner-local predicate accepts runtime-scalar "
+          "computed-mask MAcc pre-realized bodies"))
     return result;
   {
     mlir::OpBuilder directRouteEntryBuilder(module->getContext());

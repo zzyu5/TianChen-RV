@@ -433,3 +433,50 @@ Moved standalone reduction selected-body validation/realization into an RVV owne
 ### Next Steps
 
 - None - task complete
+
+
+## Session 346: Stage2 RVV computed-mask MAcc selected-body owner cleanup
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV computed-mask MAcc selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved computed-mask MAcc selected-body realization into an RVV owner-local component, rewired the central registry to neutral dispatch, preserved typed MAcc route facts, and validated with focused plugin tests, generated-bundle dry-runs, authority scans, and check-tianchenrv 464/464.
+
+### Main Changes
+
+- Added `RVVComputedMaskMAccSelectedBodyRealizationOwner` for vector computed-mask MAcc and runtime-scalar computed-mask MAcc pre-realized bodies.
+- Rewired the computed-mask MAcc selected-body registry entry to the owner-local predicate/hook and fail-closed central branch-helper handling for this family.
+- Kept `RVVSelectedBodyRealization.cpp` to neutral include/registry/guard residue for computed-mask MAcc; the owner owns validation, runtime AVL/VL construction, typed compare/mask/MAcc materialization, and pre-realized body erasure.
+- Preserved mask role/source/memory form, predicate kind, compare inputs, scalar RHS binding, lhs/rhs/acc/out roles, accumulator/result layouts, SEW, LMUL, policy, runtime `n`/AVL/VL, selected requires, and MAcc provider-consumed route facts.
+- Updated focused C++ coverage for owner predicate selection and retained existing fail-closed, realized-fact, runtime-scalar, direct-entry rejection, and provider-plan consumption coverage.
+- No `.trellis/spec/**` update was needed because this implements the existing RVV selected-body owner-local and neutral EmitC contracts.
+- No new runtime, correctness, or performance claim was made; no `ssh rvv` run was required for this refactor.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused generated-bundle dry-run lit filter: 7/7 passed for computed-mask MAcc, runtime-scalar computed-mask MAcc, and computed-mask memory non-regression cases.
+- [OK] focused dialect/target lit filter: 6/6 passed for computed-mask MAcc negative/dataflow/materialization and computed-mask memory non-regression cases.
+- [OK] central selected-body scan found no computed-mask MAcc typed-body/helper residue in `RVVSelectedBodyRealization.cpp`.
+- [OK] production and added-line authority scans found no new legacy-i32, descriptor, source-front-door, route-id, direct-route-entry-only, common-EmitC semantic, or exact-intrinsic authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

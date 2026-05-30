@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global TianChen-RV stack, authority, and RVV stage-order compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-body owner-locality, computed-mask MAcc realization, route/provider fact flow, and fail-closed behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains an envelope/ABI-role dialect and does not own RVV computation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remain neutral consumers of provider-built routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-computed-mask-memory-selected-body-owner-cleanup/prd.md", "reason": "Compare against recent owner extraction validation pattern and central-file residue bar."}
