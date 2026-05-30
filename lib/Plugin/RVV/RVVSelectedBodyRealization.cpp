@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
+#include "TianChenRV/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
@@ -244,10 +245,6 @@ realizePreRealizedRVVWideningConversionOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVComputedMaskMemoryOwner(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
-
-llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSegment2MemoryOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
 
@@ -303,15 +300,6 @@ bool isPreRealizedRVVBaseMemoryMovementOwnerOp(mlir::Operation *op) {
                    tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
-}
-
-bool isPreRealizedRVVComputedMaskMemoryOwnerOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
-      op);
 }
 
 bool isPreRealizedRVVSegment2MemoryOwnerOp(mlir::Operation *op) {
@@ -537,14 +525,6 @@ realizePreRealizedRVVWideningConversionOwner(
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVComputedMaskMemoryOwner(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
-  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
-      request, bodyOp, "computed-mask memory",
-      isPreRealizedRVVComputedMaskMemoryOwnerOp);
-}
-
-llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSegment2MemoryOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
@@ -581,7 +561,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVWideningConversionOwner},
       {"base memory movement", isPreRealizedRVVBaseMemoryMovementOwnerOp,
        realizePreRealizedRVVBaseMemoryMovementOwner},
-      {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryOwnerOp,
+      {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryClusterOp,
        realizePreRealizedRVVComputedMaskMemoryOwner},
       {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp,
        realizePreRealizedRVVSegment2MemoryOwner}};
@@ -1235,58 +1215,6 @@ createRealizedGenericMaskedLoad(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state);
 }
 
-llvm::Expected<mlir::Operation *> createRealizedGenericMaskedStridedLoad(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
-    mlir::Value mask, mlir::Value passthrough, mlir::Value stride,
-    mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_strided_load");
-  state.addOperands({source, mask, passthrough, stride, vl});
-  state.addAttribute("memory_form",
-                     builder.getStringAttr("masked-strided-load"));
-  state.addAttribute("stride_unit", builder.getStringAttr("byte"));
-  state.addAttribute(
-      "inactive_lane_policy",
-      builder.getStringAttr("preserve-passthrough-on-false-lanes"));
-  state.addTypes(passthrough.getType());
-  return builder.create(state);
-}
-
-llvm::Expected<mlir::Operation *> createRealizedGenericMaskedIndexedLoad(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
-    mlir::Value indices, mlir::Value mask, mlir::Value passthrough,
-    mlir::Value vl, std::int64_t indexEEW, llvm::StringRef offsetUnit) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_load");
-  state.addOperands({source, indices, mask, passthrough, vl});
-  state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
-  state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
-  state.addAttribute("memory_form",
-                     builder.getStringAttr("masked-indexed-load"));
-  state.addAttribute(
-      "inactive_lane_policy",
-      builder.getStringAttr("preserve-passthrough-on-false-lanes"));
-  state.addTypes(passthrough.getType());
-  return builder.create(state);
-}
-
-void createRealizedGenericMaskedIndexedStore(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
-    mlir::Value indices, mlir::Value mask, mlir::Value value, mlir::Value vl,
-    std::int64_t indexEEW, llvm::StringRef offsetUnit,
-    llvm::StringRef indexUniqueness) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_store");
-  state.addOperands({destination, indices, mask, value, vl});
-  state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
-  state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
-  state.addAttribute("index_uniqueness",
-                     builder.getStringAttr(indexUniqueness));
-  state.addAttribute("memory_form",
-                     builder.getStringAttr("masked-indexed-store"));
-  state.addAttribute(
-      "inactive_lane_policy",
-      builder.getStringAttr("preserve-output-on-false-lanes"));
-  (void)builder.create(state);
-}
-
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
@@ -1303,24 +1231,6 @@ void createRealizedGenericMaskedStore(mlir::OpBuilder &builder,
   state.addOperands({out, mask, value, vl});
   state.addAttribute("memory_form",
                      builder.getStringAttr("masked-unit-store"));
-  state.addAttribute(
-      "inactive_lane_policy",
-      builder.getStringAttr("preserve-output-on-false-lanes"));
-  (void)builder.create(state);
-}
-
-void createRealizedGenericMaskedStridedStore(mlir::OpBuilder &builder,
-                                             mlir::Location loc,
-                                             mlir::Value out,
-                                             mlir::Value mask,
-                                             mlir::Value value,
-                                             mlir::Value stride,
-                                             mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_strided_store");
-  state.addOperands({out, mask, value, stride, vl});
-  state.addAttribute("memory_form",
-                     builder.getStringAttr("masked-strided-store"));
-  state.addAttribute("stride_unit", builder.getStringAttr("byte"));
   state.addAttribute(
       "inactive_lane_policy",
       builder.getStringAttr("preserve-output-on-false-lanes"));
@@ -2103,11 +2013,12 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
       isPreRealizedRVVStandaloneReductionClusterOp(bodyOp) ||
       isPreRealizedRVVMAccOwnerOp(bodyOp) ||
       isPreRealizedRVVContractionOwnerOp(bodyOp) ||
-      isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp))
+      isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp) ||
+      isPreRealizedRVVComputedMaskMemoryClusterOp(bodyOp))
     return makeRVVPluginError(
         "pre-realized RVV owner-local branch helper does not own "
         "elementwise/compare-select, standalone reduction, MAcc, "
-        "contraction, or base memory movement families");
+        "contraction, base memory movement, or computed-mask memory families");
 
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
@@ -2589,278 +2500,6 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
                                  (*maskedLoad)->getResult(0), setvl.getVl());
     }
     maskedMemoryBody->erase();
-    return withVL;
-  }
-
-  if (auto computedMaskMemoryBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp>(bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskMemoryBody(
-                request, computedMaskMemoryBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskMemoryBody->getLoc();
-    builder.setInsertionPoint(computedMaskMemoryBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskMemoryBody.getSew());
-    llvm::StringRef lmul = computedMaskMemoryBody.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, computedMaskMemoryBody.getN(), sew,
-                            lmul, computedMaskMemoryBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskMemoryBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskMemoryBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskMemoryBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto oldDestinationLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskMemoryBody.getDestination(),
-            setvl.getVl(), sew, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskMemoryBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> maskedLoad =
-        createRealizedGenericMaskedLoad(
-            builder, loc, computedMaskMemoryBody.getSource(),
-            compare.getMask(), oldDestinationLoad.getLoaded(), setvl.getVl());
-    if (!maskedLoad)
-      return maskedLoad.takeError();
-    createRealizedGenericStore(builder, loc,
-                               computedMaskMemoryBody.getDestination(),
-                               (*maskedLoad)->getResult(0), setvl.getVl());
-    computedMaskMemoryBody->erase();
-    return withVL;
-  }
-
-  if (auto computedMaskStridedStoreBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp>(
-          bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
-                request, computedMaskStridedStoreBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskStridedStoreBody->getLoc();
-    builder.setInsertionPoint(computedMaskStridedStoreBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskStridedStoreBody.getSew());
-    llvm::StringRef lmul = computedMaskStridedStoreBody.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, computedMaskStridedStoreBody.getN(), sew, lmul,
-        computedMaskStridedStoreBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskStridedStoreBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskStridedStoreBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskStridedStoreBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
-        createRealizedGenericLoad(builder, loc,
-                                  computedMaskStridedStoreBody.getSource(),
-                                  setvl.getVl(), sew, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskStridedStoreBody.getPredicateKind()));
-    createRealizedGenericMaskedStridedStore(
-        builder, loc, computedMaskStridedStoreBody.getDestination(),
-        compare.getMask(), sourceLoad.getLoaded(),
-        computedMaskStridedStoreBody.getDestinationStride(), setvl.getVl());
-    computedMaskStridedStoreBody->erase();
-    return withVL;
-  }
-
-  if (auto computedMaskStridedLoadBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(
-          bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
-                request, computedMaskStridedLoadBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskStridedLoadBody->getLoc();
-    builder.setInsertionPoint(computedMaskStridedLoadBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskStridedLoadBody.getSew());
-    llvm::StringRef lmul = computedMaskStridedLoadBody.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, computedMaskStridedLoadBody.getN(), sew, lmul,
-        computedMaskStridedLoadBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskStridedLoadBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskStridedLoadBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskStridedLoadBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto oldDestinationLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskStridedLoadBody.getDestination(),
-            setvl.getVl(), sew, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskStridedLoadBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> maskedStridedLoad =
-        createRealizedGenericMaskedStridedLoad(
-            builder, loc, computedMaskStridedLoadBody.getSource(),
-            compare.getMask(), oldDestinationLoad.getLoaded(),
-            computedMaskStridedLoadBody.getSourceStride(), setvl.getVl());
-    if (!maskedStridedLoad)
-      return maskedStridedLoad.takeError();
-    createRealizedGenericStore(builder, loc,
-                               computedMaskStridedLoadBody.getDestination(),
-                               (*maskedStridedLoad)->getResult(0),
-                               setvl.getVl());
-    computedMaskStridedLoadBody->erase();
-    return withVL;
-  }
-
-  if (auto computedMaskIndexedGatherBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp>(
-          bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
-                request, computedMaskIndexedGatherBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskIndexedGatherBody->getLoc();
-    builder.setInsertionPoint(computedMaskIndexedGatherBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskIndexedGatherBody.getSew());
-    llvm::StringRef lmul = computedMaskIndexedGatherBody.getLmul();
-    std::int64_t indexEEW =
-        static_cast<std::int64_t>(computedMaskIndexedGatherBody.getIndexEew());
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, computedMaskIndexedGatherBody.getN(), sew, lmul,
-        computedMaskIndexedGatherBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskIndexedGatherBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskIndexedGatherBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskIndexedGatherBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto oldDestinationLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskIndexedGatherBody.getDestination(),
-            setvl.getVl(), sew, lmul));
-    auto indexLoad = llvm::cast<tcrv::rvv::IndexLoadOp>(
-        createRealizedGenericIndexLoad(builder, loc,
-                                       computedMaskIndexedGatherBody.getIndex(),
-                                       setvl.getVl(), indexEEW, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskIndexedGatherBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> maskedIndexedLoad =
-        createRealizedGenericMaskedIndexedLoad(
-            builder, loc, computedMaskIndexedGatherBody.getSource(),
-            indexLoad.getLoaded(), compare.getMask(),
-            oldDestinationLoad.getLoaded(), setvl.getVl(), indexEEW,
-            computedMaskIndexedGatherBody.getOffsetUnit());
-    if (!maskedIndexedLoad)
-      return maskedIndexedLoad.takeError();
-    createRealizedGenericStore(builder, loc,
-                               computedMaskIndexedGatherBody.getDestination(),
-                               (*maskedIndexedLoad)->getResult(0),
-                               setvl.getVl());
-    computedMaskIndexedGatherBody->erase();
-    return withVL;
-  }
-
-  if (auto computedMaskIndexedScatterBody = llvm::dyn_cast<
-          tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
-          bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
-                request, computedMaskIndexedScatterBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskIndexedScatterBody->getLoc();
-    builder.setInsertionPoint(computedMaskIndexedScatterBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskIndexedScatterBody.getSew());
-    llvm::StringRef lmul = computedMaskIndexedScatterBody.getLmul();
-    std::int64_t indexEEW = static_cast<std::int64_t>(
-        computedMaskIndexedScatterBody.getIndexEew());
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, computedMaskIndexedScatterBody.getN(), sew, lmul,
-        computedMaskIndexedScatterBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskIndexedScatterBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskIndexedScatterBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskIndexedScatterBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
-        createRealizedGenericLoad(builder, loc,
-                                  computedMaskIndexedScatterBody.getSource(),
-                                  setvl.getVl(), sew, lmul));
-    auto indexLoad = llvm::cast<tcrv::rvv::IndexLoadOp>(
-        createRealizedGenericIndexLoad(
-            builder, loc, computedMaskIndexedScatterBody.getIndex(),
-            setvl.getVl(), indexEEW, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskIndexedScatterBody.getPredicateKind()));
-    createRealizedGenericMaskedIndexedStore(
-        builder, loc, computedMaskIndexedScatterBody.getDestination(),
-        indexLoad.getLoaded(), compare.getMask(), sourceLoad.getLoaded(),
-        setvl.getVl(), indexEEW, computedMaskIndexedScatterBody.getOffsetUnit(),
-        computedMaskIndexedScatterBody.getIndexUniqueness());
-    computedMaskIndexedScatterBody->erase();
     return withVL;
   }
 

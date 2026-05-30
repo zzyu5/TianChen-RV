@@ -322,6 +322,19 @@ consumes the selected pre-realized body before provider facts are collected and
 that the realized typed `tcrv_rvv` body feeds the verified route-family plan and
 statement-plan boundary.
 
+Owner-local extraction must preserve the canonical selected-body construction
+role sequence consumed by provider conformance. Moving a family out of the
+central realization file may change code ownership, but it must not reorder the
+realized runtime ABI roles, `setvl`, `with_vl`, loads, compares, mask
+operations, passthrough loads, index/stride loads, stores, or family compute
+ops relative to the route's construction route. For example, non-segment
+computed-mask memory realization must keep compare input loads before the
+passthrough/source/index materialization required by that route, then create
+the compare mask before the masked load/store/strided/indexed operation. A
+provider conformance error about a role operation carrying a different
+construction order is a realization-owner bug, not permission to weaken the
+provider route check.
+
 ### 4. Validation & Error Matrix
 
 - Null body operation -> fail closed before owner selection.
@@ -337,6 +350,10 @@ statement-plan boundary.
   selected capability facts -> fail closed before creating provider facts.
 - Provider route analysis sees any pre-realized body after realization should
   have run -> fail closed with a selected-body realization diagnostic.
+- Provider construction-role conformance reports a realized role operation in
+  the wrong canonical order -> fix the owner-local materialization order; do
+  not accept route ids, metadata, artifact names, ABI strings, or common EmitC
+  as an override.
 
 ### 5. Good/Base/Bad Cases
 
@@ -368,6 +385,8 @@ statement-plan boundary.
 - Representative lit/FileCheck or generated-bundle dry-runs must prove
   pre-realized selected-boundary artifacts still consume the pre-realized body
   and explicit selected-body artifacts remain unaffected.
+- Owner-extraction tests for a moved family must cover the realized typed op
+  sequence that the provider consumes, not only owner registry membership.
 - Changed-line scans must show no new name-, route-id-, metadata-,
   descriptor-, ABI-string-, script-, artifact-, common-EmitC-,
   source-front-door-, or legacy-i32-derived realization authority.

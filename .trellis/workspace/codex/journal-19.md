@@ -59,6 +59,66 @@ Moved pre-realized widening contraction validation into the contraction route-fa
 
 - None - task complete
 
+## Session 346: Stage2 RVV computed-mask memory selected-body owner cleanup
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV computed-mask memory selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved non-segment computed-mask memory selected-body realization into an
+RVV owner-local component while preserving typed `tcrv_rvv` authority and the
+existing provider route path. The central selected-body realization file now
+keeps registry/neutral dispatch residue for this family, not the family
+validation/materialization branches.
+
+### Main Changes
+
+- Added `RVVComputedMaskMemorySelectedBodyRealizationOwner` for unit
+  load/store, strided store, strided load, indexed gather, and indexed scatter
+  computed-mask memory pre-realized bodies.
+- Rewired the computed-mask memory selected-body registry entry to the
+  owner-local predicate/hook and fail-closed the central branch helper for this
+  family.
+- Added C++ production route-path coverage for computed-mask memory owner
+  selection, out-of-family rejection, strided/indexed realized typed facts, and
+  provider consumption.
+- Updated the RVV plugin spec with the durable owner-extraction rule that
+  owner-local realization must preserve provider construction role sequence.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j 8`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- Focused generated-bundle dry-runs: pre-realized computed-mask unit
+  load/store, strided store, and indexed gather passed.
+- Focused lit materialization checks: pre-realized computed-mask strided load
+  and indexed scatter passed.
+- Focused non-regression dry-runs: pre-realized standalone reduction add and
+  scalar-broadcast elementwise add passed.
+- Bounded central scan leaves no non-segment computed-mask memory typed body or
+  realization branch in `RVVSelectedBodyRealization.cpp`.
+- Added-line authority scan found no new legacy-i32, descriptor,
+  source-front-door, artifact-name, or route-id authority.
+- `git diff --check`
+- `cmake --build build --target check-tianchenrv -j 8`: 464/464 passed.
+
+### Self-Repair
+
+- Initial owner-local extraction generated computed-mask passthrough/source
+  loads before compare input loads, which broke provider construction-role
+  conformance. The owner now preserves canonical role order before provider
+  route analysis.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 ---
 
 ## Session 340: Stage2 RVV base-memory selected-body handoff closure

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, computed-mask memory, provider, artifact, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Execution envelope and ABI/runtime role boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built route authority."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-standalone-reduction-selected-body-owner-cleanup/prd.md", "reason": "Most recent owner-local extraction pattern and acceptance bar."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h", "reason": "Owner-local header boundary example."}
+{"file": "lib/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.cpp", "reason": "Owner-local implementation and fail-closed diagnostic pattern."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Central registry/dispatch file and current computed-mask memory realization residue."}
+{"file": "lib/Plugin/RVV/CMakeLists.txt", "reason": "RVV plugin build wiring."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused plugin/owner tests and provider-consumption checks."}

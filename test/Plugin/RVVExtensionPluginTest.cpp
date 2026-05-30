@@ -1386,6 +1386,42 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_computed_mask_memory_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %dst, %n {inactive_lane_policy = "preserve-old-destination", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-load-store", op_kind = "computed_masked_unit_load_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_computed_masked_strided_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %dst_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "dst_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "destination-byte-stride"} : index
+      tcrv_rvv.typed_computed_mask_strided_store_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %dst, %n, %dst_stride_bytes {inactive_lane_policy = "preserve-old-destination", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-load-strided-store", op_kind = "computed_masked_strided_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_computed_masked_strided_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %src_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "src_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
+      tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %dst, %n, %src_stride_bytes {inactive_lane_policy = "preserve-passthrough-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-strided-load-unit-store", op_kind = "computed_masked_strided_load_unit_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_computed_masked_indexed_gather attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_indexed_gather_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %index, %dst, %n {inactive_lane_policy = "preserve-passthrough-on-false-lanes", index_eew = 32 : i64, lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-indexed-gather-load-unit-store", offset_unit = "element", op_kind = "computed_masked_indexed_gather_load_unit_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_computed_masked_indexed_scatter attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %index, %dst, %n {inactive_lane_policy = "preserve-output-on-false-lanes", index_eew = 32 : i64, index_uniqueness = "unique", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-load-indexed-scatter-store", offset_unit = "element", op_kind = "computed_masked_indexed_scatter_store_unit_load", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_segment2_interleave_unit_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1762,6 +1798,98 @@ module {
               "accepts the selected computed-mask unit load/store body"))
         return result;
     }
+    if (variantName == "rvv_pre_route_computed_masked_strided_store") {
+      auto computedMaskBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskStridedStorePreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(computedMaskBody),
+              "computed-mask memory owner-local validation test found the "
+              "strided-store pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      computedMaskBody),
+              "computed-mask memory owner-local pre-realized validation "
+              "accepts the selected computed-mask strided-store body"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_computed_masked_strided_load") {
+      auto computedMaskBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskStridedLoadPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(computedMaskBody),
+              "computed-mask memory owner-local validation test found the "
+              "strided-load pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      computedMaskBody),
+              "computed-mask memory owner-local pre-realized validation "
+              "accepts the selected computed-mask strided-load body"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_computed_masked_indexed_gather") {
+      auto computedMaskBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskIndexedGatherPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(computedMaskBody),
+              "computed-mask memory owner-local validation test found the "
+              "indexed-gather pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      computedMaskBody),
+              "computed-mask memory owner-local pre-realized validation "
+              "accepts the selected computed-mask indexed-gather body"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_computed_masked_indexed_scatter") {
+      auto computedMaskBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(computedMaskBody),
+              "computed-mask memory owner-local validation test found the "
+              "indexed-scatter pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      computedMaskBody),
+              "computed-mask memory owner-local pre-realized validation "
+              "accepts the selected computed-mask indexed-scatter body"))
+        return result;
+    }
     if (variantName ==
         "rvv_pre_route_computed_masked_segment2_load_unit_store") {
       auto segment2LoadBody =
@@ -2085,6 +2213,18 @@ module {
       const bool isComputedMaskUnitLoadStore =
           preRealizedOpName ==
           "tcrv_rvv.typed_computed_mask_memory_pre_realized_body";
+      const bool isComputedMaskStridedStore =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_computed_mask_strided_store_pre_realized_body";
+      const bool isComputedMaskStridedLoad =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body";
+      const bool isComputedMaskIndexedGather =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_computed_mask_indexed_gather_pre_realized_body";
+      const bool isComputedMaskIndexedScatter =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body";
       if (isSegment2Deinterleave) {
         if (int result = expect(
                 countNestedOps(variant, "tcrv_rvv.segment2_load") == 1 &&
@@ -2145,6 +2285,60 @@ module {
                 llvm::Twine("selected-body producer @") + variantName +
                     " realizes compare loads, passthrough load, masked load, "
                     "and store"))
+          return result;
+      } else if (isComputedMaskStridedStore) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 3 &&
+                    countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_strided_store") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 0 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_strided_load") == 0,
+                llvm::Twine("selected-body producer @") + variantName +
+                    " realizes compare/source loads, compare mask, and "
+                    "masked strided store"))
+          return result;
+      } else if (isComputedMaskStridedLoad) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 3 &&
+                    countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_strided_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_strided_store") == 0,
+                llvm::Twine("selected-body producer @") + variantName +
+                    " realizes compare/passthrough loads, masked strided "
+                    "load, and unit store"))
+          return result;
+      } else if (isComputedMaskIndexedGather) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 3 &&
+                    countNestedOps(variant, "tcrv_rvv.index_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_indexed_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_indexed_store") == 0,
+                llvm::Twine("selected-body producer @") + variantName +
+                    " realizes compare/passthrough loads, index load, "
+                    "masked indexed load, and unit store"))
+          return result;
+      } else if (isComputedMaskIndexedScatter) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 3 &&
+                    countNestedOps(variant, "tcrv_rvv.index_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_indexed_store") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 0 &&
+                    countNestedOps(variant,
+                                   "tcrv_rvv.masked_indexed_load") == 0,
+                llvm::Twine("selected-body producer @") + variantName +
+                    " realizes compare/source loads, index load, and masked "
+                    "indexed store"))
           return result;
       } else {
         if (int result = expect(
@@ -2280,6 +2474,34 @@ module {
   if (int result = exerciseVariant(
           "rvv_pre_route_computed_masked_unit_load_store",
           "tcrv_rvv.typed_computed_mask_memory_pre_realized_body",
+          "computed-mask memory",
+          "rvv-computed-mask-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_computed_masked_strided_store",
+          "tcrv_rvv.typed_computed_mask_strided_store_pre_realized_body",
+          "computed-mask memory",
+          "rvv-computed-mask-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_computed_masked_strided_load",
+          "tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body",
+          "computed-mask memory",
+          "rvv-computed-mask-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_computed_masked_indexed_gather",
+          "tcrv_rvv.typed_computed_mask_indexed_gather_pre_realized_body",
+          "computed-mask memory",
+          "rvv-computed-mask-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_computed_masked_indexed_scatter",
+          "tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body",
           "computed-mask memory",
           "rvv-computed-mask-memory-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
@@ -2448,6 +2670,35 @@ module {
   if (int result = expectErrorContains(
           standaloneOwnerMismatch.takeError(),
           {"standalone reduction selected-body realization owner received a "
+           "body outside its RVV-owned realization family"}))
+    return result;
+
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *computedMaskMemoryOwner = nullptr;
+  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
+       tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
+    if (owner.familyName == "computed-mask memory")
+      computedMaskMemoryOwner = &owner;
+  }
+  if (int result = expect(computedMaskMemoryOwner != nullptr &&
+                              computedMaskMemoryOwner->realize != nullptr,
+                          "found computed-mask memory selected-body "
+                          "owner-local realization hook"))
+    return result;
+  mlir::OpBuilder computedMaskOwnerMismatchBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp>
+      computedMaskOwnerMismatch = computedMaskMemoryOwner->realize(
+          VariantLoweringBoundaryRequest(
+              standaloneOwnerMismatchVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant,
+              computedMaskOwnerMismatchBuilder),
+          standaloneOwnerMismatchBody);
+  if (computedMaskOwnerMismatch)
+    return fail("computed-mask memory owner-local hook accepted an "
+                "elementwise body");
+  if (int result = expectErrorContains(
+          computedMaskOwnerMismatch.takeError(),
+          {"computed-mask memory selected-body realization owner received a "
            "body outside its RVV-owned realization family"}))
     return result;
 
