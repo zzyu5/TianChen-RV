@@ -2974,9 +2974,12 @@ module {
 int runPreRealizedContractionRouteEntryOwnerTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyContractionRouteFamilyPlan;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
   using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      deriveRVVSelectedBodyContractionRouteFamilyPlan;
   using tianchenrv::plugin::rvv::
       deriveRVVSelectedBodyContractionRouteOperandBindingPlan;
   using tianchenrv::plugin::rvv::
@@ -2989,6 +2992,8 @@ int runPreRealizedContractionRouteEntryOwnerTest(
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
+  using tianchenrv::plugin::rvv::
+      validateRVVSelectedBodyContractionRouteFamilyPlan;
   using tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
@@ -3077,10 +3082,100 @@ module {
           "register RVV plugin for pre-realized contraction route-entry test"))
     return result;
 
-  auto expectOwnerBindingBoundary =
-      [](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef expectedPlanID,
+  auto expectOwnerFamilyPlanBoundary =
+      [](RVVSelectedBodyRouteAnalysis &analysis,
          llvm::StringRef expectedRuntimeABIOrder,
          llvm::StringRef label) -> int {
+    llvm::Expected<RVVSelectedBodyContractionRouteFamilyPlan> ownerPlan =
+        deriveRVVSelectedBodyContractionRouteFamilyPlan(analysis);
+    if (!ownerPlan)
+      return fail(llvm::Twine(label) +
+                  " owner-derived contraction route-family plan failed: " +
+                  llvm::toString(ownerPlan.takeError()));
+    if (int result = expectSuccess(
+            validateRVVSelectedBodyContractionRouteFamilyPlan(*ownerPlan),
+            llvm::Twine(label) +
+                " owner-derived contraction route-family plan validates"))
+      return result;
+    if (int result = expect(
+            analysis.contractionRouteFamilyPlan &&
+                analysis.contractionRouteFamilyPlan->familyPlanID ==
+                    ownerPlan->familyPlanID &&
+                analysis.contractionRouteFamilyPlan->runtimeABIOrder ==
+                    ownerPlan->runtimeABIOrder &&
+                analysis.contractionRouteFamilyPlan->targetLeafProfile ==
+                    ownerPlan->targetLeafProfile &&
+                analysis.description.contractionRouteFamilyPlanID ==
+                    ownerPlan->familyPlanID &&
+                analysis.description.runtimeABIOrder ==
+                    expectedRuntimeABIOrder &&
+                ownerPlan->runtimeABIOrder == expectedRuntimeABIOrder,
+            llvm::Twine(label) +
+                " route analysis mirrors the owner-derived contraction "
+                "route-family plan"))
+      return result;
+
+    RVVSelectedBodyContractionRouteFamilyPlan stalePlan = *ownerPlan;
+    stalePlan.familyPlanID = "rvv-contraction-route-family-plan:metadata.v1";
+    if (int result = expectErrorContains(
+            validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+            {"family plan", "rvv-contraction-route-family-plan.v1"}))
+      return result;
+
+    stalePlan = *ownerPlan;
+    stalePlan.runtimeABIOrder = "metadata-runtime-abi-order";
+    if (int result = expectErrorContains(
+            validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+            {"runtime ABI order", expectedRuntimeABIOrder}))
+      return result;
+
+    stalePlan = *ownerPlan;
+    stalePlan.targetLeafProfile = "metadata-target-leaf-profile";
+    if (int result = expectErrorContains(
+            validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+            {"target leaf profile",
+             "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"}))
+      return result;
+
+    stalePlan = *ownerPlan;
+    stalePlan.relation = "metadata-derived-relation";
+    if (int result = expectErrorContains(
+            validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+            {ownerPlan->usesWideningMAcc ? "widening macc relation"
+                                         : "widening dot relation",
+             ownerPlan->usesWideningMAcc
+                 ? "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
+                 : "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}))
+      return result;
+
+    if (ownerPlan->usesComputedMask) {
+      stalePlan = *ownerPlan;
+      stalePlan.maskSource = "metadata-mask-source";
+      if (int result = expectErrorContains(
+              validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+              {"mask source", "compare-produced-mask-same-vl-scope"}))
+        return result;
+    }
+
+    if (ownerPlan->usesStridedInputs) {
+      stalePlan = *ownerPlan;
+      stalePlan.lhsStrideSource = "metadata-lhs-stride";
+      if (int result = expectErrorContains(
+              validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+              {"lhs stride source", "runtime_abi:lhs_stride"}))
+        return result;
+    }
+
+    return 0;
+  };
+
+  auto expectOwnerBindingBoundary =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef expectedPlanID,
+          llvm::StringRef expectedRuntimeABIOrder,
+          llvm::StringRef label) -> int {
+    if (int result = expectOwnerFamilyPlanBoundary(
+            analysis, expectedRuntimeABIOrder, label))
+      return result;
     std::optional<llvm::StringRef> ownerPlanID =
         getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
             analysis.description.operation);
@@ -16066,7 +16161,7 @@ module {
   stale = *routeDescription;
   stale.intrinsic = "__riscv_vadd_vv_i32m1";
   if (int result = expectStaleFieldRejected(
-          stale, {"compute intrinsic", "__riscv_vredsum_vs_i32m1_i32m1",
+          stale, {"reduction intrinsic", "__riscv_vredsum_vs_i32m1_i32m1",
                   "__riscv_vadd_vv_i32m1"}))
     return result;
 

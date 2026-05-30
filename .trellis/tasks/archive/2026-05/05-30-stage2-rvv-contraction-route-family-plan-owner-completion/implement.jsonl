@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first authority chain, stage boundaries, and compiler stack constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, direct contraction provider owner boundary, contraction route-family facts, fail-closed diagnostics, and mirror-only metadata constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ plugin tests and RVV evidence policy"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep contraction semantics plugin-local and prevent common/core authority drift"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Keep target/profile facts as legality constraints rather than dtype/route authority"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid moving compute semantics into tcrv.exec or common planning"}

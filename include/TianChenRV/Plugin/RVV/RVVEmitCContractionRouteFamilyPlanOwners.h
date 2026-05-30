@@ -24,6 +24,48 @@ struct RVVSelectedBodyContractionRouteFamilyOwner {
 llvm::ArrayRef<RVVSelectedBodyContractionRouteFamilyOwner>
 getRVVSelectedBodyContractionRouteFamilyOwners();
 
+bool isRVVSelectedBodyContractionRouteOperation(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyContractionDotReduction(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyContractionComputedMask(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyContractionStridedInputs(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::StringRef getRVVSelectedBodyContractionRuntimeABIOrder(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedWideningMAccAccumulatorLayout();
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedWideningMAccResultLayout();
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedWideningMAccRelation();
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedWideningDotProductAccumulatorLayout();
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedWideningDotProductResultLayout();
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedWideningDotProductRelation();
+llvm::StringRef
+getRVVSelectedBodyContractionExpectedMaskedInactiveLaneZeroingRequirement();
+
+llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan);
+
+llvm::Expected<RVVSelectedBodyContractionRouteFamilyPlan>
+deriveRVVSelectedBodyContractionRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis);
+
+void applyRVVSelectedBodyContractionRouteFamilyPlan(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description);
+
+llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context);
+
 std::optional<llvm::StringRef>
 getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
     RVVSelectedBodyOperationKind operation);

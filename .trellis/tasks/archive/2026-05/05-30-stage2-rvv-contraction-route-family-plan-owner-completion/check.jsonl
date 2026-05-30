@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final code remains within TianChen-RV global architecture and RVV Stage2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify contraction owner-local plan construction, provider verification, fail-closed behavior, and mirror-only metadata"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and consumes provider-owned route payloads only"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/plugin/build evidence is sufficient and no runtime claim is overstated"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Verify extension-specific semantics stay in RVV plugin owner files"}
