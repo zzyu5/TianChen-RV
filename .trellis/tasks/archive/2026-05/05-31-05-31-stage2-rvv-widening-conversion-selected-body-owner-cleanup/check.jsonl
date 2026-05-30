@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-widening-conversion-selected-body-owner-cleanup/prd.md", "reason": "Verify implementation satisfies acceptance criteria and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth and Stage2 RVV authority chain compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body owner registry, diagnostics, tests, and authority-leak constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec stays envelope-only and mirror metadata remains non-authoritative."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider route remains RVV-owned."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-reduction-selected-body-owner-cleanup/prd.md", "reason": "Cross-check previous owner-local extraction validation pattern."}

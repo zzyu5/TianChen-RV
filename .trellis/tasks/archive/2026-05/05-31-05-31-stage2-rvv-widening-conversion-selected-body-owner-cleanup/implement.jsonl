@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-widening-conversion-selected-body-owner-cleanup/prd.md", "reason": "This round's bounded module goal, requirements, acceptance criteria, and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage2 RVV selected-body realization boundary, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, widening-conversion family boundary, diagnostics, tests, and authority-leak constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope boundaries and provider mirror metadata authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route authority rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-reduction-selected-body-owner-cleanup/prd.md", "reason": "Previous selected-body owner extraction shape and focused validation expectations."}

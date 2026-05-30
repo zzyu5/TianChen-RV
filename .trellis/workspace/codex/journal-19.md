@@ -64,6 +64,58 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 350: Stage2 RVV widening-conversion selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV widening-conversion selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved widening-conversion selected-body realization ownership out of the
+central RVV selected-body file into a dedicated owner module; preserved
+typed widening-conversion realization facts, provider route construction, and
+artifact/materialization behavior.
+
+### Main Changes
+
+- Added `RVVWideningConversionSelectedBodyRealizationOwner.{h,cpp}` and CMake
+  wiring.
+- Central `RVVSelectedBodyRealization.cpp` now keeps only the
+  widening-conversion owner registry entry and generic dispatch.
+- Moved widening-conversion op-kind, memory-form, relation/signature,
+  runtime ABI, mixed-body, requires, and materialization checks into the
+  dedicated owner.
+- Added C++ coverage for dedicated owner predicate selection, null/wrong-family
+  diagnostics, invalid typed facts, realized load/widening_convert/store facts,
+  and provider route consumption.
+- Checks passed: `tianchenrv-rvv-extension-plugin-test`, focused
+  widening-conversion lit tests, authority scans, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` (464/464).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | rvv: move widening conversion selected-body owner-side |
+
+### Testing
+
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for widening-conversion selected-body artifacts and
+  negative lowering-boundary coverage
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (464/464)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 
 ## Session 339: Stage2 RVV contraction selected-body handoff closure
 
