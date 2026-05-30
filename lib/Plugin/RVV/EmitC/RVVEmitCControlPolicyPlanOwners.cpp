@@ -1,5 +1,6 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 
+#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 
 #include "llvm/ADT/Twine.h"

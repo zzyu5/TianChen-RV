@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check changed code against global project invariants and RVV stage ordering."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check base memory owner extraction, provider-plan verifier, fail-closed diagnostics, mirror-only metadata, and memory movement boundary requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check ABI/runtime roles remain envelope facts and not compute/dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider-built route authority stays RVV-local."}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for this refactor."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 owner boundaries, memory movement, runtime ABI, provider-plan verification, mirror metadata, fail-closed diagnostics, and common EmitC neutrality contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope boundary and prohibition on core compute/dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute provider ownership and common EmitC neutrality boundary."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-elementwise-arithmetic-route-family-plan-owner-completion/prd.md", "reason": "Just-completed route-family plan owner extraction pattern and acceptance criteria precedent."}

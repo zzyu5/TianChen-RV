@@ -61,6 +61,57 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 337: Stage2 RVV base memory movement route-family owner
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV base memory movement route-family plan owner completion
+**Branch**: `main`
+
+### Summary
+
+Moved unit/strided/indexed/static-mask base memory movement route-family plan
+authority into a dedicated RVV owner. Central RVV route planning now delegates
+base-memory plan construction, apply, operand binding, provider-plan
+verification, and route-description mirror validation to that owner while
+retaining shared fact collection, owner dispatch, materialization-fact
+consumption, and generic closure checks.
+
+### Main Changes
+
+- Added `RVVEmitCBaseMemoryRouteFamilyPlanOwners` and CMake wiring.
+- Removed central base-memory plan constants, ABI-order constants, operand
+  binding plan IDs, derive/apply/validate bodies, provider-plan body, and
+  route-description mirror semantics.
+- Updated memory statement/control-policy consumers to include the owner
+  surface and expanded RVV plugin tests for owner-derived base memory plans and
+  fail-closed stale mirrors.
+- Checks: RVV route-provider build passed; RVV extension plugin build/test
+  passed; `git diff --check` passed; task validate passed;
+  `check-tianchenrv` passed 464/464.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVEmitCRouteProvider -j2`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (464/464)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 333: Stage2 RVV MAcc operand-binding owner completion
 
 **Date**: 2026-05-30

@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
@@ -8079,6 +8080,8 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
@@ -8466,6 +8469,13 @@ module {
               *stridedLoadAnalysis, "base memory provider unit test"),
           "valid strided_load_unit_store base memory family provider plan"))
     return result;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
+              stridedLoadAnalysis->description,
+              "base memory route-description owner unit test"),
+          "valid strided_load_unit_store route description mirrors are "
+          "owner-derived"))
+    return result;
   if (int result = expect(
           stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan &&
               stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan
@@ -8505,6 +8515,47 @@ module {
           false,
           {"__riscv_vsetvl_e32m1", "__riscv_vlse32_v_i32m1",
            "__riscv_vse32_v_i32m1"}))
+    return result;
+
+  auto staleDescription = stridedLoadAnalysis->description;
+  staleDescription.baseMemoryMovementRouteFamilyPlanID =
+      "rvv-base-memory-movement-route-family-plan.stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
+              staleDescription,
+              "base memory route-description stale family unit test"),
+          {"base memory movement route family plan",
+           "rvv-base-memory-movement-route-family-plan.v1", "stale"}))
+    return result;
+
+  staleDescription = stridedLoadAnalysis->description;
+  staleDescription.runtimeABIOrder = "src,out,n";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
+              staleDescription,
+              "base memory route-description stale ABI unit test"),
+          {"runtime ABI order", "src,out,n,stride_bytes", "src,out,n"}))
+    return result;
+
+  staleDescription = stridedLoadAnalysis->description;
+  staleDescription.memoryForm = RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
+              staleDescription,
+              "base memory route-description stale memory form unit test"),
+          {"memory form", "strided_load_unit_store"}))
+    return result;
+
+  staleDescription = stridedLoadAnalysis->description;
+  staleDescription.targetLeafProfile =
+      "rvv-v1-e32m1-strided-load-unit-store-leaf-profile.stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
+              staleDescription,
+              "base memory route-description stale target unit test"),
+          {"target leaf profile",
+           "rvv-v1-e32m1-strided-load-unit-store-leaf-profile.v1",
+           "stale"}))
     return result;
 
   auto stridedLoadMaterializationFacts =

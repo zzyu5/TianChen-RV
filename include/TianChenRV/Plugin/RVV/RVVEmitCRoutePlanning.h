@@ -1413,8 +1413,6 @@ bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
-bool isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
@@ -1423,9 +1421,6 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
 
 llvm::Error
 verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
@@ -1626,14 +1621,6 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
 llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
 getRVVSelectedBodyResidualRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
-getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
 getRVVSelectedBodyDirectContractionRouteProviderPlan(
