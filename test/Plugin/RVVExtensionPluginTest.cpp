@@ -17,6 +17,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
+#include "TianChenRV/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
@@ -1307,6 +1308,190 @@ int runSelectedBodyRealizationOwnerRegistryTest() {
           .takeError(),
       {"selected-body realization owner registry null test",
        "requires a pre-realized RVV body op"});
+}
+
+int runReductionSelectedBodyRealizationOwnerTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_reduction_owner_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_reduce_pre_realized_body %lhs, %rhs, %out, %n {accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk", accumulator_role = "rhs-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-reduction-lane0-to-output-chunk-base", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_bad_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_reduce_pre_realized_body %lhs, %rhs, %out, %n {accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk", accumulator_role = "rhs-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-reduction-lane0-to-output-chunk-base", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_wrong_family_splat attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_i32_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV reduction owner module");
+  KernelOp kernel = findKernel(*module, "rvv_reduction_owner_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for reduction selected-body owner test"))
+    return result;
+
+  VariantOp reduceVariant = findVariant(kernel, "rvv_pre_reduce");
+  auto reduceBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedReducePreRealizedBodyOp>(
+      findFirstNestedOp(reduceVariant,
+                        "tcrv_rvv.typed_reduce_pre_realized_body"));
+  if (int result =
+          expect(reduceBody != nullptr,
+                 "found reduction pre-realized body for owner-local test"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVReductionOwnerOp(
+              reduceBody.getOperation()),
+          "dedicated reduction selected-body owner recognizes "
+          "TypedReducePreRealizedBodyOp"))
+    return result;
+
+  llvm::Expected<const tianchenrv::plugin::rvv::
+                     RVVSelectedBodyRealizationOwner *>
+      owner = tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody(
+          reduceBody.getOperation(),
+          "reduction selected-body realization owner registry test");
+  if (!owner)
+    return fail("reduction selected-body owner lookup: " +
+                llvm::toString(owner.takeError()));
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *reductionOwner = *owner;
+  if (int result =
+          expect(reductionOwner->familyName == "reduction" &&
+                     reductionOwner->realize != nullptr,
+                 "ordinary reduction uses the dedicated selected-body owner"))
+    return result;
+
+  VariantOp wrongFamilyVariant =
+      findVariant(kernel, "rvv_wrong_family_splat");
+  mlir::Operation *wrongFamilyBody =
+      findFirstNestedOp(wrongFamilyVariant,
+                        "tcrv_rvv.typed_runtime_scalar_splat_store_"
+                        "pre_realized_body");
+  if (int result = expect(
+          wrongFamilyBody != nullptr &&
+              !tianchenrv::plugin::rvv::isPreRealizedRVVReductionOwnerOp(
+                  wrongFamilyBody),
+          "dedicated reduction owner rejects runtime-scalar memory bodies"))
+    return result;
+
+  {
+    mlir::OpBuilder nullBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> nullResult =
+        reductionOwner->realize(
+            VariantLoweringBoundaryRequest(
+                reduceVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, nullBuilder),
+            nullptr);
+    if (nullResult)
+      return fail("reduction owner-local hook accepted a null body");
+    if (int result = expectErrorContains(
+            nullResult.takeError(),
+            {"reduction selected-body realization owner requires a "
+             "pre-realized RVV body op"}))
+      return result;
+  }
+
+  {
+    mlir::OpBuilder wrongFamilyBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> wrongFamilyResult =
+        reductionOwner->realize(
+            VariantLoweringBoundaryRequest(
+                wrongFamilyVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, wrongFamilyBuilder),
+            wrongFamilyBody);
+    if (wrongFamilyResult)
+      return fail("reduction owner-local hook accepted a non-reduction body");
+    if (int result = expectErrorContains(
+            wrongFamilyResult.takeError(),
+            {"reduction selected-body realization owner received a body "
+             "outside its RVV-owned realization family"}))
+      return result;
+  }
+
+  VariantOp badReduceVariant = findVariant(kernel, "rvv_bad_reduce");
+  auto badReduceBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedReducePreRealizedBodyOp>(
+      findFirstNestedOp(badReduceVariant,
+                        "tcrv_rvv.typed_reduce_pre_realized_body"));
+  if (int result =
+          expect(badReduceBody != nullptr,
+                 "found bad reduction body for owner-local fail-closed test"))
+    return result;
+  mlir::Builder attrBuilder(module->getContext());
+  badReduceBody->setAttr("op_kind", attrBuilder.getStringAttr("reduce_mul"));
+  mlir::OpBuilder badReduceBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> badReduceResult =
+      reductionOwner->realize(
+          VariantLoweringBoundaryRequest(
+              badReduceVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, badReduceBuilder),
+          badReduceBody.getOperation());
+  if (badReduceResult)
+    return fail("reduction owner-local hook accepted invalid typed facts");
+  if (int result = expectErrorContains(
+          badReduceResult.takeError(),
+          {"pre-realized RVV selected reduce body currently supports only "
+           "op_kind 'reduce_add'"}))
+    return result;
+
+  VariantLoweringBoundaryResult boundaryResult;
+  mlir::OpBuilder producerBuilder(module->getContext());
+  if (int result = expectSuccess(
+          registry.materializeSelectedLoweringBoundary(
+              VariantLoweringBoundaryRequest(
+                  reduceVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant, producerBuilder),
+              boundaryResult),
+          "selected-body producer consumes reduction pre-realized body"))
+    return result;
+  if (int result = expect(
+          boundaryResult.isMaterialized() &&
+              countNestedOps(reduceVariant,
+                             "tcrv_rvv.typed_reduce_pre_realized_body") == 0 &&
+              countNestedOps(reduceVariant, "tcrv_rvv.setvl") == 1 &&
+              countNestedOps(reduceVariant, "tcrv_rvv.with_vl") == 1 &&
+              countNestedOps(reduceVariant, "tcrv_rvv.load") == 2 &&
+              countNestedOps(reduceVariant, "tcrv_rvv.reduce") == 1 &&
+              countNestedOps(reduceVariant, "tcrv_rvv.store") == 1,
+          "dedicated reduction owner materializes load/load/reduce/store "
+          "typed facts"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  reduceVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "provider consumes dedicated-owner realized reduction facts"))
+    return result;
+  return expect(route.getForLoops().size() == 1 &&
+                    route.getForLoops().front().bodySteps.size() == 5,
+                "provider route preserves reduction statement-plan steps");
 }
 
 int runPreRealizedSelectedBodyProductionRoutePathTest(
@@ -21649,6 +21834,9 @@ int main() {
           runElementwiseCompareSelectRealizationBoundaryTest(context))
     return result;
   if (int result = runSelectedBodyRealizationOwnerRegistryTest())
+    return result;
+  if (int result =
+          runReductionSelectedBodyRealizationOwnerTest(context))
     return result;
   if (int result =
           runPreRealizedSelectedBodyProductionRoutePathTest(context))

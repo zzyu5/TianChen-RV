@@ -5,6 +5,64 @@
 
 ---
 
+## Session 351: Stage2 RVV reduction selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV reduction selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved `TypedReducePreRealizedBodyOp` selected-body realization ownership out of
+central `RVVSelectedBodyRealization.cpp` into a dedicated RVV reduction owner
+module; preserved selected-boundary realization, realized typed
+load/load/reduce/store facts, provider route consumption, common EmitC
+neutrality, and target artifact behavior.
+
+### Main Changes
+
+- Added
+  `RVVReductionSelectedBodyRealizationOwner.{h,cpp}` and CMake wiring.
+- Central `RVVSelectedBodyRealization.cpp` now keeps only the reduction owner
+  registry entry and dispatch hook for this family; reduction predicate,
+  validation, and materialization live in the new owner module.
+- Added focused C++ coverage for reduction owner classification, null/wrong
+  family rejection, invalid typed fact diagnostics, selected-boundary
+  materialization, and provider route consumption.
+- Verified plain reduction artifact/materialization lit flows, neighboring
+  standalone reduction/runtime-scalar memory owner paths via the RVV plugin
+  smoke test, authority scans, and full `check-tianchenrv`.
+- Spec update review completed: no `.trellis/spec/` edits were needed because
+  this task implemented existing selected-body owner registry rules rather
+  than introducing a new durable contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | `rvv: move reduction selected-body owner-side` |
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVPlugin -j2`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused reduction artifact/materialization checks for
+  `pre-realized-selected-body-artifact-reduce-add.mlir`,
+  `rvv-generic-stage2-reduction-materialization.mlir`, and
+  `rvv-generic-stage2-reduction-negative.mlir`.
+- [OK] Bounded authority scans over touched production files.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 
 
 ## Session 339: Stage2 RVV contraction selected-body handoff closure
