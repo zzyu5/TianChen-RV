@@ -1,4 +1,5 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 

@@ -1675,34 +1675,6 @@ getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
         &memoryOperandBindingFacts,
     llvm::StringRef context);
 
-struct RVVSelectedBodySegment2RouteFamilyPlanningOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using ProviderPlanBuilder = llvm::Error (*)(
-      RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
-      RVVSelectedBodySegment2RouteFamilyProviderPlan &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanBuilder buildProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodySegment2RouteFamilyPlanningOwner>
-getRVVSelectedBodySegment2RouteFamilyPlanningOwners();
-
-bool isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-
-llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
-getRVVSelectedBodySegment2RouteFamilyProviderPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
 llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
 getRVVSelectedBodyDirectContractionRouteProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

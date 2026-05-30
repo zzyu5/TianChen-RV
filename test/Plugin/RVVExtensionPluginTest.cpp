@@ -8,6 +8,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Support/CapabilityModel.h"

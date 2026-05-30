@@ -1324,7 +1324,20 @@ Moved migrated and direct-contraction selected-body statement-plan owner registr
 
 ### Main Changes
 
-(Add details)
+- Added `RVVEmitCSegment2RouteFamilyPlanOwners.h/cpp` as the explicit
+  segment2 route-family provider-plan owner boundary.
+- Removed the segment2 owner struct, registry declarations, exact-one selector,
+  and five family-specific builder/predicate definitions from central
+  `RVVEmitCRoutePlanning.h/cpp`.
+- Rewired `RVVEmitCRouteProvider.cpp`,
+  `RVVEmitCMemoryStatementPlanOwners.cpp`, and the RVV plugin C++ tests to use
+  the new segment2 owner-boundary header.
+- Left shared segment2 provider/statement plan structs and neutral route
+  analysis/materialization/operand-binding mechanics in the existing shared
+  planning layer.
+- Spec update review: no `.trellis/spec/**` edits were needed because
+  `extension-plugins/rvv-plugin.md` already contains the segment2
+  route-family planning owner boundary contract implemented here.
 
 ### Git Commits
 
@@ -1334,7 +1347,14 @@ Moved migrated and direct-contraction selected-body statement-plan owner registr
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-30-05-30-stage2-rvv-segment2-route-family-provider-plan-owner-boundary`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit filter for computed-mask segment2 load/store/update and
+  plain segment2 deinterleave/interleave generated-bundle dry-runs passed 5/5.
+- [OK] Bounded central/owner/authority scans and `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464.
 
 ### Status
 
@@ -1542,6 +1562,39 @@ Moved WideningConversion and RuntimeScalarSplatStore migrated RVV statement-plan
 ### Summary
 
 Moved selected-body route-control and mask/tail policy provider-plan construction from central route planning into an explicit RVV-owned control/policy owner boundary; focused plugin test, generated-bundle dry-runs, authority scans, git diff check, and check-tianchenrv 464/464 passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 331: Stage2 RVV segment2 route-family provider-plan owner boundary
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV segment2 route-family provider-plan owner boundary
+**Branch**: `main`
+
+### Summary
+
+Moved segment2 route-family provider-plan construction for computed-mask segment2 load/store/update and plain segment2 deinterleave/interleave into an explicit RVV-owned owner module; focused plugin test, representative segment2 generated-bundle dry-runs, authority scans, git diff check, and check-tianchenrv 464/464 passed.
 
 ### Main Changes
 

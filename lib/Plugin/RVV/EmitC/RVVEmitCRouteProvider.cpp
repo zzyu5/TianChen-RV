@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 
 #include "llvm/ADT/ArrayRef.h"

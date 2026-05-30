@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first Stage2 authority chain, descriptor/source-front-door prohibitions, and common EmitC boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Segment2 route-family planning owner boundary, segment2 statement-plan boundary, route-control consumption, fail-closed diagnostics, provider construction, mirror metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC neutrality for extension-specific type/intrinsic/ABI mapping."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-owned route provider output and selected-body realization locality; core/common code must not own RVV semantics."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Route provider and registry interfaces must orchestrate without deriving computation from route ids, manifests, metadata, descriptors, or source-front-door markers."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ tests, generated-bundle dry-run evidence, authority scans, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Typed tcrv_rvv selected-body authority, Stage2 realization, and metadata mirror-only rules."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review checklist for keeping RVV segment2 owner construction plugin-local and out of core/common orchestration."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure the owner-boundary refactor does not add high-level compute or core-dialect semantics."}

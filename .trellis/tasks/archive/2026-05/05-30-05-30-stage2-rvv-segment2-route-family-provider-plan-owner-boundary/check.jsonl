@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global Stage2 RVV authority, descriptor/source-front-door prohibitions, and common EmitC boundary after the owner move."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 owner-boundary exact-one selection, provider-plan validation, segment2 statement-plan consumption, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route authority and common EmitC neutrality remain intact."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check RVV segment2 semantics remain plugin-local and no core/common extension-specific branch was introduced."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/provider interfaces do not derive route support from names, manifests, metadata, descriptors, or source-front-door markers."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, generated-bundle evidence, authority scans, and ssh rvv requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check typed selected-body facts remain authoritative and metadata stays mirror-only."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin-locality review after moving segment2 provider-plan construction."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or core-dialect semantics were introduced."}
