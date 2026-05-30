@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stage order, and source-of-truth rules for this handoff."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, base-memory movement, provider-plan, route-control, operand-binding, and mirror authority contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and runtime ABI role boundary for selected RVV variants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required MLIR/C++/generated-bundle evidence and runtime-claim boundaries."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality checklist for owner-local RVV validation movement."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-contraction-selected-body-provider-handoff-closure/prd.md", "reason": "Nearest completed selected-body provider handoff pattern and validation shape."}

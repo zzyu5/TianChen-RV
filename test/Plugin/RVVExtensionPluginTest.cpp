@@ -1644,6 +1644,29 @@ module {
                    llvm::Twine("pre-realized @") + variantName +
                        " is owned by the expected realization family"))
       return result;
+    if (variantName == "rvv_pre_route_strided_load_unit_store") {
+      auto stridedBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedStridedMemoryPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(stridedBody),
+              "base memory owner-local validation test found the strided "
+              "pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedStridedMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      stridedBody),
+              "base memory owner-local pre-realized validation accepts the "
+              "selected strided-load/unit-store body"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;

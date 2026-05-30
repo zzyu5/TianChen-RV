@@ -46,6 +46,26 @@ deriveRVVSelectedBodyBaseMemoryRouteOperandBindingPlan(
 llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedMaskedMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp body);
+
 llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
 getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
