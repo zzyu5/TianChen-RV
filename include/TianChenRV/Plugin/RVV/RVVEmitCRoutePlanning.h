@@ -765,6 +765,9 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
   llvm::StringRef maskMemoryForm;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
   llvm::StringRef accumulatorContract;
   llvm::StringRef resultContract;
   llvm::StringRef inactiveLaneContract;

@@ -17967,7 +17967,8 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
               stale, "computed-mask MAcc provider unit test"),
-          {"computed-mask MAcc route-family memory and inactive-lane mirrors",
+          {"computed-mask MAcc route-family memory, layout, and inactive-lane "
+           "mirrors",
            "validated family plan"}))
     return result;
 

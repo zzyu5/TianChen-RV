@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants after code changes."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check MAcc owner boundary and mirror/fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and route authority remains RVV-local."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and evidence scope."}

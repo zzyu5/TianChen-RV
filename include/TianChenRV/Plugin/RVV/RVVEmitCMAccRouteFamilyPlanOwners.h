@@ -39,6 +39,54 @@ bool isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
 bool isRVVSelectedBodyMAccRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
+bool isRVVSelectedBodyComputedMaskAccumulationRouteOperation(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::StringRef getRVVSelectedBodyMAccAccumulatorLayout();
+
+llvm::StringRef getRVVSelectedBodyMAccResultLayout();
+
+std::optional<llvm::StringRef>
+getExpectedRVVSelectedBodyMAccRuntimeABIOrder(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Expected<RVVSelectedBodyPlainMAccRouteFamilyPlan>
+deriveRVVSelectedBodyPlainMAccRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis);
+
+void applyRVVSelectedBodyPlainMAccRouteFamilyPlan(
+    const RVVSelectedBodyPlainMAccRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description);
+
+llvm::Error validateRVVSelectedBodyPlainMAccRouteFamilyPlan(
+    const RVVSelectedBodyPlainMAccRouteFamilyPlan &plan);
+
+llvm::Expected<RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan>
+deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis);
+
+void applyRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+    const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description);
+
+llvm::Error validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
+    const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan &plan);
+
+llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan>
+deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis);
+
+void applyRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
+    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description);
+
+llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
+    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan &plan);
+
+llvm::Error verifyRVVSelectedBodyMAccRouteDescriptionMirrors(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context);
+
 std::optional<llvm::StringRef>
 getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(
     RVVSelectedBodyOperationKind operation);
