@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
@@ -4840,8 +4841,8 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
               stale, "scalar-broadcast provider unit test"),
-          {"scalar-broadcast elementwise route-family route, runtime, type",
-           "validated family plan"}))
+          {"scalar-broadcast elementwise route-family compute intrinsic",
+           "__riscv_vadd_vv_i32m1", "__riscv_vsub_vv_i32m1"}))
     return result;
 
   stale = *addAnalysis;

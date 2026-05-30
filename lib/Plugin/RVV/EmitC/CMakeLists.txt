@@ -3,6 +3,7 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVEmitCRouteProvider.cpp
   RVVEmitCContractionRouteFamilyPlanOwners.cpp
   RVVEmitCControlPolicyPlanOwners.cpp
+  RVVEmitCElementwiseRouteFamilyPlanOwners.cpp
   RVVEmitCMAccRouteFamilyPlanOwners.cpp
   RVVEmitCCompareSelectStatementPlanOwners.cpp
   RVVEmitCElementwiseArithmeticStatementPlanOwners.cpp

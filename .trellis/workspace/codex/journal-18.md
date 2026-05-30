@@ -1815,3 +1815,40 @@ Moved existing widening-contraction route-family plan construction, validation, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 336: Stage2 RVV elementwise arithmetic route-family owner
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV elementwise arithmetic route-family owner
+**Branch**: `main`
+
+### Summary
+
+Moved plain and scalar-broadcast RVV elementwise arithmetic route-family plan authority into a dedicated plugin-local owner, archived the Trellis task, and kept central planning to shared fact collection and neutral owner dispatch.
+
+### Main Changes
+
+- Added RVVEmitCElementwiseRouteFamilyPlanOwners for elementwise plan derivation, validation, application, operand bindings, provider-plan verification, target leaf/profile, ABI order, type/header mapping, intrinsic mirrors, and route-description mirror checks.
+- Reduced RVVEmitCRoutePlanning.cpp elementwise responsibility to shared typed/config/runtime fact collection, neutral owner dispatch, closure checks, and provider handoff.
+- Updated focused RVV extension plugin tests for owner-derived plain/scalar-broadcast plans and stale mirror diagnostics.
+- Checks: tianchenrv-rvv-extension-plugin-test build passed; RVV extension plugin smoke test passed; git diff --check passed; task validate passed; check-tianchenrv passed 464/464.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

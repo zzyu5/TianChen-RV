@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for this refactor."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 route-family owner, typed body/config authority, provider-plan verifier, mirror metadata, and common EmitC neutrality contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality boundary."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope boundary and prohibition on core compute/dtype authority."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h", "reason": "Added the dedicated elementwise route-family plan owner API surface for predicates, derive/apply/validate, operand bindings, provider-plan verification, and route-description mirror checks."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp", "reason": "Moved plain/masked/strided and scalar-broadcast elementwise arithmetic plan authority, ABI order, dtype/config validation, target/profile, C type/header mapping, intrinsic mirrors, and fail-closed diagnostics into the owner."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Reduced central planning to shared analysis, neutral dispatch, closure checks, and provider handoff for elementwise arithmetic route families."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Extended focused provider-plan and mirror mismatch coverage to the owner-derived plain and scalar-broadcast elementwise plans."}

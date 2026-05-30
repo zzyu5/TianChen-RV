@@ -325,6 +325,7 @@ struct RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan {
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef arithmeticIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
