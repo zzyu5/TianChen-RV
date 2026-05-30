@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV stack, source-of-truth, and RVV stage-order invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body owner-locality, standalone reduction, provider, artifact, and fail-closed requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains envelope-only and does not own reduction semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes only."}

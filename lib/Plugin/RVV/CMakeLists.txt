@@ -6,6 +6,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
   RVVSelectedBodyRealization.cpp
+  RVVStandaloneReductionSelectedBodyRealizationOwner.cpp
   RVVVectorSourceFrontDoor.cpp
 
   DEPENDS

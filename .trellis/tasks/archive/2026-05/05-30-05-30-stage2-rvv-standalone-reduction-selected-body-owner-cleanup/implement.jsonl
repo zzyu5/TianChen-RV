@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, standalone reduction, provider, artifact, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Execution envelope and ABI/runtime role boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built route authority."}

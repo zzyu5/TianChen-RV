@@ -312,3 +312,64 @@ Testing:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 345: Stage2 RVV standalone-reduction selected-body owner cleanup
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV standalone-reduction selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved standalone reduction selected-body validation/realization into an RVV owner-local component, shrank the central selected-body file to registry/neutral dispatch, and validated plain, computed-mask, and runtime-scalar standalone reduction paths with focused C++/lit/generated-bundle/ssh rvv/check-tianchenrv evidence.
+
+### Main Changes
+
+- Added `RVVStandaloneReductionSelectedBodyRealizationOwner` as the reduction-family owner-local selected-body realization component for plain, computed-mask, and runtime-scalar computed-mask standalone reduction bodies.
+- Rewired the standalone reduction selected-body registry entry to the owner-local predicate/hook and removed central standalone reduction validators, materializers, and unreachable central family branches from `RVVSelectedBodyRealization.cpp`.
+- Added C++ owner-local coverage for standalone reduction owner discovery, retired direct route-entry diagnostics, invalid typed facts, stale runtime `n` role, LMUL config rejection, and outside-family fail-closed behavior.
+- Preserved realized typed `tcrv_rvv` facts: `setvl`, `with_vl`, source/compare loads, runtime scalar splat, compare-produced masks, `standalone_reduce` / `masked_standalone_reduce`, scalar-result store, runtime AVL/VL, and required-capability metadata.
+- Spec-update judgment: no `.trellis/spec/**` edit was needed because this round implemented the existing Stage2 selected-body owner-local contract without adding a new durable rule.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- Focused standalone reduction lit filter: 7/7 passed for pre-realized plain, LMUL m2, computed-mask, runtime-scalar computed-mask, and direct-entry fail-closed paths.
+- Focused elementwise/compare-select non-regression lit filter: 4/4 passed.
+- Generated dry-run bundle:
+  `artifacts/tmp/stage2-rvv-standalone-reduction-owner-cleanup/pre-realized-standalone-reduction-owner-dry-run`
+- `ssh rvv` generated bundle:
+  `artifacts/tmp/stage2-rvv-standalone-reduction-owner-cleanup/pre-realized-standalone-reduction-owner-ssh-rvv`
+  with `standalone_reduce_add`, `computed_mask_standalone_reduce_add_lmul_m2`, and `runtime_scalar_cmp_masked_standalone_reduce_add` passing counts `0,1,16,23,257`.
+- Bounded central scan leaves only the standalone reduction registry entry and neutral dispatch guard in `RVVSelectedBodyRealization.cpp`.
+- Added-line authority scan found no new legacy-i32, source-front-door, descriptor, route-id, direct-route-entry-only, or exact-intrinsic authority.
+- `git diff --check`
+- `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused standalone reduction lit filter: 7/7 passed.
+- [OK] focused elementwise/compare-select non-regression lit filter: 4/4 passed.
+- [OK] representative dry-run generated bundle in `artifacts/tmp/stage2-rvv-standalone-reduction-owner-cleanup/pre-realized-standalone-reduction-owner-dry-run`.
+- [OK] representative `ssh rvv` generated bundle in `artifacts/tmp/stage2-rvv-standalone-reduction-owner-cleanup/pre-realized-standalone-reduction-owner-ssh-rvv`.
+- [OK] bounded central and added-line authority scans.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
