@@ -2673,6 +2673,156 @@ verified computed-mask accumulation family plan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## MAcc Route-Family Provider-Plan Owner Boundary
+
+### 1. Scope / Trigger
+
+For production-active plain `macc_add`, scalar-broadcast
+`scalar_broadcast_macc_add`, `computed_masked_macc_add`, and
+`runtime_scalar_cmp_masked_macc_add` selected-body routes, central
+`RVVEmitCRoutePlanning` must not own the MAcc route-family owner registry or
+MAcc-specific provider-plan verification bodies. Those decisions belong to an
+explicit RVV-local MAcc route-family owner boundary.
+
+Central route planning may keep shared route-analysis structs, route-family
+plan structs, route descriptions, materialization facts, operand-binding facts,
+and top-level aggregate orchestration. If route-family plan derivation owns
+structural plan validators, central may expose thin structural-validation
+wrappers for the MAcc owner, but MAcc consumer selection, exact-owner checks,
+and provider-plan verification must stay owner-local.
+
+### 2. Signatures
+
+The durable owner API is:
+
+```c++
+struct RVVSelectedBodyMAccRouteFamilyOwner {
+  StringRef familyName;
+  bool (*isConsumer)(RVVSelectedBodyOperationKind);
+  Error (*verifyProviderPlan)(const RVVSelectedBodyRouteAnalysis &,
+                              StringRef context);
+};
+
+ArrayRef<RVVSelectedBodyMAccRouteFamilyOwner>
+getRVVSelectedBodyMAccRouteFamilyOwners();
+
+bool isRVVSelectedBodyMAccRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, StringRef context);
+```
+
+The active owner registry has exactly three MAcc-family owners:
+
+- plain MAcc;
+- scalar-broadcast MAcc;
+- computed-mask MAcc.
+
+The computed-mask MAcc owner may reuse the shared computed-mask accumulation
+route-family plan verifier because computed-mask standalone reductions share
+that plan surface. The MAcc owner must classify only the MAcc sub-family as
+MAcc consumers; computed-mask standalone reductions remain outside the MAcc
+owner and are reached through the standalone reduction/accumulation aggregate.
+
+### 3. Contracts
+
+- Plain MAcc ownership is selected only for `macc_add`.
+- Scalar-broadcast MAcc ownership is selected only for
+  `scalar_broadcast_macc_add`.
+- Computed-mask MAcc ownership is selected only for
+  `computed_masked_macc_add` and `runtime_scalar_cmp_masked_macc_add`.
+- The owner verifier consumes the same selected `RVVSelectedBodyRouteAnalysis`
+  as the central aggregate and must validate the selected route-family plan,
+  runtime/control mirrors, type/intrinsic/header mirrors, route operand-binding
+  plan, runtime ABI order, and MAcc/accumulation sub-family facts before route
+  materialization is accepted.
+- The owner verifier may call shared typed/body/plan validators, but it must
+  not infer support from route ids, artifact names, ABI strings, exact
+  intrinsic spellings, descriptor residue, or emission-plan/status metadata.
+- Central math-cluster orchestration may call the MAcc owner verifier as one
+  aggregate entry, but it must not locally duplicate plain/scalar/computed-mask
+  MAcc consumer predicates or provider-plan verification bodies.
+
+### 4. Validation & Error Matrix
+
+- A MAcc route lacks its required plain, scalar-broadcast, or computed-mask
+  route-family plan -> fail closed before provider materialization.
+- A non-MAcc route carries a stale plain/scalar/computed-mask MAcc family plan
+  -> fail closed before provider materialization.
+- More than one MAcc owner matches the selected operation -> fail closed and
+  report the matching owner names.
+- An owner registry entry has a null consumer or verifier hook -> fail closed.
+- Route description mirrors disagree with the validated family plan for
+  runtime control, ABI order, type mapping, headers, intrinsic leaf, result
+  name, MAcc layout, mask producer/source, inactive-lane contract, or
+  computed-mask accumulation suffix -> fail closed.
+- The route operand-binding plan is absent, stale, or does not match the
+  selected operation -> fail closed before materialization.
+- Computed-mask standalone reductions request the MAcc owner boundary ->
+  return non-consumer behavior; their shared accumulation checks are reached
+  through the standalone reduction/accumulation owner.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed plain `tcrv_rvv.macc` body -> route-family plan derivation ->
+  MAcc owner registry selects plain MAcc exactly once -> owner verifies mirrors
+  and operand bindings -> materialization facts -> MAcc statement-plan owner.
+- Good: typed scalar-broadcast MAcc body -> scalar-broadcast MAcc owner
+  verifies RHS scalar broadcast plan and runtime ABI -> route-control provider
+  plan -> MAcc statement-plan owner.
+- Good: typed computed-mask MAcc body -> computed-mask MAcc owner verifies the
+  shared accumulation family plan as a vector-MAcc suffix with the correct mask
+  producer and inactive-lane contracts -> computed-mask accumulation statement
+  owner.
+- Base: standalone reductions, direct contractions, memory, segment2, compare/
+  select, residual runtime scalar splat-store, and conversion routes use their
+  own owner boundaries and receive non-consumer behavior from the MAcc owner.
+- Bad: central `RVVEmitCRoutePlanning` keeps a local MAcc owner registry or
+  branches on `MAccAdd`, `ScalarBroadcastMAccAdd`,
+  `ComputedMaskedMAccAdd`, or `RuntimeScalarComputedMaskedMAccAdd` to verify
+  route-family provider-plan mirrors after this boundary exists.
+
+### 6. Tests Required
+
+- Focused C++ tests for MAcc owner registry membership, owner order/names,
+  non-null consumer/verifier hooks, exact classification for all active MAcc
+  routes, and exclusion of standalone accumulation and elementwise routes.
+- Focused C++ fail-closed tests for missing family plans, stale non-consumer
+  MAcc plans, mismatched mirrors, stale operand-binding plans, and
+  computed-mask MAcc suffix/provenance mismatches.
+- Aggregate math-cluster owner tests proving central orchestration reaches the
+  MAcc owner through the owner API rather than local MAcc predicates.
+- Representative generated-bundle dry-runs for plain MAcc, scalar-broadcast
+  MAcc, and computed-mask MAcc selected-body routes.
+- Bounded symbol scan showing moved MAcc owner symbols are concentrated in the
+  MAcc owner module and central planning retains only neutral calls/wrappers.
+- Authority scan over touched RVV planning/provider/test files for legacy
+  i32/source-front-door/descriptor/direct-C/source-export, exact-intrinsic, or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+central RoutePlanning:
+  owns MAcc owner registry
+  verifies plain/scalar/computed-mask MAcc provider-plan mirrors locally
+  lets aggregate math-cluster verification branch on MAcc operation names
+```
+
+Correct:
+
+```text
+selected typed MAcc body
+  -> route-family plan derivation
+  -> RVV-owned MAcc route-family owner registry
+  -> exact-one MAcc provider-plan verification
+  -> shared materialization/operand-binding facts
+  -> RVV-owned MAcc or computed-mask accumulation statement plan
+```
+
 ## Plain And Scalar-Broadcast MAcc Statement-Plan Boundary
 
 ### 1. Scope / Trigger

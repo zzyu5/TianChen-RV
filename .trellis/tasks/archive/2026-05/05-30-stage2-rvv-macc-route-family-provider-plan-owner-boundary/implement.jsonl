@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, RVV Stage order, and authority boundaries for implementation."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension plugin pre-development checklist and RVV Stage1/Stage2 priority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body, MAcc/accumulation, provider construction, fail-closed diagnostics, mirror metadata, and owner-boundary contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing policy for MLIR/C++ route-provider work and legacy authority guardrails."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant/route metadata mirror-only and Stage2 selected-body route authority constraints."}

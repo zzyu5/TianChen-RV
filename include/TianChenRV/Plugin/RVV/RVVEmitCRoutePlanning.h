@@ -1536,19 +1536,6 @@ bool isRVVSelectedBodyContractionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-bool isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-
-bool isRVVSelectedBodyPlainMAccRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-
-llvm::Error verifyRVVSelectedBodyPlainMAccRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Error
-verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
 bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
@@ -1557,34 +1544,6 @@ bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-bool isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-bool isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-
-llvm::Error
-verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-struct RVVSelectedBodyMAccRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMAccRouteFamilyOwner>
-getRVVSelectedBodyMAccRouteFamilyOwners();
-
-bool isRVVSelectedBodyMAccRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-
-llvm::Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 struct RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner {

@@ -1617,3 +1617,36 @@ Moved segment2 route-family provider-plan construction for computed-mask segment
 ### Next Steps
 
 - None - task complete
+
+
+## Session 332: Stage2 RVV MAcc route-family provider-plan owner boundary
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV MAcc route-family provider-plan owner boundary
+**Branch**: `main`
+
+### Summary
+
+Moved plain, scalar-broadcast, and computed-mask MAcc route-family provider-plan ownership into an explicit RVV owner module; added RVV spec contract; focused plugin tests, generated-bundle dry-runs, authority scans, git diff check, and check-tianchenrv 464/464 passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
