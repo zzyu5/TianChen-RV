@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
@@ -406,121 +407,6 @@ bool isPreRealizedScalarBroadcastMAccBody(llvm::StringRef opKind,
          isPreRealizedScalarBroadcastMAccMemoryForm(memoryForm);
 }
 
-bool isPreRealizedWideningMAccOpKind(llvm::StringRef opKind) {
-  return opKind == "signed_widening_macc_add";
-}
-
-bool isPreRealizedWideningDotReduceOpKind(llvm::StringRef opKind) {
-  return opKind == "signed_widening_dot_reduce_add";
-}
-
-bool isPreRealizedComputedMaskWideningDotReduceOpKind(
-    llvm::StringRef opKind) {
-  return opKind == "signed_masked_widening_dot_reduce_add";
-}
-
-bool isPreRealizedWideningMAccMemoryForm(llvm::StringRef memoryForm) {
-  return memoryForm == "unit-stride-widening-macc";
-}
-
-bool isPreRealizedWideningDotReduceMemoryForm(
-    llvm::StringRef memoryForm) {
-  return memoryForm == "unit-stride-widening-dot-reduce";
-}
-
-bool isPreRealizedStridedInputWideningDotReduceMemoryForm(
-    llvm::StringRef memoryForm) {
-  return memoryForm == "strided-input-widening-dot-reduce";
-}
-
-bool isPreRealizedComputedMaskWideningDotReduceMemoryForm(
-    llvm::StringRef memoryForm) {
-  return memoryForm == "computed-mask-unit-stride-widening-dot-reduce";
-}
-
-bool isPreRealizedComputedMaskStridedInputWideningDotReduceMemoryForm(
-    llvm::StringRef memoryForm) {
-  return memoryForm == "computed-mask-strided-input-widening-dot-reduce";
-}
-
-bool isPreRealizedWideningMAccAccumulatorRole(llvm::StringRef role) {
-  return role == "accumulator-input-buffer";
-}
-
-bool isPreRealizedWideningDotReduceAccumulatorRole(llvm::StringRef role) {
-  return role == "accumulator-input-buffer";
-}
-
-bool isPreRealizedWideningMAccAccumulatorLayout(llvm::StringRef layout) {
-  return layout == "separate-i32-vector-accumulator-input";
-}
-
-bool isPreRealizedWideningDotReduceAccumulatorLayout(
-    llvm::StringRef layout) {
-  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
-}
-
-bool isPreRealizedWideningMAccResultLayout(llvm::StringRef layout) {
-  return layout == "store-widening-multiply-accumulate-result-to-output-buffer";
-}
-
-bool isPreRealizedWideningDotReduceResultLayout(llvm::StringRef layout) {
-  return layout == "store-dot-reduction-lane0-to-output-scalar";
-}
-
-bool isPreRealizedWideningMAccRelation(llvm::StringRef relation) {
-  return relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
-}
-
-bool isPreRealizedWideningDotProductRelation(llvm::StringRef relation) {
-  return relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
-}
-
-bool isPreRealizedWideningMAccSignature(
-    llvm::StringRef opKind, std::int64_t sourceSEW,
-    llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
-    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
-    llvm::StringRef resultLMUL, llvm::StringRef relation) {
-  return opKind == "signed_widening_macc_add" &&
-         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
-         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
-         relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
-}
-
-bool isPreRealizedWideningDotReduceSignature(
-    llvm::StringRef opKind, std::int64_t sourceSEW,
-    llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
-    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
-    llvm::StringRef resultLMUL, llvm::StringRef relation) {
-  return opKind == "signed_widening_dot_reduce_add" &&
-         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
-         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
-         relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
-}
-
-bool isPreRealizedComputedMaskWideningDotReduceSignature(
-    llvm::StringRef opKind, std::int64_t sourceSEW,
-    llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
-    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
-    llvm::StringRef resultLMUL, llvm::StringRef relation) {
-  return opKind == "signed_masked_widening_dot_reduce_add" &&
-         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
-         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
-         relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
-}
-
 bool isPreRealizedWideningConversionOpKind(llvm::StringRef opKind) {
   return opKind == "widen_i32_to_i64" ||
          opKind == "sign_extend_widen_vf2";
@@ -561,11 +447,6 @@ bool isPreRealizedStridedMemoryMovementOpKind(llvm::StringRef opKind) {
 bool isPreRealizedStridedMemoryMovementMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "strided-load-unit-store";
-}
-
-bool isPreRealizedStridedMemoryMovementStrideUnit(
-    llvm::StringRef strideUnit) {
-  return strideUnit == "element";
 }
 
 bool isPreRealizedStridedLoadUnitStoreStrideUnit(llvm::StringRef strideUnit) {
@@ -1239,13 +1120,6 @@ realizePreRealizedRVVComputedMaskMAccOwner(
   return makeRVVPluginError(
       "computed-mask MAcc selected-body realization owner received a body "
       "outside its RVV-owned realization family");
-}
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVContractionOwner(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
-  return realizePreRealizedRVVOwnerLocalViaMaterializationBranches(
-      request, bodyOp, "contraction", isPreRealizedRVVContractionOwnerOp);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
@@ -2920,777 +2794,6 @@ validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStandaloneReduceBody(
         "pre-realized RVV selected runtime scalar computed-mask standalone "
         "reduction realization requires non-empty selected variant requires "
         "metadata");
-  return llvm::Error::success();
-}
-
-llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
-    const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningMAccPreRealizedBodyOp body) {
-  if (!body)
-    return makeRVVPluginError(
-        "selected RVV widening macc realization requires a pre-realized "
-        "widening macc body op");
-  if (body->getParentOp() != request.getVariant().getOperation())
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body must be a direct child "
-        "of the selected variant");
-  if (!isPreRealizedWideningMAccOpKind(body.getOpKind()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body currently supports "
-        "only op_kind 'signed_widening_macc_add'");
-  if (!isPreRealizedWideningMAccMemoryForm(body.getMemoryForm()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body currently supports "
-        "only memory_form 'unit-stride-widening-macc'");
-  if (!isPreRealizedWideningMAccAccumulatorRole(body.getAccumulatorRole()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body currently supports "
-        "only accumulator_role 'accumulator-input-buffer'");
-  if (!isPreRealizedWideningMAccAccumulatorLayout(
-          body.getAccumulatorLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body currently supports "
-        "only accumulator_layout 'separate-i32-vector-accumulator-input'");
-  if (!isPreRealizedWideningMAccResultLayout(body.getResultLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body currently supports "
-        "only result_layout "
-        "'store-widening-multiply-accumulate-result-to-output-buffer'");
-  if (!isPreRealizedWideningMAccRelation(body.getMaccRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body currently supports "
-        "only macc_relation "
-        "'signed-i16mf2xi16mf2-plus-i32m1-to-i32m1'");
-  if (!isPreRealizedWideningMAccSignature(
-          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
-          body.getSourceLmul(),
-          static_cast<std::int64_t>(body.getAccumulatorSew()),
-          body.getAccumulatorLmul(),
-          static_cast<std::int64_t>(body.getResultSew()),
-          body.getResultLmul(), body.getMaccRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc config/relation must match "
-        "op_kind 'signed_widening_macc_add' with source SEW16 LMUL mf2, "
-        "accumulator/result SEW32 LMUL m1, and relation "
-        "'signed-i16mf2xi16mf2-plus-i32m1-to-i32m1'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body requires tail "
-        "agnostic, mask agnostic policy");
-
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhs(), "pre-realized RVV widening macc lhs operand",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
-  if (!lhs)
-    return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhs(), "pre-realized RVV widening macc rhs operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
-  if (!rhs)
-    return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
-      requirePreRealizedRuntimeABIValue(
-          body.getAcc(), "pre-realized RVV widening macc accumulator operand",
-          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
-  if (!acc)
-    return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
-      requirePreRealizedRuntimeABIValue(
-          body.getOut(), "pre-realized RVV widening macc out operand",
-          support::RuntimeABIParameterRole::OutputBuffer);
-  if (!out)
-    return out.takeError();
-  if ((*lhs).getCType() != "const int16_t *" ||
-      (*rhs).getCType() != "const int16_t *" ||
-      (*acc).getCType() != "const int32_t *" ||
-      (*out).getCType() != "int32_t *")
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc body requires lhs/rhs "
-        "const int16_t *, accumulator const int32_t *, and out int32_t * "
-        "runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
-      requirePreRealizedRuntimeABIValue(
-          body.getN(), "pre-realized RVV widening macc runtime n/AVL operand",
-          support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!n)
-    return n.takeError();
-
-  for (mlir::Operation &op : request.getVariant().getBody().front()) {
-    if (&op == body.getOperation())
-      continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::LoadOp, tcrv::rvv::WideningMAccOp,
-                  tcrv::rvv::StoreOp>(op))
-      return makeRVVPluginError(
-          llvm::Twine("pre-realized RVV selected widening macc body must not "
-                      "be mixed with already realized RVV route body op '") +
-          op.getName().getStringRef() + "'");
-  }
-  auto wideningMAccVariantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!wideningMAccVariantRequires || wideningMAccVariantRequires.empty())
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening macc realization requires "
-        "non-empty selected variant requires metadata");
-  return llvm::Error::success();
-}
-
-llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
-    const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp body) {
-  if (!body)
-    return makeRVVPluginError(
-        "selected RVV widening dot-product reduction realization requires a "
-        "pre-realized widening dot-product reduction body op");
-  if (body->getParentOp() != request.getVariant().getOperation())
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body must "
-        "be a direct child of the selected variant");
-  if (!isPreRealizedWideningDotReduceOpKind(body.getOpKind()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only op_kind "
-        "'signed_widening_dot_reduce_add'");
-  if (!isPreRealizedWideningDotReduceMemoryForm(body.getMemoryForm()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only memory_form "
-        "'unit-stride-widening-dot-reduce'");
-  if (!isPreRealizedWideningDotReduceAccumulatorRole(
-          body.getAccumulatorRole()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only accumulator_role "
-        "'accumulator-input-buffer'");
-  if (!isPreRealizedWideningDotReduceAccumulatorLayout(
-          body.getAccumulatorLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only accumulator_layout "
-        "'scalar-i32-seed-lane0-from-accumulator-input'");
-  if (!isPreRealizedWideningDotReduceResultLayout(body.getResultLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only result_layout "
-        "'store-dot-reduction-lane0-to-output-scalar'");
-  if (!isPreRealizedWideningDotProductRelation(
-          body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!isPreRealizedWideningDotReduceSignature(
-          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
-          body.getSourceLmul(),
-          static_cast<std::int64_t>(body.getAccumulatorSew()),
-          body.getAccumulatorLmul(),
-          static_cast<std::int64_t>(body.getResultSew()),
-          body.getResultLmul(), body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction "
-        "config/relation must match op_kind "
-        "'signed_widening_dot_reduce_add' with source SEW16 LMUL mf2, "
-        "accumulator/result SEW32 LMUL m1, and relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "requires tail agnostic, mask agnostic policy");
-
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhs(),
-          "pre-realized RVV widening dot-product reduction lhs operand",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
-  if (!lhs)
-    return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhs(),
-          "pre-realized RVV widening dot-product reduction rhs operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
-  if (!rhs)
-    return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
-      requirePreRealizedRuntimeABIValue(
-          body.getAcc(),
-          "pre-realized RVV widening dot-product reduction accumulator seed "
-          "operand",
-          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
-  if (!acc)
-    return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
-      requirePreRealizedRuntimeABIValue(
-          body.getOut(),
-          "pre-realized RVV widening dot-product reduction out operand",
-          support::RuntimeABIParameterRole::OutputBuffer);
-  if (!out)
-    return out.takeError();
-  if ((*lhs).getCType() != "const int16_t *" ||
-      (*rhs).getCType() != "const int16_t *" ||
-      (*acc).getCType() != "const int32_t *" ||
-      (*out).getCType() != "int32_t *")
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction body "
-        "requires lhs/rhs const int16_t *, accumulator seed const int32_t *, "
-        "and out int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
-      requirePreRealizedRuntimeABIValue(
-          body.getN(),
-          "pre-realized RVV widening dot-product reduction runtime n/AVL "
-          "operand",
-          support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!n)
-    return n.takeError();
-
-  for (mlir::Operation &op : request.getVariant().getBody().front()) {
-    if (&op == body.getOperation())
-      continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::LoadOp, tcrv::rvv::WideningDotReduceOp,
-                  tcrv::rvv::StoreOp>(op))
-      return makeRVVPluginError(
-          llvm::Twine("pre-realized RVV selected widening dot-product "
-                      "reduction body must not be mixed with already realized "
-                      "RVV route body op '") +
-          op.getName().getStringRef() + "'");
-  }
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!variantRequires || variantRequires.empty())
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening dot-product reduction "
-        "realization requires non-empty selected variant requires metadata");
-  return llvm::Error::success();
-}
-
-llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
-    const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp body) {
-  if (!body)
-    return makeRVVPluginError(
-        "selected RVV strided-input widening dot-product reduction realization "
-        "requires a pre-realized strided-input widening dot-product reduction "
-        "body op");
-  if (body->getParentOp() != request.getVariant().getOperation())
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body must be a direct child of the selected variant");
-  if (!isPreRealizedWideningDotReduceOpKind(body.getOpKind()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only op_kind 'signed_widening_dot_reduce_add'");
-  if (!isPreRealizedStridedInputWideningDotReduceMemoryForm(
-          body.getMemoryForm()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only memory_form "
-        "'strided-input-widening-dot-reduce'");
-  if (!isPreRealizedStridedMemoryMovementStrideUnit(body.getStrideUnit()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only stride_unit 'element'");
-  if (!isPreRealizedWideningDotReduceAccumulatorRole(
-          body.getAccumulatorRole()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only accumulator_role "
-        "'accumulator-input-buffer'");
-  if (!isPreRealizedWideningDotReduceAccumulatorLayout(
-          body.getAccumulatorLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only accumulator_layout "
-        "'scalar-i32-seed-lane0-from-accumulator-input'");
-  if (!isPreRealizedWideningDotReduceResultLayout(body.getResultLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only result_layout "
-        "'store-dot-reduction-lane0-to-output-scalar'");
-  if (!isPreRealizedWideningDotProductRelation(
-          body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!isPreRealizedWideningDotReduceSignature(
-          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
-          body.getSourceLmul(),
-          static_cast<std::int64_t>(body.getAccumulatorSew()),
-          body.getAccumulatorLmul(),
-          static_cast<std::int64_t>(body.getResultSew()),
-          body.getResultLmul(), body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "config/relation must match op_kind 'signed_widening_dot_reduce_add' "
-        "with source SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
-        "relation 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body requires tail agnostic, mask agnostic policy");
-
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhs(),
-          "pre-realized RVV strided-input widening dot-product reduction lhs "
-          "operand",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
-  if (!lhs)
-    return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhs(),
-          "pre-realized RVV strided-input widening dot-product reduction rhs "
-          "operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
-  if (!rhs)
-    return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
-      requirePreRealizedRuntimeABIValue(
-          body.getAcc(),
-          "pre-realized RVV strided-input widening dot-product reduction "
-          "accumulator seed operand",
-          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
-  if (!acc)
-    return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
-      requirePreRealizedRuntimeABIValue(
-          body.getOut(),
-          "pre-realized RVV strided-input widening dot-product reduction out "
-          "operand",
-          support::RuntimeABIParameterRole::OutputBuffer);
-  if (!out)
-    return out.takeError();
-  if ((*lhs).getCType() != "const int16_t *" ||
-      (*rhs).getCType() != "const int16_t *" ||
-      (*acc).getCType() != "const int32_t *" ||
-      (*out).getCType() != "int32_t *")
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body requires lhs/rhs const int16_t *, accumulator seed const int32_t *, "
-        "and out int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
-      requirePreRealizedRuntimeABIValue(
-          body.getN(),
-          "pre-realized RVV strided-input widening dot-product reduction "
-          "runtime n/AVL operand",
-          support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!n)
-    return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhsStride =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhsStride(),
-          "pre-realized RVV strided-input widening dot-product reduction lhs "
-          "stride operand",
-          support::RuntimeABIParameterRole::LHSInputStride);
-  if (!lhsStride)
-    return lhsStride.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsStride =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhsStride(),
-          "pre-realized RVV strided-input widening dot-product reduction rhs "
-          "stride operand",
-          support::RuntimeABIParameterRole::RHSInputStride);
-  if (!rhsStride)
-    return rhsStride.takeError();
-
-  for (mlir::Operation &op : request.getVariant().getBody().front()) {
-    if (&op == body.getOperation())
-      continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::StridedLoadOp,
-                  tcrv::rvv::WideningDotReduceOp,
-                  tcrv::rvv::StoreOp>(op))
-      return makeRVVPluginError(
-          llvm::Twine("pre-realized RVV selected strided-input widening "
-                      "dot-product reduction body must not be mixed with "
-                      "already realized RVV route body op '") +
-          op.getName().getStringRef() + "'");
-  }
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!variantRequires || variantRequires.empty())
-    return makeRVVPluginError(
-        "pre-realized RVV selected strided-input widening dot-product "
-        "reduction realization requires non-empty selected variant requires "
-        "metadata");
-  return llvm::Error::success();
-}
-
-llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
-    const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp body) {
-  if (!body)
-    return makeRVVPluginError(
-        "selected RVV computed-mask widening dot-product reduction "
-        "realization requires a pre-realized computed-mask widening "
-        "dot-product reduction body op");
-  if (body->getParentOp() != request.getVariant().getOperation())
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body must be a direct child of the selected variant");
-  if (!isPreRealizedComputedMaskWideningDotReduceOpKind(body.getOpKind()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only op_kind "
-        "'signed_masked_widening_dot_reduce_add'");
-  if (body.getPredicateKind() != "slt")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only predicate_kind 'slt'");
-  if (!isPreRealizedComputedMaskWideningDotReduceMemoryForm(
-          body.getMemoryForm()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only memory_form "
-        "'computed-mask-unit-stride-widening-dot-reduce'");
-  if (body.getMaskRole() != "predicate-mask-produced-by-compare")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body requires mask_role "
-        "'predicate-mask-produced-by-compare'");
-  if (body.getMaskSource() != "compare-produced-mask-same-vl-scope")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body requires mask_source "
-        "'compare-produced-mask-same-vl-scope'");
-  if (body.getMaskMemoryForm() != "compare-produced-mask")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body requires mask_memory_form 'compare-produced-mask'");
-  if (!isPreRealizedWideningDotReduceAccumulatorRole(
-          body.getAccumulatorRole()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only accumulator_role "
-        "'accumulator-input-buffer'");
-  if (!isPreRealizedWideningDotReduceAccumulatorLayout(
-          body.getAccumulatorLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only accumulator_layout "
-        "'scalar-i32-seed-lane0-from-accumulator-input'");
-  if (!isPreRealizedWideningDotReduceResultLayout(body.getResultLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only result_layout "
-        "'store-dot-reduction-lane0-to-output-scalar'");
-  if (!isPreRealizedWideningDotProductRelation(
-          body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!isPreRealizedComputedMaskWideningDotReduceSignature(
-          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
-          body.getSourceLmul(),
-          static_cast<std::int64_t>(body.getAccumulatorSew()),
-          body.getAccumulatorLmul(),
-          static_cast<std::int64_t>(body.getResultSew()),
-          body.getResultLmul(), body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction config/relation must match op_kind "
-        "'signed_masked_widening_dot_reduce_add' with compare SEW32 LMUL m1, "
-        "dot source SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
-        "relation 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body requires tail agnostic, mask agnostic policy");
-
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLHS =
-      requirePreRealizedRuntimeABIValue(
-          body.getCompareLhs(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "compare lhs operand",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
-  if (!compareLHS)
-    return compareLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRHS =
-      requirePreRealizedRuntimeABIValue(
-          body.getCompareRhs(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "compare rhs operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
-  if (!compareRHS)
-    return compareRHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhs(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "dot lhs operand",
-          support::RuntimeABIParameterRole::DotLHSInputBuffer);
-  if (!lhs)
-    return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhs(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "dot rhs operand",
-          support::RuntimeABIParameterRole::DotRHSInputBuffer);
-  if (!rhs)
-    return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
-      requirePreRealizedRuntimeABIValue(
-          body.getAcc(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "accumulator seed operand",
-          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
-  if (!acc)
-    return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
-      requirePreRealizedRuntimeABIValue(
-          body.getOut(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "out operand",
-          support::RuntimeABIParameterRole::OutputBuffer);
-  if (!out)
-    return out.takeError();
-  if ((*compareLHS).getCType() != "const int32_t *" ||
-      (*compareRHS).getCType() != "const int32_t *" ||
-      (*lhs).getCType() != "const int16_t *" ||
-      (*rhs).getCType() != "const int16_t *" ||
-      (*acc).getCType() != "const int32_t *" ||
-      (*out).getCType() != "int32_t *")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body requires compare lhs/rhs const int32_t *, dot "
-        "lhs/rhs const int16_t *, accumulator seed const int32_t *, and out "
-        "int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
-      requirePreRealizedRuntimeABIValue(
-          body.getN(),
-          "pre-realized RVV computed-mask widening dot-product reduction "
-          "runtime n/AVL operand",
-          support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!n)
-    return n.takeError();
-
-  for (mlir::Operation &op : request.getVariant().getBody().front()) {
-    if (&op == body.getOperation())
-      continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::LoadOp, tcrv::rvv::CompareOp,
-                  tcrv::rvv::MaskedWideningDotReduceOp,
-                  tcrv::rvv::StoreOp>(op))
-      return makeRVVPluginError(
-          llvm::Twine("pre-realized RVV selected computed-mask widening "
-                      "dot-product reduction body must not be mixed with "
-                      "already realized RVV route body op '") +
-          op.getName().getStringRef() + "'");
-  }
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!variantRequires || variantRequires.empty())
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction realization requires non-empty selected variant requires "
-        "metadata");
-  return llvm::Error::success();
-}
-
-llvm::Error
-validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
-    const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::
-        TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp body) {
-  if (!body)
-    return makeRVVPluginError(
-        "selected RVV computed-mask strided-input widening dot-product "
-        "reduction realization requires a pre-realized computed-mask "
-        "strided-input widening dot-product reduction body op");
-  if (body->getParentOp() != request.getVariant().getOperation())
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body must be a direct child of the selected "
-        "variant");
-  if (!isPreRealizedComputedMaskWideningDotReduceOpKind(body.getOpKind()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only op_kind "
-        "'signed_masked_widening_dot_reduce_add'");
-  if (body.getPredicateKind() != "slt")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only predicate_kind "
-        "'slt'");
-  if (!isPreRealizedComputedMaskStridedInputWideningDotReduceMemoryForm(
-          body.getMemoryForm()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only memory_form "
-        "'computed-mask-strided-input-widening-dot-reduce'");
-  if (!isPreRealizedStridedMemoryMovementStrideUnit(body.getStrideUnit()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only stride_unit "
-        "'element'");
-  if (body.getMaskRole() != "predicate-mask-produced-by-compare")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body requires mask_role "
-        "'predicate-mask-produced-by-compare'");
-  if (body.getMaskSource() != "compare-produced-mask-same-vl-scope")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body requires mask_source "
-        "'compare-produced-mask-same-vl-scope'");
-  if (body.getMaskMemoryForm() != "compare-produced-mask")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body requires mask_memory_form "
-        "'compare-produced-mask'");
-  if (!isPreRealizedWideningDotReduceAccumulatorRole(
-          body.getAccumulatorRole()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only "
-        "accumulator_role 'accumulator-input-buffer'");
-  if (!isPreRealizedWideningDotReduceAccumulatorLayout(
-          body.getAccumulatorLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only "
-        "accumulator_layout 'scalar-i32-seed-lane0-from-accumulator-input'");
-  if (!isPreRealizedWideningDotReduceResultLayout(body.getResultLayout()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only result_layout "
-        "'store-dot-reduction-lane0-to-output-scalar'");
-  if (!isPreRealizedWideningDotProductRelation(body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body currently supports only "
-        "dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!isPreRealizedComputedMaskWideningDotReduceSignature(
-          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
-          body.getSourceLmul(),
-          static_cast<std::int64_t>(body.getAccumulatorSew()),
-          body.getAccumulatorLmul(),
-          static_cast<std::int64_t>(body.getResultSew()),
-          body.getResultLmul(), body.getDotProductRelation()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction config/relation must match op_kind "
-        "'signed_masked_widening_dot_reduce_add' with compare SEW32 LMUL m1, "
-        "dot source SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
-        "relation 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
-  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body requires tail agnostic, mask agnostic "
-        "policy");
-
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLHS =
-      requirePreRealizedRuntimeABIValue(
-          body.getCompareLhs(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction compare lhs operand",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
-  if (!compareLHS)
-    return compareLHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRHS =
-      requirePreRealizedRuntimeABIValue(
-          body.getCompareRhs(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction compare rhs operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
-  if (!compareRHS)
-    return compareRHS.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhs(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction dot lhs operand",
-          support::RuntimeABIParameterRole::DotLHSInputBuffer);
-  if (!lhs)
-    return lhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhs(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction dot rhs operand",
-          support::RuntimeABIParameterRole::DotRHSInputBuffer);
-  if (!rhs)
-    return rhs.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
-      requirePreRealizedRuntimeABIValue(
-          body.getAcc(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction accumulator seed operand",
-          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
-  if (!acc)
-    return acc.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
-      requirePreRealizedRuntimeABIValue(
-          body.getOut(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction out operand",
-          support::RuntimeABIParameterRole::OutputBuffer);
-  if (!out)
-    return out.takeError();
-  if ((*compareLHS).getCType() != "const int32_t *" ||
-      (*compareRHS).getCType() != "const int32_t *" ||
-      (*lhs).getCType() != "const int16_t *" ||
-      (*rhs).getCType() != "const int16_t *" ||
-      (*acc).getCType() != "const int32_t *" ||
-      (*out).getCType() != "int32_t *")
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction body requires compare lhs/rhs const int32_t *, "
-        "dot lhs/rhs const int16_t *, accumulator seed const int32_t *, and "
-        "out int32_t * runtime ABI bindings");
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
-      requirePreRealizedRuntimeABIValue(
-          body.getN(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction runtime n/AVL operand",
-          support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!n)
-    return n.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhsStride =
-      requirePreRealizedRuntimeABIValue(
-          body.getLhsStride(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction lhs stride operand",
-          support::RuntimeABIParameterRole::LHSInputStride);
-  if (!lhsStride)
-    return lhsStride.takeError();
-  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsStride =
-      requirePreRealizedRuntimeABIValue(
-          body.getRhsStride(),
-          "pre-realized RVV computed-mask strided-input widening "
-          "dot-product reduction rhs stride operand",
-          support::RuntimeABIParameterRole::RHSInputStride);
-  if (!rhsStride)
-    return rhsStride.takeError();
-
-  for (mlir::Operation &op : request.getVariant().getBody().front()) {
-    if (&op == body.getOperation())
-      continue;
-    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
-                  tcrv::rvv::LoadOp, tcrv::rvv::StridedLoadOp,
-                  tcrv::rvv::CompareOp,
-                  tcrv::rvv::MaskedWideningDotReduceOp,
-                  tcrv::rvv::StoreOp>(op))
-      return makeRVVPluginError(
-          llvm::Twine("pre-realized RVV selected computed-mask strided-input "
-                      "widening dot-product reduction body must not be mixed "
-                      "with already realized RVV route body op '") +
-          op.getName().getStringRef() + "'");
-  }
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!variantRequires || variantRequires.empty())
-    return makeRVVPluginError(
-        "pre-realized RVV selected computed-mask strided-input widening "
-        "dot-product reduction realization requires non-empty selected "
-        "variant requires metadata");
   return llvm::Error::success();
 }
 
@@ -5943,11 +5046,6 @@ llvm::Expected<mlir::Operation *> createRealizedGenericWideningMAccCompute(
     llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
     llvm::StringRef maccRelation, mlir::Value lhs, mlir::Value rhs,
     mlir::Value accumulator, mlir::Value vl) {
-  if (!isPreRealizedWideningMAccOpKind(opKind))
-    return makeRVVPluginError(
-        "pre-realized RVV selected-body widening macc realization supports "
-        "only op_kind 'signed_widening_macc_add'");
-
   mlir::OperationState state(loc, "tcrv_rvv.widening_macc");
   state.addOperands({lhs, rhs, accumulator, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
@@ -5967,12 +5065,6 @@ createRealizedGenericWideningDotReduceCompute(
     llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
     llvm::StringRef dotProductRelation, mlir::Value lhs, mlir::Value rhs,
     mlir::Value accumulatorSeed, mlir::Value vl) {
-  if (!isPreRealizedWideningDotReduceOpKind(opKind))
-    return makeRVVPluginError(
-        "pre-realized RVV selected-body widening dot-product reduction "
-        "realization supports only op_kind "
-        "'signed_widening_dot_reduce_add'");
-
   mlir::OperationState state(loc, "tcrv_rvv.widening_dot_reduce");
   state.addOperands({lhs, rhs, accumulatorSeed, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
@@ -5995,12 +5087,6 @@ createRealizedGenericMaskedWideningDotReduceCompute(
     llvm::StringRef resultLayout, llvm::StringRef dotProductRelation,
     mlir::Value mask, mlir::Value lhs, mlir::Value rhs,
     mlir::Value accumulatorSeed, mlir::Value vl) {
-  if (!isPreRealizedComputedMaskWideningDotReduceOpKind(opKind))
-    return makeRVVPluginError(
-        "pre-realized RVV selected-body computed-mask widening dot-product "
-        "reduction realization supports only op_kind "
-        "'signed_masked_widening_dot_reduce_add'");
-
   mlir::OperationState state(loc, "tcrv_rvv.masked_widening_dot_reduce");
   state.addOperands({mask, lhs, rhs, accumulatorSeed, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
@@ -6462,6 +5548,89 @@ realizePreRealizedRVVSelectedContractionFamily(
   }
   plan.preRealizedBody->erase();
   return withVL;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVContractionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  if (!isPreRealizedRVVContractionOwnerOp(bodyOp))
+    return makeRVVPluginError(
+        "contraction selected-body realization owner received a body outside "
+        "its RVV-owned realization family");
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires "
+        "materialized kernel and variant");
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (auto wideningMAccBody =
+          llvm::dyn_cast<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedWideningMAccBody(request,
+                                                           wideningMAccBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(wideningMAccBody));
+  }
+
+  if (auto dotReduceBody = llvm::dyn_cast<
+          tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedWideningDotReduceBody(
+                request, dotReduceBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(dotReduceBody));
+  }
+
+  if (auto stridedDotReduceBody =
+          llvm::dyn_cast<tcrv::rvv::
+                             TypedStridedInputWideningDotReducePreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
+                request, stridedDotReduceBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires,
+        makeContractionRealizationPlan(stridedDotReduceBody));
+  }
+
+  if (auto maskedDotReduceBody =
+          llvm::dyn_cast<tcrv::rvv::
+                             TypedComputedMaskWideningDotReducePreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
+                request, maskedDotReduceBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(maskedDotReduceBody));
+  }
+
+  if (auto maskedStridedDotReduceBody =
+          llvm::dyn_cast<tcrv::rvv::
+                             TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
+                request, maskedStridedDotReduceBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires,
+        makeContractionRealizationPlan(maskedStridedDotReduceBody));
+  }
+
+  return makeRVVPluginError(
+      "contraction selected-body realization owner found an unsupported "
+      "pre-realized body op");
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
@@ -7549,11 +6718,12 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
   if (isPreRealizedRVVElementwiseCompareSelectClusterOp(bodyOp) ||
       isPreRealizedRVVStandaloneReductionOwnerOp(bodyOp) ||
       isPreRealizedRVVMAccOwnerOp(bodyOp) ||
+      isPreRealizedRVVContractionOwnerOp(bodyOp) ||
       isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp))
     return makeRVVPluginError(
         "pre-realized RVV owner-local branch helper does not own "
-        "elementwise/compare-select, standalone reduction, MAcc, or base "
-        "memory movement families");
+        "elementwise/compare-select, standalone reduction, MAcc, "
+        "contraction, or base memory movement families");
 
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
@@ -8339,65 +7509,6 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
         (*compute)->getResult(0), setvl.getVl());
     runtimeScalarMaskedStandaloneReduceBody->erase();
     return withVL;
-  }
-
-  if (auto wideningMAccBody =
-          llvm::dyn_cast<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp>(
-              bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningMAccBody(request,
-                                                           wideningMAccBody))
-      return std::move(error);
-    return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(wideningMAccBody));
-  }
-
-  if (auto dotReduceBody = llvm::dyn_cast<
-          tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp>(bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningDotReduceBody(
-                request, dotReduceBody))
-      return std::move(error);
-    return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(dotReduceBody));
-  }
-
-  if (auto stridedDotReduceBody =
-          llvm::dyn_cast<tcrv::rvv::
-                             TypedStridedInputWideningDotReducePreRealizedBodyOp>(
-              bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
-                request, stridedDotReduceBody))
-      return std::move(error);
-    return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires,
-        makeContractionRealizationPlan(stridedDotReduceBody));
-  }
-
-  if (auto maskedDotReduceBody =
-          llvm::dyn_cast<tcrv::rvv::
-                             TypedComputedMaskWideningDotReducePreRealizedBodyOp>(
-              bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
-                request, maskedDotReduceBody))
-      return std::move(error);
-    return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(maskedDotReduceBody));
-  }
-
-  if (auto maskedStridedDotReduceBody =
-          llvm::dyn_cast<tcrv::rvv::
-                             TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
-              bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
-                request, maskedStridedDotReduceBody))
-      return std::move(error);
-    return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires,
-        makeContractionRealizationPlan(maskedStridedDotReduceBody));
   }
 
   if (auto conversionBody =

@@ -78,6 +78,28 @@ llvm::Expected<RVVRouteOperandBindingPlan>
 deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
     const RVVSelectedBodyRouteAnalysis &analysis);
 
+llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningMAccPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp body);
+
+llvm::Error
+validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::
+        TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp body);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVEMITCCONTRACTIONROUTEFAMILYPLANOWNERS_H
