@@ -8,7 +8,7 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
-``--direct-pre-realized-route-entry`` shortcut is retired and fails closed
+``--direct-pre-realized-route-entry`` entry mode is retired and fails closed
 before bundle generation for selected pre-realized op kinds.
 The legacy ``--source-seed`` mode is unsupported and exits before bundle
 generation. The script does not
@@ -24743,7 +24743,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "with --pre-realized-selected-body, request the deprecated direct "
-            "route-entry shortcut; selected pre-realized op kinds fail closed "
+            "route-entry mode; selected pre-realized op kinds fail closed "
             "with an op-specific diagnostic before target bundle export"
         ),
     )

@@ -4,4 +4,6 @@
 
 # CHECK: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): computed_masked_segment2_store_unit_load
 # CHECK-SAME: direct route-entry shortcut
+# CHECK-NOT: rvv-route-entry-selected-body-realization
+# CHECK-NOT: tcrv_rvv_generated_bundle_abi_computed_masked_segment2_store_unit_load_ok
 # CHECK-NOT: dry_run_success

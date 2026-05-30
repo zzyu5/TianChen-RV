@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and RVV-first authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, route provider, and segment2 authority placement."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Plugin-owned lowering/emission/runtime boundary for generated artifacts."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Route-family planning and provider-plan ownership boundaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/FileCheck and generated-bundle evidence policy."}

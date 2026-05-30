@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariant and boundary checks for the RVV-first path."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Validation targets for segment2 owner-built plans and selected-body realization."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Artifact/emission boundary validation for generated bundle output."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Route-family plan ownership and provider-plan validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Expected checks for lit/FileCheck and generated-bundle evidence."}
