@@ -46,6 +46,17 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlan(
 llvm::Error verifyRVVSelectedBodySegment2RouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
+
+bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
+
 llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
 getRVVSelectedBodySegment2RouteFamilyProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

@@ -19,17 +19,37 @@ Moved pre-realized widening contraction validation into the contraction route-fa
 
 ### Main Changes
 
-(Add details)
+- Added owner-local computed-mask segment2 pre-realized selected-body
+  validation APIs to `RVVEmitCSegment2RouteFamilyPlanOwners`.
+- Moved computed-mask segment2 legality, ABI-role, mask-policy, segment-field,
+  memory-form, dtype/config/policy, selected-variant `requires`, mixed-body,
+  and update arithmetic checks out of `RVVSelectedBodyRealization.cpp`.
+- Kept central selected-body realization on dispatch and neutral setvl/with_vl,
+  compare, mask, load/store, and update materialization.
+- Added focused C++ coverage that directly exercises the segment2 owner-local
+  validation APIs for the computed-mask segment2 load, store, and update
+  selected-boundary routes.
 
 ### Git Commits
 
 | Hash | Message |
 |------|---------|
-| `this commit` | (see git log) |
+| `this commit` | `rvv: close segment2 computed-mask selected-body handoff` |
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `git diff --check`
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Generated-bundle dry-run for
+  `computed_masked_segment2_load_unit_store`,
+  `computed_masked_segment2_store_unit_load`, and
+  `computed_masked_segment2_update_unit_load`.
+- [OK] Non-segment computed-mask generated-bundle dry-run non-regression for
+  `computed_masked_unit_load_store`.
+- [OK] Bounded production authority scan and central selected-body validation
+  authority scan.
+- [OK] `ninja -C build check-tianchenrv` passed 464/464 tests.
 
 ### Status
 
@@ -107,6 +127,39 @@ Moved non-segment computed-mask memory selected-body validation into RVVEmitCCom
 ### Git Commits
 
 (No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 342: Stage2 RVV segment2 computed-mask selected-body provider handoff
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV segment2 computed-mask selected-body provider handoff
+**Branch**: `main`
+
+### Summary
+
+Moved computed-mask segment2 selected-body validation into the segment2 route-family owner surface; central realization now delegates validation and retains neutral materialization; focused plugin, generated-bundle, non-regression, authority-scan, and full check-tianchenrv evidence passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
 
 ### Testing
 

@@ -1729,6 +1729,56 @@ module {
               "accepts the selected computed-mask unit load/store body"))
         return result;
     }
+    if (variantName ==
+        "rvv_pre_route_computed_masked_segment2_load_unit_store") {
+      auto segment2LoadBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(segment2LoadBody),
+              "segment2 owner-local validation test found the computed-mask "
+              "segment2 load pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      segment2LoadBody),
+              "segment2 owner-local pre-realized validation accepts the "
+              "selected computed-mask segment2 load body"))
+        return result;
+    }
+    if (variantName ==
+            "rvv_pre_route_computed_masked_segment2_store_unit_load" ||
+        variantName ==
+            "rvv_pre_route_computed_masked_segment2_update_unit_load") {
+      auto segment2StoreBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(segment2StoreBody),
+              "segment2 owner-local validation test found the computed-mask "
+              "segment2 store/update pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      segment2StoreBody),
+              "segment2 owner-local pre-realized validation accepts the "
+              "selected computed-mask segment2 store/update body"))
+        return result;
+    }
 
     if (buildRouteBeforePlan) {
       tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;

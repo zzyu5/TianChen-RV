@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
@@ -38,6 +39,140 @@ constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
     "src,out0,out1,n");
 constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
     "src0,src1,dst,n");
+
+bool isPreRealizedComputedMaskSegment2LoadOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_segment2_load_unit_store";
+}
+
+bool isPreRealizedComputedMaskSegment2StoreOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_segment2_store_unit_load" ||
+         opKind == "computed_masked_segment2_update_unit_load";
+}
+
+bool isPreRealizedComputedMaskSegment2UpdateOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_segment2_update_unit_load";
+}
+
+bool isPreRealizedComputedMaskSegment2PredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "slt";
+}
+
+bool isPreRealizedComputedMaskSegment2LoadMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-segment2-load-unit-store";
+}
+
+bool isPreRealizedComputedMaskSegment2StoreMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-load-segment2-store";
+}
+
+bool isPreRealizedComputedMaskSegment2MaskRole(llvm::StringRef role) {
+  return role == "predicate-mask-produced-by-compare";
+}
+
+bool isPreRealizedComputedMaskSegment2MaskSource(llvm::StringRef source) {
+  return source == "compare-produced-mask-same-vl-scope";
+}
+
+bool isPreRealizedComputedMaskSegment2MaskMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "compare-produced-mask";
+}
+
+bool isPreRealizedComputedMaskSegment2DeinterleaveSourceMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "segment2-interleaved-unit-stride-load";
+}
+
+bool isPreRealizedComputedMaskSegment2InterleaveSourceMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-load";
+}
+
+bool isPreRealizedComputedMaskSegment2DeinterleaveDestinationMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-store";
+}
+
+bool isPreRealizedComputedMaskSegment2InterleaveDestinationMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "segment2-interleaved-unit-stride-store";
+}
+
+bool isPreRealizedComputedMaskSegment2DeinterleaveField0Role(
+    llvm::StringRef role) {
+  return role == "segment-field0-output-buffer";
+}
+
+bool isPreRealizedComputedMaskSegment2DeinterleaveField1Role(
+    llvm::StringRef role) {
+  return role == "segment-field1-output-buffer";
+}
+
+bool isPreRealizedComputedMaskSegment2InterleaveField0Role(
+    llvm::StringRef role) {
+  return role == "segment-field0-input-buffer";
+}
+
+bool isPreRealizedComputedMaskSegment2InterleaveField1Role(
+    llvm::StringRef role) {
+  return role == "segment-field1-input-buffer";
+}
+
+llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+    mlir::Value value, llvm::StringRef context,
+    support::RuntimeABIParameterRole expectedRole) {
+  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!binding)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must be defined by explicit tcrv_rvv.runtime_abi_value");
+
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  if (!role)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " carries unsupported runtime ABI role '" +
+        binding.getRole() + "'");
+  if (*role != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " must bind runtime ABI role '" +
+        support::stringifyRuntimeABIParameterRole(expectedRole) +
+        "' before RVV selected-body realization");
+  return binding;
+}
+
+template <typename BodyOpT>
+llvm::Error rejectMixedPreRealizedComputedMaskSegment2Body(
+    tcrv::exec::VariantOp variant, llvm::StringRef bodyDescription) {
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp, BodyOpT>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected ") + bodyDescription +
+        " body must not be mixed with already realized RVV route body op '" +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error requireComputedMaskSegment2SelectedVariantRequires(
+    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!requires || requires.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected ") + context +
+        " realization requires non-empty selected variant requires metadata");
+  return llvm::Error::success();
+}
 
 void addSegment2RouteOperandBinding(
     RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
@@ -800,6 +935,307 @@ llvm::Error buildPlainSegment2InterleaveRouteFamilyProviderPlan(
 }
 
 } // namespace
+
+llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV computed-mask segment2 load realization requires a "
+        "pre-realized computed-mask segment2 load body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body must be a "
+        "direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedComputedMaskSegment2LoadOpKind(body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only op_kind 'computed_masked_segment2_load_unit_store'");
+  if (!isPreRealizedComputedMaskSegment2PredicateKind(body.getPredicateKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only predicate_kind 'slt'");
+  if (!isPreRealizedComputedMaskSegment2LoadMemoryForm(body.getMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only memory_form 'computed-mask-segment2-load-unit-store'");
+  if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "segment_count 2");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveField0Role(
+          body.getField0Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "field0_role 'segment-field0-output-buffer'");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveField1Role(
+          body.getField1Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "field1_role 'segment-field1-output-buffer'");
+  if (body.getField0Role() == body.getField1Role())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "distinct field0_role and field1_role");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveSourceMemoryForm(
+          body.getSourceMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only source_memory_form "
+        "'segment2-interleaved-unit-stride-load'");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveDestinationMemoryForm(
+          body.getDestinationMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only destination_memory_form 'unit-stride-store'");
+  if (!isPreRealizedComputedMaskSegment2MaskRole(body.getMaskRole()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only mask_role 'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskSegment2MaskSource(body.getMaskSource()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only mask_source 'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskSegment2MaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body currently "
+        "supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "inactive_lane_policy 'preserve-passthrough-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 load body requires "
+        "tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV computed-mask segment2 load compare lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!compareLhs)
+    return compareLhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getCompareRhs(),
+          "pre-realized RVV computed-mask segment2 load compare rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!compareRhs)
+    return compareRhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getSource(),
+          "pre-realized RVV computed-mask segment2 load source operand",
+          support::RuntimeABIParameterRole::SourceInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getOut0(),
+          "pre-realized RVV computed-mask segment2 load field0 output "
+          "operand",
+          support::RuntimeABIParameterRole::SegmentField0OutputBuffer);
+  if (!field0)
+    return field0.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getOut1(),
+          "pre-realized RVV computed-mask segment2 load field1 output "
+          "operand",
+          support::RuntimeABIParameterRole::SegmentField1OutputBuffer);
+  if (!field1)
+    return field1.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV computed-mask segment2 load runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedComputedMaskSegment2Body<
+              tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
+              variant, "computed-mask segment2 load"))
+    return error;
+  return requireComputedMaskSegment2SelectedVariantRequires(
+      variant, "computed-mask segment2 load");
+}
+
+llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV computed-mask segment2 store realization requires a "
+        "pre-realized computed-mask segment2 store body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body must be a "
+        "direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only op_kind 'computed_masked_segment2_store_unit_load' or "
+        "'computed_masked_segment2_update_unit_load'");
+  if (!isPreRealizedComputedMaskSegment2PredicateKind(body.getPredicateKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only predicate_kind 'slt'");
+  if (!isPreRealizedComputedMaskSegment2StoreMemoryForm(body.getMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only memory_form 'computed-mask-unit-load-segment2-store'");
+
+  const bool isUpdate =
+      preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(body);
+  auto arithmeticKind =
+      body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
+  if (isUpdate) {
+    if (!arithmeticKind || arithmeticKind.getValue() != "add")
+      return makeRVVEmitCRouteProviderError(
+          "pre-realized RVV selected computed-mask segment2 update body "
+          "requires arithmetic_kind 'add' before plugin-local realization");
+  } else if (arithmeticKind) {
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body must not "
+        "carry arithmetic_kind; the plain store route cannot be authorized by "
+        "stale arithmetic metadata");
+  }
+  if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "segment_count 2");
+  if (!isPreRealizedComputedMaskSegment2InterleaveField0Role(
+          body.getField0Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "field0_role 'segment-field0-input-buffer'");
+  if (!isPreRealizedComputedMaskSegment2InterleaveField1Role(
+          body.getField1Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "field1_role 'segment-field1-input-buffer'");
+  if (body.getField0Role() == body.getField1Role())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "distinct field0_role and field1_role");
+  if (!isPreRealizedComputedMaskSegment2InterleaveSourceMemoryForm(
+          body.getSource0MemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only source0_memory_form 'unit-stride-load'");
+  if (!isPreRealizedComputedMaskSegment2InterleaveSourceMemoryForm(
+          body.getSource1MemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only source1_memory_form 'unit-stride-load'");
+  if (!isPreRealizedComputedMaskSegment2InterleaveDestinationMemoryForm(
+          body.getDestinationMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only destination_memory_form "
+        "'segment2-interleaved-unit-stride-store'");
+  if (!isPreRealizedComputedMaskSegment2MaskRole(body.getMaskRole()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only mask_role 'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskSegment2MaskSource(body.getMaskSource()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only mask_source 'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskSegment2MaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "inactive_lane_policy 'preserve-output-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV computed-mask segment2 store compare lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!compareLhs)
+    return compareLhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getCompareRhs(),
+          "pre-realized RVV computed-mask segment2 store compare rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!compareRhs)
+    return compareRhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getSrc0(),
+          "pre-realized RVV computed-mask segment2 store field0 source "
+          "operand",
+          support::RuntimeABIParameterRole::SegmentField0InputBuffer);
+  if (!field0)
+    return field0.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getSrc1(),
+          "pre-realized RVV computed-mask segment2 store field1 source "
+          "operand",
+          support::RuntimeABIParameterRole::SegmentField1InputBuffer);
+  if (!field1)
+    return field1.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getDst(),
+          "pre-realized RVV computed-mask segment2 store interleaved "
+          "destination operand",
+          support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV computed-mask segment2 store runtime n/AVL "
+          "operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedComputedMaskSegment2Body<
+              tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+              variant, "computed-mask segment2 store"))
+    return error;
+  return requireComputedMaskSegment2SelectedVariantRequires(
+      variant, "computed-mask segment2 store");
+}
+
+bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+  return body && isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind());
+}
 
 std::optional<llvm::StringRef>
 getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(

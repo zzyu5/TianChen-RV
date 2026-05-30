@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body realization, segment2 memory movement, route-family provider-plan, mask/tail, runtime ABI, mirror/fail-closed boundaries"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window/runtime_param ABI role boundaries and selected variant constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++ and generated-bundle evidence requirements"}
