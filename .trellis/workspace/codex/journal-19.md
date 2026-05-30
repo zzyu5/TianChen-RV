@@ -182,7 +182,24 @@ Moved non-segment computed-mask memory selected-body validation into RVVEmitCCom
 
 ### Main Changes
 
-(Add details)
+- Added `RVVContractionSelectedBodyRealizationOwner` as the owner-local
+  selected-body realization module for widening MAcc, widening dot-reduce,
+  strided-input widening dot-reduce, computed-mask widening dot-reduce, and
+  computed-mask strided-input widening dot-reduce bodies.
+- Rewired the central selected-body owner registry to use the owner-local
+  contraction predicate/hook and removed contraction validators,
+  materialization plans, realized compute builders, and dispatch logic from
+  `RVVSelectedBodyRealization.cpp`.
+- Preserved typed realized `tcrv_rvv` facts consumed by provider planning:
+  `setvl`, `with_vl`, source/stride loads, compare mask, accumulator/seed,
+  widening contraction compute, store, ABI order, SEW/LMUL/policy,
+  accumulator/result layout, mask/stride facts, and direct contraction provider
+  facts.
+- Spec-update judgment: no `.trellis/spec/**` edit was needed because this
+  implements the existing Stage2 selected-body owner-local contraction contract
+  without adding a new durable rule.
+- No new runtime, correctness, performance, route, artifact, or executable
+  claim was made; no `ssh rvv` run was required for this refactor.
 
 ### Git Commits
 
@@ -190,7 +207,15 @@ Moved non-segment computed-mask memory selected-body validation into RVVEmitCCom
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused generated-bundle/direct-entry lit filter: 10/10 passed for
+  representative pre-realized widening MAcc, widening dot, strided widening
+  dot, computed-mask widening dot, computed-mask strided widening dot, and
+  matching direct-route-entry fail-closed probes.
+- [OK] bounded central and production authority scans.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
 
 ### Status
 
@@ -491,6 +516,39 @@ Moved computed-mask MAcc selected-body realization into an RVV owner-local compo
 ### Summary
 
 Moved non-computed MAcc selected-body realization into an RVV owner-local component, kept central selected-body dispatch neutral, preserved MAcc provider facts, and validated focused MAcc/generated-bundle checks plus check-tianchenrv 464/464.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 348: Stage2 RVV contraction selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV contraction selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved contraction selected-body realization into RVVContractionSelectedBodyRealizationOwner, kept central selected-body dispatch neutral, preserved contraction provider facts, and validated focused C++/generated-bundle checks plus check-tianchenrv 464/464.
 
 ### Main Changes
 

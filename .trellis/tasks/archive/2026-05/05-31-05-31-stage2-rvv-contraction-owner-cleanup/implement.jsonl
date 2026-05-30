@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage ordering, and authority boundaries for this refactor."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, contraction selected-body realization, direct contraction provider, route-control, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundary for selected RVV variants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/generated-bundle evidence for widening MAcc, widening dot-reduction, computed-mask widening dot-reduction, and no-new-runtime-claim policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-local ownership review criteria for moving realization logic out of central code."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check that no compute semantics move into tcrv.exec or common infrastructure."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-stage2-rvv-noncomputed-macc-owner-cleanup/prd.md", "reason": "Previous owner-local selected-body extraction pattern and evidence expectations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h", "reason": "Header pattern for owner-local selected-body realization predicate and hook."}
+{"file": "lib/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.cpp", "reason": "Implementation pattern for moving selected-body materialization out of the central file."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h", "reason": "Header pattern for multi-body owner-local selected-body realization."}
+{"file": "lib/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.cpp", "reason": "Implementation pattern for computed-mask owner-local realization and runtime AVL/VL control."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h", "reason": "Contraction validation and provider-plan interfaces consumed by selected-body realization."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Contraction family validation facts and fail-closed diagnostics to preserve."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Central selected-body file to reduce to neutral registry/dispatch and shared helpers."}
+{"file": "lib/Plugin/RVV/CMakeLists.txt", "reason": "Production library wiring for the new owner-local source file."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused C++ coverage for owner registry, typed realization facts, provider-plan consumption, and fail-closed behavior."}
