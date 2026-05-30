@@ -113,6 +113,18 @@ verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
 llvm::Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error validatePreRealizedRVVSelectedMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedMAccPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp body);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVEMITCMACCROUTEFAMILYPLANOWNERS_H

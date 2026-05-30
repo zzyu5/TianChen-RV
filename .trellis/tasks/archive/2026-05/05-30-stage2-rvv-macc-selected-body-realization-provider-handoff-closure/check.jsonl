@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Recheck global RVV-first authority and descriptor/source-front-door exclusions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recheck selected-body realization owner, MAcc provider-plan owner, provider handoff, mirror, and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Recheck provider-built route authority and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Recheck focused C++/generated-bundle evidence scope and runtime-claim limits."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Recheck plugin-local ownership and absence of common/core semantic drift."}

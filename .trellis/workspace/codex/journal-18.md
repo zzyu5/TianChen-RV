@@ -1936,3 +1936,34 @@ Moved RVV MAcc route-family plan ownership into RVVEmitCMAccRouteFamilyPlanOwner
 ### Next Steps
 
 - None - task complete
+
+
+## Session 338: Stage2 RVV MAcc selected-body handoff closure
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV MAcc selected-body handoff closure
+**Branch**: `main`
+
+### Summary
+
+Recovered dirty MAcc selected-body realization/provider handoff, moved pre-realized MAcc validation into owner-local surfaces, removed duplicate central MAcc realization branches, validated focused RVV tests and generated-bundle dry-run.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

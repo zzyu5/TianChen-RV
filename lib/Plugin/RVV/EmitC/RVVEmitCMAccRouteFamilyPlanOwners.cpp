@@ -217,6 +217,438 @@ llvm::Error requireMAccRouteDescriptionField(llvm::StringRef context,
       actual + "'");
 }
 
+llvm::Expected<tcrv::rvv::RuntimeABIValueOp> requirePreRealizedRuntimeABIValue(
+    mlir::Value value, llvm::StringRef context,
+    support::RuntimeABIParameterRole expectedRole) {
+  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!binding)
+    return makeRVVEmitCRouteProviderError(llvm::Twine(context) +
+                                          " must be defined by explicit "
+                                          "tcrv_rvv.runtime_abi_value");
+
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  if (!role)
+    return makeRVVEmitCRouteProviderError(llvm::Twine(context) +
+                                          " carries unsupported runtime ABI "
+                                          "role '" +
+                                          binding.getRole() + "'");
+  if (*role != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " must bind runtime ABI role '" +
+        support::stringifyRuntimeABIParameterRole(expectedRole) +
+        "' before RVV selected-body realization");
+  return binding;
+}
+
+} // namespace
+
+llvm::Error validatePreRealizedRVVSelectedMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedMAccPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV macc realization requires a pre-realized macc body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body must be a direct child of the "
+        "selected tcrv.exec.variant");
+
+  if (!(body.getOpKind() == "macc_add" ||
+        body.getOpKind() == "scalar_broadcast_macc_add"))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body currently supports only "
+        "op_kind 'macc_add' or 'scalar_broadcast_macc_add'");
+  if (!(body.getMemoryForm() == "vector-rhs-load" ||
+        body.getMemoryForm() == "rhs-scalar-broadcast-macc"))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body currently supports only "
+        "memory_form 'vector-rhs-load' or 'rhs-scalar-broadcast-macc'");
+  bool scalarBroadcastMAcc =
+      body.getOpKind() == "scalar_broadcast_macc_add" ||
+      body.getMemoryForm() == "rhs-scalar-broadcast-macc";
+  if (scalarBroadcastMAcc &&
+      (body.getOpKind() != "scalar_broadcast_macc_add" ||
+       body.getMemoryForm() != "rhs-scalar-broadcast-macc"))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected scalar-broadcast macc body requires "
+        "op_kind 'scalar_broadcast_macc_add' paired with memory_form "
+        "'rhs-scalar-broadcast-macc'");
+  if (!scalarBroadcastMAcc &&
+      (body.getOpKind() != "macc_add" ||
+       body.getMemoryForm() != "vector-rhs-load"))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body requires op_kind 'macc_add' "
+        "paired with memory_form 'vector-rhs-load'");
+  if (body.getAccumulatorRole() != "accumulator-input-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body currently supports only "
+        "accumulator_role 'accumulator-input-buffer'");
+  if (body.getAccumulatorLayout() !=
+      "separate-i32-vector-accumulator-input")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body currently supports only "
+        "accumulator_layout 'separate-i32-vector-accumulator-input'");
+  if (body.getResultLayout() !=
+      "store-multiply-accumulate-result-to-output-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body currently supports only "
+        "result_layout 'store-multiply-accumulate-result-to-output-buffer'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body requires SEW32 LMUL m1");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc body requires tail agnostic, mask "
+        "agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(), "pre-realized RVV macc lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  support::RuntimeABIParameterRole rhsRole =
+      scalarBroadcastMAcc ? support::RuntimeABIParameterRole::RHSScalarValue
+                          : support::RuntimeABIParameterRole::RHSInputBuffer;
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhs(), "pre-realized RVV macc rhs operand", rhsRole);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedRuntimeABIValue(
+          body.getAcc(), "pre-realized RVV macc accumulator operand",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV macc out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV macc runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedMAccPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected macc body must not be mixed "
+                    "with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected macc-body realization requires non-empty "
+        "selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validatePreRealizedRVVSelectedComputedMaskMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV computed-mask macc realization requires a "
+        "pre-realized computed-mask macc body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body must be a direct "
+        "child of the selected tcrv.exec.variant");
+
+  if (body.getOpKind() != "computed_masked_macc_add")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only op_kind 'computed_masked_macc_add'");
+  if (body.getPredicateKind() != "slt")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only predicate_kind 'slt'");
+  if (body.getMemoryForm() != "computed-mask-unit-stride-macc")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only memory_form 'computed-mask-unit-stride-macc'");
+  if (body.getMaskRole() != "predicate-mask-produced-by-compare")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only mask_role 'predicate-mask-produced-by-compare'");
+  if (body.getMaskSource() != "compare-produced-mask-same-vl-scope")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only mask_source 'compare-produced-mask-same-vl-scope'");
+  if (body.getMaskMemoryForm() != "compare-produced-mask")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only mask_memory_form 'compare-produced-mask'");
+  if (body.getAccumulatorRole() != "accumulator-input-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only accumulator_role 'accumulator-input-buffer'");
+  if (body.getAccumulatorLayout() !=
+      "separate-i32-vector-accumulator-input")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only accumulator_layout 'separate-i32-vector-accumulator-input'");
+  if (body.getResultLayout() !=
+      "store-multiply-accumulate-result-to-output-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body currently supports "
+        "only result_layout "
+        "'store-multiply-accumulate-result-to-output-buffer'");
+  if (!(static_cast<std::int64_t>(body.getSew()) ==
+            tcrv::rvv::getRVVFirstSliceSEWBits() &&
+        (body.getLmul() == tcrv::rvv::getRVVLMULM1() ||
+         body.getLmul() == tcrv::rvv::getRVVLMULM2())))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body requires SEW32 "
+        "LMUL m1 or SEW32 LMUL m2");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> cmpLHS =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV computed-mask macc compare lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!cmpLHS)
+    return cmpLHS.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> cmpRHS =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareRhs(),
+          "pre-realized RVV computed-mask macc compare rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!cmpRHS)
+    return cmpRHS.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(), "pre-realized RVV computed-mask macc lhs payload",
+          support::RuntimeABIParameterRole::DotLHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhs(), "pre-realized RVV computed-mask macc rhs payload",
+          support::RuntimeABIParameterRole::DotRHSInputBuffer);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedRuntimeABIValue(
+          body.getAcc(), "pre-realized RVV computed-mask macc accumulator",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV computed-mask macc out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV computed-mask macc runtime n/AVL "
+                       "operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected computed-mask macc body must "
+                    "not be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected computed-mask macc realization requires "
+        "non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarComputedMaskMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV runtime scalar computed-mask macc realization requires "
+        "a pre-realized runtime scalar computed-mask macc body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "must be a direct child of the selected tcrv.exec.variant");
+
+  if (body.getOpKind() != "runtime_scalar_cmp_masked_macc_add")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only op_kind "
+        "'runtime_scalar_cmp_masked_macc_add'");
+  if (body.getPredicateKind() != "sle")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only predicate_kind 'sle'");
+  if (body.getMemoryForm() !=
+      "runtime-scalar-computed-mask-unit-stride-macc")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only memory_form "
+        "'runtime-scalar-computed-mask-unit-stride-macc'");
+  if (body.getMaskRole() != "predicate-mask-produced-by-compare")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only mask_role "
+        "'predicate-mask-produced-by-compare'");
+  if (body.getMaskSource() != "compare-produced-mask-same-vl-scope")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only mask_source "
+        "'compare-produced-mask-same-vl-scope'");
+  if (body.getMaskMemoryForm() != "compare-produced-mask")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getAccumulatorRole() != "accumulator-input-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only accumulator_role 'accumulator-input-buffer'");
+  if (body.getAccumulatorLayout() !=
+      "separate-i32-vector-accumulator-input")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only accumulator_layout "
+        "'separate-i32-vector-accumulator-input'");
+  if (body.getResultLayout() !=
+      "store-multiply-accumulate-result-to-output-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "currently supports only result_layout "
+        "'store-multiply-accumulate-result-to-output-buffer'");
+  if (!(static_cast<std::int64_t>(body.getSew()) ==
+            tcrv::rvv::getRVVFirstSliceSEWBits() &&
+        (body.getLmul() == tcrv::rvv::getRVVLMULM1() ||
+         body.getLmul() == tcrv::rvv::getRVVLMULM2())))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "requires SEW32 LMUL m1 or SEW32 LMUL m2");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc body "
+        "requires tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> cmpLHS =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV runtime scalar computed-mask macc compare lhs "
+          "operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!cmpLHS)
+    return cmpLHS.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhsScalar(),
+          "pre-realized RVV runtime scalar computed-mask macc rhs scalar "
+          "operand",
+          support::RuntimeABIParameterRole::RHSScalarValue);
+  if (!rhsScalar)
+    return rhsScalar.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV runtime scalar computed-mask macc lhs payload",
+          support::RuntimeABIParameterRole::DotLHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhs(),
+          "pre-realized RVV runtime scalar computed-mask macc rhs payload",
+          support::RuntimeABIParameterRole::DotRHSInputBuffer);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedRuntimeABIValue(
+          body.getAcc(),
+          "pre-realized RVV runtime scalar computed-mask macc accumulator",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(),
+          "pre-realized RVV runtime scalar computed-mask macc out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV runtime scalar computed-mask macc runtime n/AVL "
+          "operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<
+            tcrv::rvv::RuntimeABIValueOp,
+            tcrv::rvv::
+                TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected runtime scalar computed-mask "
+                    "macc body must not be mixed with already realized RVV "
+                    "route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime scalar computed-mask macc "
+        "realization requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+namespace {
+
 bool isComputedMaskStandaloneReductionOperation(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {

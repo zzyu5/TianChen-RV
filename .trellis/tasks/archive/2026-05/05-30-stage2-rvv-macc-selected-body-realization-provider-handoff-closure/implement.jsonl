@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 ordering, descriptor/source-front-door exclusions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Selected-body realization owner registry, MAcc provider-plan owner boundary, MAcc statement/provider handoff, mirror and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role authority and selected typed body consumption boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ tests, generated-bundle evidence, and RVV runtime evidence policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-local ownership checks for selected-body realization and route provider output."}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-05-30-stage2-rvv-macc-selected-body-realization-provider-handoff/prd.md", "reason": "Stale archived task context to supersede and repair truthfully in this active task."}
