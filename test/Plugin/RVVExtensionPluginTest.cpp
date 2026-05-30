@@ -14156,6 +14156,15 @@ module {
     if (!statementPlan)
       return fail("compare/select statement-plan construction: " +
                   llvm::toString(statementPlan.takeError()));
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+                *analysis, *materializationFacts, *elementwiseFacts,
+                *statementPlan,
+                "compare/select route-provider statement-plan preflight "
+                "unit test"),
+            "compare/select provider preflight consumes the RVV-owned "
+            "statement plan before route construction"))
+      return result;
     if (int result = expect(
             statementPlan->plansCompareSelectRoute &&
                 statementPlan->plansPlainCompareSelect == plain &&
@@ -14294,6 +14303,171 @@ module {
            "__riscv_vmerge_vvm_i32m1", "__riscv_vse32_v_i32m1"}))
     return result;
 
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarAnalysis =
+      analyzeRouteInModule(*module, "stmt_runtime_scalar_cmp_select_kernel",
+                           "rvv_runtime_scalar_cmp_select");
+  if (!runtimeScalarAnalysis)
+    return fail("analyze runtime-scalar compare/select provider preflight "
+                "route: " +
+                llvm::toString(runtimeScalarAnalysis.takeError()));
+  auto runtimeScalarMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeScalarAnalysis,
+          "runtime-scalar compare/select provider preflight stale dependency "
+          "unit test");
+  if (!runtimeScalarMaterializationFacts)
+    return fail("runtime-scalar compare/select materialization facts: " +
+                llvm::toString(runtimeScalarMaterializationFacts.takeError()));
+  auto runtimeScalarElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          *runtimeScalarAnalysis,
+          "runtime-scalar compare/select provider preflight stale dependency "
+          "unit test");
+  if (!runtimeScalarElementwiseFacts)
+    return fail("runtime-scalar compare/select elementwise facts: " +
+                llvm::toString(runtimeScalarElementwiseFacts.takeError()));
+  auto runtimeScalarStatementPlan =
+      getRVVSelectedBodyCompareSelectRouteStatementPlan(
+          *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+          *runtimeScalarElementwiseFacts,
+          "runtime-scalar compare/select provider preflight stale dependency "
+          "unit test");
+  if (!runtimeScalarStatementPlan)
+    return fail("runtime-scalar compare/select statement plan: " +
+                llvm::toString(runtimeScalarStatementPlan.takeError()));
+
+  auto staleRuntimeScalarStatementPlan = std::move(*runtimeScalarStatementPlan);
+  staleRuntimeScalarStatementPlan.plansRuntimeScalarComputedMaskSelect = false;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarElementwiseFacts, staleRuntimeScalarStatementPlan,
+              "runtime-scalar compare/select stale statement-plan provider "
+              "preflight unit test"),
+          {"runtime scalar computed-mask select route construction requires "
+           "the matching single/dual compare/select statement plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRuntimeScalarSplatFacts = *runtimeScalarMaterializationFacts;
+  staleRuntimeScalarSplatFacts.rhsScalarBroadcastLeaf =
+      "__riscv_vmv_v_x_from_artifact_name";
+  runtimeScalarStatementPlan =
+      getRVVSelectedBodyCompareSelectRouteStatementPlan(
+          *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+          *runtimeScalarElementwiseFacts,
+          "runtime-scalar compare/select stale splat provider preflight unit "
+          "test");
+  if (!runtimeScalarStatementPlan)
+    return fail("runtime-scalar compare/select statement plan for stale splat "
+                "test: " +
+                llvm::toString(runtimeScalarStatementPlan.takeError()));
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *runtimeScalarAnalysis, staleRuntimeScalarSplatFacts,
+              *runtimeScalarElementwiseFacts, *runtimeScalarStatementPlan,
+              "runtime-scalar compare/select stale splat provider preflight "
+              "unit test"),
+          {"runtime scalar computed-mask select route construction requires "
+           "the RHS scalar splat leaf",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  runtimeScalarStatementPlan =
+      getRVVSelectedBodyCompareSelectRouteStatementPlan(
+          *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+          *runtimeScalarElementwiseFacts,
+          "runtime-scalar compare/select stale mask-tail provider preflight "
+          "unit test");
+  if (!runtimeScalarStatementPlan)
+    return fail("runtime-scalar compare/select statement plan for stale "
+                "mask-tail test: " +
+                llvm::toString(runtimeScalarStatementPlan.takeError()));
+  runtimeScalarStatementPlan->maskTailPolicyPlan.computedMaskSelectPlan =
+      nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarElementwiseFacts, *runtimeScalarStatementPlan,
+              "runtime-scalar compare/select stale mask-tail provider "
+              "preflight unit test"),
+          {"computed-mask select route construction requires the RVV-owned "
+           "mask/tail policy provider plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarDualAnalysis =
+      analyzeRouteInModule(*module, "stmt_dual_cmp_mask_select_kernel",
+                           "rvv_dual_cmp_mask_select");
+  if (!runtimeScalarDualAnalysis)
+    return fail("analyze runtime-scalar dual compare/select provider "
+                "preflight route: " +
+                llvm::toString(runtimeScalarDualAnalysis.takeError()));
+  auto runtimeScalarDualMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeScalarDualAnalysis,
+          "runtime-scalar dual compare/select provider preflight stale "
+          "dependency unit test");
+  if (!runtimeScalarDualMaterializationFacts)
+    return fail("runtime-scalar dual compare/select materialization facts: " +
+                llvm::toString(
+                    runtimeScalarDualMaterializationFacts.takeError()));
+  auto runtimeScalarDualElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          *runtimeScalarDualAnalysis,
+          "runtime-scalar dual compare/select provider preflight stale "
+          "dependency unit test");
+  if (!runtimeScalarDualElementwiseFacts)
+    return fail("runtime-scalar dual compare/select elementwise facts: " +
+                llvm::toString(
+                    runtimeScalarDualElementwiseFacts.takeError()));
+  auto runtimeScalarDualStatementPlan =
+      getRVVSelectedBodyCompareSelectRouteStatementPlan(
+          *runtimeScalarDualAnalysis, *runtimeScalarDualMaterializationFacts,
+          *runtimeScalarDualElementwiseFacts,
+          "runtime-scalar dual compare/select provider preflight stale "
+          "dependency unit test");
+  if (!runtimeScalarDualStatementPlan)
+    return fail("runtime-scalar dual compare/select statement plan: " +
+                llvm::toString(runtimeScalarDualStatementPlan.takeError()));
+  runtimeScalarDualStatementPlan
+      ->plansRuntimeScalarDualCompareMaskAndSelect = false;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *runtimeScalarDualAnalysis, *runtimeScalarDualMaterializationFacts,
+              *runtimeScalarDualElementwiseFacts,
+              *runtimeScalarDualStatementPlan,
+              "runtime-scalar dual compare/select stale statement-plan "
+              "provider preflight unit test"),
+          {"runtime scalar computed-mask select route construction requires "
+           "the matching single/dual compare/select statement plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  runtimeScalarDualStatementPlan =
+      getRVVSelectedBodyCompareSelectRouteStatementPlan(
+          *runtimeScalarDualAnalysis, *runtimeScalarDualMaterializationFacts,
+          *runtimeScalarDualElementwiseFacts,
+          "runtime-scalar dual compare/select stale mask-tail provider "
+          "preflight unit test");
+  if (!runtimeScalarDualStatementPlan)
+    return fail("runtime-scalar dual compare/select statement plan for stale "
+                "mask-tail test: " +
+                llvm::toString(runtimeScalarDualStatementPlan.takeError()));
+  runtimeScalarDualStatementPlan->maskTailPolicyPlan.maskProducerSourceMirror =
+      "metadata-derived-mask-producer";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *runtimeScalarDualAnalysis, *runtimeScalarDualMaterializationFacts,
+              *runtimeScalarDualElementwiseFacts,
+              *runtimeScalarDualStatementPlan,
+              "runtime-scalar dual compare/select stale mask-tail provider "
+              "preflight unit test"),
+          {"computed-mask select route construction requires the RVV-owned "
+           "mask/tail policy provider plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
   RVVSelectedBodyRouteAnalysis unrelated;
   unrelated.description.operation =
       RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
@@ -14336,10 +14510,16 @@ module {
   if (!computedElementwiseFacts)
     return fail("stale compare/select elementwise facts: " +
                 llvm::toString(computedElementwiseFacts.takeError()));
+  auto computedStatementPlan = getRVVSelectedBodyCompareSelectRouteStatementPlan(
+      *computedAnalysis, *computedMaterializationFacts, *computedElementwiseFacts,
+      "computed-mask select route-provider closure unit test");
+  if (!computedStatementPlan)
+    return fail("computed-mask select provider statement plan: " +
+                llvm::toString(computedStatementPlan.takeError()));
   if (int result = expectSuccess(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *computedAnalysis, *computedMaterializationFacts,
-              *computedElementwiseFacts,
+              *computedElementwiseFacts, *computedStatementPlan,
               "computed-mask select route-provider closure unit test"),
           "computed-mask select provider accepts realized owner facts before "
           "route construction"))
@@ -14350,7 +14530,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *computedAnalysis, staleComputedProviderTypedFacts,
-              *computedElementwiseFacts,
+              *computedElementwiseFacts, *computedStatementPlan,
               "computed-mask select stale typed facts route-provider unit "
               "test"),
           {"computed-mask select route construction requires family-plan "
@@ -14364,7 +14544,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *computedAnalysis, staleComputedProviderMaterialization,
-              *computedElementwiseFacts,
+              *computedElementwiseFacts, *computedStatementPlan,
               "computed-mask select stale materialization route-provider unit "
               "test"),
           {"computed-mask select route construction requires materialization "
@@ -14377,7 +14557,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *computedAnalysis, *computedMaterializationFacts,
-              staleComputedProviderBindingFacts,
+              staleComputedProviderBindingFacts, *computedStatementPlan,
               "computed-mask select stale binding route-provider unit test"),
           {"computed_mask_select route construction requires realized vector "
            "compare-mask operand-binding facts",
@@ -14576,10 +14756,16 @@ module {
   if (!plainElementwiseFacts)
     return fail("plain compare/select route-control elementwise facts: " +
                 llvm::toString(plainElementwiseFacts.takeError()));
+  auto plainStatementPlan = getRVVSelectedBodyCompareSelectRouteStatementPlan(
+      *plainAnalysis, *plainMaterializationFacts, *plainElementwiseFacts,
+      "plain compare-select route-provider closure unit test");
+  if (!plainStatementPlan)
+    return fail("plain compare-select provider statement plan: " +
+                llvm::toString(plainStatementPlan.takeError()));
   if (int result = expectSuccess(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *plainAnalysis, *plainMaterializationFacts,
-              *plainElementwiseFacts,
+              *plainElementwiseFacts, *plainStatementPlan,
               "plain compare-select route-provider closure unit test"),
           "plain compare-select provider accepts realized owner facts before "
           "route construction"))
@@ -14590,7 +14776,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *plainAnalysis, stalePlainProviderTypedFacts,
-              *plainElementwiseFacts,
+              *plainElementwiseFacts, *plainStatementPlan,
               "plain compare-select stale typed facts route-provider unit "
               "test"),
           {"plain compare-select route construction requires family-plan "
@@ -14604,7 +14790,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *plainAnalysis, stalePlainProviderMaterialization,
-              *plainElementwiseFacts,
+              *plainElementwiseFacts, *plainStatementPlan,
               "plain compare-select stale materialization route-provider unit "
               "test"),
           {"plain compare-select route construction requires materialization "
@@ -14617,7 +14803,7 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
               *plainAnalysis, *plainMaterializationFacts,
-              stalePlainProviderBindingFacts,
+              stalePlainProviderBindingFacts, *plainStatementPlan,
               "plain compare-select stale binding route-provider unit test"),
           {"plain compare-select route construction requires realized "
            "lhs/rhs/out/n operand-binding facts",

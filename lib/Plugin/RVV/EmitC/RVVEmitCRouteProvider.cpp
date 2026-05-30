@@ -321,8 +321,18 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       &elementwiseSelectOperandBindingFacts =
           *elementwiseSelectOperandBindingFactsOrError;
+  llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
+      compareSelectStatementPlanOrError =
+          getRVVSelectedBodyCompareSelectRouteStatementPlan(
+              analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!compareSelectStatementPlanOrError)
+    return compareSelectStatementPlanOrError.takeError();
+  const RVVSelectedBodyCompareSelectRouteStatementPlan
+      &compareSelectStatementPlan = *compareSelectStatementPlanOrError;
   if (llvm::Error error = verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
           analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+          compareSelectStatementPlan,
           "selected RVV EmitC route construction"))
     return error;
   llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
@@ -397,6 +407,16 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         *segment2RouteConstructionPlanOrError;
   }
 
+  llvm::Expected<RVVSelectedBodyRouteStatementPlanOwnerSelection>
+      statementPlanOwnerSelection =
+          getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+              analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+              memoryOperandBindingFacts, mathOperandBindingFacts,
+              residualOperandBindingFacts, directContractionProviderPlan,
+              "selected RVV EmitC route construction");
+  if (!statementPlanOwnerSelection)
+    return statementPlanOwnerSelection.takeError();
+
   conversion::emitc::TCRVEmitCLowerableRoute route(
       segment2RouteConstructionPlan ? segment2RouteConstructionPlan->emitCRouteID
                                     : analysis.description.emitCRouteID,
@@ -445,15 +465,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return withVLSource.takeError();
   route.addSourceOpProvenance(std::move(*withVLSource));
 
-  llvm::Expected<RVVSelectedBodyRouteStatementPlanOwnerSelection>
-      statementPlanOwnerSelection =
-          getRVVSelectedBodyRouteStatementPlanOwnerSelection(
-              analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
-              memoryOperandBindingFacts, mathOperandBindingFacts,
-              residualOperandBindingFacts, directContractionProviderPlan,
-              "selected RVV EmitC route construction");
-  if (!statementPlanOwnerSelection)
-    return statementPlanOwnerSelection.takeError();
   if (llvm::Error error = attachRVVSelectedBodyRouteStatementPlanOwnerSelection(
           route, std::move(*statementPlanOwnerSelection),
           "selected RVV EmitC route construction"))

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture, RVV-first authority chain, and support-level/evidence separation after changes."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify runtime-scalar compare/select provider preflight and statement-plan boundary compliance."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime role handling remains tcrv.exec envelope plus explicit typed tcrv_rvv consumption."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route authority and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, generated-bundle evidence, authority scans, and check-tianchenrv evidence."}
+{"file": ".trellis/tasks/05-31-stage2-rvv-runtime-scalar-compare-select-provider-boundary-closure/prd.md", "reason": "Verify implementation against current task acceptance criteria."}

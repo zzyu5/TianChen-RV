@@ -1618,6 +1618,8 @@ llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
         &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyCompareSelectRouteStatementPlan
+        &compareSelectStatementPlan,
     llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>

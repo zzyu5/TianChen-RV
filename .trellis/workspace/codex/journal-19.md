@@ -64,6 +64,71 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 351: Stage2 RVV runtime-scalar compare-select provider boundary closure
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV runtime-scalar compare-select provider boundary closure
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime-scalar compare/select provider-boundary gap by making the
+compare/select provider preflight consume the RVV-owned compare/select
+statement plan before `TCRVEmitCLowerableRoute` construction. The closure
+covers both `runtime_scalar_cmp_select` and
+`runtime_scalar_dual_cmp_mask_and_select` while preserving plain
+`cmp_select` and vector `computed_mask_select` behavior.
+
+### Main Changes
+
+- Extended `verifyRVVSelectedBodyCompareSelectRouteProviderFacts(...)` to take
+  the compare/select statement plan as an explicit provider-preflight input.
+- `RVVEmitCRouteProvider` now builds compare/select statement-plan facts before
+  the provider preflight and computes the statement-plan owner selection before
+  constructing the route object.
+- Added runtime-scalar C++ positive/fail-closed coverage for stale
+  single/dual statement-plan markers, stale RHS scalar splat materialization,
+  and stale mask/tail provider facts.
+- Updated the RVV plugin spec so the durable preflight signature and
+  validation matrix require statement-plan provider facts.
+- Evidence: RVV plugin test passed; runtime-scalar generated-bundle dry-run
+  and direct-pre-realized fail-closed filters passed; plain compare-select and
+  computed-mask select non-regression filters passed; full `check-tianchenrv`
+  passed 464/464; owner/API and authority scans passed; `git diff --check`
+  passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | rvv: close runtime-scalar compare-select provider boundary |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit filter for runtime-scalar generated-bundle dry-run and
+  direct-pre-realized fail-closed tests: 4/4 passed.
+- [OK] Focused lit filter for plain `cmp_select` and vector
+  `computed_mask_select` generated-bundle non-regression tests: 4/4 passed.
+- [OK] Production authority scan found no new descriptor, source-front-door,
+  route-id, artifact-name, common EmitC, exact-intrinsic, or legacy-i32
+  authority in touched production files. Added test-only stale strings were
+  negative cases.
+- [OK] Owner/API scan found no selected-body realization APIs in route
+  planning headers.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 350: Stage2 RVV elementwise/compare-select selected-body owner interface split
 
 **Date**: 2026-05-31

@@ -615,14 +615,17 @@ llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
         &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyCompareSelectRouteStatementPlan
+        &compareSelectStatementPlan,
     llvm::StringRef context);
 ```
 
 `RVVEmitCRouteProvider` must call this preflight after
 `verifyRVVSelectedBodyRouteFamilyProviderPlans(...)`, after
 `getRVVSelectedBodyRouteMaterializationFacts(...)`, and after
-`getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(...)`, but before
-constructing the `TCRVEmitCLowerableRoute`.
+`getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(...)`, after the
+RVV-owned compare/select statement plan has been built for compare/select
+consumers, but before constructing the `TCRVEmitCLowerableRoute`.
 
 ### 3. Contracts
 
@@ -637,6 +640,9 @@ For compare/select consumers, the preflight must require:
 - same-analysis operand-binding facts for the exact selected sub-family;
 - runtime AVL/VL and ABI role facts already checked by route-control and
   operand-binding providers.
+- the RVV-owned compare/select statement plan for the exact selected
+  sub-family, including route-control and mask/tail provider facts where
+  the statement-plan boundary requires them.
 
 The preflight must return success without changing behavior for unrelated RVV
 families. It must not build statements, choose intrinsics, infer dtype/config,
@@ -653,6 +659,8 @@ read artifact metadata, consult route ids, or call selected-body owner hooks.
 - Computed-mask/runtime-scalar select route lacks the verified computed-mask
   select family plan, carries a plain compare-select plan, or has stale
   materialization facts -> fail closed before route construction.
+- Runtime-scalar compare-select route lacks the matching single or dual
+  compare/select statement plan -> fail closed before route construction.
 - Family-plan type/config facts disagree with selected typed RVV body/config
   facts -> fail closed before route construction.
 - Operand-binding facts come from another analysis or do not match the selected
@@ -660,6 +668,10 @@ read artifact metadata, consult route ids, or call selected-body owner hooks.
   before route construction.
 - RHS scalar splat leaf is missing or stale for runtime-scalar computed-mask
   select -> fail closed before route construction.
+- Mask/tail policy provider facts in the statement plan are missing, stale, or
+  not from the same computed-mask select family plan, typed config, selected
+  target capability, and operand-binding plan -> fail closed before route
+  construction.
 
 ### 5. Good/Base/Bad Cases
 
@@ -671,6 +683,12 @@ read artifact metadata, consult route ids, or call selected-body owner hooks.
   realized compare-mask/value-select body -> computed-mask select family plan
   -> materialization facts -> operand-binding facts -> provider preflight ->
   `TCRVEmitCLowerableRoute`.
+- Good: pre-realized `runtime_scalar_cmp_select` or
+  `runtime_scalar_dual_cmp_mask_and_select` -> owner-local realization ->
+  realized runtime-scalar splat/compare/select or dual mask-and body ->
+  computed-mask select family plan -> materialization facts ->
+  operand-binding facts -> compare/select statement plan -> provider
+  preflight -> `TCRVEmitCLowerableRoute`.
 - Base: elementwise arithmetic, memory, reduction, contraction, conversion,
   segment2, and residual routes do not consume this preflight.
 - Bad: route construction trusts `provider_supported_mirror`, route ids,
@@ -680,10 +698,12 @@ read artifact metadata, consult route ids, or call selected-body owner hooks.
 ### 6. Tests Required
 
 - C++ positive tests must call the preflight for plain compare-select and
-  computed-mask select analyses before route construction.
+  computed-mask select analyses, including the runtime-scalar computed-mask
+  select subcases, before route construction.
 - C++ negative tests must mutate typed config facts, materialization leaves,
-  and operand-binding family markers and assert fail-closed diagnostics before
-  `TCRVEmitCLowerableRoute` construction.
+  operand-binding family markers, runtime-scalar single/dual statement-plan
+  markers, and mask/tail statement-plan provider facts and assert fail-closed
+  diagnostics before `TCRVEmitCLowerableRoute` construction.
 - Production route tests must still prove pre-realized `cmp_select` and
   `computed_mask_select` flow through selected lowering-boundary realization,
   provider route facts, statement plans, and target artifact generation.
