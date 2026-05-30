@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-19.md`
-- **Total Sessions**: 342
+- **Total Sessions**: 343
 - **Last Active**: 2026-05-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-19.md` | ~154 | Active |
+| `journal-19.md` | ~267 | Active |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
 | `journal-16.md` | ~1976 | Archived |
@@ -47,6 +47,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 343 | 2026-05-30 | Stage2 RVV computed-mask segment2 selected-body migration | `515fcc5d` | `main` |
 | 342 | 2026-05-30 | Stage2 RVV segment2 computed-mask selected-body provider handoff | this commit | `main` |
 | 341 | 2026-05-30 | Stage2 RVV computed-mask memory handoff | - | `main` |
 | 340 | 2026-05-30 | Stage2 RVV base-memory selected-body handoff closure | this commit | `main` |

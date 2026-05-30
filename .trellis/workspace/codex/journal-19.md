@@ -232,3 +232,36 @@ check-tianchenrv evidence passed.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 343: Stage2 RVV computed-mask segment2 selected-body migration
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV computed-mask segment2 selected-body migration
+**Branch**: `main`
+
+### Summary
+
+Moved computed-mask segment2 load/store/update selected-body realization to the RVV owner boundary, retained route/provider fact flow, and added a direct pre-realized route-entry fail-closed probe.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `515fcc5d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

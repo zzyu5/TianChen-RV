@@ -1,7 +1,10 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Support/RuntimeABI.h"
+
+#include "mlir/IR/Builders.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
@@ -39,6 +42,165 @@ constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
     "src,out0,out1,n");
 constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
     "src0,src1,dst,n");
+
+static constexpr char kRVVPluginName[] = "rvv-plugin";
+
+mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
+                                  llvm::StringRef symbol) {
+  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
+}
+
+bool isSupportedPreRealizedArithmeticOpKind(llvm::StringRef opKind) {
+  return opKind == "add" || opKind == "sub" || opKind == "mul";
+}
+
+mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
+                                     mlir::Location loc, mlir::Value nValue,
+                                     std::int64_t sew, llvm::StringRef lmul,
+                                     tcrv::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+  state.addOperands(nValue);
+  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
+  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+                                                policy);
+  return builder.create(state);
+}
+
+tcrv::rvv::WithVLOp createRealizedWithVL(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
+  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+  state.addOperands(vlValue);
+  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+                                                policy);
+  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
+                     symbolRef(builder, variant.getSymName()));
+  state.addAttribute(rvv::getRVVOriginAttrName(),
+                     builder.getStringAttr(kRVVPluginName));
+  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(rvv::getRVVStatusAttrName(),
+                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
+  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
+  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
+                     builder.getStringAttr(
+                         rvv::getRVVConstructionProtocolVersion()));
+  state.addRegion();
+  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  withVL.getBody().emplaceBlock();
+  return withVL;
+}
+
+mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
+                                llvm::StringRef lmul) {
+  mlir::Type elementType = builder.getIntegerType(sew);
+  return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
+}
+
+mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
+  return tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+                                  tcrv::rvv::getRVVLMULM1());
+}
+
+mlir::Type getGenericMaskTypeForVector(mlir::OpBuilder &builder,
+                                       mlir::Value vector) {
+  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(vector.getType());
+  if (!vectorType)
+    return getStage1GenericMaskType(builder);
+  return tcrv::rvv::MaskType::get(builder.getContext(),
+                                  vectorType.getElementType(),
+                                  vectorType.getLmul());
+}
+
+mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
+                                           mlir::Location loc,
+                                           mlir::Value buffer, mlir::Value vl,
+                                           std::int64_t sew,
+                                           llvm::StringRef lmul) {
+  mlir::OperationState state(loc, "tcrv_rvv.load");
+  state.addOperands({buffer, vl});
+  state.addTypes(getGenericVectorType(builder, sew, lmul));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
+                                              mlir::Location loc,
+                                              mlir::Value lhs,
+                                              mlir::Value rhs,
+                                              mlir::Value vl,
+                                              llvm::StringRef kind) {
+  mlir::OperationState state(loc, "tcrv_rvv.compare");
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute("kind", builder.getStringAttr(kind));
+  state.addTypes(getGenericMaskTypeForVector(builder, lhs));
+  return builder.create(state);
+}
+
+void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
+                                mlir::Value out, mlir::Value value,
+                                mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.store");
+  state.addOperands({out, value, vl});
+  builder.create(state);
+}
+
+llvm::Expected<mlir::Operation *> createRealizedGenericBinaryCompute(
+    mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    mlir::Value lhs, mlir::Value rhs, mlir::Value vl) {
+  if (!isSupportedPreRealizedArithmeticOpKind(opKind))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected-body realization supports only op_kind "
+        "'add', 'sub', or 'mul'");
+
+  mlir::OperationState state(loc, "tcrv_rvv.binary");
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute("kind", builder.getStringAttr(opKind));
+  state.addTypes(lhs.getType());
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericMaskedSegment2Load(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
+    mlir::Value mask, mlir::Value passthrough0, mlir::Value passthrough1,
+    mlir::Value vl, std::int64_t segmentCount,
+    llvm::StringRef sourceMemoryForm, llvm::StringRef field0Role,
+    llvm::StringRef field1Role, llvm::StringRef inactiveLanePolicy) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_load");
+  state.addOperands({source, mask, passthrough0, passthrough1, vl});
+  state.addAttribute("segment_count",
+                     builder.getI64IntegerAttr(segmentCount));
+  state.addAttribute("source_memory_form",
+                     builder.getStringAttr(sourceMemoryForm));
+  state.addAttribute("field0_role", builder.getStringAttr(field0Role));
+  state.addAttribute("field1_role", builder.getStringAttr(field1Role));
+  state.addAttribute("inactive_lane_policy",
+                     builder.getStringAttr(inactiveLanePolicy));
+  state.addTypes({passthrough0.getType(), passthrough1.getType()});
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericMaskedSegment2Store(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
+    mlir::Value mask, mlir::Value field0, mlir::Value field1, mlir::Value vl,
+    std::int64_t segmentCount, llvm::StringRef destinationMemoryForm,
+    llvm::StringRef field0Role, llvm::StringRef field1Role,
+    llvm::StringRef inactiveLanePolicy) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_store");
+  state.addOperands({destination, mask, field0, field1, vl});
+  state.addAttribute("segment_count",
+                     builder.getI64IntegerAttr(segmentCount));
+  state.addAttribute("destination_memory_form",
+                     builder.getStringAttr(destinationMemoryForm));
+  state.addAttribute("field0_role", builder.getStringAttr(field0Role));
+  state.addAttribute("field1_role", builder.getStringAttr(field1Role));
+  state.addAttribute("inactive_lane_policy",
+                     builder.getStringAttr(inactiveLanePolicy));
+  return builder.create(state);
+}
 
 bool isPreRealizedComputedMaskSegment2LoadOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_segment2_load_unit_store";
@@ -1669,6 +1831,130 @@ getRVVSelectedBodySegment2RouteFamilyProviderPlan(
         "route construction for operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   return plan;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body) {
+  if (llvm::Error error =
+          validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(request,
+                                                                     body))
+    return std::move(error);
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+
+  mlir::Location loc = body->getLoc();
+  mlir::OpBuilder &builder = request.getBuilder();
+  builder.setInsertionPoint(body.getOperation());
+
+  std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+  llvm::StringRef lmul = body.getLmul();
+  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+      createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
+                          body.getPolicy()));
+  tcrv::rvv::WithVLOp withVL =
+      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                           request.getRole(), requires, sew, lmul,
+                           body.getPolicy());
+
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  auto compareLhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getCompareLhs(),
+                                setvl.getVl(), sew, lmul));
+  auto compareRhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getCompareRhs(),
+                                setvl.getVl(), sew, lmul));
+  auto oldField0Load = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getOut0(), setvl.getVl(),
+                                sew, lmul));
+  auto oldField1Load = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getOut1(), setvl.getVl(),
+                                sew, lmul));
+  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+      createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
+                                   compareRhsLoad.getLoaded(),
+                                   setvl.getVl(), body.getPredicateKind()));
+  auto maskedSegmentLoad = llvm::cast<tcrv::rvv::MaskedSegment2LoadOp>(
+      createRealizedGenericMaskedSegment2Load(
+          builder, loc, body.getSource(), compare.getMask(),
+          oldField0Load.getLoaded(), oldField1Load.getLoaded(),
+          setvl.getVl(), static_cast<std::int64_t>(body.getSegmentCount()),
+          body.getSourceMemoryForm(), body.getField0Role(),
+          body.getField1Role(), body.getInactiveLanePolicy()));
+  createRealizedGenericStore(builder, loc, body.getOut0(),
+                             maskedSegmentLoad.getField0(), setvl.getVl());
+  createRealizedGenericStore(builder, loc, body.getOut1(),
+                             maskedSegmentLoad.getField1(), setvl.getVl());
+  body->erase();
+  return withVL;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+  if (llvm::Error error =
+          validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(request,
+                                                                      body))
+    return std::move(error);
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+
+  mlir::Location loc = body->getLoc();
+  mlir::OpBuilder &builder = request.getBuilder();
+  builder.setInsertionPoint(body.getOperation());
+
+  std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+  llvm::StringRef lmul = body.getLmul();
+  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+      createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
+                          body.getPolicy()));
+  tcrv::rvv::WithVLOp withVL =
+      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                           request.getRole(), requires, sew, lmul,
+                           body.getPolicy());
+
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  auto compareLhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getCompareLhs(),
+                                setvl.getVl(), sew, lmul));
+  auto compareRhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getCompareRhs(),
+                                setvl.getVl(), sew, lmul));
+  auto field0Load = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getSrc0(), setvl.getVl(),
+                                sew, lmul));
+  auto field1Load = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getSrc1(), setvl.getVl(),
+                                sew, lmul));
+  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+      createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
+                                   compareRhsLoad.getLoaded(),
+                                   setvl.getVl(), body.getPredicateKind()));
+  mlir::Value field0Payload = field0Load.getLoaded();
+  if (preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(body)) {
+    auto arithmeticKind =
+        body->getAttrOfType<mlir::StringAttr>("arithmetic_kind");
+    llvm::Expected<mlir::Operation *> update = createRealizedGenericBinaryCompute(
+        builder, loc, arithmeticKind.getValue(), field0Load.getLoaded(),
+        field1Load.getLoaded(), setvl.getVl());
+    if (!update)
+      return update.takeError();
+    field0Payload = (*update)->getResult(0);
+  }
+  createRealizedGenericMaskedSegment2Store(
+      builder, loc, body.getDst(), compare.getMask(), field0Payload,
+      field1Load.getLoaded(), setvl.getVl(),
+      static_cast<std::int64_t>(body.getSegmentCount()),
+      body.getDestinationMemoryForm(), body.getField0Role(),
+      body.getField1Role(), body.getInactiveLanePolicy());
+  body->erase();
+  return withVL;
 }
 
 } // namespace tianchenrv::plugin::rvv

@@ -2438,26 +2438,6 @@ mlir::Operation *createRealizedGenericSegment2Load(
   return builder.create(state);
 }
 
-mlir::Operation *createRealizedGenericMaskedSegment2Load(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
-    mlir::Value mask, mlir::Value passthrough0, mlir::Value passthrough1,
-    mlir::Value vl, std::int64_t segmentCount,
-    llvm::StringRef sourceMemoryForm, llvm::StringRef field0Role,
-    llvm::StringRef field1Role, llvm::StringRef inactiveLanePolicy) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_load");
-  state.addOperands({source, mask, passthrough0, passthrough1, vl});
-  state.addAttribute("segment_count",
-                     builder.getI64IntegerAttr(segmentCount));
-  state.addAttribute("source_memory_form",
-                     builder.getStringAttr(sourceMemoryForm));
-  state.addAttribute("field0_role", builder.getStringAttr(field0Role));
-  state.addAttribute("field1_role", builder.getStringAttr(field1Role));
-  state.addAttribute("inactive_lane_policy",
-                     builder.getStringAttr(inactiveLanePolicy));
-  state.addTypes({passthrough0.getType(), passthrough1.getType()});
-  return builder.create(state);
-}
-
 mlir::Operation *createRealizedGenericSegment2Store(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
     mlir::Value field0, mlir::Value field1, mlir::Value vl,
@@ -2471,25 +2451,6 @@ mlir::Operation *createRealizedGenericSegment2Store(
                      builder.getStringAttr(destinationMemoryForm));
   state.addAttribute("field0_role", builder.getStringAttr(field0Role));
   state.addAttribute("field1_role", builder.getStringAttr(field1Role));
-  return builder.create(state);
-}
-
-mlir::Operation *createRealizedGenericMaskedSegment2Store(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
-    mlir::Value mask, mlir::Value field0, mlir::Value field1, mlir::Value vl,
-    std::int64_t segmentCount, llvm::StringRef destinationMemoryForm,
-    llvm::StringRef field0Role, llvm::StringRef field1Role,
-    llvm::StringRef inactiveLanePolicy) {
-  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_store");
-  state.addOperands({destination, mask, field0, field1, vl});
-  state.addAttribute("segment_count",
-                     builder.getI64IntegerAttr(segmentCount));
-  state.addAttribute("destination_memory_form",
-                     builder.getStringAttr(destinationMemoryForm));
-  state.addAttribute("field0_role", builder.getStringAttr(field0Role));
-  state.addAttribute("field1_role", builder.getStringAttr(field1Role));
-  state.addAttribute("inactive_lane_policy",
-                     builder.getStringAttr(inactiveLanePolicy));
   return builder.create(state);
 }
 
@@ -5776,139 +5737,15 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
   if (auto computedMaskSegment2LoadBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp>(
           bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
-                request, computedMaskSegment2LoadBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskSegment2LoadBody->getLoc();
-    builder.setInsertionPoint(computedMaskSegment2LoadBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskSegment2LoadBody.getSew());
-    llvm::StringRef lmul = computedMaskSegment2LoadBody.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, computedMaskSegment2LoadBody.getN(),
-                            sew, lmul,
-                            computedMaskSegment2LoadBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskSegment2LoadBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskSegment2LoadBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskSegment2LoadBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto oldField0Load =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskSegment2LoadBody.getOut0(),
-            setvl.getVl(), sew, lmul));
-    auto oldField1Load =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskSegment2LoadBody.getOut1(),
-            setvl.getVl(), sew, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskSegment2LoadBody.getPredicateKind()));
-    auto maskedSegmentLoad = llvm::cast<tcrv::rvv::MaskedSegment2LoadOp>(
-        createRealizedGenericMaskedSegment2Load(
-            builder, loc, computedMaskSegment2LoadBody.getSource(),
-            compare.getMask(), oldField0Load.getLoaded(),
-            oldField1Load.getLoaded(), setvl.getVl(),
-            static_cast<std::int64_t>(
-                computedMaskSegment2LoadBody.getSegmentCount()),
-            computedMaskSegment2LoadBody.getSourceMemoryForm(),
-            computedMaskSegment2LoadBody.getField0Role(),
-            computedMaskSegment2LoadBody.getField1Role(),
-            computedMaskSegment2LoadBody.getInactiveLanePolicy()));
-    createRealizedGenericStore(builder, loc,
-                               computedMaskSegment2LoadBody.getOut0(),
-                               maskedSegmentLoad.getField0(), setvl.getVl());
-    createRealizedGenericStore(builder, loc,
-                               computedMaskSegment2LoadBody.getOut1(),
-                               maskedSegmentLoad.getField1(), setvl.getVl());
-    computedMaskSegment2LoadBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
+        request, computedMaskSegment2LoadBody);
   }
 
   if (auto computedMaskSegment2StoreBody = llvm::dyn_cast<
           tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
           bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
-                request, computedMaskSegment2StoreBody))
-      return std::move(error);
-
-    mlir::Location loc = computedMaskSegment2StoreBody->getLoc();
-    builder.setInsertionPoint(computedMaskSegment2StoreBody.getOperation());
-
-    std::int64_t sew =
-        static_cast<std::int64_t>(computedMaskSegment2StoreBody.getSew());
-    llvm::StringRef lmul = computedMaskSegment2StoreBody.getLmul();
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, computedMaskSegment2StoreBody.getN(),
-                            sew, lmul,
-                            computedMaskSegment2StoreBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
-                             computedMaskSegment2StoreBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskSegment2StoreBody.getCompareLhs(),
-            setvl.getVl(), sew, lmul));
-    auto compareRhsLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, computedMaskSegment2StoreBody.getCompareRhs(),
-            setvl.getVl(), sew, lmul));
-    auto field0Load = llvm::cast<tcrv::rvv::LoadOp>(
-        createRealizedGenericLoad(builder, loc,
-                                  computedMaskSegment2StoreBody.getSrc0(),
-                                  setvl.getVl(), sew, lmul));
-    auto field1Load = llvm::cast<tcrv::rvv::LoadOp>(
-        createRealizedGenericLoad(builder, loc,
-                                  computedMaskSegment2StoreBody.getSrc1(),
-                                  setvl.getVl(), sew, lmul));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLhsLoad.getLoaded(),
-            compareRhsLoad.getLoaded(), setvl.getVl(),
-            computedMaskSegment2StoreBody.getPredicateKind()));
-    mlir::Value field0Payload = field0Load.getLoaded();
-    if (preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
-            computedMaskSegment2StoreBody)) {
-      auto arithmeticKind =
-          computedMaskSegment2StoreBody->getAttrOfType<mlir::StringAttr>(
-              "arithmetic_kind");
-      llvm::Expected<mlir::Operation *> update =
-          createRealizedGenericBinaryCompute(
-              builder, loc, arithmeticKind.getValue(), field0Load.getLoaded(),
-              field1Load.getLoaded(), setvl.getVl());
-      if (!update)
-        return update.takeError();
-      field0Payload = (*update)->getResult(0);
-    }
-    createRealizedGenericMaskedSegment2Store(
-        builder, loc, computedMaskSegment2StoreBody.getDst(),
-        compare.getMask(), field0Payload, field1Load.getLoaded(), setvl.getVl(),
-        static_cast<std::int64_t>(
-            computedMaskSegment2StoreBody.getSegmentCount()),
-        computedMaskSegment2StoreBody.getDestinationMemoryForm(),
-        computedMaskSegment2StoreBody.getField0Role(),
-        computedMaskSegment2StoreBody.getField1Role(),
-        computedMaskSegment2StoreBody.getInactiveLanePolicy());
-    computedMaskSegment2StoreBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+        request, computedMaskSegment2StoreBody);
   }
 
   if (auto segment2Body = llvm::dyn_cast<

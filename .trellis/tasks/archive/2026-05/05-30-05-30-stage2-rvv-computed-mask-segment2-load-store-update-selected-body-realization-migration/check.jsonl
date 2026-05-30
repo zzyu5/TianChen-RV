@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec index for the RVV plugin-local selected-body realization and route-provider boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owners, segment2 provider boundary, and direct route-entry retirement"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "selected RVV variant, selected lowering-boundary materialization, and ABI/runtime role authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built route construction and neutral EmitC materialization after selected-body realization"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "generated-bundle evidence, route_entry_realization checks, and selected-body coverage requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-segment2-route-family-provider-plan-owner-boundary/prd.md", "reason": "segment2 provider-plan owner boundary that the selected-body migration must continue to consume"}
+{"file": ".trellis/tasks/archive/2026-05/05-27-05-27-stage2-rvv-computed-masked-segment2-selected-realization/prd.md", "reason": "nearest archived computed-mask segment2 selected-realization migration and acceptance pattern"}

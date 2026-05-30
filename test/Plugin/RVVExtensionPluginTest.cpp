@@ -1613,6 +1613,18 @@ module {
           "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body"))
     return result;
   if (int result = expectSegment2SelectedBodyOwner(
+          "rvv_pre_route_computed_masked_segment2_load_unit_store",
+          "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body"))
+    return result;
+  if (int result = expectSegment2SelectedBodyOwner(
+          "rvv_pre_route_computed_masked_segment2_store_unit_load",
+          "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body"))
+    return result;
+  if (int result = expectSegment2SelectedBodyOwner(
+          "rvv_pre_route_computed_masked_segment2_update_unit_load",
+          "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body"))
+    return result;
+  if (int result = expectSegment2SelectedBodyOwner(
           "rvv_pre_route_segment2_interleave_unit_load",
           "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body"))
     return result;

@@ -9,6 +9,10 @@
 
 #include <optional>
 
+namespace mlir {
+class Operation;
+}
+
 namespace tianchenrv::plugin::rvv {
 
 struct RVVSelectedBodySegment2RouteFamilyPlanningOwner {
@@ -55,6 +59,16 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
 
 bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp body);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
 
 llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
