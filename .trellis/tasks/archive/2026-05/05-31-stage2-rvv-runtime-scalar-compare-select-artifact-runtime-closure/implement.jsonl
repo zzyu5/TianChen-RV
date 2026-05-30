@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 separation, and executable evidence constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar compare/select selected-body realization, provider preflight, target artifact ABI, mirror metadata, and executable evidence rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window/runtime_param ABI role boundary and prohibition on core compute/dtype authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, common EmitC neutrality, and artifact mirror-only constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-bundle/ssh rvv evidence policy for runtime correctness claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-runtime-scalar-compare-select-provider-boundary-closure/prd.md", "reason": "Previous provider-boundary closure baseline and non-goal boundary for this artifact/runtime task."}
+{"file": ".trellis/tasks/05-31-stage2-rvv-runtime-scalar-compare-select-artifact-runtime-closure/prd.md", "reason": "Current task goal, requirements, acceptance criteria, and non-goals."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Added target artifact provider-payload fail-closed validation for dual-only compare/select facts: non-dual routes now reject stale secondary predicate/callee, mask-and callee, and mask composition facts; dual routes require those facts before artifact export."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added manual runtime-scalar compare/select target-artifact route fixture, positive provider/candidate validation, stale non-dual dual-fact provider diagnostics, and missing dual secondary predicate diagnostic coverage."}

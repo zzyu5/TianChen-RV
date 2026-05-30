@@ -64,6 +64,65 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 351: Stage2 RVV runtime-scalar compare-select artifact/runtime closure
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV runtime-scalar compare-select artifact runtime closure
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime-scalar compare/select artifact/runtime boundary by tightening
+the RVV target artifact consumer around dual-only provider facts and validating
+the generated artifact path through real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added target artifact provider-payload validation that rejects stale
+  dual-only compare/select facts on non-dual routes and requires secondary
+  predicate, secondary compare callee, mask-and callee, and mask composition
+  facts on `runtime_scalar_dual_cmp_mask_and_select`.
+- Added target artifact C++ coverage for a positive manual
+  `runtime_scalar_cmp_select` route, stale non-dual dual-fact diagnostics, and
+  a missing dual secondary predicate diagnostic.
+- Preserved common EmitC neutrality: the production change consumes
+  provider-derived route facts and does not derive RVV semantics from artifact
+  names, route ids, scripts, ABI strings, descriptors, or exact intrinsic
+  spellings.
+- Evidence: focused target artifact test passed; RVV plugin smoke test passed;
+  runtime-scalar compare/select generated-bundle dry-run passed; real `ssh rvv`
+  generated C/harness correctness passed for counts `0`, `1`, `16`, `23`, and
+  `257` with scalar values `-37` and `91`; `cmp_select` and
+  `computed_mask_select` dry-run non-regression passed; bounded authority scan
+  passed; `git diff --check` passed; `check-tianchenrv` passed 464/464.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: close runtime-scalar compare-select artifact boundary |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Runtime-scalar compare/select generated-bundle dry-run.
+- [OK] Runtime-scalar compare/select real `ssh rvv` correctness run.
+- [OK] Plain `cmp_select` and `computed_mask_select` dry-run non-regression.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 351: Stage2 RVV runtime-scalar compare-select provider boundary closure
 
 **Date**: 2026-05-31

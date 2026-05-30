@@ -2307,6 +2307,137 @@ TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
   return candidate;
 }
 
+RVVManualRouteDescription makeRVVManualRuntimeScalarCompareSelectDescription() {
+  RVVManualRouteDescription description;
+  description.operation = RVVManualOperationKind::RuntimeScalarCompareSelect;
+  description.memoryForm = RVVManualMemoryForm::RuntimeScalarCompareSelect;
+  description.elementTypeName = "i32";
+  description.sew = 32;
+  description.lmul = "m1";
+  description.tailPolicy = "agnostic";
+  description.maskPolicy = "agnostic";
+  description.emitCRouteID = "manual-runtime-scalar-compare-select-route";
+  description.providerSupportedMirror =
+      "provider_supported_mirror:rvv-runtime-scalar-cmp-select-plan-validated";
+  description.targetLeafProfile =
+      "rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1";
+  description.routeOperandBindingPlanID =
+      "rvv-runtime-scalar-compare-select-operand-binding-plan.v1";
+  description.routeOperandBindingSummary =
+      "lhs,rhs_scalar,true_value,false_value,out,n";
+  description.runtimeControlPlanID = "rvv-runtime-avl-vl-control-plan.v1";
+  description.runtimeABIOrder = "lhs,rhs_scalar,true_value,false_value,out,n";
+  description.computedMaskSelectRouteFamilyPlanID =
+      "rvv-computed-mask-select-route-family-plan.v1";
+  description.computedMaskSelectMaskProducerSource =
+      "runtime-scalar-splat-compare-rhs";
+  description.maskTailPolicyRouteFamilyPlanID =
+      "rvv-mask-tail-policy-route-family-plan.v1";
+  description.maskTailPolicyOwner = "computed-mask select mask/tail policy";
+  description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
+  description.cTypeMappingSummary =
+      "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,true_false:typed-vector,result:typed-vector";
+  description.vlCType = "size_t";
+  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
+  description.vectorCType = "vint32m1_t";
+  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
+  description.maskCType = "vbool32_t";
+  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
+  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  description.rhsBroadcastIntrinsic = "__riscv_vmv_v_x_i32m1";
+  description.storeIntrinsic = "__riscv_vse32_v_i32m1";
+  description.intrinsic = "__riscv_vmerge_vvm_i32m1";
+  description.comparePredicateKind = "sle";
+  description.compareIntrinsic = "__riscv_vmsle_vv_i32m1_b32";
+  description.resultName = "runtime_scalar_cmp_select_selected_vec";
+  description.maskName = "runtime_scalar_cmp_select_mask";
+  description.maskRole = "predicate-mask-produced-by-compare";
+  description.maskSource = "compare-produced-mask-same-vl-scope";
+  description.maskMemoryForm = "compare-produced-mask";
+  description.selectLayout = "select-true-value-when-mask-else-false-value";
+  description.sourceMemoryForm = "unit-stride-load";
+  description.destinationMemoryForm = "unit-stride-store";
+  description.emitCLoopInductionName = "i";
+  description.emitCFullChunkVLName = "vl_full";
+  description.emitCLoopVLName = "vl";
+  addRVVManualRuntimeABIParameter(description, "lhs", "const int32_t *",
+                                  RuntimeABIParameterRole::LHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "rhs_scalar", "int32_t",
+                                  RuntimeABIParameterRole::RHSScalarValue);
+  addRVVManualRuntimeABIParameter(
+      description, "true_value", "const int32_t *",
+      RuntimeABIParameterRole::TrueValueInputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "false_value", "const int32_t *",
+      RuntimeABIParameterRole::FalseValueInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "out", "int32_t *",
+                                  RuntimeABIParameterRole::OutputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "n", "size_t",
+      RuntimeABIParameterRole::RuntimeElementCount);
+  return description;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualRuntimeScalarCompareSelectRoute(
+    const RVVManualRouteDescription &description) {
+  using Operand = tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  route.addCallOpaqueStep(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n", "size_t"}},
+      description.emitCFullChunkVLName, description.vlCType, "configure"));
+  tianchenrv::conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = description.emitCLoopInductionName.str();
+  loop.lowerBound = {"0", description.vlCType.str()};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {description.emitCFullChunkVLName.str(),
+               description.vlCType.str()};
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.emitCLoopVLName, description.vlCType, "configure"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"lhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "lhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.rhsBroadcastIntrinsic,
+      {Operand{"rhs_scalar", "int32_t"}, Operand{"vl", "size_t"}},
+      "rhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"true_value + i", "const int32_t *"},
+       Operand{"vl", "size_t"}},
+      "true_value_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"false_value + i", "const int32_t *"},
+       Operand{"vl", "size_t"}},
+      "false_value_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.compareIntrinsic,
+      {Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{"rhs_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      description.maskName, description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.intrinsic,
+      {Operand{"false_value_vec", description.vectorCType.str()},
+       Operand{"true_value_vec", description.vectorCType.str()},
+       Operand{description.maskName.str(), description.maskCType.str()},
+       Operand{"vl", "size_t"}},
+      description.resultName, description.vectorCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.storeIntrinsic,
+      {Operand{"out + i", "int32_t *"},
+       Operand{description.resultName.str(), description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      {}, {}, "store"));
+  route.addForLoop(loop);
+  return route;
+}
+
 RVVManualRouteDescription makeRVVManualDualCompareSelectDescription() {
   RVVManualRouteDescription description;
   description.operation =
@@ -9255,6 +9386,19 @@ bool expectRVVTargetArtifactExporterShape(
         mutationContext, fragments);
   };
 
+  RVVRouteDescription manualRuntimeScalarDescription =
+      makeRVVManualRuntimeScalarCompareSelectDescription();
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      manualRuntimeScalarRoute =
+          makeRVVManualRuntimeScalarCompareSelectRoute(
+              manualRuntimeScalarDescription);
+  TargetArtifactCandidate manualRuntimeScalarCandidate =
+      makeRVVManualTargetArtifactCandidate(manualRuntimeScalarDescription);
+  if (!expectManualCompareSelectMaskPositive(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          manualRuntimeScalarDescription, "runtime-scalar compare/select"))
+    return false;
+
   if (!expectManualCompareSelectMaskPositive(
           manualDualCandidate, manualDualRoute, manualDualDescription,
           "runtime-scalar dual compare/select"))
@@ -9335,6 +9479,44 @@ bool expectRVVTargetArtifactExporterShape(
           {"target_leaf_profile",
            "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1",
            "metadata-only-dual-leaf"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarSecondaryPredicate =
+      manualRuntimeScalarDescription;
+  staleRuntimeScalarSecondaryPredicate.secondaryComparePredicateKind =
+      "metadata-derived-secondary-predicate";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          staleRuntimeScalarSecondaryPredicate,
+          "compare/select mask registry rejects stale non-dual secondary "
+          "predicate provider fact",
+          {"stale provider-derived dual compare/select secondary compare "
+           "predicate",
+           "metadata-derived-secondary-predicate", "non-dual"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMaskComposition =
+      manualRuntimeScalarDescription;
+  staleRuntimeScalarMaskComposition.maskComposition =
+      "metadata-derived-mask-composition";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          staleRuntimeScalarMaskComposition,
+          "compare/select mask registry rejects stale non-dual mask "
+          "composition provider fact",
+          {"stale provider-derived dual compare/select mask composition",
+           "metadata-derived-mask-composition", "non-dual"}))
+    return false;
+
+  RVVRouteDescription missingDualSecondaryPredicate = manualDualDescription;
+  missingDualSecondaryPredicate.secondaryComparePredicateKind = "";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualDualCandidate, manualDualRoute,
+          missingDualSecondaryPredicate,
+          "compare/select mask registry rejects missing dual secondary "
+          "predicate provider fact",
+          {"requires provider-derived secondary compare predicate",
+           "mask-and callee", "mask composition"}))
     return false;
 
   if (!expectManualCompareSelectMaskRouteFailure(

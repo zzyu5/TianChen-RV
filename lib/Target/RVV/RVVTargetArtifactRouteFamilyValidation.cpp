@@ -7369,6 +7369,50 @@ llvm::Error requireRVVCompareSelectMaskProviderField(llvm::StringRef label,
       label + " '" + expected + "' but was '" + actual + "'");
 }
 
+llvm::Error validateRVVCompareSelectMaskDualProviderFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const bool isRuntimeScalarDualCompareSelect =
+      description.operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::
+          RuntimeScalarDualCompareMaskAndSelect;
+
+  auto rejectStaleDualFact = [&](llvm::StringRef label,
+                                 llvm::StringRef actual) -> llvm::Error {
+    if (actual.empty())
+      return llvm::Error::success();
+    return makeRVVTargetRouteError(
+        llvm::Twine("compare/select mask target artifact consumer rejects "
+                    "stale provider-derived dual compare/select ") +
+        label + " fact '" + actual + "' for non-dual route");
+  };
+
+  if (!isRuntimeScalarDualCompareSelect) {
+    if (llvm::Error error = rejectStaleDualFact(
+            "secondary compare predicate",
+            description.secondaryComparePredicateKind))
+      return error;
+    if (llvm::Error error = rejectStaleDualFact(
+            "secondary compare callee", description.secondaryCompareIntrinsic))
+      return error;
+    if (llvm::Error error = rejectStaleDualFact("mask-and callee",
+                                                description.maskAndIntrinsic))
+      return error;
+    return rejectStaleDualFact("mask composition",
+                               description.maskComposition);
+  }
+
+  if (description.secondaryComparePredicateKind.empty() ||
+      description.secondaryCompareIntrinsic.empty() ||
+      description.maskAndIntrinsic.empty() || description.maskComposition.empty())
+    return makeRVVTargetRouteError(
+        "dual compare/select target artifact consumer requires "
+        "provider-derived secondary compare predicate, secondary compare "
+        "callee, mask-and callee, and mask composition facts before artifact "
+        "export");
+
+  return llvm::Error::success();
+}
+
 std::size_t getRVVCompareSelectMaskExpectedLoopBodyStepCount(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -8035,6 +8079,9 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
           "target_leaf_profile", description.targetLeafProfile,
           getRVVCompareSelectMaskExpectedTargetLeafProfile(
               description.operation)))
+    return error;
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskDualProviderFacts(description))
     return error;
   if (description.routeOperandBindingPlanID.empty() ||
       description.routeOperandBindingSummary.empty())
