@@ -1400,6 +1400,20 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", lmul = "m1", memory_form = "segment2-load-unit-store", op_kind = "segment2_deinterleave_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_segment2_deinterleave_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", lmul = "m1", memory_form = "segment2-load-unit-store", op_kind = "segment2_deinterleave_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_route_owner_negative_segment2_interleave_unit_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body %src0, %src1, %dst, %n {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", lmul = "m1", memory_form = "unit-load-segment2-store", op_kind = "segment2_interleave_unit_load", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source0_memory_form = "unit-stride-load", source1_memory_form = "unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_computed_masked_segment2_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1777,6 +1791,52 @@ module {
                       segment2StoreBody),
               "segment2 owner-local pre-realized validation accepts the "
               "selected computed-mask segment2 store/update body"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_segment2_deinterleave_unit_store") {
+      auto segment2Body =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(segment2Body),
+              "segment2 owner-local validation test found the plain "
+              "deinterleave pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      segment2Body),
+              "segment2 owner-local pre-realized validation accepts the "
+              "selected plain deinterleave body"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_segment2_interleave_unit_load") {
+      auto segment2Body =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(segment2Body),
+              "segment2 owner-local validation test found the plain interleave "
+              "pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      segment2Body),
+              "segment2 owner-local pre-realized validation accepts the "
+              "selected plain interleave body"))
         return result;
     }
 
@@ -2457,6 +2517,182 @@ module {
                               segment2MemoryOwner->realize != nullptr,
                           "found segment2 memory selected-body owner"))
     return result;
+
+  VariantOp negativePlainSegment2DeinterleaveVariant = findVariant(
+      kernel, "rvv_pre_route_owner_negative_segment2_deinterleave_unit_store");
+  auto negativePlainSegment2DeinterleaveBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::
+          TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
+      findFirstNestedOp(
+          negativePlainSegment2DeinterleaveVariant,
+          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body"));
+  if (int result = expect(negativePlainSegment2DeinterleaveBody != nullptr,
+                          "found plain segment2 deinterleave pre-realized "
+                          "body for owner-local negative tests"))
+    return result;
+  auto expectPlainSegment2DeinterleaveOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        segment2MemoryOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativePlainSegment2DeinterleaveVariant, kernel,
+                capabilities, VariantEmissionRole::DirectVariant,
+                invalidBuilder),
+            negativePlainSegment2DeinterleaveBody.getOperation());
+    if (invalid)
+      return fail("segment2 memory owner-local hook accepted invalid plain "
+                  "deinterleave typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("metadata-route"));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 deinterleave memory body currently supports only op_kind",
+           "segment2_deinterleave_unit_store"}))
+    return result;
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("segment2_deinterleave_unit_store"));
+
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "memory_form", attrBuilder.getStringAttr("unit-load-segment2-store"));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 deinterleave memory body currently supports only "
+           "memory_form",
+           "segment2-load-unit-store"}))
+    return result;
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "memory_form", attrBuilder.getStringAttr("segment2-load-unit-store"));
+
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "segment_count", attrBuilder.getI64IntegerAttr(3));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 deinterleave memory body requires segment_count 2"}))
+    return result;
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "segment_count", attrBuilder.getI64IntegerAttr(2));
+
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "field0_role", attrBuilder.getStringAttr("segment-field0-input-buffer"));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 deinterleave memory body requires field0_role",
+           "segment-field0-output-buffer"}))
+    return result;
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "field0_role",
+      attrBuilder.getStringAttr("segment-field0-output-buffer"));
+
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "lmul", attrBuilder.getStringAttr("m2"));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 deinterleave memory body requires SEW32 LMUL m1"}))
+    return result;
+  negativePlainSegment2DeinterleaveBody->setAttr(
+      "lmul", attrBuilder.getStringAttr("m1"));
+
+  mlir::Operation *plainSegment2DeinterleaveRuntimeN =
+      negativePlainSegment2DeinterleaveBody.getN().getDefiningOp();
+  mlir::Attribute originalPlainSegment2DeinterleaveRuntimeNRole =
+      plainSegment2DeinterleaveRuntimeN->getAttr("role");
+  plainSegment2DeinterleaveRuntimeN->setAttr(
+      "role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 runtime n/AVL operand", "runtime-element-count"}))
+    return result;
+  plainSegment2DeinterleaveRuntimeN->setAttr(
+      "role", originalPlainSegment2DeinterleaveRuntimeNRole);
+
+  mlir::Attribute originalPlainSegment2DeinterleaveRequires =
+      negativePlainSegment2DeinterleaveVariant->getAttr("requires");
+  negativePlainSegment2DeinterleaveVariant->setAttr(
+      "requires", attrBuilder.getArrayAttr({}));
+  if (int result = expectPlainSegment2DeinterleaveOwnerError(
+          {"segment2 deinterleave memory realization requires non-empty "
+           "selected variant requires metadata"}))
+    return result;
+  negativePlainSegment2DeinterleaveVariant->setAttr(
+      "requires", originalPlainSegment2DeinterleaveRequires);
+
+  VariantOp negativePlainSegment2InterleaveVariant = findVariant(
+      kernel, "rvv_pre_route_owner_negative_segment2_interleave_unit_load");
+  auto negativePlainSegment2InterleaveBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::
+          TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+      findFirstNestedOp(
+          negativePlainSegment2InterleaveVariant,
+          "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body"));
+  if (int result = expect(negativePlainSegment2InterleaveBody != nullptr,
+                          "found plain segment2 interleave pre-realized body "
+                          "for owner-local negative tests"))
+    return result;
+  auto expectPlainSegment2InterleaveOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        segment2MemoryOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativePlainSegment2InterleaveVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            negativePlainSegment2InterleaveBody.getOperation());
+    if (invalid)
+      return fail("segment2 memory owner-local hook accepted invalid plain "
+                  "interleave typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  negativePlainSegment2InterleaveBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("metadata-route"));
+  if (int result = expectPlainSegment2InterleaveOwnerError(
+          {"segment2 interleave memory body currently supports only op_kind",
+           "segment2_interleave_unit_load"}))
+    return result;
+  negativePlainSegment2InterleaveBody->setAttr(
+      "op_kind", attrBuilder.getStringAttr("segment2_interleave_unit_load"));
+
+  negativePlainSegment2InterleaveBody->setAttr(
+      "memory_form", attrBuilder.getStringAttr("segment2-load-unit-store"));
+  if (int result = expectPlainSegment2InterleaveOwnerError(
+          {"segment2 interleave memory body currently supports only "
+           "memory_form",
+           "unit-load-segment2-store"}))
+    return result;
+  negativePlainSegment2InterleaveBody->setAttr(
+      "memory_form", attrBuilder.getStringAttr("unit-load-segment2-store"));
+
+  negativePlainSegment2InterleaveBody->setAttr(
+      "source1_memory_form",
+      attrBuilder.getStringAttr("segment2-interleaved-unit-stride-load"));
+  if (int result = expectPlainSegment2InterleaveOwnerError(
+          {"segment2 interleave memory body currently supports only "
+           "source1_memory_form",
+           "unit-stride-load"}))
+    return result;
+  negativePlainSegment2InterleaveBody->setAttr(
+      "source1_memory_form", attrBuilder.getStringAttr("unit-stride-load"));
+
+  negativePlainSegment2InterleaveBody->setAttr(
+      "field0_role",
+      attrBuilder.getStringAttr("segment-field0-output-buffer"));
+  if (int result = expectPlainSegment2InterleaveOwnerError(
+          {"segment2 interleave memory body requires field0_role",
+           "segment-field0-input-buffer"}))
+    return result;
+  negativePlainSegment2InterleaveBody->setAttr(
+      "field0_role", attrBuilder.getStringAttr("segment-field0-input-buffer"));
+
+  mlir::Operation *plainSegment2InterleaveRuntimeN =
+      negativePlainSegment2InterleaveBody.getN().getDefiningOp();
+  mlir::Attribute originalPlainSegment2InterleaveRuntimeNRole =
+      plainSegment2InterleaveRuntimeN->getAttr("role");
+  plainSegment2InterleaveRuntimeN->setAttr(
+      "role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectPlainSegment2InterleaveOwnerError(
+          {"segment2 runtime n/AVL operand", "runtime-element-count"}))
+    return result;
+  plainSegment2InterleaveRuntimeN->setAttr(
+      "role", originalPlainSegment2InterleaveRuntimeNRole);
+
   VariantOp negativeComputedMaskSegment2LoadVariant = findVariant(
       kernel,
       "rvv_pre_route_owner_negative_computed_masked_segment2_load_unit_store");

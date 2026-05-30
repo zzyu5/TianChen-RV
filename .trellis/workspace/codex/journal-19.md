@@ -172,3 +172,63 @@ Moved computed-mask segment2 selected-body validation into the segment2 route-fa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 343: Stage2 RVV plain segment2 selected-body provider handoff
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV plain segment2 selected-body provider handoff
+**Branch**: `main`
+
+### Summary
+
+Moved plain segment2 deinterleave/interleave selected-body validation into the
+segment2 route-family owner surface. Central selected-body realization now
+delegates plain segment2 validation and retains owner dispatch plus neutral
+realized IR materialization. Focused C++ coverage, generated-bundle dry-runs,
+computed-mask segment2 non-regression, authority scans, and full
+check-tianchenrv evidence passed.
+
+### Main Changes
+
+- Added owner-local validation APIs for
+  `TypedSegment2DeinterleaveMemoryPreRealizedBodyOp` and
+  `TypedSegment2InterleaveMemoryPreRealizedBodyOp`.
+- Moved plain segment2 op-kind, memory-form, segment-count, field-role,
+  source/destination memory-form, runtime ABI role, SEW/LMUL/policy,
+  selected-variant `requires`, and mixed-body checks into
+  `RVVEmitCSegment2RouteFamilyPlanOwners`.
+- Removed central plain segment2 legality predicates and validators from
+  `RVVSelectedBodyRealization.cpp`; central code now delegates validation and
+  materializes `setvl`/`with_vl`, segment load/store, field load/store, move,
+  tuple/store, and erase mechanics only.
+- Added focused C++ positive and fail-closed owner-local coverage for plain
+  segment2 selected-body validation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | `rvv: close plain segment2 selected-body handoff` |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Generated-bundle dry-run for `segment2_deinterleave_unit_store`,
+  `segment2_interleave_unit_load`,
+  `computed_masked_segment2_load_unit_store`,
+  `computed_masked_segment2_store_unit_load`, and
+  `computed_masked_segment2_update_unit_load`.
+- [OK] Bounded central selected-body and touched production-file authority
+  scans.
+- [OK] `ninja -C build check-tianchenrv` passed 464/464 tests.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

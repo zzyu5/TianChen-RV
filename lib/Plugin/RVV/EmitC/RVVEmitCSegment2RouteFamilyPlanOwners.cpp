@@ -121,8 +121,88 @@ bool isPreRealizedComputedMaskSegment2InterleaveField1Role(
   return role == "segment-field1-input-buffer";
 }
 
+bool isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "segment2_deinterleave_unit_store";
+}
+
+bool isPreRealizedSegment2InterleaveMemoryMovementOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "segment2_interleave_unit_load";
+}
+
+bool isPreRealizedSegment2DeinterleaveMemoryMovementMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "segment2-load-unit-store";
+}
+
+bool isPreRealizedSegment2InterleaveMemoryMovementMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-load-segment2-store";
+}
+
+bool isPreRealizedSegment2DeinterleaveSourceMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "segment2-interleaved-unit-stride-load";
+}
+
+bool isPreRealizedSegment2InterleaveSourceMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-load";
+}
+
+bool isPreRealizedSegment2DeinterleaveDestinationMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-store";
+}
+
+bool isPreRealizedSegment2InterleaveDestinationMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "segment2-interleaved-unit-stride-store";
+}
+
+bool isPreRealizedSegment2DeinterleaveField0Role(llvm::StringRef role) {
+  return role == "segment-field0-output-buffer";
+}
+
+bool isPreRealizedSegment2DeinterleaveField1Role(llvm::StringRef role) {
+  return role == "segment-field1-output-buffer";
+}
+
+bool isPreRealizedSegment2InterleaveField0Role(llvm::StringRef role) {
+  return role == "segment-field0-input-buffer";
+}
+
+bool isPreRealizedSegment2InterleaveField1Role(llvm::StringRef role) {
+  return role == "segment-field1-input-buffer";
+}
+
 llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
 requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+    mlir::Value value, llvm::StringRef context,
+    support::RuntimeABIParameterRole expectedRole) {
+  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!binding)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must be defined by explicit tcrv_rvv.runtime_abi_value");
+
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  if (!role)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " carries unsupported runtime ABI role '" +
+        binding.getRole() + "'");
+  if (*role != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " must bind runtime ABI role '" +
+        support::stringifyRuntimeABIParameterRole(expectedRole) +
+        "' before RVV selected-body realization");
+  return binding;
+}
+
+llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+requirePreRealizedPlainSegment2RuntimeABIValue(
     mlir::Value value, llvm::StringRef context,
     support::RuntimeABIParameterRole expectedRole) {
   auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
@@ -164,7 +244,36 @@ llvm::Error rejectMixedPreRealizedComputedMaskSegment2Body(
   return llvm::Error::success();
 }
 
+template <typename BodyOpT>
+llvm::Error rejectMixedPreRealizedPlainSegment2Body(
+    tcrv::exec::VariantOp variant, llvm::StringRef bodyDescription) {
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp, BodyOpT>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected ") + bodyDescription +
+        " body must not be mixed with already realized RVV route body op '" +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+  return llvm::Error::success();
+}
+
 llvm::Error requireComputedMaskSegment2SelectedVariantRequires(
+    tcrv::exec::VariantOp variant, llvm::StringRef context) {
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!requires || requires.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected ") + context +
+        " realization requires non-empty selected variant requires metadata");
+  return llvm::Error::success();
+}
+
+llvm::Error requirePlainSegment2SelectedVariantRequires(
     tcrv::exec::VariantOp variant, llvm::StringRef context) {
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
@@ -1235,6 +1344,202 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
 bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
   return body && isPreRealizedComputedMaskSegment2UpdateOpKind(body.getOpKind());
+}
+
+llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV segment2 deinterleave memory realization requires a "
+        "pre-realized segment2 body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body must be "
+        "a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedSegment2DeinterleaveMemoryMovementOpKind(
+          body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "currently supports only op_kind "
+        "'segment2_deinterleave_unit_store'");
+  if (!isPreRealizedSegment2DeinterleaveMemoryMovementMemoryForm(
+          body.getMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "currently supports only memory_form 'segment2-load-unit-store'");
+  if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "requires segment_count 2");
+  if (!isPreRealizedSegment2DeinterleaveField0Role(body.getField0Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "requires field0_role 'segment-field0-output-buffer'");
+  if (!isPreRealizedSegment2DeinterleaveField1Role(body.getField1Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "requires field1_role 'segment-field1-output-buffer'");
+  if (body.getField0Role() == body.getField1Role())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "requires distinct field0_role and field1_role");
+  if (!isPreRealizedSegment2DeinterleaveSourceMemoryForm(
+          body.getSourceMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "currently supports only source_memory_form "
+        "'segment2-interleaved-unit-stride-load'");
+  if (!isPreRealizedSegment2DeinterleaveDestinationMemoryForm(
+          body.getDestinationMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body "
+        "currently supports only destination_memory_form 'unit-stride-store'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body requires "
+        "SEW32 LMUL m1 data config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 deinterleave memory body requires "
+        "tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getSource(), "pre-realized RVV segment2 source operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getOut0(), "pre-realized RVV segment2 field0 output operand",
+          support::RuntimeABIParameterRole::SegmentField0OutputBuffer);
+  if (!field0)
+    return field0.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getOut1(), "pre-realized RVV segment2 field1 output operand",
+          support::RuntimeABIParameterRole::SegmentField1OutputBuffer);
+  if (!field1)
+    return field1.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getN(), "pre-realized RVV segment2 runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedPlainSegment2Body<
+              tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
+              variant, "segment2 deinterleave memory"))
+    return error;
+  return requirePlainSegment2SelectedVariantRequires(
+      variant, "segment2 deinterleave memory");
+}
+
+llvm::Error validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV segment2 interleave memory realization requires a "
+        "pre-realized segment2 interleave body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body must be "
+        "a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedSegment2InterleaveMemoryMovementOpKind(body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "currently supports only op_kind 'segment2_interleave_unit_load'");
+  if (!isPreRealizedSegment2InterleaveMemoryMovementMemoryForm(
+          body.getMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "currently supports only memory_form 'unit-load-segment2-store'");
+  if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "requires segment_count 2");
+  if (!isPreRealizedSegment2InterleaveField0Role(body.getField0Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "requires field0_role 'segment-field0-input-buffer'");
+  if (!isPreRealizedSegment2InterleaveField1Role(body.getField1Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "requires field1_role 'segment-field1-input-buffer'");
+  if (body.getField0Role() == body.getField1Role())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "requires distinct field0_role and field1_role");
+  if (!isPreRealizedSegment2InterleaveSourceMemoryForm(
+          body.getSource0MemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "currently supports only source0_memory_form 'unit-stride-load'");
+  if (!isPreRealizedSegment2InterleaveSourceMemoryForm(
+          body.getSource1MemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body "
+        "currently supports only source1_memory_form 'unit-stride-load'");
+  if (!isPreRealizedSegment2InterleaveDestinationMemoryForm(
+          body.getDestinationMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body currently "
+        "supports only destination_memory_form "
+        "'segment2-interleaved-unit-stride-store'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body requires "
+        "SEW32 LMUL m1 data config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected segment2 interleave memory body requires "
+        "tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getSrc0(), "pre-realized RVV segment2 field0 source operand",
+          support::RuntimeABIParameterRole::SegmentField0InputBuffer);
+  if (!field0)
+    return field0.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getSrc1(), "pre-realized RVV segment2 field1 source operand",
+          support::RuntimeABIParameterRole::SegmentField1InputBuffer);
+  if (!field1)
+    return field1.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getDst(),
+          "pre-realized RVV segment2 interleaved destination operand",
+          support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedPlainSegment2RuntimeABIValue(
+          body.getN(), "pre-realized RVV segment2 runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedPlainSegment2Body<
+              tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+              variant, "segment2 interleave memory"))
+    return error;
+  return requirePlainSegment2SelectedVariantRequires(
+      variant, "segment2 interleave memory");
 }
 
 std::optional<llvm::StringRef>

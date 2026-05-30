@@ -57,6 +57,14 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
 bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
 
+llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body);
+
+llvm::Error validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp body);
+
 llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
 getRVVSelectedBodySegment2RouteFamilyProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
