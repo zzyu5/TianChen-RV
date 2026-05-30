@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first route authority, source-of-truth, and Stage order constraints."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension plugin checklist and RVV Stage2 plugin-locality constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body, MAcc owner boundary, route-family provider construction, operand binding, fail-closed diagnostics, and mirror metadata contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI envelope and non-compute authority boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC materialization contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence policy and authority-drift guardrails."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected-body route authority and mirror-only metadata constraints."}

@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -18050,6 +18051,10 @@ int runRouteOperandBindingPlanValidationTest() {
   using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
   using tianchenrv::support::RuntimeABIParameterRole;
   using tianchenrv::support::makeTargetExportABIParameter;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodyMAccRouteOperandBindingRole;
 
   auto addBinding =
       [](RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
@@ -18076,6 +18081,86 @@ int runRouteOperandBindingPlanValidationTest() {
           description.runtimeABIParameters.push_back(binding.parameter);
         return description;
       };
+
+  auto expectMAccOwnerPlanID =
+      [](RVVSelectedBodyOperationKind operation, llvm::StringRef expected,
+         llvm::StringRef label) -> int {
+    std::optional<llvm::StringRef> planID =
+        getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(operation);
+    return expect(planID && *planID == expected, label);
+  };
+
+  auto expectMAccOwnerRole =
+      [](llvm::StringRef planID, llvm::StringRef logicalOperand,
+         RuntimeABIParameterRole expected, llvm::StringRef label) -> int {
+    std::optional<RuntimeABIParameterRole> role =
+        getExpectedRVVSelectedBodyMAccRouteOperandBindingRole(planID,
+                                                              logicalOperand);
+    return expect(role && *role == expected, label);
+  };
+
+  if (int result = expectMAccOwnerPlanID(
+          RVVSelectedBodyOperationKind::MAccAdd,
+          "rvv-route-operand-binding:macc_add.v1",
+          "MAcc owner supplies plain MAcc operand-binding plan identity"))
+    return result;
+  if (int result = expectMAccOwnerPlanID(
+          RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
+          "rvv-route-operand-binding:scalar_broadcast_macc_add.v1",
+          "MAcc owner supplies scalar-broadcast MAcc operand-binding plan "
+          "identity"))
+    return result;
+  if (int result = expectMAccOwnerPlanID(
+          RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+          "rvv-route-operand-binding:computed_masked_macc_add.v1",
+          "MAcc owner supplies computed-mask MAcc operand-binding plan "
+          "identity"))
+    return result;
+  if (int result = expectMAccOwnerPlanID(
+          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd,
+          "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1",
+          "MAcc owner supplies runtime-scalar computed-mask MAcc "
+          "operand-binding plan identity"))
+    return result;
+  if (int result = expect(
+          !getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(
+              RVVSelectedBodyOperationKind::WideningMAccAdd),
+          "MAcc operand-binding owner excludes direct-contraction widening "
+          "MAcc plan identity"))
+    return result;
+
+  if (int result = expectMAccOwnerRole(
+          "rvv-route-operand-binding:macc_add.v1", "acc",
+          RuntimeABIParameterRole::AccumulatorInputBuffer,
+          "MAcc owner maps plain accumulator operand to accumulator ABI role"))
+    return result;
+  if (int result = expectMAccOwnerRole(
+          "rvv-route-operand-binding:scalar_broadcast_macc_add.v1",
+          "rhs_scalar", RuntimeABIParameterRole::RHSScalarValue,
+          "MAcc owner maps scalar-broadcast RHS operand to scalar ABI role"))
+    return result;
+  if (int result = expectMAccOwnerRole(
+          "rvv-route-operand-binding:computed_masked_macc_add.v1", "lhs",
+          RuntimeABIParameterRole::DotLHSInputBuffer,
+          "MAcc owner maps computed-mask MAcc lhs operand to dot lhs ABI "
+          "role"))
+    return result;
+  if (int result = expectMAccOwnerRole(
+          "rvv-route-operand-binding:computed_masked_macc_add.v1", "cmp_rhs",
+          RuntimeABIParameterRole::RHSInputBuffer,
+          "MAcc owner maps computed-mask vector compare RHS to RHS ABI role"))
+    return result;
+  if (int result = expectMAccOwnerRole(
+          "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1",
+          "rhs_scalar", RuntimeABIParameterRole::RHSScalarValue,
+          "MAcc owner maps runtime-scalar computed-mask compare RHS to scalar "
+          "ABI role"))
+    return result;
+  if (int result = expect(
+          !getExpectedRVVSelectedBodyMAccRouteOperandBindingRole(
+              "rvv-route-operand-binding:macc_add.v1", "mask"),
+          "MAcc owner rejects unsupported MAcc logical operands"))
+    return result;
 
   RVVRouteOperandBindingPlan plan;
   plan.planID = "rvv-route-operand-binding:macc_add.v1";
@@ -18153,6 +18238,180 @@ int runRouteOperandBindingPlanValidationTest() {
               duplicateRole, "rvv-route-operand-binding:macc_add.v1",
               "lhs,rhs,acc,out,n", "route operand binding unit test"),
           {"logical operand 'rhs'", "rhs-input-buffer", "lhs-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan scalarBroadcastMAccPlan;
+  scalarBroadcastMAccPlan.planID =
+      "rvv-route-operand-binding:scalar_broadcast_macc_add.v1";
+  addBinding(scalarBroadcastMAccPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base",
+              "macc-lhs-call"});
+  addBinding(scalarBroadcastMAccPlan, "rhs_scalar",
+             makeTargetExportABIParameter(
+                 "rhs_scalar", "int32_t",
+                 RuntimeABIParameterRole::RHSScalarValue),
+             {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
+              "macc-rhs-call"});
+  addBinding(scalarBroadcastMAccPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"runtime-abi-mirror", "materialized-accumulator-load-base",
+              "macc-accumulator-call"});
+  addBinding(scalarBroadcastMAccPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base",
+              "header-mirror"});
+  addBinding(scalarBroadcastMAccPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control",
+              "header-mirror"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              scalarBroadcastMAccPlan,
+              "rvv-route-operand-binding:scalar_broadcast_macc_add.v1",
+              "lhs,rhs_scalar,acc,out,n",
+              "valid scalar-broadcast MAcc binding plan"),
+          "valid scalar-broadcast MAcc route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan badScalarBroadcastRHS =
+      scalarBroadcastMAccPlan;
+  badScalarBroadcastRHS.bindings[1].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              badScalarBroadcastRHS,
+              "rvv-route-operand-binding:scalar_broadcast_macc_add.v1",
+              "lhs,rhs_scalar,acc,out,n", "route operand binding unit test"),
+          {"logical operand 'rhs_scalar'", "rhs-scalar-value",
+           "rhs-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan computedMaskMAccPlan;
+  computedMaskMAccPlan.planID =
+      "rvv-route-operand-binding:computed_masked_macc_add.v1";
+  addBinding(computedMaskMAccPlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "cmp-lhs", "cmp-call", "hdr"});
+  addBinding(computedMaskMAccPlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "cmp-rhs", "cmp-call", "hdr"});
+  addBinding(computedMaskMAccPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::DotLHSInputBuffer),
+             {"abi", "lhs-load", "macc-lhs", "hdr"});
+  addBinding(computedMaskMAccPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::DotRHSInputBuffer),
+             {"abi", "rhs-load", "macc-rhs", "hdr"});
+  addBinding(computedMaskMAccPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
+  addBinding(computedMaskMAccPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "hdr"});
+  addBinding(computedMaskMAccPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop", "hdr"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              computedMaskMAccPlan,
+              "rvv-route-operand-binding:computed_masked_macc_add.v1",
+              "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+              "valid computed-mask MAcc binding plan"),
+          "valid computed-mask MAcc route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan badComputedMaskLHS = computedMaskMAccPlan;
+  badComputedMaskLHS.bindings[2].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              badComputedMaskLHS,
+              "rvv-route-operand-binding:computed_masked_macc_add.v1",
+              "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+              "route operand binding unit test"),
+          {"logical operand 'lhs'", "dot-lhs-input-buffer",
+           "lhs-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan runtimeScalarComputedMaskMAccPlan;
+  runtimeScalarComputedMaskMAccPlan.planID =
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1";
+  addBinding(runtimeScalarComputedMaskMAccPlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "cmp-lhs", "cmp-call", "hdr"});
+  addBinding(runtimeScalarComputedMaskMAccPlan, "rhs_scalar",
+             makeTargetExportABIParameter(
+                 "rhs_scalar", "int32_t",
+                 RuntimeABIParameterRole::RHSScalarValue),
+             {"abi", "splat", "cmp-rhs", "hdr"});
+  addBinding(runtimeScalarComputedMaskMAccPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::DotLHSInputBuffer),
+             {"abi", "lhs-load", "macc-lhs", "hdr"});
+  addBinding(runtimeScalarComputedMaskMAccPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::DotRHSInputBuffer),
+             {"abi", "rhs-load", "macc-rhs", "hdr"});
+  addBinding(runtimeScalarComputedMaskMAccPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
+  addBinding(runtimeScalarComputedMaskMAccPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "hdr"});
+  addBinding(runtimeScalarComputedMaskMAccPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop", "hdr"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              runtimeScalarComputedMaskMAccPlan,
+              "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1",
+              "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n",
+              "valid runtime-scalar computed-mask MAcc binding plan"),
+          "valid runtime-scalar computed-mask MAcc route operand binding "
+          "plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan badRuntimeScalarRHS =
+      runtimeScalarComputedMaskMAccPlan;
+  badRuntimeScalarRHS.bindings[1].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              badRuntimeScalarRHS,
+              "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1",
+              "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n",
+              "route operand binding unit test"),
+          {"logical operand 'rhs_scalar'", "rhs-scalar-value",
+           "rhs-input-buffer"}))
     return result;
 
   RVVRouteOperandBindingPlan wideningMAccPlan;

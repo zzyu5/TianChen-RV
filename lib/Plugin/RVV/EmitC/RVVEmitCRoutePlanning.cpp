@@ -553,19 +553,10 @@ collectRVVSelectedDispatchEnvelopeFacts(
   return facts;
 }
 
-constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
-    "rvv-route-operand-binding:macc_add.v1");
-constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingPlanID(
-    "rvv-route-operand-binding:scalar_broadcast_macc_add.v1");
 constexpr llvm::StringLiteral kRVVRuntimeABIExecBindingAttrName(
     "exec_binding");
 constexpr llvm::StringLiteral kRVVRequireExecABIBindingsAttrName(
     "tcrv_rvv.require_exec_abi_bindings");
-constexpr llvm::StringLiteral kRVVComputedMaskedMAccOperandBindingPlanID(
-    "rvv-route-operand-binding:computed_masked_macc_add.v1");
-constexpr llvm::StringLiteral
-    kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID(
-        "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1");
 constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
     "rvv-route-operand-binding:widening_macc_add.v1");
 constexpr llvm::StringLiteral kRVVWidenI32ToI64OperandBindingPlanID(
@@ -699,6 +690,10 @@ bool isRVVFourOperandPlanID(llvm::StringRef planID) {
 
 llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     RVVSelectedBodyOperationKind operation) {
+  if (std::optional<llvm::StringRef> maccPlanID =
+          getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(operation))
+    return *maccPlanID;
+
   switch (operation) {
   case RVVSelectedBodyOperationKind::Add:
     return kRVVAddOperandBindingPlanID;
@@ -744,14 +739,6 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVMaskedSubOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::MaskedMul:
     return kRVVMaskedMulOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::MAccAdd:
-    return kRVVMAccOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
-    return kRVVScalarBroadcastMAccOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
-    return kRVVComputedMaskedMAccOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
-    return kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::StridedAdd:
     return kRVVStridedAddOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
@@ -809,6 +796,8 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
   case RVVSelectedBodyOperationKind::
       ComputedMaskStridedInputWideningDotReduceAdd:
     return kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID;
+  default:
+    break;
   }
   llvm_unreachable("unknown RVV selected-body operation kind");
 }
@@ -827,62 +816,11 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
-  if (planID == kRVVMAccOperandBindingPlanID) {
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVScalarBroadcastMAccOperandBindingPlanID) {
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "rhs_scalar")
-      return RuntimeABIParameterRole::RHSScalarValue;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVComputedMaskedMAccOperandBindingPlanID) {
-    if (logicalOperand == "cmp_lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "cmp_rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::DotLHSInputBuffer;
-    if (logicalOperand == "rhs")
-      return RuntimeABIParameterRole::DotRHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID) {
-    if (logicalOperand == "cmp_lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "rhs_scalar")
-      return RuntimeABIParameterRole::RHSScalarValue;
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::DotLHSInputBuffer;
-    if (logicalOperand == "rhs")
-      return RuntimeABIParameterRole::DotRHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
+  if (std::optional<support::RuntimeABIParameterRole> maccRole =
+          getExpectedRVVSelectedBodyMAccRouteOperandBindingRole(
+              planID, logicalOperand))
+    return maccRole;
+
   if (planID == kRVVWideningMAccOperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
@@ -14500,6 +14438,9 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
   llvm::StringRef context;
   std::string dynamicContext;
 
+  if (isRVVSelectedBodyMAccRouteFamilyConsumer(slice.arithmeticKind))
+    return deriveRVVSelectedBodyMAccRouteOperandBindingPlan(analysis);
+
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Add ||
       slice.arithmeticKind == RVVSelectedBodyOperationKind::Sub ||
       slice.arithmeticKind == RVVSelectedBodyOperationKind::Mul) {
@@ -14625,98 +14566,6 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "out_stride", slice.outStrideABI,
         {"abi", "store-stride", "out-byte-addr", "header"});
-  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd) {
-    plan.planID = kRVVMAccOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVMAccRuntimeABIOrder;
-    context = "macc_add route";
-    addRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"runtime-abi-mirror", "materialized-load-base", "macc-lhs-call"});
-    addRouteOperandBinding(
-        plan, "rhs", slice.rhsABI,
-        {"runtime-abi-mirror", "materialized-load-base", "macc-rhs-call"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"runtime-abi-mirror", "materialized-accumulator-load-base",
-         "macc-accumulator-call"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"runtime-abi-mirror", "materialized-store-base",
-         "header-mirror"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control",
-         "header-mirror"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd) {
-    plan.planID = kRVVScalarBroadcastMAccOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVScalarBroadcastMAccRuntimeABIOrder;
-    context = "scalar_broadcast_macc_add route";
-    addRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"runtime-abi-mirror", "materialized-load-base", "macc-lhs-call"});
-    addRouteOperandBinding(
-        plan, "rhs_scalar", slice.rhsABI,
-        {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
-         "macc-rhs-call"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"runtime-abi-mirror", "materialized-accumulator-load-base",
-         "macc-accumulator-call"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"runtime-abi-mirror", "materialized-store-base",
-         "header-mirror"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control",
-         "header-mirror"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
-    plan.planID = kRVVComputedMaskedMAccOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVComputedMaskedMAccRuntimeABIOrder;
-    context = "computed_masked_macc_add route";
-    addRouteOperandBinding(plan, "cmp_lhs", slice.lhsABI,
-                           {"abi", "cmp-lhs", "cmp-call", "hdr"});
-    addRouteOperandBinding(plan, "cmp_rhs", slice.rhsABI,
-                           {"abi", "cmp-rhs", "cmp-call", "hdr"});
-    addRouteOperandBinding(
-        plan, "lhs", slice.dotLHSABI,
-        {"abi", "lhs-load", "macc-lhs", "hdr"});
-    addRouteOperandBinding(
-        plan, "rhs", slice.dotRHSABI,
-        {"abi", "rhs-load", "macc-rhs", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
-    addRouteOperandBinding(plan, "out", slice.outABI,
-                           {"abi", "store", "hdr"});
-    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
-                           {"abi", "setvl-avl", "loop", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::
-                 RuntimeScalarComputedMaskedMAccAdd) {
-    plan.planID = kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID.str();
-    expectedRuntimeABIOrder =
-        kRVVRuntimeScalarComputedMaskedMAccRuntimeABIOrder;
-    context = "runtime_scalar_cmp_masked_macc_add route";
-    addRouteOperandBinding(plan, "cmp_lhs", slice.lhsABI,
-                           {"abi", "cmp-lhs", "cmp-call", "hdr"});
-    addRouteOperandBinding(plan, "rhs_scalar", slice.rhsABI,
-                           {"abi", "splat", "cmp-rhs", "hdr"});
-    addRouteOperandBinding(
-        plan, "lhs", slice.dotLHSABI,
-        {"abi", "lhs-load", "macc-lhs", "hdr"});
-    addRouteOperandBinding(
-        plan, "rhs", slice.dotRHSABI,
-        {"abi", "rhs-load", "macc-rhs", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
-    addRouteOperandBinding(plan, "out", slice.outABI,
-                           {"abi", "store", "hdr"});
-    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
-                           {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.arithmeticKind ==
              RVVSelectedBodyOperationKind::WideningMAccAdd) {
     plan.planID = kRVVWideningMAccOperandBindingPlanID.str();

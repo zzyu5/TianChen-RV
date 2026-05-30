@@ -61,6 +61,59 @@ Spec update judgment:
 - None - task complete
 
 
+## Session 333: Stage2 RVV MAcc operand-binding owner completion
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV MAcc operand-binding owner completion
+**Branch**: `main`
+
+### Summary
+
+Completed the MAcc owner boundary follow-up by moving plain, scalar-broadcast,
+computed-mask, and runtime-scalar computed-mask MAcc route-operand binding
+plan identity, role mapping, and binding-plan derivation behind
+`RVVEmitCMAccRouteFamilyPlanOwners`. Central route planning now delegates MAcc
+binding authority to the owner while retaining shared closure checks and
+neutral orchestration.
+
+### Main Changes
+
+- Added owner-owned MAcc operand-binding API in
+  `RVVEmitCMAccRouteFamilyPlanOwners.h/cpp`.
+- Removed MAcc binding plan ID constants and MAcc logical-operand role mapping
+  bodies from central `RVVEmitCRoutePlanning.cpp`.
+- Added focused C++ tests for MAcc owner plan IDs, role mapping, and wrong-role
+  fail-closed cases.
+- Updated RVV plugin spec with the MAcc operand-binding owner contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-30-05-30-stage2-rvv-macc-operand-binding-owner-completion`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] generated-bundle dry-runs for `macc_add`,
+  `scalar_broadcast_macc_add`, `computed_masked_macc_add`, and
+  `runtime_scalar_cmp_masked_macc_add`
+- [OK] bounded central/owner symbol scans and authority scan
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (464/464)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 325: Stage2 RVV direct-contraction statement-plan builder boundary extraction
 
 **Date**: 2026-05-30

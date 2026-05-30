@@ -2713,6 +2713,27 @@ Error verifyRVVSelectedBodyMAccRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, StringRef context);
 ```
 
+The same MAcc owner boundary also owns MAcc route-operand binding authority:
+
+```c++
+std::optional<StringRef>
+getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(
+    RVVSelectedBodyOperationKind operation);
+
+std::optional<RuntimeABIParameterRole>
+getExpectedRVVSelectedBodyMAccRouteOperandBindingRole(
+    StringRef planID, StringRef logicalOperand);
+
+Expected<RVVRouteOperandBindingPlan>
+deriveRVVSelectedBodyMAccRouteOperandBindingPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis);
+```
+
+Central route planning may keep the shared `RVVRouteOperandBindingPlan`
+container, generic closure comparison, and aggregate dispatch, but MAcc plan
+ids, MAcc logical operands, and MAcc logical-operand-to-runtime-ABI-role
+mapping must be supplied by the owner boundary.
+
 The active owner registry has exactly three MAcc-family owners:
 
 - plain MAcc;
@@ -2743,6 +2764,11 @@ owner and are reached through the standalone reduction/accumulation aggregate.
 - Central math-cluster orchestration may call the MAcc owner verifier as one
   aggregate entry, but it must not locally duplicate plain/scalar/computed-mask
   MAcc consumer predicates or provider-plan verification bodies.
+- Central route-operand binding validation may call the MAcc owner as a neutral
+  subroutine, but it must not locally define MAcc binding plan ids, assemble
+  MAcc binding plans from operation names, or map `lhs`, `rhs`, `rhs_scalar`,
+  `cmp_lhs`, `cmp_rhs`, `acc`, `out`, or `n` to runtime ABI roles for the
+  MAcc sub-families.
 
 ### 4. Validation & Error Matrix
 
@@ -2759,6 +2785,11 @@ owner and are reached through the standalone reduction/accumulation aggregate.
   computed-mask accumulation suffix -> fail closed.
 - The route operand-binding plan is absent, stale, or does not match the
   selected operation -> fail closed before materialization.
+- A MAcc operand-binding plan binds a logical operand to the wrong runtime ABI
+  role, omits the accumulator/result/runtime count binding, mismatches scalar
+  broadcast or runtime-scalar compare binding, or carries a non-owner plan id
+  -> fail closed through the MAcc owner-owned operand-binding API before
+  provider materialization.
 - Computed-mask standalone reductions request the MAcc owner boundary ->
   return non-consumer behavior; their shared accumulation checks are reached
   through the standalone reduction/accumulation owner.
