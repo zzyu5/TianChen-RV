@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"Global RVV stage ordering and source-of-truth rules for segment2 owner validation."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV segment2 owner boundary and provider-plan contract checks."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Neutral route materialization and fail-closed emission authority."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Registry dispatch and plugin-local ownership expectations."}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Owner-local plugin boundary and central neutrality requirements."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Testing and evidence requirements for route-family facts and mirrors."}
+{"file":".trellis/workspace/codex/journal-18.md","reason":"Recent segment2 and owner-boundary work recorded in the active journal."}
+{"file":".trellis/tasks/archive/2026-05/05-26-stage2-rvv-provider-route-family-planning-registry-owner/prd.md","reason":"Prior segment2 provider-plan owner reference for validation shape."}
+{"file":".trellis/tasks/archive/2026-05/05-30-05-30-stage2-rvv-macc-operand-binding-owner-completion/prd.md","reason":"Reference for owner-owned plan ID and role mapping validation."}

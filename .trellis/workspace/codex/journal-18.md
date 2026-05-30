@@ -1703,3 +1703,82 @@ Moved plain, scalar-broadcast, and computed-mask MAcc route-family provider-plan
 ### Next Steps
 
 - None - task complete
+
+
+## Session 333: Stage2 RVV segment2 route-family owner completion
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV segment2 route-family owner completion
+**Branch**: `main`
+
+### Summary
+
+Moved segment2 operand-binding and provider-plan ownership into RVVEmitCSegment2RouteFamilyPlanOwners, kept central route planning neutral, aligned plain deinterleave/interleave and computed-mask segment2 plan facts, and verified the RVV extension plugin smoke test plus git diff --check. No git commit was created; task was archived with --no-commit.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 334: Repair dirty RVV segment2 owner state
+
+**Date**: 2026-05-30
+**Task**: Repair dirty RVV segment2 owner state
+**Branch**: `main`
+
+### Summary
+
+Repaired the dirty owner-extraction state left after the prior no-commit
+segment2 run. Classified the existing modified segment2 owner/planning/test
+files as retained production repair, retained the contraction-owner files as
+active consumed production repair because CMake, route planning, and C++ tests
+already call them, and retained both completed untracked Trellis archives as
+truthful historical task records.
+
+### Main Changes
+
+- Segment2 owner state was validated as owner-local operand binding and
+  provider-plan repair with central route planning reduced to owner dispatch.
+- Contraction-owner artifacts were validated as active consumers rather than
+  stale untracked residue.
+- The repair task PRD records dirty inventory, classification, acceptance, and
+  validation scope.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-30-05-30-rvv-segment2-owner-dirty-state-repair`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded owner/authority scans over touched RVV planning/provider/test files
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (464/464)
+
+### Status
+
+[OK] **Completed, pending archive and commit**
+
+### Next Steps
+
+- Archive repair task and create one coherent commit.

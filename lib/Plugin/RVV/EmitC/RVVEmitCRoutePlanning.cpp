@@ -2,8 +2,10 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
@@ -557,23 +559,10 @@ constexpr llvm::StringLiteral kRVVRuntimeABIExecBindingAttrName(
     "exec_binding");
 constexpr llvm::StringLiteral kRVVRequireExecABIBindingsAttrName(
     "tcrv_rvv.require_exec_abi_bindings");
-constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
-    "rvv-route-operand-binding:widening_macc_add.v1");
 constexpr llvm::StringLiteral kRVVWidenI32ToI64OperandBindingPlanID(
     "rvv-route-operand-binding:widen_i32_to_i64.v1");
 constexpr llvm::StringLiteral kRVVWidenI16ToI32OperandBindingPlanID(
     "rvv-route-operand-binding:widen_i16_to_i32.v1");
-constexpr llvm::StringLiteral kRVVWideningDotReduceOperandBindingPlanID(
-    "rvv-route-operand-binding:widening_dot_reduce.v1");
-constexpr llvm::StringLiteral
-    kRVVStridedInputWideningDotReduceOperandBindingPlanID(
-        "rvv-route-operand-binding:strided_widening_dot_reduce.v1");
-constexpr llvm::StringLiteral
-    kRVVComputedMaskWideningDotReduceOperandBindingPlanID(
-        "rvv-route-operand-binding:masked_widening_dot_reduce.v1");
-constexpr llvm::StringLiteral
-    kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID(
-        "rvv-route-operand-binding:masked_strided_wdot.v1");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreOperandBindingPlanID(
     "rvv-route-operand-binding:strided_load_unit_store.v1");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreOperandBindingPlanID(
@@ -639,15 +628,6 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVComputedMaskIndexedScatterOperandBindingPlanID(
         "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1");
-constexpr llvm::StringLiteral
-    kRVVComputedMaskSegment2LoadOperandBindingPlanID(
-        "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1");
-constexpr llvm::StringLiteral
-    kRVVComputedMaskSegment2StoreOperandBindingPlanID(
-        "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1");
-constexpr llvm::StringLiteral
-    kRVVComputedMaskSegment2UpdateOperandBindingPlanID(
-        "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1");
 constexpr llvm::StringLiteral kRVVAddOperandBindingPlanID(
     "rvv-route-operand-binding:add.v1");
 constexpr llvm::StringLiteral kRVVSubOperandBindingPlanID(
@@ -672,10 +652,6 @@ constexpr llvm::StringLiteral kRVVIndexedGatherOperandBindingPlanID(
     "rvv-route-operand-binding:indexed_gather_unit_store.v1");
 constexpr llvm::StringLiteral kRVVIndexedScatterOperandBindingPlanID(
     "rvv-route-operand-binding:indexed_scatter_unit_load.v1");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveOperandBindingPlanID(
-    "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveOperandBindingPlanID(
-    "rvv-route-operand-binding:segment2_interleave_unit_load.v1");
 
 bool isRVVFourOperandPlanID(llvm::StringRef planID) {
   return planID == kRVVAddOperandBindingPlanID ||
@@ -693,6 +669,14 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
   if (std::optional<llvm::StringRef> maccPlanID =
           getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(operation))
     return *maccPlanID;
+  if (std::optional<llvm::StringRef> contractionPlanID =
+          getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
+              operation))
+    return *contractionPlanID;
+  if (std::optional<llvm::StringRef> segment2PlanID =
+          getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(
+              operation))
+    return *segment2PlanID;
 
   switch (operation) {
   case RVVSelectedBodyOperationKind::Add:
@@ -763,16 +747,6 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVComputedMaskIndexedGatherOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
-    return kRVVComputedMaskSegment2LoadOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
-    return kRVVComputedMaskSegment2StoreOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
-    return kRVVComputedMaskSegment2UpdateOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    return kRVVSegment2DeinterleaveOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    return kRVVSegment2InterleaveOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
     return kRVVScalarBroadcastOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
@@ -785,17 +759,6 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVWidenI32ToI64OperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     return kRVVWidenI16ToI32OperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::WideningMAccAdd:
-    return kRVVWideningMAccOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
-    return kRVVWideningDotReduceOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
-    return kRVVStridedInputWideningDotReduceOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
-    return kRVVComputedMaskWideningDotReduceOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::
-      ComputedMaskStridedInputWideningDotReduceAdd:
-    return kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID;
   default:
     break;
   }
@@ -820,19 +783,11 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
           getExpectedRVVSelectedBodyMAccRouteOperandBindingRole(
               planID, logicalOperand))
     return maccRole;
+  if (std::optional<support::RuntimeABIParameterRole> contractionRole =
+          getExpectedRVVSelectedBodyContractionRouteOperandBindingRole(
+              planID, logicalOperand))
+    return contractionRole;
 
-  if (planID == kRVVWideningMAccOperandBindingPlanID) {
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
   if (planID == kRVVWidenI32ToI64OperandBindingPlanID ||
       planID == kRVVWidenI16ToI32OperandBindingPlanID) {
     if (logicalOperand == "lhs")
@@ -841,71 +796,6 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::OutputBuffer;
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVWideningDotReduceOperandBindingPlanID) {
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVStridedInputWideningDotReduceOperandBindingPlanID) {
-    if (logicalOperand == "lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-    if (logicalOperand == "lhs_stride")
-      return RuntimeABIParameterRole::LHSInputStride;
-    if (logicalOperand == "rhs_stride")
-      return RuntimeABIParameterRole::RHSInputStride;
-  }
-  if (planID == kRVVComputedMaskWideningDotReduceOperandBindingPlanID) {
-    if (logicalOperand == "cmp_lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "cmp_rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "dot_lhs")
-      return RuntimeABIParameterRole::DotLHSInputBuffer;
-    if (logicalOperand == "dot_rhs")
-      return RuntimeABIParameterRole::DotRHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID ==
-      kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID) {
-    if (logicalOperand == "cmp_lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "cmp_rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "dot_lhs")
-      return RuntimeABIParameterRole::DotLHSInputBuffer;
-    if (logicalOperand == "dot_rhs")
-      return RuntimeABIParameterRole::DotRHSInputBuffer;
-    if (logicalOperand == "acc")
-      return RuntimeABIParameterRole::AccumulatorInputBuffer;
-    if (logicalOperand == "out")
-      return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-    if (logicalOperand == "lhs_stride")
-      return RuntimeABIParameterRole::LHSInputStride;
-    if (logicalOperand == "rhs_stride")
-      return RuntimeABIParameterRole::RHSInputStride;
   }
   if (planID == kRVVStridedLoadUnitStoreOperandBindingPlanID) {
     if (logicalOperand == "src")
@@ -1128,35 +1018,10 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
-  if (planID == kRVVComputedMaskSegment2LoadOperandBindingPlanID) {
-    if (logicalOperand == "cmp_lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "cmp_rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "src")
-      return RuntimeABIParameterRole::SourceInputBuffer;
-    if (logicalOperand == "out0")
-      return RuntimeABIParameterRole::SegmentField0OutputBuffer;
-    if (logicalOperand == "out1")
-      return RuntimeABIParameterRole::SegmentField1OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVComputedMaskSegment2StoreOperandBindingPlanID ||
-      planID == kRVVComputedMaskSegment2UpdateOperandBindingPlanID) {
-    if (logicalOperand == "cmp_lhs")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "cmp_rhs")
-      return RuntimeABIParameterRole::RHSInputBuffer;
-    if (logicalOperand == "src0")
-      return RuntimeABIParameterRole::SegmentField0InputBuffer;
-    if (logicalOperand == "src1")
-      return RuntimeABIParameterRole::SegmentField1InputBuffer;
-    if (logicalOperand == "dst")
-      return RuntimeABIParameterRole::SegmentInterleavedOutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
+  if (std::optional<support::RuntimeABIParameterRole> segment2Role =
+          getExpectedRVVSelectedBodySegment2RouteOperandBindingRole(
+              planID, logicalOperand))
+    return segment2Role;
   if (planID == kRVVComputedMaskSelectOperandBindingPlanID) {
     if (logicalOperand == "cmp_lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
@@ -1204,26 +1069,6 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::IndexInputBuffer;
     if (logicalOperand == "dst")
       return RuntimeABIParameterRole::OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVSegment2DeinterleaveOperandBindingPlanID) {
-    if (logicalOperand == "src")
-      return RuntimeABIParameterRole::LHSInputBuffer;
-    if (logicalOperand == "out0")
-      return RuntimeABIParameterRole::SegmentField0OutputBuffer;
-    if (logicalOperand == "out1")
-      return RuntimeABIParameterRole::SegmentField1OutputBuffer;
-    if (logicalOperand == "n")
-      return RuntimeABIParameterRole::RuntimeElementCount;
-  }
-  if (planID == kRVVSegment2InterleaveOperandBindingPlanID) {
-    if (logicalOperand == "src0")
-      return RuntimeABIParameterRole::SegmentField0InputBuffer;
-    if (logicalOperand == "src1")
-      return RuntimeABIParameterRole::SegmentField1InputBuffer;
-    if (logicalOperand == "dst")
-      return RuntimeABIParameterRole::SegmentInterleavedOutputBuffer;
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
@@ -14440,6 +14285,11 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
 
   if (isRVVSelectedBodyMAccRouteFamilyConsumer(slice.arithmeticKind))
     return deriveRVVSelectedBodyMAccRouteOperandBindingPlan(analysis);
+  if (isRVVSelectedBodyContractionRouteFamilyConsumer(slice.arithmeticKind))
+    return deriveRVVSelectedBodyContractionRouteOperandBindingPlan(analysis);
+  if (getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(
+          slice.arithmeticKind))
+    return deriveRVVSelectedBodySegment2RouteOperandBindingPlan(analysis);
 
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Add ||
       slice.arithmeticKind == RVVSelectedBodyOperationKind::Sub ||
@@ -14567,26 +14417,6 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         plan, "out_stride", slice.outStrideABI,
         {"abi", "store-stride", "out-byte-addr", "header"});
   } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::WideningMAccAdd) {
-    plan.planID = kRVVWideningMAccOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVWideningMAccRuntimeABIOrder;
-    context = "widening_macc_add route";
-    addRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"abi", "src-load", "wmacc-lhs", "src-i16mf2", "hdr"});
-    addRouteOperandBinding(
-        plan, "rhs", slice.rhsABI,
-        {"abi", "src-load", "wmacc-rhs", "src-i16mf2", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "acc-load", "wmacc-acc", "acc-i32m1", "hdr"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"abi", "res-store", "res-i32m1", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop", "hdr"});
-  } else if (slice.arithmeticKind ==
                  RVVSelectedBodyOperationKind::WidenI32ToI64 ||
              slice.arithmeticKind ==
                  RVVSelectedBodyOperationKind::WidenI16ToI32) {
@@ -14613,119 +14443,6 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
-    plan.planID = kRVVWideningDotReduceOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVWideningDotProductRuntimeABIOrder;
-    context = "widening_dot_reduce_add route";
-    addRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"abi", "ld", "dot-lhs", "i16", "hdr"});
-    addRouteOperandBinding(
-        plan, "rhs", slice.rhsABI,
-        {"abi", "ld", "dot-rhs", "i16", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "seed", "red", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"abi", "store", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::
-                 StridedInputWideningDotReduceAdd) {
-    plan.planID =
-        kRVVStridedInputWideningDotReduceOperandBindingPlanID.str();
-    expectedRuntimeABIOrder =
-        kRVVStridedInputWideningDotProductRuntimeABIOrder;
-    context = "strided_input_widening_dot_reduce_add route";
-    addRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"abi", "sld", "dot-lhs", "i16", "hdr"});
-    addRouteOperandBinding(
-        plan, "rhs", slice.rhsABI,
-        {"abi", "sld", "dot-rhs", "i16", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "seed", "red", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"abi", "store", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop", "hdr"});
-    addRouteOperandBinding(
-        plan, "lhs_stride", slice.lhsStrideABI,
-        {"abi", "str", "addr", "hdr"});
-    addRouteOperandBinding(
-        plan, "rhs_stride", slice.rhsStrideABI,
-        {"abi", "str", "addr", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::
-                 ComputedMaskWideningDotReduceAdd) {
-    plan.planID = kRVVComputedMaskWideningDotReduceOperandBindingPlanID.str();
-    expectedRuntimeABIOrder =
-        kRVVComputedMaskWideningDotProductRuntimeABIOrder;
-    context = "computed_masked_widening_dot_reduce_add route";
-    addRouteOperandBinding(
-        plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp", "mask", "hdr"});
-    addRouteOperandBinding(
-        plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp", "mask", "hdr"});
-    addRouteOperandBinding(
-        plan, "dot_lhs", slice.dotLHSABI,
-        {"abi", "ld", "mlhs", "i16", "hdr"});
-    addRouteOperandBinding(
-        plan, "dot_rhs", slice.dotRHSABI,
-        {"abi", "ld", "mrhs", "i16", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "seed", "red", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"abi", "store", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::
-                 ComputedMaskStridedInputWideningDotReduceAdd) {
-    plan.planID =
-        kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID
-            .str();
-    expectedRuntimeABIOrder =
-        kRVVComputedMaskStridedInputWideningDotProductRuntimeABIOrder;
-    context = "computed_masked_strided_input_widening_dot_reduce_add route";
-    addRouteOperandBinding(
-        plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp", "mask"});
-    addRouteOperandBinding(
-        plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp", "mask"});
-    addRouteOperandBinding(
-        plan, "dot_lhs", slice.dotLHSABI,
-        {"abi", "sld", "mlhs", "i16"});
-    addRouteOperandBinding(
-        plan, "dot_rhs", slice.dotRHSABI,
-        {"abi", "sld", "mrhs", "i16"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "seed", "red", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"abi", "store", "i32", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop", "hdr"});
-    addRouteOperandBinding(
-        plan, "lhs_stride", slice.lhsStrideABI,
-        {"abi", "str", "addr"});
-    addRouteOperandBinding(
-        plan, "rhs_stride", slice.rhsStrideABI,
-        {"abi", "str", "addr"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     plan.planID = kRVVStridedLoadUnitStoreOperandBindingPlanID.str();
@@ -14809,44 +14526,6 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         plan, "n", slice.runtimeElementCountABI,
         {"runtime-abi-mirror", "setvl-avl", "loop-control",
          "header-mirror"});
-  } else if (slice.memoryForm ==
-             RVVSelectedBodyMemoryForm::Segment2LoadUnitStore) {
-    plan.planID = kRVVSegment2DeinterleaveOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVSegment2RuntimeABIOrder;
-    context = "segment2_deinterleave_unit_store route";
-    addRouteOperandBinding(
-        plan, "src", slice.lhsABI,
-        {"runtime-abi-mirror", "seg-load-base", "src-mem", "header"});
-    addRouteOperandBinding(
-        plan, "out0", slice.field0ABI,
-        {"runtime-abi-mirror", "field0-store-base", "field0-role", "dst-mem",
-         "header"});
-    addRouteOperandBinding(
-        plan, "out1", slice.field1ABI,
-        {"runtime-abi-mirror", "field1-store-base", "field1-role", "dst-mem",
-         "header"});
-    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
-                           {"runtime-abi-mirror", "setvl-avl",
-                            "loop-control", "header"});
-  } else if (slice.memoryForm ==
-             RVVSelectedBodyMemoryForm::UnitLoadSegment2Store) {
-    plan.planID = kRVVSegment2InterleaveOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVSegment2InterleaveRuntimeABIOrder;
-    context = "segment2_interleave_unit_load route";
-    addRouteOperandBinding(
-        plan, "src0", slice.lhsABI,
-        {"runtime-abi-mirror", "field0-load-base", "field0-role", "src0-mem",
-         "tuple-field0", "header"});
-    addRouteOperandBinding(
-        plan, "src1", slice.rhsABI,
-        {"runtime-abi-mirror", "field1-load-base", "field1-role", "src1-mem",
-         "tuple-field1", "header"});
-    addRouteOperandBinding(
-        plan, "dst", slice.outABI,
-        {"runtime-abi-mirror", "seg-store-base", "dst-mem", "header"});
-    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
-                           {"runtime-abi-mirror", "setvl-avl",
-                            "loop-control", "header"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     plan.planID =
@@ -15204,79 +14883,6 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) {
-    plan.planID = kRVVComputedMaskSegment2LoadOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVComputedMaskSegment2LoadRuntimeABIOrder;
-    context = "computed_masked_segment2_load_unit_store route";
-    addRouteOperandBinding(
-        plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
-    addRouteOperandBinding(
-        plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
-    addRouteOperandBinding(
-        plan, "src", slice.sourceABI,
-        {"abi", "mseg-base", "mseg-call", "src-mem"});
-    addRouteOperandBinding(
-        plan, "out0", slice.field0ABI,
-        {"abi", "old0-load", "f0-pass", "f0-store", "f0-role", "dst-mem",
-         "hdr"});
-    addRouteOperandBinding(
-        plan, "out1", slice.field1ABI,
-        {"abi", "old1-load", "f1-pass", "f1-store", "f1-role", "dst-mem",
-         "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop-control", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad) {
-    plan.planID = kRVVComputedMaskSegment2StoreOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVComputedMaskSegment2StoreRuntimeABIOrder;
-    context = "computed_masked_segment2_store_unit_load route";
-    addRouteOperandBinding(
-        plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
-    addRouteOperandBinding(
-        plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
-    addRouteOperandBinding(
-        plan, "src0", slice.field0ABI,
-        {"abi", "f0-load", "f0-payload", "tuple0", "f0-role", "src0-mem"});
-    addRouteOperandBinding(
-        plan, "src1", slice.field1ABI,
-        {"abi", "f1-load", "f1-payload", "tuple1", "f1-role", "src1-mem"});
-    addRouteOperandBinding(
-        plan, "dst", slice.outABI,
-        {"abi", "mseg-store", "dst-mem", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop-control", "hdr"});
-  } else if (slice.arithmeticKind ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad) {
-    plan.planID = kRVVComputedMaskSegment2UpdateOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVComputedMaskSegment2UpdateRuntimeABIOrder;
-    context = "computed_masked_segment2_update_unit_load route";
-    addRouteOperandBinding(
-        plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
-    addRouteOperandBinding(
-        plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
-    addRouteOperandBinding(
-        plan, "src0", slice.field0ABI,
-        {"abi", "f0-load", "f0-payload", "add-lhs", "tuple0",
-         "f0-role", "src0-mem"});
-    addRouteOperandBinding(
-        plan, "src1", slice.field1ABI,
-        {"abi", "f1-load", "f1-payload", "add-rhs", "tuple1",
-         "f1-role", "src1-mem"});
-    addRouteOperandBinding(
-        plan, "dst", slice.outABI,
-        {"abi", "mseg-store", "dst-mem", "hdr"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop-control", "hdr"});
   }
 
   if (plan.planID.empty())
@@ -23575,202 +23181,6 @@ verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
         "operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
-  return llvm::Error::success();
-}
-
-bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation) {
-  return operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
-}
-
-bool isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation) {
-  return isRVVSelectedBodyContractionDotReduction(operation);
-}
-
-bool isRVVSelectedBodyContractionRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation) {
-  return isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
-             operation) ||
-         isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
-             operation);
-}
-
-llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
-  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
-  const bool isConsumer =
-      isRVVSelectedBodyContractionRouteFamilyConsumer(operation);
-  if (isConsumer && !analysis.contractionRouteFamilyPlan)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires the contraction route-family plan before provider "
-        "materialization for operation '" +
-        stringifyRVVSelectedBodyOperationKind(operation) + "'");
-  if (!isConsumer && analysis.contractionRouteFamilyPlan)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " must not carry a contraction route-family plan for "
-        "non-contraction operation '" +
-        stringifyRVVSelectedBodyOperationKind(operation) + "'");
-  if (!analysis.contractionRouteFamilyPlan)
-    return llvm::Error::success();
-
-  const RVVSelectedBodyContractionRouteFamilyPlan &plan =
-      *analysis.contractionRouteFamilyPlan;
-  if (llvm::Error error =
-          validateRVVSelectedBodyContractionRouteFamilyPlan(plan))
-    return error;
-  if (plan.operation != operation)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " contraction route-family plan operation must match the selected "
-        "route description");
-  if (analysis.description.contractionRouteFamilyPlanID != plan.familyPlanID)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " contraction route-family plan mirror must match the validated "
-        "family plan");
-  if (analysis.description.memoryForm != plan.memoryForm ||
-      analysis.description.sew != plan.runtimeControlPlan.sew ||
-      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
-      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
-      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
-      analysis.description.runtimeControlPlanID !=
-          plan.runtimeControlPlan.controlPlanID ||
-      analysis.description.configContractID !=
-          plan.runtimeControlPlan.configContractID ||
-      analysis.description.runtimeVLContractID !=
-          plan.runtimeControlPlan.runtimeVLContractID ||
-      analysis.description.runtimeAVLASource !=
-          plan.runtimeControlPlan.runtimeAVLASource ||
-      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
-      analysis.description.vlDefOpName !=
-          plan.runtimeControlPlan.vlDefOpName ||
-      analysis.description.vlScopeOpName !=
-          plan.runtimeControlPlan.vlScopeOpName ||
-      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
-      analysis.description.emitCLoopKind !=
-          plan.runtimeControlPlan.emitCLoopKind ||
-      analysis.description.emitCLoopInductionName !=
-          plan.runtimeControlPlan.emitCLoopInductionName ||
-      analysis.description.emitCFullChunkVLName !=
-          plan.runtimeControlPlan.emitCFullChunkVLName ||
-      analysis.description.emitCLoopVLName !=
-          plan.runtimeControlPlan.emitCLoopVLName ||
-      analysis.description.remainingAVLMetadata !=
-          plan.runtimeControlPlan.remainingAVLMetadata ||
-      analysis.description.pointerAdvanceMetadata !=
-          plan.runtimeControlPlan.pointerAdvanceMetadata ||
-      analysis.description.boundedSlice !=
-          plan.runtimeControlPlan.boundedSlice ||
-      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
-      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
-      analysis.description.providerSupportedMirror !=
-          plan.providerSupportedMirror ||
-      analysis.description.requiredHeaderDeclarations !=
-          plan.requiredHeaderDeclarations ||
-      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
-      analysis.description.vlCType != plan.vlCType ||
-      analysis.description.vectorTypeName != plan.resultVectorTypeName ||
-      analysis.description.vectorCType != plan.resultVectorCType ||
-      analysis.description.maskTypeName != plan.maskTypeName ||
-      analysis.description.maskCType != plan.maskCType ||
-      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
-      analysis.description.sourceSEW != plan.sourceSEW ||
-      analysis.description.sourceLMUL != plan.sourceLMUL ||
-      analysis.description.sourceVectorTypeName != plan.sourceVectorTypeName ||
-      analysis.description.sourceVectorCType != plan.sourceVectorCType ||
-      analysis.description.sourceVectorLoadIntrinsic !=
-          plan.sourceVectorLoadIntrinsic ||
-      analysis.description.stridedLoadIntrinsic != plan.stridedLoadIntrinsic ||
-      analysis.description.storeIntrinsic != plan.storeIntrinsic)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " contraction route-family mirrors must be populated from the "
-        "validated family plan before provider materialization");
-  if (!support::runtimeABIParametersEqual(
-          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " contraction route-family runtime ABI parameters must match the "
-        "validated family plan");
-  if (analysis.routeOperandBindingPlan.planID !=
-      getExpectedRVVRouteOperandBindingPlanID(operation))
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " contraction route provider requires the route operand binding plan "
-        "for the selected operation");
-  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
-          analysis.routeOperandBindingPlan, analysis.description, context))
-    return error;
-
-  if (plan.usesWideningMAcc) {
-    if (analysis.description.wideningMAccAccumulatorLayout !=
-            plan.accumulatorLayout ||
-        analysis.description.wideningMAccResultLayout != plan.resultLayout ||
-        analysis.description.wideningMAccRelation != plan.relation ||
-        analysis.description.intrinsic != plan.contractionComputeIntrinsic)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " widening MAcc contraction mirrors must come from the validated "
-          "family plan");
-  } else if (analysis.description.wideningDotProductAccumulatorLayout !=
-                 plan.accumulatorLayout ||
-             analysis.description.wideningDotProductResultLayout !=
-                 plan.resultLayout ||
-             analysis.description.wideningDotProductRelation !=
-                 plan.relation ||
-             analysis.description.intrinsic !=
-                 plan.contractionComputeIntrinsic ||
-             analysis.description.wideningProductIntrinsic !=
-                 plan.wideningProductIntrinsic ||
-             analysis.description.maskedWideningProductIntrinsic !=
-                 plan.maskedWideningProductIntrinsic ||
-             analysis.description.scalarSeedSplatIntrinsic !=
-                 plan.scalarSeedSplatIntrinsic ||
-             analysis.description.reductionStoreVL != plan.reductionStoreVL) {
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " widening dot-reduce contraction mirrors must come from the "
-        "validated family plan");
-  }
-
-  if (plan.usesComputedMask &&
-      (analysis.description.compareIntrinsic != plan.compareIntrinsic ||
-       analysis.description.maskedMergeIntrinsic !=
-           plan.maskedMergeIntrinsic ||
-       analysis.description.maskRole != plan.maskRole ||
-       analysis.description.maskSource != plan.maskSource ||
-       analysis.description.maskMemoryForm != plan.maskMemoryForm ||
-       analysis.description.inactiveLaneZeroingRequirement !=
-           plan.inactiveLaneZeroingRequirement))
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " computed-mask contraction mirrors must come from the validated "
-        "family plan");
-  if (!plan.usesComputedMask &&
-      (!analysis.description.compareIntrinsic.empty() ||
-       !analysis.description.maskedMergeIntrinsic.empty() ||
-       !analysis.description.maskRole.empty() ||
-       !analysis.description.maskSource.empty() ||
-       !analysis.description.maskMemoryForm.empty() ||
-       !analysis.description.inactiveLaneZeroingRequirement.empty()))
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " non-masked contraction routes must not carry computed-mask "
-        "contraction mirrors");
-  if (plan.usesStridedInputs &&
-      (analysis.description.stridedMemoryLayout != plan.stridedMemoryLayout ||
-       analysis.description.lhsStrideSource != plan.lhsStrideSource ||
-       analysis.description.rhsStrideSource != plan.rhsStrideSource ||
-       analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
-       analysis.description.destinationMemoryForm !=
-           plan.destinationMemoryForm))
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " strided-input contraction mirrors must come from the validated "
-        "family plan");
   return llvm::Error::success();
 }
 

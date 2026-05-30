@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final authority chain and stage boundary compliance"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 owner boundary, contraction incorporation, fail-closed behavior, and authority scans"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider-built route authority is preserved"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused build/test evidence is sufficient and no runtime claim is over-stated"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check extension-specific semantics stay plugin-local"}

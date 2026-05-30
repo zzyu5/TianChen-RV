@@ -1,0 +1,3 @@
+{"file":".trellis/spec/index.md","reason":"Verify the implementation stays within TianChen-RV global architecture and RVV Stage2 boundaries."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify owner-local widening-contraction operand-binding authority, provider validation, and fail-closed behavior."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Verify common EmitC remains neutral and only consumes provider-owned route payloads."}

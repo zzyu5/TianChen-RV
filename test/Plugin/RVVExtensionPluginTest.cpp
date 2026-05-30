@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
@@ -2973,7 +2974,13 @@ module {
 int runPreRealizedContractionRouteEntryOwnerTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
   using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      deriveRVVSelectedBodyContractionRouteOperandBindingPlan;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyDirectContractionRouteProviderPlan;
   using tianchenrv::plugin::rvv::
@@ -2981,6 +2988,10 @@ int runPreRealizedContractionRouteEntryOwnerTest(
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::support::RuntimeABIParameterRole;
+  using tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::variantContainsPreRealizedRVVSelectedBody;
 
   constexpr llvm::StringLiteral source = R"mlir(
@@ -3065,6 +3076,82 @@ module {
           tianchenrv::plugin::registerRVVExtensionPlugin(registry),
           "register RVV plugin for pre-realized contraction route-entry test"))
     return result;
+
+  auto expectOwnerBindingBoundary =
+      [](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef expectedPlanID,
+         llvm::StringRef expectedRuntimeABIOrder,
+         llvm::StringRef label) -> int {
+    std::optional<llvm::StringRef> ownerPlanID =
+        getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
+            analysis.description.operation);
+    if (int result = expect(
+            ownerPlanID && *ownerPlanID == expectedPlanID,
+            llvm::Twine(label) +
+                " obtains operand-binding plan identity from the contraction "
+                "owner"))
+      return result;
+    llvm::Expected<RVVRouteOperandBindingPlan> ownerDerivedPlan =
+        deriveRVVSelectedBodyContractionRouteOperandBindingPlan(analysis);
+    if (!ownerDerivedPlan)
+      return fail(llvm::Twine(label) +
+                  " owner-derived route operand binding plan failed: " +
+                  llvm::toString(ownerDerivedPlan.takeError()));
+    if (int result = expect(
+            ownerDerivedPlan->planID == expectedPlanID &&
+                ownerDerivedPlan->planID ==
+                    analysis.routeOperandBindingPlan.planID,
+            llvm::Twine(label) +
+                " route analysis uses the owner-derived operand-binding plan "
+                "identity"))
+      return result;
+    std::string bindingContext =
+        (llvm::Twine(label) + " owner-derived binding plan").str();
+    std::string providerContext =
+        (llvm::Twine(label) + " provider verifier").str();
+    if (int result = expectSuccess(
+            verifyRVVRouteOperandBindingPlan(
+                *ownerDerivedPlan, expectedPlanID, expectedRuntimeABIOrder,
+                bindingContext),
+            llvm::Twine(label) +
+                " owner-derived route operand binding plan validates"))
+      return result;
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+                analysis, providerContext),
+            llvm::Twine(label) +
+                " provider verifier accepts owner-owned binding plan"))
+      return result;
+
+    RVVRouteOperandBindingPlan wrongRolePlan = *ownerDerivedPlan;
+    if (!wrongRolePlan.bindings.empty()) {
+      llvm::StringRef mutatedOperand =
+          wrongRolePlan.bindings.front().logicalOperand;
+      wrongRolePlan.bindings.front().parameter.role =
+          RuntimeABIParameterRole::OutputBuffer;
+      if (int result = expectErrorContains(
+              verifyRVVRouteOperandBindingPlan(
+                  wrongRolePlan, expectedPlanID, expectedRuntimeABIOrder,
+                  std::string((llvm::Twine(label) + " wrong-role binding plan")
+                                  .str())),
+              {mutatedOperand, "output-buffer"}))
+        return result;
+    }
+
+    std::string originalPlanID = analysis.routeOperandBindingPlan.planID;
+    analysis.routeOperandBindingPlan.planID =
+        "rvv-route-operand-binding:stale-central-contraction.v1";
+    std::string staleProviderContext =
+        (llvm::Twine(label) + " stale binding plan verifier").str();
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+                analysis, staleProviderContext),
+            {"owner-defined route operand binding plan"})) {
+      analysis.routeOperandBindingPlan.planID = originalPlanID;
+      return result;
+    }
+    analysis.routeOperandBindingPlan.planID = originalPlanID;
+    return 0;
+  };
 
   struct ContractionRouteEntryCase {
     llvm::StringRef variantName;
@@ -3213,6 +3300,13 @@ module {
                 " carries operation, mask, stride, and contraction family "
                 "facts to route analysis"))
       return result;
+    std::string routeCaseBindingLabel =
+        (llvm::Twine("realized contraction @") + routeCase.variantName).str();
+    if (int result = expectOwnerBindingBoundary(
+            *analysis, "rvv-route-operand-binding:masked_strided_wdot.v1",
+            "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+            routeCaseBindingLabel))
+      return result;
 
     auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
         *analysis, "pre-realized contraction route-entry owner test");
@@ -3347,6 +3441,12 @@ module {
           "selected-boundary widening_macc_add carries widening MAcc "
           "contraction family facts to route analysis"))
     return result;
+  if (int result = expectOwnerBindingBoundary(
+          *wideningMAccAnalysis,
+          "rvv-route-operand-binding:widening_macc_add.v1",
+          "lhs,rhs,acc,out,n",
+          "selected-boundary widening_macc_add"))
+    return result;
   auto wideningMAccMaterializationFacts =
       getRVVSelectedBodyRouteMaterializationFacts(
           *wideningMAccAnalysis,
@@ -3473,6 +3573,12 @@ module {
                   "rvv-contraction-route-family-plan.v1",
           "selected-boundary widening_dot_reduce_add carries dot-reduction "
           "contraction family facts to route analysis"))
+    return result;
+  if (int result = expectOwnerBindingBoundary(
+          *wideningDotAnalysis,
+          "rvv-route-operand-binding:widening_dot_reduce.v1",
+          "lhs,rhs,acc,out,n",
+          "selected-boundary widening_dot_reduce_add"))
     return result;
   auto wideningDotMaterializationFacts =
       getRVVSelectedBodyRouteMaterializationFacts(
@@ -3615,6 +3721,12 @@ module {
           "selected-boundary strided_input_widening_dot_reduce_add carries "
           "dot-reduction and strided-input contraction family facts to route "
           "analysis"))
+    return result;
+  if (int result = expectOwnerBindingBoundary(
+          *stridedWideningDotAnalysis,
+          "rvv-route-operand-binding:strided_widening_dot_reduce.v1",
+          "lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+          "selected-boundary strided_input_widening_dot_reduce_add"))
     return result;
   auto stridedWideningDotMaterializationFacts =
       getRVVSelectedBodyRouteMaterializationFacts(
@@ -3773,6 +3885,12 @@ module {
           "selected-boundary computed_masked_widening_dot_reduce_add carries "
           "computed-mask dot-reduction contraction family facts to route "
           "analysis"))
+    return result;
+  if (int result = expectOwnerBindingBoundary(
+          *maskedWideningDotAnalysis,
+          "rvv-route-operand-binding:masked_widening_dot_reduce.v1",
+          "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+          "selected-boundary computed_masked_widening_dot_reduce_add"))
     return result;
   auto maskedWideningDotMaterializationFacts =
       getRVVSelectedBodyRouteMaterializationFacts(
@@ -6243,7 +6361,7 @@ int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
           verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
               missingContractionPlan,
               "reduction/accumulation/contraction owner registry unit test"),
-          {"requires the contraction route-family plan",
+          {"requires the widening MAcc contraction route-family plan",
            "widening_macc_add"}))
     return result;
 
@@ -6502,7 +6620,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
           verifyRVVSelectedBodyRouteFamilyProviderPlans(
               missingMathPlan,
               "top-level route-family provider owner registry unit test"),
-          {"requires the contraction route-family plan",
+          {"requires the widening MAcc contraction route-family plan",
            "widening_macc_add"}))
     return result;
 
@@ -14988,14 +15106,21 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
         RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
         RVVSelectedBodyOperationKind::
             ComputedMaskStridedInputWideningDotReduceAdd}) {
+    llvm::StringRef expectedFamily =
+        op == RVVSelectedBodyOperationKind::WideningMAccAdd
+            ? "widening MAcc contraction"
+            : "widening dot-reduction contraction";
+    std::string expectedErrorText =
+        (llvm::Twine("requires the ") + expectedFamily +
+         " route-family plan")
+            .str();
     RVVSelectedBodyRouteAnalysis missingPlan;
     missingPlan.description.operation = op;
     if (int result = expectErrorContains(
             verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
                 missingPlan, "contraction provider unit test"),
-            {"requires the contraction route-family plan",
-             tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(
-                 op)}))
+            {expectedErrorText,
+             tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(op)}))
       return result;
   }
 
@@ -18046,7 +18171,9 @@ module {
 
 int runRouteOperandBindingPlanValidationTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::RVVRouteOperandBinding;
   using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
   using tianchenrv::support::RuntimeABIParameterRole;
@@ -18055,6 +18182,18 @@ int runRouteOperandBindingPlanValidationTest() {
       getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID;
   using tianchenrv::plugin::rvv::
       getExpectedRVVSelectedBodyMAccRouteOperandBindingRole;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodyContractionRouteOperandBindingRole;
+  using tianchenrv::plugin::rvv::
+      deriveRVVSelectedBodySegment2RouteOperandBindingPlan;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID;
+  using tianchenrv::plugin::rvv::
+      getExpectedRVVSelectedBodySegment2RouteOperandBindingRole;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodySegment2RouteFamilyProviderPlans;
 
   auto addBinding =
       [](RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
@@ -18098,6 +18237,132 @@ int runRouteOperandBindingPlanValidationTest() {
                                                               logicalOperand);
     return expect(role && *role == expected, label);
   };
+  auto expectContractionOwnerPlanID =
+      [](RVVSelectedBodyOperationKind operation, llvm::StringRef expected,
+         llvm::StringRef label) -> int {
+    std::optional<llvm::StringRef> planID =
+        getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
+            operation);
+    return expect(planID && *planID == expected, label);
+  };
+
+  auto expectContractionOwnerRole =
+      [](llvm::StringRef planID, llvm::StringRef logicalOperand,
+         RuntimeABIParameterRole expected, llvm::StringRef label) -> int {
+        std::optional<RuntimeABIParameterRole> role =
+            getExpectedRVVSelectedBodyContractionRouteOperandBindingRole(
+                planID, logicalOperand);
+        return expect(role && *role == expected, label);
+      };
+  auto expectSegment2OwnerPlanID =
+      [](RVVSelectedBodyOperationKind operation, llvm::StringRef expected,
+         llvm::StringRef label) -> int {
+    std::optional<llvm::StringRef> planID =
+        getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(
+            operation);
+    return expect(planID && *planID == expected, label);
+  };
+
+  auto expectSegment2OwnerRole =
+      [](llvm::StringRef planID, llvm::StringRef logicalOperand,
+         RuntimeABIParameterRole expected, llvm::StringRef label) -> int {
+        std::optional<RuntimeABIParameterRole> role =
+            getExpectedRVVSelectedBodySegment2RouteOperandBindingRole(
+                planID, logicalOperand);
+        return expect(role && *role == expected, label);
+      };
+  auto expectSegment2OwnerDerivedPlan =
+      [&](RVVSelectedBodyRouteAnalysis &analysis,
+          llvm::StringRef expectedPlanID,
+          llvm::StringRef expectedRuntimeABIOrder,
+          llvm::StringRef label) -> int {
+        llvm::Expected<RVVRouteOperandBindingPlan> derivedPlan =
+            deriveRVVSelectedBodySegment2RouteOperandBindingPlan(analysis);
+        if (!derivedPlan)
+          return fail(llvm::Twine(label) +
+                      " owner-derived segment2 route operand binding plan: " +
+                      llvm::toString(derivedPlan.takeError()));
+        if (int result = expect(derivedPlan->planID == expectedPlanID,
+                                llvm::Twine(label) +
+                                    " derives the owner plan identity"))
+          return result;
+        std::string derivedContext =
+            (llvm::Twine(label) + " owner-derived binding plan").str();
+        if (int result = expectSuccess(
+                tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+                    *derivedPlan, expectedPlanID, expectedRuntimeABIOrder,
+                    derivedContext),
+                llvm::Twine(label) +
+                    " owner-derived segment2 route operand binding plan"))
+          return result;
+        analysis.routeOperandBindingPlan = *derivedPlan;
+        analysis.description.routeOperandBindingPlanID = derivedPlan->planID;
+        analysis.description.routeOperandBindingSummary =
+            tianchenrv::plugin::rvv::stringifyRVVRouteOperandBindingPlan(
+                *derivedPlan);
+        if (expectedPlanID ==
+            "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1") {
+          std::string sourceContext =
+              (llvm::Twine(label) + " owner-derived segment2 source").str();
+          llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+              srcBinding = tianchenrv::plugin::rvv::
+                  getRVVRouteOperandBindingParameter(*derivedPlan, "src",
+                                                     "seg-load-base",
+                                                     sourceContext);
+          if (!srcBinding)
+            return fail(llvm::Twine(label) +
+                        " owner-derived segment2 source binding: " +
+                        llvm::toString(srcBinding.takeError()));
+        }
+        if (expectedPlanID ==
+            "rvv-route-operand-binding:"
+            "computed_masked_segment2_update_unit_load.v1") {
+          std::string updateLhsContext =
+              (llvm::Twine(label) + " owner-derived segment2 update lhs")
+                  .str();
+          llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+              src0Binding = tianchenrv::plugin::rvv::
+                  getRVVRouteOperandBindingParameter(*derivedPlan, "src0",
+                                                     "add-lhs",
+                                                     updateLhsContext);
+          if (!src0Binding)
+            return fail(llvm::Twine(label) +
+                        " owner-derived segment2 update lhs binding: " +
+                        llvm::toString(src0Binding.takeError()));
+          std::string updateRhsContext =
+              (llvm::Twine(label) + " owner-derived segment2 update rhs")
+                  .str();
+          llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+              src1Binding = tianchenrv::plugin::rvv::
+                  getRVVRouteOperandBindingParameter(*derivedPlan, "src1",
+                                                     "add-rhs",
+                                                     updateRhsContext);
+          if (!src1Binding)
+            return fail(llvm::Twine(label) +
+                        " owner-derived segment2 update rhs binding: " +
+                        llvm::toString(src1Binding.takeError()));
+        }
+        std::string providerContext =
+            (llvm::Twine(label) + " owner provider verifier").str();
+        if (int result = expectSuccess(
+                verifyRVVSelectedBodySegment2RouteFamilyProviderPlans(
+                    analysis, providerContext),
+                llvm::Twine(label) +
+                    " owner-derived segment2 provider verifier"))
+          return result;
+        RVVSelectedBodyRouteAnalysis staleAnalysis = analysis;
+        staleAnalysis.routeOperandBindingPlan.planID =
+            "rvv-route-operand-binding:stale-central-segment2.v1";
+        std::string staleProviderContext =
+            (llvm::Twine(label) + " stale owner provider verifier").str();
+        if (int result = expectErrorContains(
+                verifyRVVSelectedBodySegment2RouteFamilyProviderPlans(
+                    staleAnalysis, staleProviderContext),
+                {"route operand ABI binding closure",
+                 "requires plan id"}))
+          return result;
+        return 0;
+      };
 
   if (int result = expectMAccOwnerPlanID(
           RVVSelectedBodyOperationKind::MAccAdd,
@@ -18160,6 +18425,168 @@ int runRouteOperandBindingPlanValidationTest() {
           !getExpectedRVVSelectedBodyMAccRouteOperandBindingRole(
               "rvv-route-operand-binding:macc_add.v1", "mask"),
           "MAcc owner rejects unsupported MAcc logical operands"))
+    return result;
+
+  bool foundWideningMAccContractionOwner = false;
+  bool foundWideningDotContractionOwner = false;
+  for (const tianchenrv::plugin::rvv::
+           RVVSelectedBodyContractionRouteFamilyOwner &owner :
+       tianchenrv::plugin::rvv::
+           getRVVSelectedBodyContractionRouteFamilyOwners()) {
+    if (owner.familyName == "widening MAcc contraction")
+      foundWideningMAccContractionOwner =
+          owner.isConsumer &&
+          owner.isConsumer(RVVSelectedBodyOperationKind::WideningMAccAdd) &&
+          owner.verifyProviderPlan != nullptr;
+    if (owner.familyName == "widening dot-reduction contraction")
+      foundWideningDotContractionOwner =
+          owner.isConsumer &&
+          owner.isConsumer(
+              RVVSelectedBodyOperationKind::
+                  ComputedMaskStridedInputWideningDotReduceAdd) &&
+          owner.verifyProviderPlan != nullptr;
+  }
+  if (int result = expect(foundWideningMAccContractionOwner &&
+                              foundWideningDotContractionOwner,
+                          "contraction owner registry exposes widening MAcc "
+                          "and widening dot-reduction provider-plan owners"))
+    return result;
+
+  if (int result = expectContractionOwnerPlanID(
+          RVVSelectedBodyOperationKind::WideningMAccAdd,
+          "rvv-route-operand-binding:widening_macc_add.v1",
+          "contraction owner supplies widening MAcc operand-binding plan "
+          "identity"))
+    return result;
+  if (int result = expectContractionOwnerPlanID(
+          RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+          "rvv-route-operand-binding:widening_dot_reduce.v1",
+          "contraction owner supplies widening dot operand-binding plan "
+          "identity"))
+    return result;
+  if (int result = expectContractionOwnerPlanID(
+          RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
+          "rvv-route-operand-binding:strided_widening_dot_reduce.v1",
+          "contraction owner supplies strided widening dot operand-binding "
+          "plan identity"))
+    return result;
+  if (int result = expectContractionOwnerPlanID(
+          RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
+          "rvv-route-operand-binding:masked_widening_dot_reduce.v1",
+          "contraction owner supplies computed-mask widening dot "
+          "operand-binding plan identity"))
+    return result;
+  if (int result = expectContractionOwnerPlanID(
+          RVVSelectedBodyOperationKind::
+              ComputedMaskStridedInputWideningDotReduceAdd,
+          "rvv-route-operand-binding:masked_strided_wdot.v1",
+          "contraction owner supplies computed-mask strided widening dot "
+          "operand-binding plan identity"))
+    return result;
+  if (int result = expect(
+          !getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
+              RVVSelectedBodyOperationKind::MAccAdd),
+          "contraction operand-binding owner excludes plain MAcc plan "
+          "identity"))
+    return result;
+
+  if (int result = expectContractionOwnerRole(
+          "rvv-route-operand-binding:widening_macc_add.v1", "acc",
+          RuntimeABIParameterRole::AccumulatorInputBuffer,
+          "contraction owner maps widening MAcc accumulator operand to "
+          "accumulator ABI role"))
+    return result;
+  if (int result = expectContractionOwnerRole(
+          "rvv-route-operand-binding:strided_widening_dot_reduce.v1",
+          "rhs_stride", RuntimeABIParameterRole::RHSInputStride,
+          "contraction owner maps strided widening dot RHS stride to stride "
+          "ABI role"))
+    return result;
+  if (int result = expectContractionOwnerRole(
+          "rvv-route-operand-binding:masked_widening_dot_reduce.v1",
+          "dot_lhs", RuntimeABIParameterRole::DotLHSInputBuffer,
+          "contraction owner maps computed-mask widening dot payload lhs to "
+          "dot lhs ABI role"))
+    return result;
+  if (int result = expectContractionOwnerRole(
+          "rvv-route-operand-binding:masked_strided_wdot.v1", "cmp_rhs",
+          RuntimeABIParameterRole::RHSInputBuffer,
+          "contraction owner maps computed-mask strided compare RHS to RHS "
+          "ABI role"))
+    return result;
+  if (int result = expect(
+          !getExpectedRVVSelectedBodyContractionRouteOperandBindingRole(
+              "rvv-route-operand-binding:masked_strided_wdot.v1",
+              "rhs_scalar"),
+          "contraction owner rejects unsupported widening-contraction logical "
+          "operands"))
+    return result;
+
+  if (int result = expectSegment2OwnerPlanID(
+          RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
+          "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1",
+          "segment2 owner supplies computed-mask segment2 load operand-binding "
+          "plan identity"))
+    return result;
+  if (int result = expectSegment2OwnerPlanID(
+          RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad,
+          "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1",
+          "segment2 owner supplies computed-mask segment2 store operand-binding "
+          "plan identity"))
+    return result;
+  if (int result = expectSegment2OwnerPlanID(
+          RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad,
+          "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+          "segment2 owner supplies computed-mask segment2 update operand-binding "
+          "plan identity"))
+    return result;
+  if (int result = expectSegment2OwnerPlanID(
+          RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore,
+          "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+          "segment2 owner supplies plain deinterleave operand-binding plan "
+          "identity"))
+    return result;
+  if (int result = expectSegment2OwnerPlanID(
+          RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
+          "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+          "segment2 owner supplies plain interleave operand-binding plan "
+          "identity"))
+    return result;
+  if (int result = expect(
+          !getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(
+              RVVSelectedBodyOperationKind::Add),
+          "segment2 operand-binding owner excludes ordinary arithmetic plan "
+          "identity"))
+    return result;
+
+  if (int result = expectSegment2OwnerRole(
+          "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1",
+          "cmp_rhs", RuntimeABIParameterRole::RHSInputBuffer,
+          "segment2 owner maps computed-mask compare RHS to RHS ABI role"))
+    return result;
+  if (int result = expectSegment2OwnerRole(
+          "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+          "src1", RuntimeABIParameterRole::SegmentField1InputBuffer,
+          "segment2 owner maps computed-mask update field1 to segment-field1 "
+          "ABI role"))
+    return result;
+  if (int result = expectSegment2OwnerRole(
+          "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+          "out0", RuntimeABIParameterRole::SegmentField0OutputBuffer,
+          "segment2 owner maps plain deinterleave field0 output to segment "
+          "field0 output ABI role"))
+    return result;
+  if (int result = expectSegment2OwnerRole(
+          "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+          "dst", RuntimeABIParameterRole::SegmentInterleavedOutputBuffer,
+          "segment2 owner maps plain interleave destination to interleaved "
+          "output ABI role"))
+    return result;
+  if (int result = expect(
+          !getExpectedRVVSelectedBodySegment2RouteOperandBindingRole(
+              "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+              "rhs_scalar"),
+          "segment2 owner rejects unsupported logical operands"))
     return result;
 
   RVVRouteOperandBindingPlan plan;
@@ -19036,6 +19463,83 @@ int runRouteOperandBindingPlanValidationTest() {
               "src0,src1,dst,n", "route operand binding unit test"),
           {"logical operand 'src0'", "segment-field0-input-buffer",
            "segment-field1-input-buffer"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis plainSegment2Analysis;
+  plainSegment2Analysis.description.operation =
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  plainSegment2Analysis.description.memoryForm =
+      RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  plainSegment2Analysis.description.runtimeABIOrder = "src,out0,out1,n";
+  plainSegment2Analysis.slice.lhsABI = makeTargetExportABIParameter(
+      "src", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer);
+  plainSegment2Analysis.slice.field0ABI = makeTargetExportABIParameter(
+      "out0", "int32_t *",
+      RuntimeABIParameterRole::SegmentField0OutputBuffer);
+  plainSegment2Analysis.slice.field1ABI = makeTargetExportABIParameter(
+      "out1", "int32_t *",
+      RuntimeABIParameterRole::SegmentField1OutputBuffer);
+  plainSegment2Analysis.slice.runtimeElementCountABI =
+      makeTargetExportABIParameter(
+          "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount);
+  plainSegment2Analysis.description.runtimeABIParameters.clear();
+  plainSegment2Analysis.description.runtimeABIParameters.push_back(
+      plainSegment2Analysis.slice.lhsABI);
+  plainSegment2Analysis.description.runtimeABIParameters.push_back(
+      plainSegment2Analysis.slice.field0ABI);
+  plainSegment2Analysis.description.runtimeABIParameters.push_back(
+      plainSegment2Analysis.slice.field1ABI);
+  plainSegment2Analysis.description.runtimeABIParameters.push_back(
+      plainSegment2Analysis.slice.runtimeElementCountABI);
+  if (int result = expectSegment2OwnerDerivedPlan(
+          plainSegment2Analysis,
+          "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+          "src,out0,out1,n",
+          "plain segment2 owner-derived deinterleave binding"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis computedMaskSegment2Analysis;
+  computedMaskSegment2Analysis.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
+  computedMaskSegment2Analysis.description.memoryForm =
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
+  computedMaskSegment2Analysis.description.runtimeABIOrder =
+      "cmp_lhs,cmp_rhs,src0,src1,dst,n";
+  computedMaskSegment2Analysis.slice.lhsABI = makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer);
+  computedMaskSegment2Analysis.slice.rhsABI = makeTargetExportABIParameter(
+      "cmp_rhs", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer);
+  computedMaskSegment2Analysis.slice.field0ABI = makeTargetExportABIParameter(
+      "src0", "const int32_t *",
+      RuntimeABIParameterRole::SegmentField0InputBuffer);
+  computedMaskSegment2Analysis.slice.field1ABI = makeTargetExportABIParameter(
+      "src1", "const int32_t *",
+      RuntimeABIParameterRole::SegmentField1InputBuffer);
+  computedMaskSegment2Analysis.slice.outABI = makeTargetExportABIParameter(
+      "dst", "int32_t *",
+      RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
+  computedMaskSegment2Analysis.slice.runtimeElementCountABI =
+      makeTargetExportABIParameter(
+          "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount);
+  computedMaskSegment2Analysis.description.runtimeABIParameters.clear();
+  computedMaskSegment2Analysis.description.runtimeABIParameters.push_back(
+      computedMaskSegment2Analysis.slice.lhsABI);
+  computedMaskSegment2Analysis.description.runtimeABIParameters.push_back(
+      computedMaskSegment2Analysis.slice.rhsABI);
+  computedMaskSegment2Analysis.description.runtimeABIParameters.push_back(
+      computedMaskSegment2Analysis.slice.field0ABI);
+  computedMaskSegment2Analysis.description.runtimeABIParameters.push_back(
+      computedMaskSegment2Analysis.slice.field1ABI);
+  computedMaskSegment2Analysis.description.runtimeABIParameters.push_back(
+      computedMaskSegment2Analysis.slice.outABI);
+  computedMaskSegment2Analysis.description.runtimeABIParameters.push_back(
+      computedMaskSegment2Analysis.slice.runtimeElementCountABI);
+  if (int result = expectSegment2OwnerDerivedPlan(
+          computedMaskSegment2Analysis,
+          "rvv-route-operand-binding:"
+          "computed_masked_segment2_update_unit_load.v1",
+          "cmp_lhs,cmp_rhs,src0,src1,dst,n",
+          "computed-mask segment2 owner-derived update binding"))
     return result;
 
   RVVRouteOperandBindingPlan scalarBroadcastPlan;

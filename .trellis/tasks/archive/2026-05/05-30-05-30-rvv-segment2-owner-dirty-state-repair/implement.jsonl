@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first authority chain, and stage boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV segment2 route-family owner boundary, provider-plan ownership, fail-closed diagnostics, and common EmitC neutrality"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ plugin test and RVV evidence policy"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing guide for RVV route/lowering/test changes"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-local ownership review checklist"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and typed-body authority guardrails"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid moving compute semantics into core/common planning"}

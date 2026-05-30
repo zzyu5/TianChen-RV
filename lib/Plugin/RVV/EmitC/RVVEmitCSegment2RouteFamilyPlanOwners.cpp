@@ -12,6 +12,268 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2LoadOperandBindingPlanID(
+        "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2StoreOperandBindingPlanID(
+        "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2UpdateOperandBindingPlanID(
+        "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1");
+constexpr llvm::StringLiteral
+    kRVVSegment2DeinterleaveOperandBindingPlanID(
+        "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1");
+constexpr llvm::StringLiteral
+    kRVVSegment2InterleaveOperandBindingPlanID(
+        "rvv-route-operand-binding:segment2_interleave_unit_load.v1");
+
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,src,out0,out1,n");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,src0,src1,dst,n");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRuntimeABIOrder(
+    "cmp_lhs,cmp_rhs,src0,src1,dst,n");
+constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
+    "src,out0,out1,n");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
+    "src0,src1,dst,n");
+
+void addSegment2RouteOperandBinding(
+    RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+    const support::RuntimeABIParameter &parameter,
+    llvm::ArrayRef<llvm::StringRef> materializedUses) {
+  RVVRouteOperandBinding binding;
+  binding.logicalOperand = logicalOperand.str();
+  binding.parameter = parameter;
+  for (llvm::StringRef use : materializedUses)
+    binding.materializedUses.push_back(use.str());
+  plan.bindings.push_back(std::move(binding));
+}
+
+std::optional<llvm::StringRef>
+getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanIDImpl(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return kRVVComputedMaskSegment2UpdateOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return kRVVSegment2DeinterleaveOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kRVVSegment2InterleaveOperandBindingPlanID;
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<support::RuntimeABIParameterRole>
+getExpectedRVVSelectedBodySegment2RouteOperandBindingRoleImpl(
+    llvm::StringRef planID, llvm::StringRef logicalOperand) {
+  using support::RuntimeABIParameterRole;
+  if (planID == kRVVComputedMaskSegment2LoadOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "cmp_rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::SourceInputBuffer;
+    if (logicalOperand == "out0")
+      return RuntimeABIParameterRole::SegmentField0OutputBuffer;
+    if (logicalOperand == "out1")
+      return RuntimeABIParameterRole::SegmentField1OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVComputedMaskSegment2StoreOperandBindingPlanID ||
+      planID == kRVVComputedMaskSegment2UpdateOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "cmp_rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "src0")
+      return RuntimeABIParameterRole::SegmentField0InputBuffer;
+    if (logicalOperand == "src1")
+      return RuntimeABIParameterRole::SegmentField1InputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::SegmentInterleavedOutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVSegment2DeinterleaveOperandBindingPlanID) {
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "out0")
+      return RuntimeABIParameterRole::SegmentField0OutputBuffer;
+    if (logicalOperand == "out1")
+      return RuntimeABIParameterRole::SegmentField1OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVSegment2InterleaveOperandBindingPlanID) {
+    if (logicalOperand == "src0")
+      return RuntimeABIParameterRole::SegmentField0InputBuffer;
+    if (logicalOperand == "src1")
+      return RuntimeABIParameterRole::SegmentField1InputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::SegmentInterleavedOutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  return std::nullopt;
+}
+
+llvm::Expected<RVVRouteOperandBindingPlan>
+deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
+    const RVVSelectedBodyRouteAnalysis &analysis) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVRouteOperandBindingPlan plan;
+  llvm::StringRef expectedRuntimeABIOrder;
+  llvm::StringRef context;
+
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    plan.planID = kRVVComputedMaskSegment2LoadOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVComputedMaskSegment2LoadRuntimeABIOrder;
+    context = "computed_masked_segment2_load_unit_store route";
+    addSegment2RouteOperandBinding(
+        plan, "cmp_lhs", analysis.slice.lhsABI,
+        {"abi", "cmp-lhs-load", "lhs-call"});
+    addSegment2RouteOperandBinding(
+        plan, "cmp_rhs", analysis.slice.rhsABI,
+        {"abi", "cmp-rhs-load", "rhs-call"});
+    addSegment2RouteOperandBinding(
+        plan, "src", analysis.slice.sourceABI,
+        {"abi", "mseg-base", "mseg-call", "src-mem"});
+    addSegment2RouteOperandBinding(
+        plan, "out0", analysis.slice.field0ABI,
+        {"abi", "old0-load", "f0-pass", "f0-store", "f0-role", "dst-mem",
+         "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "out1", analysis.slice.field1ABI,
+        {"abi", "old1-load", "f1-pass", "f1-store", "f1-role", "dst-mem",
+         "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    plan.planID = kRVVComputedMaskSegment2StoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVComputedMaskSegment2StoreRuntimeABIOrder;
+    context = "computed_masked_segment2_store_unit_load route";
+    addSegment2RouteOperandBinding(
+        plan, "cmp_lhs", analysis.slice.lhsABI,
+        {"abi", "cmp-lhs-load", "lhs-call"});
+    addSegment2RouteOperandBinding(
+        plan, "cmp_rhs", analysis.slice.rhsABI,
+        {"abi", "cmp-rhs-load", "rhs-call"});
+    addSegment2RouteOperandBinding(
+        plan, "src0", analysis.slice.field0ABI,
+        {"abi", "f0-load", "f0-payload", "tuple0", "f0-role", "src0-mem"});
+    addSegment2RouteOperandBinding(
+        plan, "src1", analysis.slice.field1ABI,
+        {"abi", "f1-load", "f1-payload", "tuple1", "f1-role", "src1-mem"});
+    addSegment2RouteOperandBinding(
+        plan, "dst", analysis.slice.outABI,
+        {"abi", "mseg-store", "dst-mem", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    plan.planID = kRVVComputedMaskSegment2UpdateOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVComputedMaskSegment2UpdateRuntimeABIOrder;
+    context = "computed_masked_segment2_update_unit_load route";
+    addSegment2RouteOperandBinding(
+        plan, "cmp_lhs", analysis.slice.lhsABI,
+        {"abi", "cmp-lhs-load", "lhs-call"});
+    addSegment2RouteOperandBinding(
+        plan, "cmp_rhs", analysis.slice.rhsABI,
+        {"abi", "cmp-rhs-load", "rhs-call"});
+    addSegment2RouteOperandBinding(
+        plan, "src0", analysis.slice.field0ABI,
+        {"abi", "f0-load", "f0-payload", "add-lhs", "tuple0", "f0-role",
+         "src0-mem"});
+    addSegment2RouteOperandBinding(
+        plan, "src1", analysis.slice.field1ABI,
+        {"abi", "f1-load", "f1-payload", "add-rhs", "tuple1", "f1-role",
+         "src1-mem"});
+    addSegment2RouteOperandBinding(
+        plan, "dst", analysis.slice.outABI,
+        {"abi", "mseg-store", "dst-mem", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    plan.planID = kRVVSegment2DeinterleaveOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVSegment2DeinterleaveRuntimeABIOrder;
+    context = "segment2_deinterleave_unit_store route";
+    addSegment2RouteOperandBinding(
+        plan, "src", analysis.slice.lhsABI,
+        {"runtime-abi-mirror", "seg-load-base", "src-mem", "header"});
+    addSegment2RouteOperandBinding(
+        plan, "out0", analysis.slice.field0ABI,
+        {"runtime-abi-mirror", "field0-store-base", "field0-role",
+         "dst-mem", "header"});
+    addSegment2RouteOperandBinding(
+        plan, "out1", analysis.slice.field1ABI,
+        {"runtime-abi-mirror", "field1-store-base", "field1-role",
+         "dst-mem", "header"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control", "header"});
+    break;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    plan.planID = kRVVSegment2InterleaveOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVSegment2InterleaveRuntimeABIOrder;
+    context = "segment2_interleave_unit_load route";
+    addSegment2RouteOperandBinding(
+        plan, "src0", analysis.slice.field0ABI,
+        {"runtime-abi-mirror", "field0-load-base", "field0-role",
+         "src0-mem", "tuple-field0", "header"});
+    addSegment2RouteOperandBinding(
+        plan, "src1", analysis.slice.field1ABI,
+        {"runtime-abi-mirror", "field1-load-base", "field1-role",
+         "src1-mem", "tuple-field1", "header"});
+    addSegment2RouteOperandBinding(
+        plan, "dst", analysis.slice.outABI,
+        {"runtime-abi-mirror", "seg-store-base", "dst-mem", "header"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control", "header"});
+    break;
+  default:
+    return plan;
+  }
+
+  if (llvm::Error error = verifyRVVRouteOperandBindingPlan(
+          plan, plan.planID, expectedRuntimeABIOrder, context))
+    return std::move(error);
+  if (expectedRuntimeABIOrder != description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context + " requires description runtime ABI order '" +
+        expectedRuntimeABIOrder + "' but found '" +
+        description.runtimeABIOrder + "'");
+
+  llvm::SmallVector<support::RuntimeABIParameter, 8> planParameters;
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    planParameters.push_back(binding.parameter);
+  if (!support::runtimeABIParametersEqual(planParameters,
+                                          description.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context +
+        " requires runtime ABI parameter mirrors to match the binding plan");
+
+  return plan;
+}
+
 bool isRVVSelectedBodyComputedMaskSegment2LoadRouteFamilyPlanningConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return description.operation ==
@@ -538,6 +800,40 @@ llvm::Error buildPlainSegment2InterleaveRouteFamilyProviderPlan(
 }
 
 } // namespace
+
+std::optional<llvm::StringRef>
+getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(
+    RVVSelectedBodyOperationKind operation) {
+  return getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanIDImpl(
+      operation);
+}
+
+std::optional<support::RuntimeABIParameterRole>
+getExpectedRVVSelectedBodySegment2RouteOperandBindingRole(
+    llvm::StringRef planID, llvm::StringRef logicalOperand) {
+  return getExpectedRVVSelectedBodySegment2RouteOperandBindingRoleImpl(
+      planID, logicalOperand);
+}
+
+llvm::Expected<RVVRouteOperandBindingPlan>
+deriveRVVSelectedBodySegment2RouteOperandBindingPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis) {
+  return deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(analysis);
+}
+
+llvm::Error verifyRVVSelectedBodySegment2RouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  if (!isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(
+          analysis.description))
+    return llvm::Error::success();
+  if (analysis.routeOperandBindingPlan.planID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route-family provider plan requires the owner-derived "
+        "route operand binding plan before provider route construction");
+  return verifyRVVRouteOperandBindingClosure(
+      analysis.routeOperandBindingPlan, analysis.description, context);
+}
 
 llvm::ArrayRef<RVVSelectedBodySegment2RouteFamilyPlanningOwner>
 getRVVSelectedBodySegment2RouteFamilyPlanningOwners() {
