@@ -59,6 +59,61 @@ Moved pre-realized widening contraction validation into the contraction route-fa
 
 - None - task complete
 
+
+## Session 349: Stage2 RVV base memory-movement selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV base memory-movement selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved base-memory selected-body realization into a dedicated
+`RVVBaseMemoryMovementSelectedBodyRealizationOwner` module, kept
+`RVVSelectedBodyRealization.cpp` on registry and neutral dispatch duty, and
+preserved the existing base-memory route-path and fail-closed behavior for the
+selected strided, indexed, and masked memory routes.
+
+### Main Changes
+
+- Added `include/TianChenRV/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.h`
+  and `lib/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.cpp`.
+- Rewired the selected-body owner registry in
+  `lib/Plugin/RVV/RVVSelectedBodyRealization.cpp` to point base-memory
+  selection at the new owner module.
+- Removed the base-memory realization helpers and branch body from the central
+  selected-body file so the remaining code stays on routing/glue and the other
+  non-base owner families.
+- Updated `lib/Plugin/RVV/CMakeLists.txt` to compile the new owner translation
+  unit.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root artifacts/tmp/base-memory-owner-cleanup --run-id strided-load-unit-store --overwrite --op-kind strided_load_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --stride-bytes 4 --stride-bytes 8 --stride-bytes 12 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root artifacts/tmp/base-memory-owner-cleanup --run-id indexed-gather-unit-store --overwrite --op-kind indexed_gather_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root artifacts/tmp/base-memory-owner-cleanup --run-id indexed-scatter-unit-load --overwrite --op-kind indexed_scatter_unit_load --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root artifacts/tmp/base-memory-owner-cleanup --run-id masked-unit-load-store --overwrite --op-kind masked_unit_load_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] direct-pre-realized strided-load/unit-store fail-closed script rejected `--direct-pre-realized-route-entry` as expected
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 464/464 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 ## Session 346: Stage2 RVV computed-mask memory selected-body owner cleanup
 
 **Date**: 2026-05-30

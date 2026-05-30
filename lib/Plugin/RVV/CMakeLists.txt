@@ -5,6 +5,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVContractionSelectedBodyRealizationOwner.cpp
   RVVComputedMaskMAccSelectedBodyRealizationOwner.cpp
   RVVComputedMaskMemorySelectedBodyRealizationOwner.cpp
+  RVVBaseMemoryMovementSelectedBodyRealizationOwner.cpp
   RVVElementwiseSelectedBodyRealizationOwner.cpp
   RVVMAccSelectedBodyRealizationOwner.cpp
   RVVCapabilityProfile.cpp

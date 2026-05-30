@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-body realization ownership, route-family plan ownership, and common EmitC neutrality during checks"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected-route to target-artifact handoff and generated-bundle export behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emitted artifact evidence and fail-closed stale or direct-entry behavior"}
