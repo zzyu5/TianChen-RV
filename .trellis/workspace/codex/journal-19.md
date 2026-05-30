@@ -303,7 +303,15 @@ Moved computed-mask segment2 selected-body validation into the segment2 route-fa
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused segment2/generated-bundle lit filters: 14/14 passed, including
+  computed-mask segment2 load/store/update, plain deinterleave/interleave,
+  direct pre-realized computed-mask segment2 dry-runs, direct plain segment2
+  fail-closed checks, and one base-memory non-regression.
+- [OK] bounded authority scans and central segment2 ownership scan.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (464/464)
 
 ### Status
 
@@ -614,6 +622,44 @@ Moved contraction selected-body realization into RVVContractionSelectedBodyReali
 | Hash | Message |
 |------|---------|
 | `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 349: Stage2 RVV segment2 memory selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV segment2 memory selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved segment2 selected-body realization ownership out of the central RVV selected-body file into a dedicated owner module; preserved segment2 provider route facts and generated-bundle behavior.
+
+### Main Changes
+
+- Added `RVVSegment2MemorySelectedBodyRealizationOwner.{h,cpp}` and CMake wiring.
+- Central `RVVSelectedBodyRealization.cpp` now keeps only segment2 owner registration/dispatch glue.
+- Plain segment2 deinterleave/interleave realization moved to the dedicated owner; computed-mask segment2 load/store/update route through the owner while preserving existing segment2 validation/realization helpers.
+- Added C++ coverage that the dedicated owner predicate recognizes plain and computed-mask segment2 pre-realized bodies.
+- Checks passed: `tianchenrv-rvv-extension-plugin-test`, focused segment2 generated-bundle lit tests, direct pre-realized computed-mask segment2 dry-runs, authority scans, `git diff --check`, and `cmake --build build --target check-tianchenrv -j2`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | rvv: move segment2 memory selected-body owner-side |
 
 ### Testing
 

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Global project invariants: RVV-first typed body authority, no descriptor/source-front-door/common-EmitC semantic authority."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV selected-body owner registry, segment2 selected-body realization, provider planning, fail-closed, mirror metadata, and target artifact contracts."}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"tcrv.exec envelope and ABI/runtime role boundary; compute and RVV semantics stay plugin-owned."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"TCRVEmitCLowerableRoute and neutral common EmitC route contract; no common RVV semantic inference."}
+{"file":".trellis/tasks/archive/2026-05/05-31-05-31-stage2-rvv-base-memory-selected-body-owner-cleanup/prd.md","reason":"Previous owner extraction pattern and validation expectations for moving selected-body realization out of the central file."}

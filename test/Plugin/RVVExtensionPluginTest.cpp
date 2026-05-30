@@ -17,6 +17,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
+#include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -2915,6 +2916,12 @@ module {
                           "found plain segment2 deinterleave pre-realized "
                           "body for owner-local negative tests"))
     return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVSegment2MemoryOwnerOp(
+              negativePlainSegment2DeinterleaveBody.getOperation()),
+          "dedicated segment2 selected-body owner recognizes plain "
+          "deinterleave body"))
+    return result;
   auto expectPlainSegment2DeinterleaveOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());
@@ -3011,6 +3018,12 @@ module {
                           "found plain segment2 interleave pre-realized body "
                           "for owner-local negative tests"))
     return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVSegment2MemoryOwnerOp(
+              negativePlainSegment2InterleaveBody.getOperation()),
+          "dedicated segment2 selected-body owner recognizes plain interleave "
+          "body"))
+    return result;
   auto expectPlainSegment2InterleaveOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OpBuilder invalidBuilder(module->getContext());
@@ -3090,6 +3103,12 @@ module {
   if (int result = expect(negativeComputedMaskSegment2LoadBody != nullptr,
                           "found computed-mask segment2 load pre-realized "
                           "body for owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVSegment2MemoryOwnerOp(
+              negativeComputedMaskSegment2LoadBody.getOperation()),
+          "dedicated segment2 selected-body owner recognizes computed-mask "
+          "segment2 load body"))
     return result;
   auto expectComputedMaskSegment2LoadOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
@@ -3190,6 +3209,12 @@ module {
   if (int result = expect(negativeComputedMaskSegment2StoreBody != nullptr,
                           "found computed-mask segment2 store pre-realized "
                           "body for owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVSegment2MemoryOwnerOp(
+              negativeComputedMaskSegment2StoreBody.getOperation()),
+          "dedicated segment2 selected-body owner recognizes computed-mask "
+          "segment2 store body"))
     return result;
   auto expectComputedMaskSegment2StoreOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {

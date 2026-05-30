@@ -1,0 +1,32 @@
+{
+  "id": "stage2-rvv-segment2-memory-selected-body-owner-cleanup",
+  "name": "stage2-rvv-segment2-memory-selected-body-owner-cleanup",
+  "title": "Stage2 RVV segment2 memory selected-body owner-side cleanup",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-31",
+  "completedAt": "2026-05-31",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h",
+    "lib/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.cpp",
+    "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp",
+    "lib/Plugin/RVV/CMakeLists.txt",
+    "test/Plugin/RVVExtensionPluginTest.cpp"
+  ],
+  "notes": "Segment2 selected-body predicate and plain deinterleave/interleave realization moved out of central RVVSelectedBodyRealization.cpp into a dedicated RVVSegment2MemorySelectedBodyRealizationOwner module. Computed-mask segment2 load/store/update route through the new owner while preserving existing segment2 validation/realization helpers and generated-bundle behavior. Focused RVV plugin C++ tests, segment2 generated-bundle lit tests, authority scans, git diff --check, and check-tianchenrv passed.",
+  "meta": {}
+}

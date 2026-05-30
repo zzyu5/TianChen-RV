@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Verify changed behavior respects global RVV-first authority and stack constraints."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify segment2 selected-body owner split, selected-boundary-only realization, provider route facts, and fail-closed diagnostics."}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"Verify no tcrv.exec compute/dtype/route authority leakage."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Verify common EmitC remains neutral and provider-built routes remain authoritative."}
+{"file":".trellis/tasks/05-31-stage2-rvv-segment2-memory-selected-body-owner-cleanup/prd.md","reason":"Check implementation against this task's owner-move requirements and acceptance criteria."}
