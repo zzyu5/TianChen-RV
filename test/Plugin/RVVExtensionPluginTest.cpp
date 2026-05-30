@@ -17,6 +17,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
+#include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -1381,6 +1382,14 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body %lhs, %rhs_scalar, %src, %dst, %n {inactive_lane_policy = "preserve-output-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-store", op_kind = "runtime_scalar_cmp_masked_store", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_runtime_scalar_cmp_masked_load_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body %lhs, %rhs_scalar, %src, %dst, %n {inactive_lane_policy = "preserve-old-destination", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-load-store", op_kind = "runtime_scalar_cmp_masked_load_store", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_computed_masked_unit_load_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1765,6 +1774,13 @@ module {
               "computed-mask memory owner-local validation test found the "
               "runtime-scalar store pre-realized body"))
         return result;
+      if (int result = expect(
+              tianchenrv::plugin::rvv::
+                  isPreRealizedRVVRuntimeScalarComputedMaskStoreOwnerOp(
+                      runtimeScalarBody.getOperation()),
+              "runtime-scalar memory selected-body owner recognizes the "
+              "computed-mask store pre-realized body"))
+        return result;
       mlir::OpBuilder ownerValidationBuilder(module->getContext());
       if (int result = expectSuccess(
               tianchenrv::plugin::rvv::
@@ -1776,6 +1792,36 @@ module {
                       runtimeScalarBody),
               "computed-mask memory owner-local pre-realized validation "
               "accepts the selected runtime-scalar masked store body"))
+        return result;
+    }
+    if (variantName == "rvv_pre_route_runtime_scalar_cmp_masked_load_store") {
+      auto runtimeScalarBody =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(
+              static_cast<bool>(runtimeScalarBody),
+              "runtime-scalar memory owner-local validation test found the "
+              "runtime-scalar load-store pre-realized body"))
+        return result;
+      if (int result = expect(
+              tianchenrv::plugin::rvv::
+                  isPreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwnerOp(
+                      runtimeScalarBody.getOperation()),
+              "runtime-scalar memory selected-body owner recognizes the "
+              "computed-mask load-store pre-realized body"))
+        return result;
+      mlir::OpBuilder ownerValidationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          ownerValidationBuilder),
+                      runtimeScalarBody),
+              "runtime-scalar memory owner-local pre-realized validation "
+              "accepts the selected runtime-scalar masked load-store body"))
         return result;
     }
     if (variantName == "rvv_pre_route_computed_masked_unit_load_store") {
@@ -2213,6 +2259,9 @@ module {
       const bool isRuntimeScalarComputedMaskStore =
           preRealizedOpName ==
           "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body";
+      const bool isRuntimeScalarComputedMaskLoadStore =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body";
       const bool isComputedMaskUnitLoadStore =
           preRealizedOpName ==
           "tcrv_rvv.typed_computed_mask_memory_pre_realized_body";
@@ -2278,6 +2327,17 @@ module {
                 llvm::Twine("selected-body producer @") + variantName +
                     " realizes runtime-scalar compare, payload load, and "
                     "masked store"))
+          return result;
+      } else if (isRuntimeScalarComputedMaskLoadStore) {
+        if (int result = expect(
+                countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                    countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.masked_load") == 1 &&
+                    countNestedOps(variant, "tcrv_rvv.store") == 1,
+                llvm::Twine("selected-body producer @") + variantName +
+                    " realizes runtime-scalar compare, old destination load, "
+                    "masked load, and final store"))
           return result;
       } else if (isComputedMaskUnitLoadStore) {
         if (int result = expect(
@@ -2471,6 +2531,13 @@ module {
           "rvv_pre_route_runtime_scalar_cmp_masked_store",
           "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body",
           "runtime scalar computed-mask store",
+          "rvv-computed-mask-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_runtime_scalar_cmp_masked_load_store",
+          "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body",
+          "runtime scalar computed-mask load-store",
           "rvv-computed-mask-memory-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
     return result;
@@ -3701,48 +3768,76 @@ module {
       "op_kind",
       attrBuilder.getStringAttr("runtime_scalar_cmp_masked_macc_add"));
 
+  auto findSelectedBodyOwner =
+      [&](llvm::StringRef familyName)
+      -> const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner * {
+    for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+             &owner :
+         tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
+      if (owner.familyName == familyName)
+        return &owner;
+    }
+    return nullptr;
+  };
   const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
-      *runtimeSplatOwner = nullptr;
-  for (const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner &owner :
-       tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners()) {
-    if (owner.familyName == "runtime scalar splat-store")
-      runtimeSplatOwner = &owner;
+      *runtimeSplatOwner =
+          findSelectedBodyOwner("runtime scalar splat-store");
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *runtimeComputedMaskStoreOwner =
+          findSelectedBodyOwner("runtime scalar computed-mask store");
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *runtimeComputedMaskLoadStoreOwner =
+          findSelectedBodyOwner("runtime scalar computed-mask load-store");
+  const std::pair<llvm::StringRef, const tianchenrv::plugin::rvv::
+                                      RVVSelectedBodyRealizationOwner *>
+      runtimeScalarMemoryOwners[] = {
+          {"runtime scalar splat-store", runtimeSplatOwner},
+          {"runtime scalar computed-mask store",
+           runtimeComputedMaskStoreOwner},
+          {"runtime scalar computed-mask load-store",
+           runtimeComputedMaskLoadStoreOwner}};
+  for (const auto &[ownerName, owner] : runtimeScalarMemoryOwners) {
+    if (int result =
+            expect(owner != nullptr && owner->realize != nullptr,
+                   llvm::Twine("found migrated ") + ownerName +
+                       " owner-local realization hook"))
+      return result;
+
+    mlir::OpBuilder runtimeNullBodyBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeNullBody =
+        owner->realize(
+            VariantLoweringBoundaryRequest(
+                nonOwnedBaseVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, runtimeNullBodyBuilder),
+            nullptr);
+    if (runtimeNullBody)
+      return fail(llvm::Twine(ownerName) +
+                  " owner-local hook accepted a null body");
+    if (int result = expectErrorContains(
+            runtimeNullBody.takeError(),
+            {ownerName,
+             "selected-body realization owner requires a pre-realized RVV "
+             "body op"}))
+      return result;
+
+    mlir::OpBuilder runtimeOwnerMismatchBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeOwnerMismatch =
+        owner->realize(
+            VariantLoweringBoundaryRequest(
+                nonOwnedBaseVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant,
+                runtimeOwnerMismatchBuilder),
+            nonOwnedBaseBody);
+    if (runtimeOwnerMismatch)
+      return fail(llvm::Twine(ownerName) +
+                  " owner-local hook accepted a base-memory body");
+    if (int result = expectErrorContains(
+            runtimeOwnerMismatch.takeError(),
+            {ownerName,
+             "selected-body realization owner received a body outside its "
+             "RVV-owned realization family"}))
+      return result;
   }
-  if (int result =
-          expect(runtimeSplatOwner != nullptr &&
-                     runtimeSplatOwner->realize != nullptr,
-                 "found migrated runtime scalar splat-store owner-local "
-                 "realization hook"))
-    return result;
-  mlir::OpBuilder runtimeNullBodyBuilder(module->getContext());
-  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeNullBody =
-      runtimeSplatOwner->realize(
-          VariantLoweringBoundaryRequest(
-              nonOwnedBaseVariant, kernel, capabilities,
-              VariantEmissionRole::DirectVariant, runtimeNullBodyBuilder),
-          nullptr);
-  if (runtimeNullBody)
-    return fail("runtime scalar splat-store owner-local hook accepted a null "
-                "body");
-  if (int result = expectErrorContains(
-          runtimeNullBody.takeError(),
-          {"runtime scalar splat-store selected-body realization owner "
-           "requires a pre-realized RVV body op"}))
-    return result;
-  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeOwnerMismatch =
-      runtimeSplatOwner->realize(
-          VariantLoweringBoundaryRequest(
-              nonOwnedBaseVariant, kernel, capabilities,
-              VariantEmissionRole::DirectVariant, ownerMismatchBuilder),
-          nonOwnedBaseBody);
-  if (runtimeOwnerMismatch)
-    return fail("runtime scalar splat-store owner-local hook accepted a "
-                "base-memory body");
-  if (int result = expectErrorContains(
-          runtimeOwnerMismatch.takeError(),
-          {"runtime scalar splat-store selected-body realization owner "
-           "received a body outside its RVV-owned realization family"}))
-    return result;
 
   VariantOp runtimeSplatVariant =
       findVariant(kernel, "rvv_pre_owner_negative_runtime_splat_store");
@@ -3754,6 +3849,13 @@ module {
   if (int result = expect(runtimeSplatBody != nullptr,
                           "found runtime scalar splat-store pre-realized body "
                           "for owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isPreRealizedRVVRuntimeScalarSplatStoreOwnerOp(
+                  runtimeSplatBody.getOperation()),
+          "runtime-scalar memory selected-body owner recognizes the "
+          "splat-store pre-realized body"))
     return result;
   runtimeSplatBody->setAttr("op_kind",
                             attrBuilder.getStringAttr("scalar_broadcast_add"));

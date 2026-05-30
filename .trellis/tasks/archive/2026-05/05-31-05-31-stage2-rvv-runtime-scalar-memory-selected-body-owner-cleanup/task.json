@@ -1,0 +1,32 @@
+{
+  "id": "05-31-stage2-rvv-runtime-scalar-memory-selected-body-owner-cleanup",
+  "name": "05-31-stage2-rvv-runtime-scalar-memory-selected-body-owner-cleanup",
+  "title": "Stage2 RVV runtime-scalar memory selected-body owner cleanup",
+  "description": "Move runtime-scalar memory selected-body realization ownership out of the central RVV selected-body realization file into a dedicated RVV owner module.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-31",
+  "completedAt": "2026-05-31",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h",
+    "lib/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.cpp",
+    "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp",
+    "lib/Plugin/RVV/CMakeLists.txt",
+    "test/Plugin/RVVExtensionPluginTest.cpp"
+  ],
+  "notes": "Runtime-scalar splat-store, runtime-scalar computed-mask store, and runtime-scalar computed-mask load-store selected-body predicates and production realization moved into RVVRuntimeScalarMemorySelectedBodyRealizationOwner. Central RVVSelectedBodyRealization.cpp keeps only the three registry entries plus shared registry/dispatch mechanics for this family. Focused C++ owner/selected-boundary coverage, runtime-scalar lit/generated-bundle dry-runs, authority scans, git diff --check, and check-tianchenrv passed. No .trellis/spec update was needed because the change implements the existing selected-body owner registry contract without adding a new durable rule.",
+  "meta": {}
+}

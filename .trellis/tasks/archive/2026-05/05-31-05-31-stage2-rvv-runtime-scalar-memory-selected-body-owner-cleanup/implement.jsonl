@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants: unified TCRV, RVV-first authority chain, no descriptor/common EmitC authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body owner registry, Stage2 selected-body realization, owner-local fail-closed requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on core compute ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality contract."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-runtime-scalar-memory-selected-body-owner-cleanup/prd.md", "reason": "This round's bounded module goal, requirements, non-goals, and acceptance criteria."}

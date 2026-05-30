@@ -60,6 +60,57 @@ Moved pre-realized widening contraction validation into the contraction route-fa
 - None - task complete
 
 
+## Session 350: Stage2 RVV runtime-scalar memory selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV runtime-scalar memory selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved runtime-scalar splat-store, runtime-scalar computed-mask store, and
+runtime-scalar computed-mask load-store selected-body realization ownership out
+of central `RVVSelectedBodyRealization.cpp` into a dedicated RVV owner module;
+preserved selected-boundary realization, provider facts, common EmitC
+neutrality, and target artifact ABI behavior.
+
+### Main Changes
+
+- Added `RVVRuntimeScalarMemorySelectedBodyRealizationOwner.{h,cpp}` and CMake
+  wiring.
+- Central `RVVSelectedBodyRealization.cpp` now keeps only runtime-scalar memory
+  owner registry entries plus shared registry/dispatch mechanics for this
+  family.
+- Moved splat-store, computed-mask store, and computed-mask load-store
+  realization branches into the dedicated owner.
+- Added focused C++ coverage for the new owner predicates, owner mismatch/null
+  rejection, and selected-boundary materialization for computed-mask
+  load-store.
+- Checks passed: `TianChenRVRVVPlugin`,
+  `tianchenrv-rvv-extension-plugin-test`, focused runtime-scalar lit/generated
+  bundle dry-runs, authority scans, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | rvv: move runtime-scalar memory selected-body owner-side |
+
+### Testing
+
+- [OK] Focused C++ and lit/generated-bundle checks passed.
+- [OK] `check-tianchenrv` passed 464/464.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 349: Stage2 RVV base memory-movement selected-body owner cleanup
 
 **Date**: 2026-05-31
