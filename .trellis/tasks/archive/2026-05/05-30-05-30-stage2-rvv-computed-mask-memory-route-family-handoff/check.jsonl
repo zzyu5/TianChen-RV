@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Recheck RVV authority chain and stage gate invariants after implementation."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Recheck RVV plugin ownership and Stage 1/2 scope after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recheck computed-mask memory owner boundary and provider-handoff rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Recheck provider-built route and neutral EmitC materialization rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Recheck runtime ABI and artifact boundary after the route-handoff change."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Recheck selection and route-family ownership rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Recheck required validation and evidence expectations."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Recheck the RVV route/lowering guide routing used by this task."}
+{"file": ".trellis/workspace/codex/journal-18.md", "reason": "Recheck current session continuity and any owner-pattern lessons."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-computed-mask-memory-statement-plan-ownership/prd.md", "reason": "Recheck the non-segment computed-mask statement-plan boundary that this task must preserve."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-computed-mask-memory-route-control/prd.md", "reason": "Recheck the route-control boundary and provider-plan checks for computed-mask memory."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-computed-mask-memory-route-family-interface/prd.md", "reason": "Recheck the original computed-mask memory route-family interface contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-memory-route-family-owner-registry/prd.md", "reason": "Recheck the owner-registry extraction pattern for active memory families."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h", "reason": "Recheck the dedicated non-segment computed-mask memory owner interface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp", "reason": "Recheck the dedicated non-segment computed-mask memory owner verifier and registry wiring."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Recheck owner registry membership and aggregate boundary coverage for non-segment and segment2 computed-mask memory routes."}

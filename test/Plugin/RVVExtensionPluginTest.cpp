@@ -6,6 +6,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
@@ -5611,9 +5612,13 @@ int runMemoryRouteFamilyOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMemoryRouteFamilyOwners;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyComputedMaskMemoryRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyMemoryRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer;
 
   llvm::ArrayRef<tianchenrv::plugin::rvv::
                      RVVSelectedBodyMemoryRouteFamilyOwner>
@@ -5647,11 +5652,44 @@ int runMemoryRouteFamilyOwnerRegistryTest() {
                   RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore),
           "base memory owner classification is isolated"))
     return result;
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyMemoryRouteFamilyOwner>
+      computedMaskOwners = getRVVSelectedBodyComputedMaskMemoryRouteFamilyOwners();
+  if (int result =
+          expect(computedMaskOwners.size() == 1,
+                 "computed-mask memory owner registry has exactly one active "
+                 "non-segment owner entry"))
+    return result;
+  if (int result = expect(
+          computedMaskOwners[0].familyName == "computed-mask memory",
+          "computed-mask memory owner registry keeps the computed-mask family "
+          "name"))
+    return result;
+  if (int result = expect(
+          computedMaskOwners[0].isConsumer != nullptr &&
+              computedMaskOwners[0].verifyProviderPlan != nullptr,
+          "computed-mask memory owner registry entry carries consumer and "
+          "verifier hooks"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) &&
+              isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) &&
+              !isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) &&
+              !computedMaskOwners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad),
+          "computed-mask memory owner registry stays on the non-segment "
+          "subcluster"))
+    return result;
   if (int result = expect(
           owners[1].isConsumer(
               RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) &&
-              owners[1].isConsumer(RVVSelectedBodyOperationKind::
-                                       ComputedMaskSegment2LoadUnitStore) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) &&
               !owners[1].isConsumer(
                   RVVSelectedBodyOperationKind::StridedLoadUnitStore) &&
               !owners[1].isConsumer(
@@ -9068,6 +9106,8 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans;
@@ -10248,6 +10288,13 @@ module {
           verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
               *segmentAnalysis, "computed-mask memory provider unit test"),
           "valid segment2 computed-mask memory family provider plan"))
+    return result;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans(
+              *segmentAnalysis,
+              "computed-mask memory owner exclusion unit test"),
+          "computed-mask segment2 routes remain outside the dedicated "
+          "non-segment computed-mask memory owner boundary"))
     return result;
   if (int result = expect(
           segmentAnalysis->computedMaskMemoryRouteFamilyPlan &&

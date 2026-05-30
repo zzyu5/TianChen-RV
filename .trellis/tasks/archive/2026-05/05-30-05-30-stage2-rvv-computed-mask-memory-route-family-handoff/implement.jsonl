@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, stage gates, and non-negotiable route ownership rules."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin boundary, Stage 1/2 guidance, and extension-family ownership model."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Current RVV route-family ownership, selected-body realization, and provider-boundary contract."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "EmitC route ownership and provider-built route materialization contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI and target-artifact handoff boundaries."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant selection, legality, and route-family boundary rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required validation and evidence expectations for RVV compiler changes."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Relevant pre-development guide routing for RVV route and lowering changes."}
+{"file": ".trellis/workspace/codex/journal-18.md", "reason": "Recent session history, current owner patterns, and task continuity notes."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-05-24-stage2-rvv-computed-mask-memory-statement-plan-ownership/prd.md", "reason": "Prior computed-mask memory statement-plan boundary and its non-segment scope."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-computed-mask-memory-route-control/prd.md", "reason": "Prior computed-mask memory route-control boundary and provider-plan checks."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-computed-mask-memory-route-family-interface/prd.md", "reason": "Earlier computed-mask memory route-family interface scope and consumer set."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-memory-route-family-owner-registry/prd.md", "reason": "Owner-registry extraction pattern for active memory families."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h", "reason": "Dedicated non-segment computed-mask memory owner module interface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp", "reason": "Dedicated non-segment computed-mask memory owner registry and provider-plan wrapper."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Production memory owner registry now consumes the dedicated computed-mask memory owner entry."}

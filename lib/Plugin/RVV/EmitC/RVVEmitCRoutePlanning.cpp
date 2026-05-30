@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
@@ -17439,7 +17440,7 @@ getRVVSelectedBodyMemoryRouteFamilyOwners() {
        verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans},
       {"computed-mask memory",
        isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer,
-       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans},
+       verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans},
       {"plain segment2 memory",
        isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer,
        verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans},
