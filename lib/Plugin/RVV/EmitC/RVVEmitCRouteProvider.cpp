@@ -321,6 +321,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       &elementwiseSelectOperandBindingFacts =
           *elementwiseSelectOperandBindingFactsOrError;
+  if (llvm::Error error = verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+          analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+          "selected RVV EmitC route construction"))
+    return error;
   llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
       memoryOperandBindingFactsOrError =
           getRVVSelectedBodyMemoryRouteOperandBindingFacts(

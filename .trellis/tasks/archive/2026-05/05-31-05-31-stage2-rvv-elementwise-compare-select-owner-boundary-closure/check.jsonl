@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture, RVV-first authority chain, and support-level/evidence separation after changes."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-body owner/provider/artifact boundary compliance, fail-closed diagnostics, and no selected-body API leakage into route planning headers."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime role handling stays in tcrv.exec envelope and is explicitly consumed by typed tcrv_rvv bodies."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built TCRVEmitCLowerableRoute and common EmitC neutrality, with mirrors remaining non-authoritative."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused plugin, lit, generated-bundle, authority-scan, and check-tianchenrv evidence are appropriate for the changed surface."}

@@ -19591,6 +19591,218 @@ getRVVSelectedBodyRouteMaterializationFacts(
   return facts;
 }
 
+llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool consumesPlainCompareSelect =
+      isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(operation);
+  const bool consumesComputedMaskSelect =
+      isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(operation);
+  if (!consumesPlainCompareSelect && !consumesComputedMaskSelect)
+    return llvm::Error::success();
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select route construction requires typed RVV body/config "
+        "facts before creating TCRVEmitCLowerableRoute");
+
+  if (elementwiseSelectOperandBindingFacts.bindingPlan !=
+      &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select route construction requires operand-binding facts "
+        "from the same selected route analysis before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto requireTypedConfigMirror =
+      [&](llvm::StringRef routeName, llvm::StringRef factsID,
+          llvm::StringRef elementTypeName, std::int64_t elementBitWidth,
+          std::int64_t sew, llvm::StringRef lmul,
+          llvm::StringRef tailPolicy, llvm::StringRef maskPolicy,
+          llvm::StringRef configContractID, llvm::StringRef vlCType,
+          llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
+          llvm::StringRef maskTypeName, llvm::StringRef maskCType,
+          llvm::StringRef setVLIntrinsic, llvm::StringRef vectorLoadIntrinsic,
+          llvm::StringRef storeIntrinsic) -> llvm::Error {
+    if ((!factsID.empty() && factsID != typedFacts.factsID) ||
+        elementTypeName != typedFacts.elementTypeName ||
+        elementBitWidth != typedFacts.elementBitWidth ||
+        sew != typedFacts.sew || lmul != typedFacts.lmul ||
+        tailPolicy != typedFacts.tailPolicy ||
+        maskPolicy != typedFacts.maskPolicy ||
+        configContractID != typedFacts.configContractID ||
+        vlCType != typedFacts.vlCType ||
+        vectorTypeName != typedFacts.vectorTypeName ||
+        vectorCType != typedFacts.vectorCType ||
+        maskTypeName != typedFacts.maskTypeName ||
+        maskCType != typedFacts.maskCType ||
+        setVLIntrinsic != typedFacts.setVLIntrinsic ||
+        vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+        storeIntrinsic != typedFacts.storeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + routeName +
+          " route construction requires family-plan type/config facts to "
+          "mirror the selected typed RVV body before creating "
+          "TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  };
+
+  auto requireCommonMaterializationMirror =
+      [&](llvm::StringRef routeName, llvm::StringRef vlCType,
+          llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
+          llvm::StringRef maskTypeName, llvm::StringRef maskCType,
+          llvm::StringRef setVLIntrinsic, llvm::StringRef vectorLoadIntrinsic,
+          llvm::StringRef compareIntrinsic, llvm::StringRef selectIntrinsic,
+          llvm::StringRef storeIntrinsic) -> llvm::Error {
+    if (materializationFacts.vlCType != vlCType ||
+        materializationFacts.resultVectorTypeName != vectorTypeName ||
+        materializationFacts.resultVectorCType != vectorCType ||
+        materializationFacts.maskTypeName != maskTypeName ||
+        materializationFacts.maskCType != maskCType ||
+        materializationFacts.setVLLeaf != setVLIntrinsic ||
+        materializationFacts.vectorLoadLeaf != vectorLoadIntrinsic ||
+        materializationFacts.compareLeaf != compareIntrinsic ||
+        materializationFacts.elementwiseComputeLeaf != selectIntrinsic ||
+        materializationFacts.storeLeaf != storeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + routeName +
+          " route construction requires materialization facts to come from "
+          "the verified compare/select family plan before creating "
+          "TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  };
+
+  if (consumesPlainCompareSelect) {
+    if (!analysis.plainCompareSelectRouteFamilyPlan ||
+        materializationFacts.plainCompareSelectPlan !=
+            &*analysis.plainCompareSelectRouteFamilyPlan ||
+        materializationFacts.computedMaskSelectPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain compare-select route construction requires exactly the "
+          "verified plain compare-select family plan before creating "
+          "TCRVEmitCLowerableRoute");
+    if (!elementwiseSelectOperandBindingFacts.bindsPlainCompareSelect ||
+        !elementwiseSelectOperandBindingFacts.lhsABI ||
+        !elementwiseSelectOperandBindingFacts.rhsABI ||
+        !elementwiseSelectOperandBindingFacts.outABI ||
+        !elementwiseSelectOperandBindingFacts.runtimeElementCountABI)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain compare-select route construction requires realized "
+          "lhs/rhs/out/n operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+
+    const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan &plan =
+        *materializationFacts.plainCompareSelectPlan;
+    if (llvm::Error error = requireTypedConfigMirror(
+            "plain compare-select", /*factsID=*/{}, typedFacts.elementTypeName,
+            typedFacts.elementBitWidth, plan.runtimeControlPlan.sew,
+            plan.runtimeControlPlan.lmul, plan.runtimeControlPlan.tailPolicy,
+            plan.runtimeControlPlan.maskPolicy,
+            plan.runtimeControlPlan.configContractID, plan.vlCType,
+            plan.vectorTypeName, plan.vectorCType, plan.maskTypeName,
+            plan.maskCType, plan.setVLIntrinsic, plan.vectorLoadIntrinsic,
+            plan.storeIntrinsic))
+      return error;
+    if (llvm::Error error = requireCommonMaterializationMirror(
+            "plain compare-select", plan.vlCType, plan.vectorTypeName,
+            plan.vectorCType, plan.maskTypeName, plan.maskCType,
+            plan.setVLIntrinsic, plan.vectorLoadIntrinsic,
+            plan.compareIntrinsic, plan.selectIntrinsic, plan.storeIntrinsic))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (!analysis.computedMaskSelectRouteFamilyPlan ||
+      materializationFacts.computedMaskSelectPlan !=
+          &*analysis.computedMaskSelectRouteFamilyPlan ||
+      materializationFacts.plainCompareSelectPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires exactly the "
+        "verified computed-mask select family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const bool isVectorComputedMaskSelect =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  const bool isRuntimeScalarComputedMaskSelect =
+      operation == RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualComputedMaskSelect =
+      operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+  if (isVectorComputedMaskSelect) {
+    if (!elementwiseSelectOperandBindingFacts.bindsComputedMaskSelect ||
+        elementwiseSelectOperandBindingFacts
+            .bindsRuntimeScalarComputedMaskSelect)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed_mask_select route construction requires realized "
+          "vector compare-mask operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+  } else if (isRuntimeScalarComputedMaskSelect ||
+             isRuntimeScalarDualComputedMaskSelect) {
+    if (!elementwiseSelectOperandBindingFacts
+             .bindsRuntimeScalarComputedMaskSelect ||
+        elementwiseSelectOperandBindingFacts
+                .bindsRuntimeScalarDualCompareMaskAndSelect !=
+            isRuntimeScalarDualComputedMaskSelect)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask select route construction requires "
+          "the matching single/dual operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+  }
+  if (!elementwiseSelectOperandBindingFacts.lhsABI ||
+      !elementwiseSelectOperandBindingFacts.rhsABI ||
+      !elementwiseSelectOperandBindingFacts.trueValueABI ||
+      !elementwiseSelectOperandBindingFacts.falseValueABI ||
+      !elementwiseSelectOperandBindingFacts.outABI ||
+      !elementwiseSelectOperandBindingFacts.runtimeElementCountABI)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires compare/value/out/"
+        "n operand-binding facts before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan =
+      *materializationFacts.computedMaskSelectPlan;
+  if (llvm::Error error = requireTypedConfigMirror(
+          "computed-mask select", plan.typedConfigFactsID,
+          plan.elementTypeName, plan.elementBitWidth, plan.sew, plan.lmul,
+          plan.tailPolicy, plan.maskPolicy, plan.configContractID,
+          plan.vlCType, plan.vectorTypeName, plan.vectorCType,
+          plan.maskTypeName, plan.maskCType, plan.setVLIntrinsic,
+          plan.vectorLoadIntrinsic, plan.storeIntrinsic))
+    return error;
+  if (llvm::Error error = requireCommonMaterializationMirror(
+          "computed-mask select", plan.vlCType, plan.vectorTypeName,
+          plan.vectorCType, plan.maskTypeName, plan.maskCType,
+          plan.setVLIntrinsic, plan.vectorLoadIntrinsic,
+          plan.compareIntrinsic, plan.selectIntrinsic, plan.storeIntrinsic))
+    return error;
+  if (plan.usesRuntimeScalarProducer &&
+      materializationFacts.rhsScalarBroadcastLeaf !=
+          plan.rhsScalarSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask select route construction requires "
+        "the RHS scalar splat leaf from the verified family plan before "
+        "creating TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   switch (description.operation) {

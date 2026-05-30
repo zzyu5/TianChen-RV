@@ -13928,6 +13928,8 @@ int runCompareSelectStatementPlanBoundaryTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyCompareSelectRouteProviderFacts;
+  using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
 
@@ -14334,6 +14336,53 @@ module {
   if (!computedElementwiseFacts)
     return fail("stale compare/select elementwise facts: " +
                 llvm::toString(computedElementwiseFacts.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *computedAnalysis, *computedMaterializationFacts,
+              *computedElementwiseFacts,
+              "computed-mask select route-provider closure unit test"),
+          "computed-mask select provider accepts realized owner facts before "
+          "route construction"))
+    return result;
+  auto staleComputedProviderTypedFacts = *computedMaterializationFacts;
+  staleComputedProviderTypedFacts.typedConfigFacts.setVLIntrinsic =
+      "__riscv_vsetvl_from_route_id";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *computedAnalysis, staleComputedProviderTypedFacts,
+              *computedElementwiseFacts,
+              "computed-mask select stale typed facts route-provider unit "
+              "test"),
+          {"computed-mask select route construction requires family-plan "
+           "type/config facts",
+           "selected typed RVV body",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+  auto staleComputedProviderMaterialization = *computedMaterializationFacts;
+  staleComputedProviderMaterialization.compareLeaf =
+      "__riscv_vmslt_from_artifact_name";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *computedAnalysis, staleComputedProviderMaterialization,
+              *computedElementwiseFacts,
+              "computed-mask select stale materialization route-provider unit "
+              "test"),
+          {"computed-mask select route construction requires materialization "
+           "facts",
+           "verified compare/select family plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+  auto staleComputedProviderBindingFacts = *computedElementwiseFacts;
+  staleComputedProviderBindingFacts.bindsComputedMaskSelect = false;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *computedAnalysis, *computedMaterializationFacts,
+              staleComputedProviderBindingFacts,
+              "computed-mask select stale binding route-provider unit test"),
+          {"computed_mask_select route construction requires realized vector "
+           "compare-mask operand-binding facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
   auto staleMaterializationFacts = *computedMaterializationFacts;
   staleMaterializationFacts.computedMaskSelectPlan = nullptr;
   if (int result = expectErrorContains(
@@ -14527,6 +14576,53 @@ module {
   if (!plainElementwiseFacts)
     return fail("plain compare/select route-control elementwise facts: " +
                 llvm::toString(plainElementwiseFacts.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *plainAnalysis, *plainMaterializationFacts,
+              *plainElementwiseFacts,
+              "plain compare-select route-provider closure unit test"),
+          "plain compare-select provider accepts realized owner facts before "
+          "route construction"))
+    return result;
+  auto stalePlainProviderTypedFacts = *plainMaterializationFacts;
+  stalePlainProviderTypedFacts.typedConfigFacts.maskTypeName =
+      "!tcrv_rvv.mask<metadata>";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *plainAnalysis, stalePlainProviderTypedFacts,
+              *plainElementwiseFacts,
+              "plain compare-select stale typed facts route-provider unit "
+              "test"),
+          {"plain compare-select route construction requires family-plan "
+           "type/config facts",
+           "selected typed RVV body",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+  auto stalePlainProviderMaterialization = *plainMaterializationFacts;
+  stalePlainProviderMaterialization.elementwiseComputeLeaf =
+      "__riscv_vmerge_from_exact_intrinsic";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *plainAnalysis, stalePlainProviderMaterialization,
+              *plainElementwiseFacts,
+              "plain compare-select stale materialization route-provider unit "
+              "test"),
+          {"plain compare-select route construction requires materialization "
+           "facts",
+           "verified compare/select family plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+  auto stalePlainProviderBindingFacts = *plainElementwiseFacts;
+  stalePlainProviderBindingFacts.bindsPlainCompareSelect = false;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *plainAnalysis, *plainMaterializationFacts,
+              stalePlainProviderBindingFacts,
+              "plain compare-select stale binding route-provider unit test"),
+          {"plain compare-select route construction requires realized "
+           "lhs/rhs/out/n operand-binding facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
 
   auto missingPlainFamilyFacts = *plainMaterializationFacts;
   missingPlainFamilyFacts.plainCompareSelectPlan = nullptr;

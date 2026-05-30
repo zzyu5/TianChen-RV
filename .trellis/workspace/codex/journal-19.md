@@ -885,3 +885,41 @@ Moved segment2 selected-body realization ownership out of the central RVV select
 ### Next Steps
 
 - None - task complete
+
+
+## Session 350: Stage2 RVV compare-select owner-boundary closure
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV compare-select owner-boundary closure
+**Branch**: `main`
+
+### Summary
+
+Closed the elementwise/compare-select selected-body owner-to-provider boundary by adding a provider facts preflight before TCRVEmitCLowerableRoute construction, extending C++ fail-closed coverage, updating RVV plugin spec, and archiving the Trellis task.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodyCompareSelectRouteProviderFacts(...)` as the provider-side compare/select facts preflight.
+- `RVVEmitCRouteProvider` now calls the preflight after verified route-family plans, materialization facts, and elementwise/select operand-binding facts, before constructing `TCRVEmitCLowerableRoute`.
+- Extended `RVVExtensionPluginTest` for plain `cmp_select` and `computed_mask_select` positive preflight coverage plus stale typed config, materialization leaf, and operand-binding diagnostics.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the new signature, contract, validation matrix, cases, tests, and wrong-vs-correct guidance.
+- Evidence: RVV plugin test passed; generated-bundle dry-run for pre-realized `cmp_select` and `computed_mask_select` passed using `llvm-readobj-20`; full lit/check-tianchenrv passed 464/464; bounded owner/API and authority scans passed; `git diff --check` passed.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

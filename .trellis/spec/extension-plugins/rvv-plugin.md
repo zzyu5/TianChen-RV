@@ -593,6 +593,127 @@ RVVEmitCElementwiseRouteFamilyPlanOwners.h
   -> exports route-family plan and mirror/operand-binding APIs only
 ```
 
+## Elementwise/Compare-Select Route-Provider Facts Preflight
+
+### 1. Scope / Trigger
+
+When the RVV provider is about to build a `TCRVEmitCLowerableRoute` for
+plain compare-select, computed-mask select, runtime-scalar compare-select, or
+runtime-scalar dual compare-mask-and-select, it must prove that route
+construction is consuming realized typed `tcrv_rvv` facts from the selected
+body and RVV-owned provider plans. This preflight exists because parseable
+selected-body IR, route-family mirror metadata, and generated artifact names
+are not route authority.
+
+### 2. Signatures
+
+The durable provider-side contract is:
+
+```c++
+llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this preflight after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(...)`, after
+`getRVVSelectedBodyRouteMaterializationFacts(...)`, and after
+`getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(...)`, but before
+constructing the `TCRVEmitCLowerableRoute`.
+
+### 3. Contracts
+
+For compare/select consumers, the preflight must require:
+
+- same-analysis route-family provider plans;
+- typed RVV config facts for element type, SEW, LMUL, policy, VL/vector/mask
+  C types, `setvl`, vector load, and store leaves;
+- materialization facts that mirror the verified compare/select family plan for
+  VL type, vector type, mask type, `setvl`, vector load, compare, select, and
+  store leaves;
+- same-analysis operand-binding facts for the exact selected sub-family;
+- runtime AVL/VL and ABI role facts already checked by route-control and
+  operand-binding providers.
+
+The preflight must return success without changing behavior for unrelated RVV
+families. It must not build statements, choose intrinsics, infer dtype/config,
+read artifact metadata, consult route ids, or call selected-body owner hooks.
+
+### 4. Validation & Error Matrix
+
+- Unrelated operation -> return success and leave the route provider unchanged.
+- Compare/select route lacks typed config facts -> fail closed before creating
+  `TCRVEmitCLowerableRoute`.
+- Plain compare-select route lacks the verified plain compare-select family
+  plan, carries a computed-mask plan, or has stale materialization facts ->
+  fail closed before route construction.
+- Computed-mask/runtime-scalar select route lacks the verified computed-mask
+  select family plan, carries a plain compare-select plan, or has stale
+  materialization facts -> fail closed before route construction.
+- Family-plan type/config facts disagree with selected typed RVV body/config
+  facts -> fail closed before route construction.
+- Operand-binding facts come from another analysis or do not match the selected
+  sub-family, including single/dual runtime-scalar mismatch -> fail closed
+  before route construction.
+- RHS scalar splat leaf is missing or stale for runtime-scalar computed-mask
+  select -> fail closed before route construction.
+
+### 5. Good/Base/Bad Cases
+
+- Good: pre-realized `cmp_select` -> owner-local realization -> realized
+  load/compare/select/store body -> plain compare-select family plan ->
+  materialization facts -> operand-binding facts -> provider preflight ->
+  `TCRVEmitCLowerableRoute`.
+- Good: pre-realized `computed_mask_select` -> owner-local realization ->
+  realized compare-mask/value-select body -> computed-mask select family plan
+  -> materialization facts -> operand-binding facts -> provider preflight ->
+  `TCRVEmitCLowerableRoute`.
+- Base: elementwise arithmetic, memory, reduction, contraction, conversion,
+  segment2, and residual routes do not consume this preflight.
+- Bad: route construction trusts `provider_supported_mirror`, route ids,
+  artifact names, ABI strings, exact intrinsic spellings, or direct-route-entry
+  claims instead of the realized typed facts and verified provider plans.
+
+### 6. Tests Required
+
+- C++ positive tests must call the preflight for plain compare-select and
+  computed-mask select analyses before route construction.
+- C++ negative tests must mutate typed config facts, materialization leaves,
+  and operand-binding family markers and assert fail-closed diagnostics before
+  `TCRVEmitCLowerableRoute` construction.
+- Production route tests must still prove pre-realized `cmp_select` and
+  `computed_mask_select` flow through selected lowering-boundary realization,
+  provider route facts, statement plans, and target artifact generation.
+- Generated-bundle or target artifact dry-run coverage must include the
+  selected-boundary `cmp_select` and `computed_mask_select` paths.
+- Bounded scans must show selected-body owner declarations remain out of
+  `RVVEmitCElementwiseRouteFamilyPlanOwners.h` and that the provider preflight
+  does not introduce source-front-door, descriptor, route-id, artifact-name,
+  common-EmitC, exact-intrinsic, or legacy-i32 authority.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+RVVEmitCRouteProvider
+  -> sees route mirrors / artifact metadata / intrinsic names
+  -> builds compare/select TCRVEmitCLowerableRoute
+```
+
+Correct:
+
+```text
+realized typed compare/select tcrv_rvv body
+  -> verified compare/select family plan
+  -> route materialization facts + operand-binding facts
+  -> verifyRVVSelectedBodyCompareSelectRouteProviderFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Retired Direct Route-Entry Diagnostic Inventory
 
 ### 1. Scope / Trigger
