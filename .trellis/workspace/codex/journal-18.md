@@ -1903,3 +1903,36 @@ Moved plain and scalar-broadcast RVV elementwise arithmetic route-family plan au
 ### Next Steps
 
 - None - task complete
+
+
+## Session 337: Stage2 RVV MAcc route-family plan owner completion
+
+**Date**: 2026-05-30
+**Task**: Stage2 RVV MAcc route-family plan owner completion
+**Branch**: `main`
+
+### Summary
+
+Moved RVV MAcc route-family plan ownership into RVVEmitCMAccRouteFamilyPlanOwners, removed central MAcc authority from RVVEmitCRoutePlanning, and validated with focused builds/tests plus check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8bd71308` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
