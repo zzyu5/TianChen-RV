@@ -6,9 +6,9 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
 
@@ -66,25 +66,6 @@ bool isPreRealizedReduceAccumulatorLayout(llvm::StringRef layout) {
 
 bool isPreRealizedReduceResultLayout(llvm::StringRef layout) {
   return layout == "store-reduction-lane0-to-output-chunk-base";
-}
-
-bool isPreRealizedMAccOpKind(llvm::StringRef opKind) {
-  return opKind == "macc_add" || opKind == "scalar_broadcast_macc_add";
-}
-
-bool isPreRealizedScalarBroadcastMAccOpKind(llvm::StringRef opKind) {
-  return opKind == "scalar_broadcast_macc_add";
-}
-
-bool isPreRealizedScalarBroadcastMAccMemoryForm(
-    llvm::StringRef memoryForm) {
-  return memoryForm == "rhs-scalar-broadcast-macc";
-}
-
-bool isPreRealizedScalarBroadcastMAccBody(llvm::StringRef opKind,
-                                          llvm::StringRef memoryForm) {
-  return isPreRealizedScalarBroadcastMAccOpKind(opKind) ||
-         isPreRealizedScalarBroadcastMAccMemoryForm(memoryForm);
 }
 
 bool isPreRealizedWideningConversionOpKind(llvm::StringRef opKind) {
@@ -149,10 +130,6 @@ requirePreRealizedRuntimeABIValue(
   return binding;
 }
 
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVMAccOwner(const VariantLoweringBoundaryRequest &request,
-                               mlir::Operation *bodyOp);
 
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVBaseMemoryMovementOwner(
@@ -259,10 +236,6 @@ bool isPreRealizedRVVReductionOwnerOp(mlir::Operation *op) {
   return llvm::isa<tcrv::rvv::TypedReducePreRealizedBodyOp>(op);
 }
 
-bool isPreRealizedRVVMAccOwnerOp(mlir::Operation *op) {
-  return llvm::isa<tcrv::rvv::TypedMAccPreRealizedBodyOp>(op);
-}
-
 bool isPreRealizedRVVContractionOwnerOp(mlir::Operation *op) {
   return llvm::isa<
       tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
@@ -359,7 +332,7 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
        realizePreRealizedRVVReductionOwner},
       {"standalone reduction", isPreRealizedRVVStandaloneReductionClusterOp,
        realizePreRealizedRVVStandaloneReductionOwner},
-      {"MAcc", isPreRealizedRVVMAccOwnerOp,
+      {"MAcc", isPreRealizedRVVMAccClusterOp,
        realizePreRealizedRVVMAccOwner},
       {"computed-mask MAcc", isPreRealizedRVVComputedMaskMAccClusterOp,
        realizePreRealizedRVVComputedMaskMAccOwner},
@@ -855,26 +828,6 @@ llvm::Expected<mlir::Operation *> createRealizedGenericReduceCompute(
                      builder.getStringAttr(accumulatorLayout));
   state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
   state.addTypes(input.getType());
-  return builder.create(state);
-}
-
-llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
-    mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
-    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
-    mlir::Value lhs, mlir::Value rhs, mlir::Value accumulator,
-    mlir::Value vl) {
-  if (!isPreRealizedMAccOpKind(opKind))
-    return makeRVVPluginError(
-        "pre-realized RVV selected-body macc realization supports only "
-        "op_kind 'macc_add' or 'scalar_broadcast_macc_add'");
-
-  mlir::OperationState state(loc, "tcrv_rvv.macc");
-  state.addOperands({lhs, rhs, accumulator, vl});
-  state.addAttribute("kind", builder.getStringAttr("add"));
-  state.addAttribute("accumulator_layout",
-                     builder.getStringAttr(accumulatorLayout));
-  state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
-  state.addTypes(lhs.getType());
   return builder.create(state);
 }
 
@@ -1401,97 +1354,6 @@ realizePreRealizedRVVContractionOwner(
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVMAccOwner(const VariantLoweringBoundaryRequest &request,
-                               mlir::Operation *bodyOp) {
-  auto maccBody =
-      llvm::dyn_cast_or_null<tcrv::rvv::TypedMAccPreRealizedBodyOp>(bodyOp);
-  if (!maccBody)
-    return makeRVVPluginError(
-        "MAcc selected-body realization owner received a body outside its "
-        "RVV-owned realization family");
-
-  tcrv::exec::VariantOp variant = request.getVariant();
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  if (!variant || !kernel)
-    return makeRVVPluginError(
-        "pre-realized RVV MAcc selected-body realization requires "
-        "materialized kernel and variant");
-
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  mlir::OpBuilder &builder = request.getBuilder();
-  mlir::OpBuilder::InsertionGuard guard(builder);
-
-  if (llvm::Error error =
-          validatePreRealizedRVVSelectedMAccBody(request, maccBody))
-    return std::move(error);
-
-  mlir::Location loc = maccBody->getLoc();
-  builder.setInsertionPoint(maccBody.getOperation());
-
-  bool scalarBroadcastMAcc = isPreRealizedScalarBroadcastMAccBody(
-      maccBody.getOpKind(), maccBody.getMemoryForm());
-  std::optional<RVVRuntimeAVLVLControlPlan> runtimeControlPlan;
-  if (scalarBroadcastMAcc) {
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
-            variant, maccBody.getN(), tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy(),
-            "lhs,rhs_scalar,acc,out,n",
-            "pre-realized RVV scalar-broadcast macc selected-body "
-            "realization");
-    if (!plan)
-      return plan.takeError();
-    runtimeControlPlan = *plan;
-  }
-
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-      createRealizedSetVL(builder, loc,
-                          runtimeControlPlan
-                              ? runtimeControlPlan->runtimeAVLValue
-                              : maccBody.getN(),
-                          tcrv::rvv::getRVVFirstSliceSEWBits(),
-                          tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy()));
-  tcrv::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires,
-                           tcrv::rvv::getRVVFirstSliceSEWBits(),
-                           tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy());
-
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-      builder, loc, maccBody.getLhs(), setvl.getVl(),
-      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
-  mlir::Value rhsValue;
-  if (scalarBroadcastMAcc) {
-    auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
-        createRealizedGenericSplat(builder, loc, maccBody.getRhs(),
-                                   setvl.getVl(),
-                                   tcrv::rvv::getRVVFirstSliceSEWBits(),
-                                   tcrv::rvv::getRVVLMULM1()));
-    rhsValue = rhsSplat.getBroadcast();
-  } else {
-    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maccBody.getRhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
-    rhsValue = rhsLoad.getLoaded();
-  }
-  auto accumulatorLoad =
-      llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, maccBody.getAcc(), setvl.getVl(),
-          tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
-  llvm::Expected<mlir::Operation *> compute = createRealizedGenericMAccCompute(
-      builder, loc, maccBody.getOpKind(), maccBody.getAccumulatorLayout(),
-      maccBody.getResultLayout(), lhsLoad.getLoaded(), rhsValue,
-      accumulatorLoad.getLoaded(), setvl.getVl());
-  if (!compute)
-    return compute.takeError();
-  createRealizedGenericStore(builder, loc, maccBody.getOut(),
-                             (*compute)->getResult(0), setvl.getVl());
-  maccBody->erase();
-  return withVL;
-}
-
-llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVBaseMemoryMovementOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
   if (!isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp))
@@ -1792,7 +1654,7 @@ realizePreRealizedRVVSelectedBodyWithOwnerLocalBranches(
 
   if (isPreRealizedRVVElementwiseCompareSelectClusterOp(bodyOp) ||
       isPreRealizedRVVStandaloneReductionClusterOp(bodyOp) ||
-      isPreRealizedRVVMAccOwnerOp(bodyOp) ||
+      isPreRealizedRVVMAccClusterOp(bodyOp) ||
       isPreRealizedRVVComputedMaskMAccClusterOp(bodyOp) ||
       isPreRealizedRVVContractionOwnerOp(bodyOp) ||
       isPreRealizedRVVBaseMemoryMovementOwnerOp(bodyOp) ||

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final diff preserves the RVV-first typed-body authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify owner-local selected-body realization, MAcc boundaries, and fail-closed diagnostics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no core dialect or ABI role semantics were changed by this owner extraction."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and provider route facts are preserved."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++ and generated-bundle checks match the risk of the refactor."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Verify the production ownership move is plugin-local, not central/common semantic drift."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Verify no high-level compute or tcrv.exec semantic ownership was introduced."}

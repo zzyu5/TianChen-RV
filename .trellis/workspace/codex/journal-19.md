@@ -480,3 +480,36 @@ Moved computed-mask MAcc selected-body realization into an RVV owner-local compo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 347: Stage2 RVV non-computed MAcc selected-body owner cleanup
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV non-computed MAcc selected-body owner cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved non-computed MAcc selected-body realization into an RVV owner-local component, kept central selected-body dispatch neutral, preserved MAcc provider facts, and validated focused MAcc/generated-bundle checks plus check-tianchenrv 464/464.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

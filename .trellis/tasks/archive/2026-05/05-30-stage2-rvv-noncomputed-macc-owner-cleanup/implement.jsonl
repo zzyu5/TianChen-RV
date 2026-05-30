@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage ordering, and authority boundaries for this refactor."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, MAcc ownership, runtime/control, and fail-closed contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope and ABI/runtime role boundary for selected RVV variants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/generated-bundle evidence and no-new-runtime-claim policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-local ownership review criteria for moving realization logic out of central code."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check that no compute semantics move into tcrv.exec or common infrastructure."}

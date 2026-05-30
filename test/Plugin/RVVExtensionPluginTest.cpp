@@ -16,6 +16,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -3345,6 +3346,12 @@ module {
           expect(nonOwnedBaseBody != nullptr,
                  "found base-memory pre-realized body for owner-mismatch test"))
     return result;
+  if (int result = expect(
+          !tianchenrv::plugin::rvv::isPreRealizedRVVMAccClusterOp(
+              nonOwnedBaseBody),
+          "MAcc owner-local predicate excludes base-memory pre-realized "
+          "bodies"))
+    return result;
   mlir::OpBuilder ownerMismatchBuilder(module->getContext());
   llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> ownerMismatch =
       maccOwner->realize(
@@ -3369,6 +3376,12 @@ module {
   if (int result =
           expect(negativeMAccBody != nullptr,
                  "found MAcc pre-realized body for owner-local negative tests"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVMAccClusterOp(
+              negativeMAccBody.getOperation()),
+          "MAcc owner-local predicate accepts scalar-broadcast MAcc "
+          "pre-realized bodies"))
     return result;
   auto expectMAccOwnerError =
       [&](std::initializer_list<llvm::StringRef> fragments) -> int {
@@ -3418,6 +3431,11 @@ module {
   if (int result = expect(
           negativePlainMAccBody != nullptr,
           "found plain MAcc pre-realized body for direct route-entry demotion"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::isPreRealizedRVVMAccClusterOp(
+              negativePlainMAccBody.getOperation()),
+          "MAcc owner-local predicate accepts plain MAcc pre-realized bodies"))
     return result;
   {
     mlir::OpBuilder directRouteEntryBuilder(module->getContext());
