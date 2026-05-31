@@ -392,6 +392,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return mathOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMathRouteOperandBindingFacts
       &mathOperandBindingFacts = *mathOperandBindingFactsOrError;
+  llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
+      wideningConversionStatementPlanOrError =
+          getRVVSelectedBodyWideningConversionRouteStatementPlan(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!wideningConversionStatementPlanOrError)
+    return wideningConversionStatementPlanOrError.takeError();
+  if (llvm::Error error =
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              *wideningConversionStatementPlanOrError,
+              "selected RVV EmitC route construction"))
+    return error;
   llvm::Expected<RVVSelectedBodyStandaloneReductionRouteStatementPlan>
       standaloneReductionStatementPlanOrError =
           getRVVSelectedBodyStandaloneReductionRouteStatementPlan(

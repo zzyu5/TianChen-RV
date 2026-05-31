@@ -6710,11 +6710,17 @@ int runWideningConversionRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteControlProviderPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyWideningConversionRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningConversionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyWideningConversionRouteProviderFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   if (int result = expect(
@@ -6861,6 +6867,84 @@ module {
                   &i32ToI64Analysis->selectedTargetCapabilityFacts,
           "widen_i32_to_i64 route-control provider plan joins typed config, "
           "target capability, conversion family, and runtime AVL/VL facts"))
+    return result;
+
+  auto i32ToI64MathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *i32ToI64Analysis,
+      "widen_i32_to_i64 provider-fact closure unit test");
+  if (!i32ToI64MathFacts)
+    return fail("widen_i32_to_i64 provider-fact math facts: " +
+                llvm::toString(i32ToI64MathFacts.takeError()));
+  auto i32ToI64StatementPlan =
+      getRVVSelectedBodyWideningConversionRouteStatementPlan(
+          *i32ToI64Analysis, *i32ToI64MaterializationFacts,
+          *i32ToI64MathFacts,
+          "widen_i32_to_i64 provider-fact closure unit test");
+  if (!i32ToI64StatementPlan)
+    return fail("widen_i32_to_i64 provider-fact statement plan: " +
+                llvm::toString(i32ToI64StatementPlan.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              *i32ToI64Analysis, *i32ToI64MaterializationFacts,
+              *i32ToI64MathFacts, *i32ToI64StatementPlan,
+              "widen_i32_to_i64 provider-fact closure unit test"),
+          "widen_i32_to_i64 provider fact closure accepts validated typed "
+          "body, family plan, materialization, binding, route-control, and "
+          "statement facts before route construction"))
+    return result;
+
+  auto staleProviderMaterializationFacts = *i32ToI64MaterializationFacts;
+  staleProviderMaterializationFacts.sourceLoadLeaf =
+      "__riscv_vle16_v_i16mf2";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              *i32ToI64Analysis, staleProviderMaterializationFacts,
+              *i32ToI64MathFacts, *i32ToI64StatementPlan,
+              "widen_i32_to_i64 provider-fact stale materialization unit test"),
+          {"widening conversion route construction requires materialization "
+           "facts",
+           "verified widening conversion family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleProviderMathFacts = *i32ToI64MathFacts;
+  staleProviderMathFacts.lhsABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              *i32ToI64Analysis, *i32ToI64MaterializationFacts,
+              staleProviderMathFacts, *i32ToI64StatementPlan,
+              "widen_i32_to_i64 provider-fact stale binding unit test"),
+          {"widening conversion route construction requires lhs/out/n "
+           "operand-binding facts",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleProviderStatementPlan = *i32ToI64StatementPlan;
+  staleProviderStatementPlan.loop.bodySteps[2].callee =
+      "__riscv_vadd_vv_i64m2";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              *i32ToI64Analysis, *i32ToI64MaterializationFacts,
+              *i32ToI64MathFacts, staleProviderStatementPlan,
+              "widen_i32_to_i64 provider-fact stale statement unit test"),
+          {"widening conversion route construction requires statement/leaf "
+           "facts for setvl, source load, conversion, and store",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumerProviderFacts;
+  staleNonConsumerProviderFacts.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  auto staleNonConsumerMaterializationFacts =
+      *i32ToI64MaterializationFacts;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              staleNonConsumerProviderFacts,
+              staleNonConsumerMaterializationFacts, {}, {},
+              "widening conversion non-consumer provider-fact unit test"),
+          {"must not carry widening conversion provider facts",
+           "non-conversion operation", "add",
+           "TCRVEmitCLowerableRoute"}))
     return result;
 
   auto staleConversionMaterializationFacts = *i32ToI64MaterializationFacts;
@@ -7039,14 +7123,37 @@ module {
   if (!i16ToI32RouteControlPlan)
     return fail("widen_i16_to_i32 route-control provider plan: " +
                 llvm::toString(i16ToI32RouteControlPlan.takeError()));
-  return expect(
-      i16ToI32RouteControlPlan->plansRouteControl &&
-          i16ToI32RouteControlPlan->controlsWideningConversion &&
-          i16ToI32RouteControlPlan->runtimeControlPlan ==
-              &i16ToI32Analysis->wideningConversionRouteFamilyPlan
-                   ->runtimeControlPlan,
-      "widen_i16_to_i32 route-control provider plan joins the verified "
-      "conversion family and runtime AVL/VL facts");
+  if (int result = expect(
+          i16ToI32RouteControlPlan->plansRouteControl &&
+              i16ToI32RouteControlPlan->controlsWideningConversion &&
+              i16ToI32RouteControlPlan->runtimeControlPlan ==
+                  &i16ToI32Analysis->wideningConversionRouteFamilyPlan
+                       ->runtimeControlPlan,
+          "widen_i16_to_i32 route-control provider plan joins the verified "
+          "conversion family and runtime AVL/VL facts"))
+    return result;
+  auto i16ToI32MathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *i16ToI32Analysis,
+      "widen_i16_to_i32 provider-fact closure unit test");
+  if (!i16ToI32MathFacts)
+    return fail("widen_i16_to_i32 provider-fact math facts: " +
+                llvm::toString(i16ToI32MathFacts.takeError()));
+  auto i16ToI32StatementPlan =
+      getRVVSelectedBodyWideningConversionRouteStatementPlan(
+          *i16ToI32Analysis, *i16ToI32MaterializationFacts,
+          *i16ToI32MathFacts,
+          "widen_i16_to_i32 provider-fact closure unit test");
+  if (!i16ToI32StatementPlan)
+    return fail("widen_i16_to_i32 provider-fact statement plan: " +
+                llvm::toString(i16ToI32StatementPlan.takeError()));
+  return expectSuccess(
+      verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+          *i16ToI32Analysis, *i16ToI32MaterializationFacts,
+          *i16ToI32MathFacts, *i16ToI32StatementPlan,
+          "widen_i16_to_i32 provider-fact closure unit test"),
+      "widen_i16_to_i32 provider fact closure accepts validated typed body, "
+      "family plan, materialization, binding, route-control, and statement "
+      "facts before route construction");
 }
 
 int runMemoryRouteFamilyOwnerRegistryTest() {

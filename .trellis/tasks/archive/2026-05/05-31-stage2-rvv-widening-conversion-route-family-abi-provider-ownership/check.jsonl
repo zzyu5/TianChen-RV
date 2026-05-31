@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance with RVV-first authority chain and mirror-only metadata invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check widening conversion dtype-policy provider ownership, selected-body boundary preservation, artifact mirrors, fail-closed diagnostics, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check no compute semantics or RVV route authority moved into tcrv.exec ABI envelope."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built TCRVEmitCLowerableRoute ownership and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused tests, generated-bundle evidence, ssh rvv claims, and authority scans."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check plugin-local provider ownership and no descriptor/source-front-door authority drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-standalone-reduction-route-family-abi-provider-ownership/evidence-summary.md", "reason": "Previous task quality/evidence pattern for final report and non-regression expectations."}

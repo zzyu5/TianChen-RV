@@ -1633,6 +1633,13 @@ llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
         &compareSelectStatementPlan,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyWideningConversionRouteStatementPlan &statementPlan,
+    llvm::StringRef context);
+
 llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
 getRVVSelectedBodyMemoryRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);

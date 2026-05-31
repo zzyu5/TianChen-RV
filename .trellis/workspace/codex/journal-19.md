@@ -64,6 +64,57 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 357: Stage2 RVV widening conversion provider ABI boundary
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV widening conversion route-family ABI provider ownership
+**Branch**: `main`
+
+### Summary
+
+Closed the widening conversion provider-route preflight before
+`TCRVEmitCLowerableRoute` construction. Existing `widen_i32_to_i64` and
+`widen_i16_to_i32` selected-body routes now require provider-owned agreement
+across typed result config, source/result SEW/LMUL/type facts, conversion
+relation, materialization leaves, math operand bindings, route-control facts,
+statement plan leaves, runtime ABI mirrors, and stale non-consumer rejection.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodyWideningConversionRouteProviderFacts`.
+- Wired widening conversion statement-plan construction and provider-fact
+  verification into `RVVEmitCRouteProvider` before route construction.
+- Added C++ positive and fail-closed coverage for stale materialization,
+  stale operand binding, stale statement leaves, and non-consumer widening
+  fact residue.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-run for `widen_i32_to_i64` and `widen_i16_to_i32` over counts `0,1,16,17,257`
+- [OK] direct pre-realized route-entry fail-closed probes for both widening conversion fixtures
+- [OK] `ssh rvv` correctness for `widen_i32_to_i64` and `widen_i16_to_i32` over counts `0,1,16,17,257`
+- [OK] `git diff --check`
+- [OK] `check-tianchenrv` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 353: Stage2 RVV segment2 route-family provider boundary
 
 **Date**: 2026-05-31

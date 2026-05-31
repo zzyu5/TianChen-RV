@@ -19912,6 +19912,327 @@ llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
   return llvm::Error::success();
 }
 
+llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyWideningConversionRouteStatementPlan &statementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyWideningConversionRouteFamilyConsumer(operation);
+  const bool carriesWideningFacts =
+      analysis.wideningConversionRouteFamilyPlan.has_value() ||
+      materializationFacts.wideningConversionPlan ||
+      materializationFacts.emitsWideningConversion ||
+      mathOperandBindingFacts.bindsWideningConversion ||
+      statementPlan.plansWideningConversionRoute ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.conversionRelation.empty();
+  if (!isConsumer) {
+    if (carriesWideningFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " must not carry widening conversion provider facts for "
+          "non-conversion operation '" +
+          stringifyRVVSelectedBodyOperationKind(operation) +
+          "' before creating TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  if (!analysis.wideningConversionRouteFamilyPlan ||
+      materializationFacts.wideningConversionPlan !=
+          &*analysis.wideningConversionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires exactly the "
+        "verified widening conversion family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyWideningConversionRouteFamilyPlan &plan =
+      *materializationFacts.wideningConversionPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyWideningConversionRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation || plan.memoryForm != description.memoryForm ||
+      plan.memoryForm != RVVSelectedBodyMemoryForm::UnitStrideConversion)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires family-plan "
+        "operation and unit-stride conversion memory form to match the "
+        "selected typed body before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires typed RVV "
+        "body/config facts before creating TCRVEmitCLowerableRoute");
+  if (typedFacts.sew != plan.resultSEW ||
+      typedFacts.lmul != plan.resultLMUL ||
+      typedFacts.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      typedFacts.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      typedFacts.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      typedFacts.vlCType != plan.vlCType ||
+      typedFacts.vectorTypeName != plan.resultVectorTypeName ||
+      typedFacts.vectorCType != plan.resultVectorCType ||
+      typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
+      typedFacts.storeIntrinsic != plan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires family-plan "
+        "result-channel type/config facts to mirror the selected typed RVV "
+        "body before creating TCRVEmitCLowerableRoute");
+
+  auto requiredHeadersMatchPlan = [&]() {
+    if (materializationFacts.requiredHeaders.size() !=
+        plan.requiredHeaders.size())
+      return false;
+    for (std::size_t index = 0, count = plan.requiredHeaders.size();
+         index < count; ++index)
+      if (materializationFacts.requiredHeaders[index] !=
+          plan.requiredHeaders[index])
+        return false;
+    return true;
+  };
+  if (!requiredHeadersMatchPlan() ||
+      materializationFacts.vlCType != plan.vlCType ||
+      materializationFacts.resultVectorTypeName !=
+          plan.resultVectorTypeName ||
+      materializationFacts.resultVectorCType != plan.resultVectorCType ||
+      materializationFacts.sourceVectorTypeName !=
+          plan.sourceVectorTypeName ||
+      materializationFacts.sourceVectorCType != plan.sourceVectorCType ||
+      materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
+      materializationFacts.sourceLoadLeaf !=
+          plan.sourceVectorLoadIntrinsic ||
+      materializationFacts.vectorLoadLeaf !=
+          plan.sourceVectorLoadIntrinsic ||
+      materializationFacts.elementwiseComputeLeaf !=
+          plan.conversionIntrinsic ||
+      materializationFacts.storeLeaf != plan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires materialization "
+        "facts to come from the verified widening conversion family plan "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (!materializationFacts.maskTypeName.empty() ||
+      !materializationFacts.maskCType.empty() ||
+      !materializationFacts.rhsScalarBroadcastLeaf.empty() ||
+      !materializationFacts.sourceSplatLeaf.empty() ||
+      !materializationFacts.scalarSeedSplatLeaf.empty() ||
+      !materializationFacts.compareLeaf.empty() ||
+      !materializationFacts.maskedMergeLeaf.empty() ||
+      materializationFacts.standaloneReductionPlan ||
+      materializationFacts.computedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction rejects stale mask, scalar, "
+        "standalone-reduction, or accumulation materialization facts before "
+        "creating TCRVEmitCLowerableRoute");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsWideningConversion ||
+      routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan->selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan->runtimeControlPlan != &plan.runtimeControlPlan ||
+      routeControlPlan->runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      routeControlPlan->selectedProviderMirror !=
+          analysis.selectedTargetCapabilityFacts.providerMirror ||
+      routeControlPlan->selectedLegalityMirror !=
+          analysis.selectedTargetCapabilityFacts.legalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires the RVV-owned "
+        "route-control provider plan from the same selected analysis before "
+        "creating TCRVEmitCLowerableRoute");
+
+  if (description.wideningConversionRouteFamilyPlanID != plan.familyPlanID ||
+      description.memoryForm != plan.memoryForm ||
+      description.runtimeABIOrder != plan.runtimeABIOrder ||
+      description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      description.vlDefOpName != plan.runtimeControlPlan.vlDefOpName ||
+      description.vlScopeOpName != plan.runtimeControlPlan.vlScopeOpName ||
+      description.vlUses != plan.runtimeControlPlan.vlUses ||
+      description.emitCLoopKind != plan.runtimeControlPlan.emitCLoopKind ||
+      description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      description.multiVL != plan.runtimeControlPlan.multiVL ||
+      description.targetLeafProfile != plan.targetLeafProfile ||
+      description.providerSupportedMirror != plan.providerSupportedMirror ||
+      description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      description.vlCType != plan.vlCType ||
+      description.sourceSEW != plan.sourceSEW ||
+      description.sourceLMUL != plan.sourceLMUL ||
+      description.sourceVectorTypeName != plan.sourceVectorTypeName ||
+      description.sourceVectorCType != plan.sourceVectorCType ||
+      description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      description.sew != plan.resultSEW ||
+      description.lmul != plan.resultLMUL ||
+      description.vectorTypeName != plan.resultVectorTypeName ||
+      description.vectorCType != plan.resultVectorCType ||
+      description.setVLIntrinsic != plan.setVLIntrinsic ||
+      description.intrinsic != plan.conversionIntrinsic ||
+      description.storeIntrinsic != plan.storeIntrinsic ||
+      description.resultName != plan.resultName ||
+      description.conversionRelation != plan.conversionRelation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires route description "
+        "and artifact ABI mirror facts to be populated from the validated "
+        "family plan before creating TCRVEmitCLowerableRoute");
+  if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires runtime ABI "
+        "parameters from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+  if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.maskRole.empty() || !description.maskSource.empty() ||
+      !description.maskMemoryForm.empty() ||
+      !description.inactiveLaneContract.empty() ||
+      !description.inactiveLaneZeroingRequirement.empty() ||
+      !description.scalarSeedSplatIntrinsic.empty() ||
+      !description.rhsBroadcastIntrinsic.empty() ||
+      !description.compareIntrinsic.empty() ||
+      !description.maskedMergeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction rejects stale scalar, mask, "
+        "standalone-reduction, accumulation, or contraction route mirrors "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (mathOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !mathOperandBindingFacts.bindsMathCluster ||
+      !mathOperandBindingFacts.bindsWideningConversion ||
+      mathOperandBindingFacts.bindsStandaloneReduction ||
+      mathOperandBindingFacts.bindsComputedMaskStandaloneReduction ||
+      mathOperandBindingFacts
+          .bindsRuntimeScalarComputedMaskStandaloneReduction ||
+      mathOperandBindingFacts.bindsWideningMAcc ||
+      mathOperandBindingFacts.bindsWideningDotReduction ||
+      mathOperandBindingFacts.bindsComputedMaskWideningDotReduction)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires math "
+        "operand-binding facts from the same selected route analysis before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " widening conversion route construction requires lhs/out/n "
+          "operand-binding facts before creating TCRVEmitCLowerableRoute");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " widening conversion route construction requires ABI role for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+  if (llvm::Error error =
+          requireABI(mathOperandBindingFacts.lhsABI, "lhs",
+                     support::RuntimeABIParameterRole::LHSInputBuffer))
+    return error;
+  if (llvm::Error error =
+          requireABI(mathOperandBindingFacts.outABI, "out",
+                     support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          mathOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+
+  const bool isI32ToI64 =
+      operation == RVVSelectedBodyOperationKind::WidenI32ToI64;
+  const bool isI16ToI32 =
+      operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
+  if (!statementPlan.plansWideningConversionRoute ||
+      statementPlan.wideningConversionPlan != &plan ||
+      statementPlan.preLoopSteps.empty() ||
+      statementPlan.loop.bodySteps.empty() ||
+      statementPlan.plansWidenI32ToI64 != isI32ToI64 ||
+      statementPlan.plansWidenI16ToI32 != isI16ToI32)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires the matching "
+        "RVV-owned widening conversion statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto preLoopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.preLoopSteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto loopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!preLoopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.sourceVectorLoadIntrinsic) ||
+      !loopHasCallee(plan.conversionIntrinsic) ||
+      !loopHasCallee(plan.storeIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route construction requires statement/leaf "
+        "facts for setvl, source load, conversion, and store before creating "
+        "TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,

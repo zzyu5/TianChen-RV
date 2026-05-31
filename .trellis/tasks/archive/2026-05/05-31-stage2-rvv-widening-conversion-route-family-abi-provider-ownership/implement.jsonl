@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide RVV-first authority chain, Stage2 selected typed RVV coverage, and mirror-only metadata invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Widening conversion dtype-policy cluster, selected-body realization, route-family provider ownership, route-control, operand binding, artifact mirrors, fail-closed diagnostics, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role envelope boundaries; no RVV compute, dtype, schedule, or route authority in core dialect."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract, common EmitC neutrality, and artifact metadata mirror-only rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/generated-bundle/ssh rvv evidence expectations for RVV route and artifact claims."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin-local provider ownership and no descriptor/source-front-door authority drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-standalone-reduction-route-family-abi-provider-ownership/prd.md", "reason": "Immediately previous provider ABI boundary pattern for provider-side fact closure before route construction."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-standalone-reduction-route-family-abi-provider-ownership/evidence-summary.md", "reason": "Previous task evidence pattern for focused checks, generated-bundle evidence, ssh rvv, authority scan, and final reporting."}

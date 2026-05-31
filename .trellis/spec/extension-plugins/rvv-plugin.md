@@ -1111,6 +1111,149 @@ Required tests for a new or changed owner registry:
 - runtime `ssh rvv` evidence only when emitted target sequence, ABI, or
   materialized operands changed.
 
+### Widening Conversion Route-Provider Facts Preflight
+
+#### 1. Scope / Trigger
+
+When the RVV provider is about to build a `TCRVEmitCLowerableRoute` for a
+widening conversion route, it must prove that route construction is consuming
+the selected typed RVV body, the validated widening conversion family plan,
+provider materialization facts, math operand-binding facts, route-control facts,
+and the RVV-owned widening conversion statement plan. This preflight is the
+provider-side closure for the existing supported selected-body widening
+conversion cases; it must not add new dtype, LMUL, frontend, or conversion
+coverage.
+
+#### 2. Signatures
+
+The durable provider-side contract is:
+
+```c++
+llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyWideningConversionRouteStatementPlan &statementPlan,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this preflight after the top-level
+route-family verifier, after `getRVVSelectedBodyRouteMaterializationFacts(...)`,
+after `getRVVSelectedBodyMathRouteOperandBindingFacts(...)`, and after the
+RVV-owned widening conversion statement plan has been built, but before
+constructing the `TCRVEmitCLowerableRoute`.
+
+#### 3. Contracts
+
+For widening conversion consumers, the preflight must require:
+
+- the same-analysis `RVVSelectedBodyWideningConversionRouteFamilyPlan`;
+- typed result config facts for result SEW/LMUL, policy, VL C type, result
+  vector type/C type, setvl leaf, and store leaf;
+- source dtype/channel facts from the widening conversion family plan for
+  source SEW/LMUL, source vector type/C type, and source load leaf;
+- conversion relation and conversion intrinsic from the family plan;
+- materialization facts that mirror the family plan for required headers,
+  VL type, source/result vector types, setvl, source load, conversion, and
+  store;
+- math operand-binding facts from the same selected analysis for `lhs`, `out`,
+  and runtime `n`;
+- the RVV-owned route-control provider plan for the same typed config, selected
+  target capability, runtime AVL/VL control plan, and runtime ABI order;
+- the RVV-owned widening conversion statement plan for the exact selected
+  conversion form.
+
+The preflight must return success without changing behavior for unrelated RVV
+families only when they carry no stale widening conversion facts. It must not
+build statements, choose intrinsics, infer dtype/config, read artifact metadata,
+consult route ids, or call selected-body owner hooks.
+
+#### 4. Validation & Error Matrix
+
+- Widening conversion consumer lacks the family plan -> fail closed before
+  `TCRVEmitCLowerableRoute` construction.
+- Materialization facts do not point at the same selected-analysis family plan
+  -> fail closed.
+- Non-conversion route carries a widening conversion family plan,
+  materialization flag, math binding flag, statement plan, family-plan mirror,
+  or conversion relation -> fail closed as stale provider facts.
+- Result typed config disagrees with result SEW/LMUL, policy, VL type, result
+  vector type/C type, setvl, or store facts -> fail closed.
+- Source SEW/LMUL, source vector type/C type, source load, conversion
+  intrinsic, or conversion relation disagrees with the family plan -> fail
+  closed.
+- Route-control provider plan is absent, from another analysis, or carries
+  stale runtime ABI, target capability, tail/mask policy, or runtime AVL/VL
+  mirrors -> fail closed.
+- Math operand-binding facts are absent, from another analysis, missing
+  `lhs`/`out`/`n`, or carry the wrong ABI role/order -> fail closed.
+- Statement plan is absent, targets the wrong widening form, points at another
+  family plan, or lacks setvl/source-load/convert/store leaves -> fail closed.
+- Route description mirrors or runtime ABI parameter mirrors disagree with the
+  family plan -> fail closed.
+- Stale mask, scalar-broadcast, standalone-reduction, accumulation,
+  contraction, artifact-name, route-id, exact-intrinsic-as-authority, common
+  EmitC, source-front-door, descriptor, or legacy-i32 residue attempts to
+  authorize the route -> fail closed.
+
+#### 5. Good/Base/Bad Cases
+
+Good: typed `widen_i32_to_i64` or `widen_i16_to_i32` selected body ->
+widening conversion family plan -> materialization facts -> math operand
+bindings -> route-control provider plan -> widening conversion statement plan
+-> provider preflight -> provider-built `TCRVEmitCLowerableRoute`.
+
+Base: scalar-broadcast elementwise, reduction, memory, contraction, segment2,
+and unrelated routes do not consume this preflight and must not carry widening
+conversion facts.
+
+Bad: provider construction trusts route ids, generated artifact names, ABI
+strings, exact intrinsic spellings, script options, status fields, or common
+EmitC choices instead of the selected typed body and verified widening
+conversion provider facts.
+
+#### 6. Tests Required
+
+- C++ positive tests for `widen_i32_to_i64` and `widen_i16_to_i32` preflight
+  success before route construction.
+- C++ fail-closed tests for missing family plan, stale materialization facts,
+  wrong source/result dtype or SEW/LMUL relation, wrong conversion relation,
+  wrong operand binding or ABI role, wrong runtime ABI order, stale route
+  description mirrors, stale statement leaves, and non-conversion routes
+  carrying widening conversion facts.
+- Provider-route tests proving the selected-body widening conversion route
+  attaches only provider-built statement plans to `TCRVEmitCLowerableRoute`.
+- Generated-bundle dry-run coverage for existing selected-boundary widening
+  conversion fixtures.
+- Runtime correctness evidence via `ssh rvv` when executable widening
+  conversion correctness is claimed.
+- Bounded scans over touched planning/provider/test/target/script files for
+  name-, route-id-, metadata-, descriptor-, ABI-string-, script-,
+  artifact-name-, common-EmitC-, source-front-door-, exact-intrinsic-, or
+  legacy-i32-derived route authority.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider:
+  sees widen_i32_to_i64 route id / artifact name / intrinsic string
+  -> builds TCRVEmitCLowerableRoute
+```
+
+Correct:
+
+```text
+typed widening conversion tcrv_rvv body
+  -> verified widening conversion family plan
+  -> materialization facts + math operand-binding facts
+  -> route-control provider plan
+  -> RVV-owned widening conversion statement plan
+  -> verifyRVVSelectedBodyWideningConversionRouteProviderFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Route Materialization Facts Boundary
 
 ### 1. Scope / Trigger
