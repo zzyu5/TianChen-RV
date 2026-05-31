@@ -1297,3 +1297,55 @@ Closed plain segment2 target artifact candidate mirror consumption for provider-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 356: Stage2 RVV elementwise arithmetic route-family ABI provider ownership
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV elementwise arithmetic route-family ABI provider ownership
+**Branch**: `main`
+
+### Summary
+
+Closed the scalar-broadcast elementwise typed config/provider ownership gap and
+tightened strided elementwise generated-bundle provider mirror evidence. Plain,
+masked, strided, and scalar-broadcast elementwise arithmetic now have focused
+selected-boundary dry-run evidence and real `ssh rvv` correctness over counts
+0, 1, 16, 17, and 257.
+
+### Main Changes
+
+- Added typed config snapshot fields to the scalar-broadcast elementwise
+  route-family plan.
+- Made scalar-broadcast provider verification reject stale typed config
+  snapshots and stale route description dtype/config mirrors before provider
+  materialization.
+- Extended generated-bundle expectations for `strided_add` to require
+  elementwise route-family plan, target leaf profile, provider mirror, header,
+  C type mapping, runtime control, and source/destination memory-form mirrors.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] generated-bundle dry-run for add/sub/mul/masked_add/strided_add.
+- [OK] generated-bundle dry-run for scalar_broadcast_add/sub/mul.
+- [OK] direct pre-realized route-entry fail-closed check.
+- [OK] segment2 five-form and indexed memory generated-bundle non-regression.
+- [OK] `ssh rvv` correctness for add/sub/mul/masked_add/strided_add.
+- [OK] `ssh rvv` correctness for scalar_broadcast_add/sub/mul.
+- [OK] `check-tianchenrv` passed 464/464.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

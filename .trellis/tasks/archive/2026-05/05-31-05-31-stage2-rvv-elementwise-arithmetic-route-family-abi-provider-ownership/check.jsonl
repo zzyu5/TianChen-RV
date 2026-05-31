@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation remains within current RVV-first typed provider authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check elementwise owner/provider, target artifact mirror, generated evidence, and fail-closed diagnostics compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and route facts are provider-built."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-elementwise-arithmetic-route-family-abi-provider-ownership/evidence-summary.md", "reason": "Recorded focused build/test, generated-bundle, ssh rvv, authority scan, and check-tianchenrv evidence."}

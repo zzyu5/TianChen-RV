@@ -6166,6 +6166,26 @@ module {
                       ->runtimeControlPlan.controlPlanID ==
                   tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
               addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->typedConfigFactsID ==
+                  addAnalysis->typedConfigFacts.factsID &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->elementTypeName == "i32" &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->elementCType == "int32_t" &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->elementBitWidth == 32 &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan->sew ==
+                  addAnalysis->typedConfigFacts.sew &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan->lmul ==
+                  addAnalysis->typedConfigFacts.lmul &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->tailPolicy == addAnalysis->typedConfigFacts.tailPolicy &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->maskPolicy == addAnalysis->typedConfigFacts.maskPolicy &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->configContractID ==
+                  addAnalysis->typedConfigFacts.configContractID &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
                       ->rhsScalarSplatIntrinsic == "__riscv_vmv_v_x_i32m1" &&
               addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
                       ->arithmeticIntrinsic == "__riscv_vadd_vv_i32m1" &&
@@ -6224,6 +6244,26 @@ module {
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *addAnalysis;
+  stale.scalarBroadcastElementwiseRouteFamilyPlan->typedConfigFactsID =
+      "metadata-derived-typed-config";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"scalar-broadcast elementwise route-family typed config snapshot",
+           "selected typed RVV body/config facts"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.elementTypeName = "metadata_i32";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"scalar-broadcast elementwise route-family dtype/SEW/LMUL/policy/"
+           "config mirrors",
+           "validated typed family plan"}))
+    return result;
+
+  stale = *addAnalysis;
   stale.description.runtimeAVLASource = "metadata-selected-avl";
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(

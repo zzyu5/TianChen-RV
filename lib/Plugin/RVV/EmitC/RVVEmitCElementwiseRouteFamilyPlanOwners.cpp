@@ -955,6 +955,42 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast elementwise route-family plan requires "
         "rhs-scalar-broadcast memory form");
+  if (plan.typedConfigFactsID.empty() || plan.elementTypeName.empty() ||
+      plan.elementCType.empty() || plan.elementBitWidth == 0 ||
+      plan.sew == 0 || plan.lmul.empty() || plan.tailPolicy.empty() ||
+      plan.maskPolicy.empty() || plan.configContractID.empty())
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires "
+        "provider-derived typed config facts for element type, signed C type, "
+        "SEW, LMUL, policy, and config contract");
+  if (plan.elementBitWidth != plan.sew)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires element bit "
+        "width to mirror provider-derived SEW");
+  llvm::StringRef expectedElementType;
+  if (plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    expectedElementType = "i32";
+  else
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("scalar-broadcast elementwise route-family plan currently "
+                    "requires a supported integer element type for SEW ") +
+        llvm::Twine(plan.sew));
+  if (llvm::Error error = requireScalarBroadcastPlanField(
+          plan, "element type", plan.elementTypeName, expectedElementType))
+    return error;
+  if (llvm::Error error = requireScalarBroadcastPlanField(
+          plan, "signed C type", plan.elementCType,
+          getElementwiseElementCType(plan.elementTypeName)))
+    return error;
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul ||
+      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      plan.configContractID != plan.runtimeControlPlan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires typed config "
+        "SEW/LMUL/policy/contract facts to mirror runtime AVL/VL control "
+        "facts");
   if (llvm::Error error = requireScalarBroadcastPlanField(
           plan, "runtime control plan",
           plan.runtimeControlPlan.controlPlanID,
@@ -1096,6 +1132,15 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.typedConfigFactsID = typedFacts.factsID;
+  plan.elementTypeName = typedFacts.elementTypeName;
+  plan.elementCType = getElementwiseElementCType(typedFacts.elementTypeName);
+  plan.elementBitWidth = typedFacts.elementBitWidth;
+  plan.sew = typedFacts.sew;
+  plan.lmul = typedFacts.lmul;
+  plan.tailPolicy = typedFacts.tailPolicy;
+  plan.maskPolicy = typedFacts.maskPolicy;
+  plan.configContractID = typedFacts.configContractID;
   plan.familyPlanID = kRVVScalarBroadcastElementwiseRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVScalarBroadcastElementwiseTargetLeafProfile;
@@ -1138,6 +1183,12 @@ void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyElementwiseRuntimeAVLVLControlPlanToDescription(
       plan.runtimeControlPlan, description);
+  description.elementTypeName = plan.elementTypeName;
+  description.sew = plan.sew;
+  description.lmul = plan.lmul;
+  description.tailPolicy = plan.tailPolicy;
+  description.maskPolicy = plan.maskPolicy;
+  description.configContractID = plan.configContractID;
   description.scalarBroadcastElementwiseRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
@@ -1386,6 +1437,37 @@ verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
           validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
               plan))
     return error;
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      analysis.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise provider requires typed config facts "
+        "before provider materialization");
+  if (plan.typedConfigFactsID != typedFacts.factsID ||
+      plan.elementTypeName != typedFacts.elementTypeName ||
+      plan.elementBitWidth != typedFacts.elementBitWidth ||
+      plan.sew != typedFacts.sew || plan.lmul != typedFacts.lmul ||
+      plan.tailPolicy != typedFacts.tailPolicy ||
+      plan.maskPolicy != typedFacts.maskPolicy ||
+      plan.configContractID != typedFacts.configContractID ||
+      plan.vlCType != typedFacts.vlCType ||
+      plan.vectorTypeName != typedFacts.vectorTypeName ||
+      plan.vectorCType != typedFacts.vectorCType ||
+      plan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      plan.vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+      plan.storeIntrinsic != typedFacts.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family typed config snapshot "
+        "must mirror selected typed RVV body/config facts before provider "
+        "materialization");
+  if (plan.elementCType != getElementwiseElementCType(plan.elementTypeName))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family signed C type must be "
+        "derived from the typed RVV element type before provider "
+        "materialization");
   if (plan.operation != operation)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -1397,6 +1479,17 @@ verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " scalar-broadcast elementwise route-family plan mirror must match "
         "the validated family plan");
+  if (analysis.description.elementTypeName != plan.elementTypeName ||
+      analysis.description.sew != plan.sew ||
+      analysis.description.lmul != plan.lmul ||
+      analysis.description.tailPolicy != plan.tailPolicy ||
+      analysis.description.maskPolicy != plan.maskPolicy ||
+      analysis.description.configContractID != plan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family dtype/SEW/LMUL/policy/"
+        "config mirrors must be populated from the validated typed family "
+        "plan before provider materialization");
   if (analysis.description.memoryForm != plan.memoryForm ||
       analysis.description.sew != plan.runtimeControlPlan.sew ||
       analysis.description.lmul != plan.runtimeControlPlan.lmul ||

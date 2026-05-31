@@ -174,6 +174,15 @@ MASKED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR = (
 MASKED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
     "vl:size_t,lhs/rhs/passthrough:typed-vector,mask:typed-mask,result:typed-vector"
 )
+STRIDED_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-strided-elementwise-arithmetic-leaf-profile.v1"
+)
+STRIDED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-strided-elementwise-arithmetic-plan-validated"
+)
+STRIDED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
+    "vl:size_t,lhs:element-strided-typed-vector,rhs:element-strided-typed-vector,result:element-strided-typed-vector"
+)
 MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
@@ -7413,6 +7422,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_strided_add:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.source_memory_form": "strided-load",
+                "tcrv_rvv.destination_memory_form": "strided-store",
+                "tcrv_rvv.elementwise_arithmetic_route_family_plan": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    STRIDED_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    STRIDED_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    STRIDED_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING
+                ),
                 "tcrv_rvv.strided_memory_layout": STRIDED_ADD_MEMORY_LAYOUT,
                 "tcrv_rvv.lhs_stride_source": STRIDED_ADD_LHS_STRIDE_SOURCE,
                 "tcrv_rvv.rhs_stride_source": STRIDED_ADD_RHS_STRIDE_SOURCE,
