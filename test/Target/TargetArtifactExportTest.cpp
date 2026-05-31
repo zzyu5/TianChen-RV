@@ -8043,6 +8043,117 @@ bool expectRVVTargetArtifactExporterShape(
            "segment2-interleaved-unit-stride-store"}))
     return false;
 
+  TargetArtifactCandidate wrongDeinterleaveTupleMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveTupleMirror,
+                                    "tcrv_rvv.segment_tuple_c_type",
+                                    "metadata-derived-segment2-tuple")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "segment tuple C type metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveTupleMirror,
+          "plain segment2 deinterleave validator rejects stale tuple C type "
+          "mirror",
+          {"segment_tuple_c_type", "vint32m1x2_t",
+           "metadata-derived-segment2-tuple"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveFieldRoleMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveFieldRoleMirror,
+                                    "tcrv_rvv.field0_role",
+                                    "segment-field0-input-buffer")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "field role metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveFieldRoleMirror,
+          "plain segment2 deinterleave validator rejects stale field role "
+          "mirror",
+          {"field0_role", "segment-field0-output-buffer",
+           "segment-field0-input-buffer"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveFieldNameMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveFieldNameMirror,
+                                    "tcrv_rvv.field0_name",
+                                    "metadata_field0_vec")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "field name metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveFieldNameMirror,
+          "plain segment2 deinterleave validator rejects stale field name "
+          "mirror",
+          {"field0_name", "field0_vec", "metadata_field0_vec"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveFieldDestinationMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveFieldDestinationMirror,
+                                    "tcrv_rvv.field0_destination_memory_form",
+                                    "segment2-interleaved-unit-stride-store")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "field destination metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveFieldDestinationMirror,
+          "plain segment2 deinterleave validator rejects stale field "
+          "destination mirror",
+          {"field0_destination_memory_form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongDeinterleaveSegmentLoadMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongDeinterleaveSegmentLoadMirror,
+                                    "tcrv_rvv.segment_load_intrinsic",
+                                    "__metadata_vlseg2")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "segment load metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          wrongDeinterleaveSegmentLoadMirror,
+          "plain segment2 deinterleave validator rejects stale segment-load "
+          "mirror",
+          {"segment_load_intrinsic", "__riscv_vlseg2e32_v_i32m1x2",
+           "__metadata_vlseg2"}))
+    return false;
+
+  TargetArtifactCandidate missingDeinterleaveFieldExtractMirror =
+      segment2DeinterleaveFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingDeinterleaveFieldExtractMirror,
+                                "tcrv_rvv.segment_field_extract_intrinsic")) {
+    llvm::errs() << "plain segment2 deinterleave fixture did not contain "
+                    "segment field extract metadata\n";
+    return false;
+  }
+  if (!expectPlainDeinterleaveCandidateFailure(
+          missingDeinterleaveFieldExtractMirror,
+          "plain segment2 deinterleave validator rejects missing field extract "
+          "mirror",
+          {"segment_field_extract_intrinsic", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleDeinterleaveStoreMirror =
+      segment2DeinterleaveFixture.candidate;
+  staleDeinterleaveStoreMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.segment_store_intrinsic", "__metadata_vsseg2"));
+  if (!expectPlainDeinterleaveCandidateFailure(
+          staleDeinterleaveStoreMirror,
+          "plain segment2 deinterleave validator rejects stale segment-store "
+          "mirror",
+          {"segment_store_intrinsic", "must not carry"}))
+    return false;
+
   RVVRouteDescription wrongInterleaveRuntimeABIOrder =
       segment2InterleaveDescription;
   wrongInterleaveRuntimeABIOrder.runtimeABIOrder = "src0,dst,src1,n";
@@ -8177,6 +8288,114 @@ bool expectRVVTargetArtifactExporterShape(
           "mirror",
           {"destination_memory_form", "segment2-interleaved-unit-stride-store",
            "unit-stride-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveTupleMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveTupleMirror,
+                                    "tcrv_rvv.segment_tuple_c_type",
+                                    "metadata-derived-segment2-tuple")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "segment tuple C type metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveTupleMirror,
+          "plain segment2 interleave validator rejects stale tuple C type mirror",
+          {"segment_tuple_c_type", "vint32m1x2_t",
+           "metadata-derived-segment2-tuple"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveFieldRoleMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveFieldRoleMirror,
+                                    "tcrv_rvv.field0_role",
+                                    "segment-field0-output-buffer")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "field role metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveFieldRoleMirror,
+          "plain segment2 interleave validator rejects stale field role mirror",
+          {"field0_role", "segment-field0-input-buffer",
+           "segment-field0-output-buffer"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveFieldNameMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveFieldNameMirror,
+                                    "tcrv_rvv.field0_name",
+                                    "metadata_field0_vec")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "field name metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveFieldNameMirror,
+          "plain segment2 interleave validator rejects stale field name mirror",
+          {"field0_name", "field0_vec", "metadata_field0_vec"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveFieldSourceMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveFieldSourceMirror,
+                                    "tcrv_rvv.field0_source_memory_form",
+                                    "segment2-interleaved-unit-stride-load")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "field source metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveFieldSourceMirror,
+          "plain segment2 interleave validator rejects stale field source "
+          "mirror",
+          {"field0_source_memory_form", "unit-stride-load",
+           "segment2-interleaved-unit-stride-load"}))
+    return false;
+
+  TargetArtifactCandidate missingInterleaveSegmentStoreMirror =
+      segment2InterleaveFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingInterleaveSegmentStoreMirror,
+                                "tcrv_rvv.segment_store_intrinsic")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "segment store metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          missingInterleaveSegmentStoreMirror,
+          "plain segment2 interleave validator rejects missing segment-store "
+          "mirror",
+          {"segment_store_intrinsic", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate wrongInterleaveTupleCreateMirror =
+      segment2InterleaveFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongInterleaveTupleCreateMirror,
+                                    "tcrv_rvv.segment_tuple_create_intrinsic",
+                                    "__metadata_vcreate")) {
+    llvm::errs() << "plain segment2 interleave fixture did not contain "
+                    "tuple create metadata\n";
+    return false;
+  }
+  if (!expectPlainInterleaveCandidateFailure(
+          wrongInterleaveTupleCreateMirror,
+          "plain segment2 interleave validator rejects stale tuple-create "
+          "mirror",
+          {"segment_tuple_create_intrinsic", "__riscv_vcreate_v_i32m1x2",
+           "__metadata_vcreate"}))
+    return false;
+
+  TargetArtifactCandidate staleInterleaveSegmentLoadMirror =
+      segment2InterleaveFixture.candidate;
+  staleInterleaveSegmentLoadMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.segment_load_intrinsic", "__metadata_vlseg2"));
+  if (!expectPlainInterleaveCandidateFailure(
+          staleInterleaveSegmentLoadMirror,
+          "plain segment2 interleave validator rejects stale segment-load "
+          "mirror",
+          {"segment_load_intrinsic", "must not carry"}))
     return false;
 
   RVVRouteDescription wrongLoadRuntimeABIOrder =

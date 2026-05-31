@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, and forbidden authority boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Segment2 target export consumer contract, provider route construction, mirror metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Runtime ABI envelope and tcrv.exec non-ownership of RVV compute, dtype, and route semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC/target artifact handoff."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Target artifact, generated-bundle, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-indexed-memory-route-family-abi-provider-ownership/prd.md", "reason": "Immediate predecessor target-artifact ABI/provider ownership pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-indexed-memory-route-family-abi-provider-ownership/evidence-summary.md", "reason": "Previous indexed memory checks, evidence roots, and authority scan pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-segment2-generated-artifact-executable-boundary/prd.md", "reason": "Segment2 generated-artifact executable evidence boundary and non-repeat evidence-only constraint."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-segment2-generated-artifact-executable-boundary/evidence-summary.md", "reason": "Five-form segment2 dry-run, ssh rvv, direct-route fail-closed, and check evidence to preserve."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-05-31-stage2-rvv-segment2-route-family-provider-boundary-closure/prd.md", "reason": "Segment2 route-provider preflight facts already established before target artifact validation."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-segment2-memory-route-family-abi-provider-ownership/prd.md", "reason": "Current task scope, production gap, acceptance criteria, and validation plan."}

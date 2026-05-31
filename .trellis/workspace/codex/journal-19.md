@@ -1264,3 +1264,36 @@ Closed computed-mask indexed scatter target artifact ABI/mirror consumption for 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 355: Stage2 RVV segment2 memory artifact ABI ownership
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV segment2 memory artifact ABI ownership
+**Branch**: `main`
+
+### Summary
+
+Closed plain segment2 target artifact candidate mirror consumption for provider-derived tuple, field, segment callee, and field memory-form facts; validated segment2 dry-run, ssh rvv evidence, indexed-memory non-regression, and check-tianchenrv 464/464.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

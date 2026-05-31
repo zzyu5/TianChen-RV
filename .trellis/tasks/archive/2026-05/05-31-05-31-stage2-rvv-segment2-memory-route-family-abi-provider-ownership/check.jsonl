@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check no compiler-stack or authority-boundary drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 provider/target artifact contract, mirror-only metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check no tcrv.exec compute, dtype, schedule, or route authority was introduced."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral consumer of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/generated-bundle/ssh-rvv evidence shape."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check runtime/evidence interpretation does not redefine architecture authority."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-segment2-memory-route-family-abi-provider-ownership/prd.md", "reason": "Check implementation and evidence against current bounded acceptance criteria."}

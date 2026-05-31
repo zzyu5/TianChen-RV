@@ -10860,6 +10860,125 @@ llvm::Error requireEmptySegment2MemoryStaleMirror(
   return requireCandidateMetadataMirror(candidate, key, "", label);
 }
 
+llvm::Error validateRVVPlainSegment2MemoryTargetArtifactCandidateMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.segment_tuple_c_type",
+          description.segmentTupleCType,
+          "selected typed RVV plain segment2 tuple C type"))
+    return error;
+
+  if (description.operation ==
+      plugin::rvv::RVVSelectedBodyOperationKind::
+          Segment2DeinterleaveUnitStore) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_load_intrinsic",
+            description.segmentLoadIntrinsic,
+            "selected typed RVV plain segment2 load callee"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_store_intrinsic", "",
+            "selected typed RVV plain segment2 store callee"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_field_extract_intrinsic",
+            description.segmentFieldExtractIntrinsic,
+            "selected typed RVV plain segment2 field extract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_tuple_create_intrinsic", "",
+            "selected typed RVV plain segment2 tuple create"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_destination_memory_form",
+            description.field0DestinationMemoryForm,
+            "selected typed RVV plain segment2 field0 destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_destination_memory_form",
+            description.field1DestinationMemoryForm,
+            "selected typed RVV plain segment2 field1 destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_source_memory_form", "",
+            "selected typed RVV plain segment2 field0 source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_source_memory_form", "",
+            "selected typed RVV plain segment2 field1 source memory form"))
+      return error;
+  } else if (description.operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 Segment2InterleaveUnitLoad) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_load_intrinsic", "",
+            "selected typed RVV plain segment2 load callee"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_store_intrinsic",
+            description.segmentStoreIntrinsic,
+            "selected typed RVV plain segment2 store callee"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_field_extract_intrinsic", "",
+            "selected typed RVV plain segment2 field extract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
+            description.segmentFieldExtractIntrinsic,
+            "selected typed RVV plain segment2 tuple create"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_source_memory_form",
+            description.field0SourceMemoryForm,
+            "selected typed RVV plain segment2 field0 source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_source_memory_form",
+            description.field1SourceMemoryForm,
+            "selected typed RVV plain segment2 field1 source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_destination_memory_form", "",
+            "selected typed RVV plain segment2 field0 destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_destination_memory_form", "",
+            "selected typed RVV plain segment2 field1 destination memory form"))
+      return error;
+  } else {
+    llvm_unreachable("validated non-plain segment2 candidate as plain segment2");
+  }
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.field0_role", description.field0Role,
+          "selected typed RVV plain segment2 field0 role"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.field1_role", description.field1Role,
+          "selected typed RVV plain segment2 field1 role"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.field0_name", description.field0Name,
+          "selected typed RVV plain segment2 field0 binding"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.field1_name", description.field1Name,
+          "selected typed RVV plain segment2 field1 binding"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.segment2_update_arithmetic_kind", "",
+          "selected typed RVV computed-mask segment2 update arithmetic kind"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.segment2_update_arithmetic_intrinsic", "",
+          "selected typed RVV computed-mask segment2 update arithmetic callee"))
+    return error;
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   const TargetArtifactCandidate &candidate = context.candidate;
@@ -11119,6 +11238,10 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.masked_memory_layout", "",
             "selected typed RVV computed-mask segment2 masked memory layout"))
+      return error;
+    if (llvm::Error error =
+            validateRVVPlainSegment2MemoryTargetArtifactCandidateMirrors(
+                candidate, description))
       return error;
   }
 
