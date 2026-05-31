@@ -6273,6 +6273,10 @@ REDUCTION_ACCUMULATION_METADATA_KEYS = (
     "tcrv_rvv.accumulation_result_contract",
     "tcrv_rvv.accumulation_scalar_carry_contract",
     "tcrv_rvv.standalone_reduction_route_family_plan",
+    "tcrv_rvv.standalone_reduction_source_vector_type",
+    "tcrv_rvv.standalone_reduction_source_vector_c_type",
+    "tcrv_rvv.standalone_reduction_scalar_result_vector_type",
+    "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
     "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
@@ -6285,6 +6289,13 @@ REDUCTION_ACCUMULATION_METADATA_KEYS = (
     "tcrv_rvv.reduction_accumulator_layout",
     "tcrv_rvv.reduction_result_layout",
     "tcrv_rvv.reduction_store_vl",
+    "tcrv_rvv.vector_load_intrinsic",
+    "tcrv_rvv.scalar_seed_splat_intrinsic",
+    "tcrv_rvv.reduction_intrinsic",
+    "tcrv_rvv.scalar_result_store_intrinsic",
+    "tcrv_rvv.compare_intrinsic",
+    "tcrv_rvv.masked_merge_intrinsic",
+    "tcrv_rvv.rhs_broadcast_intrinsic",
     "tcrv_rvv.runtime_abi_order",
 )
 VECTOR_REDUCTION_METADATA_KEYS = (
@@ -6948,6 +6959,16 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                         expectation.kind
                     )
                 ),
+                "tcrv_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
+                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                    expectation.standalone_reduction_scalar_seed_splat_intrinsic
+                ),
+                "tcrv_rvv.reduction_intrinsic": (
+                    expectation.standalone_reduction_intrinsic
+                ),
+                "tcrv_rvv.scalar_result_store_intrinsic": (
+                    expectation.standalone_reduction_scalar_result_store_intrinsic
+                ),
             }
         )
     if expectation.is_computed_mask_standalone_reduce:
@@ -6974,6 +6995,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                 ),
+                "tcrv_rvv.standalone_reduction_source_vector_type": (
+                    expectation.rvv_vector_type
+                ),
+                "tcrv_rvv.standalone_reduction_source_vector_c_type": (
+                    expectation.rvv_vector_c_type
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_vector_type": (
+                    expectation.standalone_reduction_scalar_result_vector_type
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": (
+                    expectation.standalone_reduction_scalar_result_vector_c_type
+                ),
                 "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
                     STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
@@ -6999,6 +7032,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                         expectation.kind
                     )
                 ),
+                "tcrv_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
+                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                    expectation.standalone_reduction_scalar_seed_splat_intrinsic
+                ),
+                "tcrv_rvv.reduction_intrinsic": (
+                    expectation.standalone_reduction_intrinsic
+                ),
+                "tcrv_rvv.scalar_result_store_intrinsic": (
+                    expectation.standalone_reduction_scalar_result_store_intrinsic
+                ),
+                "tcrv_rvv.compare_intrinsic": expectation.compare_intrinsic,
+                "tcrv_rvv.masked_merge_intrinsic": expectation.select_intrinsic,
             }
         )
         if expectation.is_computed_mask_standalone_reduce:
@@ -7046,6 +7091,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.standalone_reduction_route_family_plan": (
                     STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
                 ),
+                "tcrv_rvv.standalone_reduction_source_vector_type": (
+                    expectation.rvv_vector_type
+                ),
+                "tcrv_rvv.standalone_reduction_source_vector_c_type": (
+                    expectation.rvv_vector_c_type
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_vector_type": (
+                    expectation.standalone_reduction_scalar_result_vector_type
+                ),
+                "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": (
+                    expectation.standalone_reduction_scalar_result_vector_c_type
+                ),
                 "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": (
                     STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
                 ),
@@ -7088,6 +7145,21 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     runtime_scalar_computed_mask_standalone_reduce_route_operand_binding_operands(
                         expectation.kind
                     )
+                ),
+                "tcrv_rvv.vector_load_intrinsic": expectation.unit_load_intrinsic,
+                "tcrv_rvv.scalar_seed_splat_intrinsic": (
+                    expectation.standalone_reduction_scalar_seed_splat_intrinsic
+                ),
+                "tcrv_rvv.reduction_intrinsic": (
+                    expectation.standalone_reduction_intrinsic
+                ),
+                "tcrv_rvv.scalar_result_store_intrinsic": (
+                    expectation.standalone_reduction_scalar_result_store_intrinsic
+                ),
+                "tcrv_rvv.compare_intrinsic": expectation.compare_intrinsic,
+                "tcrv_rvv.masked_merge_intrinsic": expectation.select_intrinsic,
+                "tcrv_rvv.rhs_broadcast_intrinsic": (
+                    expectation.scalar_splat_intrinsic
                 ),
             }
         )
@@ -24196,6 +24268,87 @@ def run_self_test() -> int:
                         raise AssertionError(
                             "self-test fake bundle generation lost computed-mask "
                             "strided widening dot memory-form metadata"
+                        )
+            if (
+                expectation.is_standalone_reduce
+                or expectation.is_computed_mask_standalone_reduce
+                or expectation.is_runtime_scalar_computed_mask_standalone_reduce
+            ):
+                reduction_metadata = reduction_accumulation_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                if (
+                    reduction_metadata.get(
+                        "tcrv_rvv.standalone_reduction_route_family_plan"
+                    )
+                    != STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                    or reduction_metadata.get(
+                        "tcrv_rvv.standalone_reduction_source_vector_type"
+                    )
+                    != expectation.rvv_vector_type
+                    or reduction_metadata.get(
+                        "tcrv_rvv.standalone_reduction_source_vector_c_type"
+                    )
+                    != expectation.rvv_vector_c_type
+                    or reduction_metadata.get(
+                        "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
+                    )
+                    != expectation.standalone_reduction_scalar_result_vector_type
+                    or reduction_metadata.get(
+                        "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+                    )
+                    != expectation.standalone_reduction_scalar_result_vector_c_type
+                    or reduction_metadata.get("tcrv_rvv.vector_load_intrinsic")
+                    != expectation.unit_load_intrinsic
+                    or reduction_metadata.get(
+                        "tcrv_rvv.scalar_seed_splat_intrinsic"
+                    )
+                    != expectation.standalone_reduction_scalar_seed_splat_intrinsic
+                    or reduction_metadata.get("tcrv_rvv.reduction_intrinsic")
+                    != expectation.standalone_reduction_intrinsic
+                    or reduction_metadata.get(
+                        "tcrv_rvv.scalar_result_store_intrinsic"
+                    )
+                    != expectation.standalone_reduction_scalar_result_store_intrinsic
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost standalone "
+                        "reduction provider-backed metadata"
+                    )
+                if (
+                    expectation.is_computed_mask_standalone_reduce
+                    or expectation.is_runtime_scalar_computed_mask_standalone_reduce
+                ):
+                    if (
+                        reduction_metadata.get(
+                            "tcrv_rvv.accumulation_route_family_plan"
+                        )
+                        != COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
+                        or reduction_metadata.get("tcrv_rvv.compare_intrinsic")
+                        != expectation.compare_intrinsic
+                        or reduction_metadata.get(
+                            "tcrv_rvv.masked_merge_intrinsic"
+                        )
+                        != expectation.select_intrinsic
+                        or reduction_metadata.get("tcrv_rvv.mask_role")
+                        != COMPUTED_MASK_MEMORY_MASK_ROLE
+                    ):
+                        raise AssertionError(
+                            "self-test fake bundle generation lost "
+                            "computed-mask standalone reduction provider "
+                            "metadata"
+                        )
+                if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
+                    if (
+                        reduction_metadata.get(
+                            "tcrv_rvv.rhs_broadcast_intrinsic"
+                        )
+                        != expectation.scalar_splat_intrinsic
+                    ):
+                        raise AssertionError(
+                            "self-test fake bundle generation lost runtime "
+                            "scalar standalone reduction RHS broadcast "
+                            "metadata"
                         )
             harness = harness_source(
                 "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",

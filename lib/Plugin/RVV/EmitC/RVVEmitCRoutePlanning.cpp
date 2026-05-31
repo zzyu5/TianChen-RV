@@ -19912,6 +19912,373 @@ llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
   return llvm::Error::success();
 }
 
+llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyStandaloneReductionRouteStatementPlan &statementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation);
+  const bool carriesStandaloneFacts =
+      analysis.standaloneReductionRouteFamilyPlan.has_value() ||
+      materializationFacts.standaloneReductionPlan ||
+      materializationFacts.emitsStandaloneReduction ||
+      materializationFacts.emitsPlainStandaloneReduction ||
+      materializationFacts.emitsComputedMaskStandaloneReduction ||
+      materializationFacts.emitsRuntimeScalarComputedMaskStandaloneReduction ||
+      mathOperandBindingFacts.bindsStandaloneReduction ||
+      mathOperandBindingFacts.bindsComputedMaskStandaloneReduction ||
+      mathOperandBindingFacts
+          .bindsRuntimeScalarComputedMaskStandaloneReduction ||
+      statementPlan.plansStandaloneReductionRoute;
+  if (!isConsumer) {
+    if (carriesStandaloneFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " must not carry standalone reduction provider facts for "
+          "non-standalone operation '" +
+          stringifyRVVSelectedBodyOperationKind(operation) +
+          "' before creating TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  if (!analysis.standaloneReductionRouteFamilyPlan ||
+      materializationFacts.standaloneReductionPlan !=
+          &*analysis.standaloneReductionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires exactly the "
+        "verified standalone reduction family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const bool isPlainStandalone =
+      isRVVSelectedBodyPlainStandaloneReductionRouteOperation(operation);
+  const bool isComputedMaskStandalone =
+      isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
+          operation);
+  const bool isRuntimeScalarComputedMaskStandalone =
+      isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
+          operation);
+  const bool isComputedMaskFamily =
+      isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone;
+  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan =
+      *materializationFacts.standaloneReductionPlan;
+
+  if (plan.operation != operation || plan.memoryForm != description.memoryForm ||
+      plan.usesComputedMask != isComputedMaskFamily ||
+      plan.usesRuntimeScalarThreshold !=
+          isRuntimeScalarComputedMaskStandalone)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires family-plan "
+        "operation, memory form, and computed-mask/runtime-scalar "
+        "classification to match the selected body before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (isComputedMaskFamily) {
+    if (!analysis.computedMaskAccumulationRouteFamilyPlan ||
+        materializationFacts.computedMaskAccumulationPlan !=
+            &*analysis.computedMaskAccumulationRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction route construction requires "
+          "the shared computed-mask accumulation provider facts before "
+          "creating TCRVEmitCLowerableRoute");
+    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+        &accumulationPlan = *materializationFacts.computedMaskAccumulationPlan;
+    if (accumulationPlan.operation != operation ||
+        accumulationPlan.memoryForm != description.memoryForm ||
+        accumulationPlan.usesVectorMAccSuffix ||
+        !accumulationPlan.usesScalarHorizontalReductionSuffix ||
+        accumulationPlan.usesVectorCompareProducer !=
+            isComputedMaskStandalone ||
+        accumulationPlan.usesRuntimeScalarProducer !=
+            isRuntimeScalarComputedMaskStandalone)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction route construction requires "
+          "the shared accumulation plan to carry the matching scalar "
+          "horizontal reduction, vector/runtime-scalar mask producer, and "
+          "memory-form facts before creating TCRVEmitCLowerableRoute");
+  } else if (materializationFacts.computedMaskAccumulationPlan) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain standalone reduction route construction must not carry "
+        "computed-mask accumulation provider facts before creating "
+        "TCRVEmitCLowerableRoute");
+  }
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires typed RVV "
+        "body/config facts before creating TCRVEmitCLowerableRoute");
+  if (typedFacts.sew != plan.runtimeControlPlan.sew ||
+      typedFacts.lmul != plan.runtimeControlPlan.lmul ||
+      typedFacts.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      typedFacts.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      typedFacts.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      typedFacts.vlCType != plan.vlCType ||
+      typedFacts.vectorTypeName != plan.sourceVectorTypeName ||
+      typedFacts.vectorCType != plan.sourceVectorCType ||
+      typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
+      typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      (isComputedMaskFamily &&
+       (typedFacts.maskTypeName != materializationFacts.maskTypeName ||
+        typedFacts.maskCType != materializationFacts.maskCType)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires family-plan "
+        "source-channel type/config facts to mirror the selected typed RVV "
+        "body before creating TCRVEmitCLowerableRoute");
+
+  if (materializationFacts.vlCType != plan.vlCType ||
+      materializationFacts.resultVectorTypeName !=
+          plan.scalarResultVectorTypeName ||
+      materializationFacts.resultVectorCType != plan.scalarResultVectorCType ||
+      materializationFacts.sourceVectorTypeName != plan.sourceVectorTypeName ||
+      materializationFacts.sourceVectorCType != plan.sourceVectorCType ||
+      materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
+      materializationFacts.sourceLoadLeaf != plan.vectorLoadIntrinsic ||
+      materializationFacts.vectorLoadLeaf != plan.vectorLoadIntrinsic ||
+      materializationFacts.storeLeaf != plan.storeIntrinsic ||
+      materializationFacts.sourceSplatLeaf != plan.sourceSplatIntrinsic ||
+      materializationFacts.scalarSeedSplatLeaf !=
+          plan.scalarSeedSplatIntrinsic ||
+      materializationFacts.contractionComputeLeaf != plan.reductionIntrinsic ||
+      materializationFacts.compareLeaf != plan.compareIntrinsic ||
+      materializationFacts.maskedMergeLeaf != plan.maskedMergeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires materialization "
+        "facts to come from the verified standalone reduction family plan "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (isRuntimeScalarComputedMaskStandalone) {
+    if (materializationFacts.rhsScalarBroadcastLeaf !=
+        plan.rhsScalarSplatIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask standalone reduction route "
+          "construction requires the RHS scalar splat leaf from the verified "
+          "family plan before creating TCRVEmitCLowerableRoute");
+  } else if (!materializationFacts.rhsScalarBroadcastLeaf.empty()) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " non-runtime-scalar standalone reduction route construction must "
+        "not carry an RHS scalar splat leaf before creating "
+        "TCRVEmitCLowerableRoute");
+  }
+
+  if (description.standaloneReductionRouteFamilyPlanID != plan.familyPlanID ||
+      description.runtimeABIOrder != plan.runtimeABIOrder ||
+      description.providerSupportedMirror != plan.providerSupportedMirror ||
+      description.targetLeafProfile != plan.targetLeafProfile ||
+      description.vlCType != plan.vlCType ||
+      description.vectorTypeName != plan.vectorTypeName ||
+      description.vectorCType != plan.vectorCType ||
+      description.standaloneReductionSourceVectorTypeName !=
+          plan.sourceVectorTypeName ||
+      description.standaloneReductionSourceVectorCType !=
+          plan.sourceVectorCType ||
+      description.standaloneReductionScalarResultVectorTypeName !=
+          plan.scalarResultVectorTypeName ||
+      description.standaloneReductionScalarResultVectorCType !=
+          plan.scalarResultVectorCType ||
+      description.scalarSeedSplatIntrinsic !=
+          plan.scalarSeedSplatIntrinsic ||
+      description.intrinsic != plan.reductionIntrinsic ||
+      description.storeIntrinsic != plan.storeIntrinsic ||
+      description.reductionAccumulatorLayout != plan.accumulatorLayout ||
+      description.reductionResultLayout != plan.resultLayout ||
+      description.reductionStoreVL != plan.reductionStoreVL ||
+      description.standaloneReductionScalarResultRuntimeBoundary !=
+          plan.scalarResultRuntimeBoundary ||
+      description.resultName != plan.resultName ||
+      !description.sourceVectorTypeName.empty() ||
+      !description.sourceVectorCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires route "
+        "description and artifact ABI mirror facts to be populated from the "
+        "validated family plan before creating TCRVEmitCLowerableRoute");
+  if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires runtime ABI "
+        "parameters from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (isComputedMaskFamily) {
+    if (description.maskRole != plan.maskRole ||
+        description.maskSource != plan.maskSource ||
+        description.maskMemoryForm != plan.maskMemoryForm ||
+        description.inactiveLaneZeroingRequirement !=
+            plan.inactiveLaneZeroingRequirement ||
+        description.compareIntrinsic != plan.compareIntrinsic ||
+        description.maskedMergeIntrinsic != plan.maskedMergeIntrinsic ||
+        plan.maskRole.empty() || plan.maskSource.empty() ||
+        plan.maskMemoryForm.empty() ||
+        plan.inactiveLaneZeroingRequirement.empty() ||
+        plan.compareIntrinsic.empty() || plan.maskedMergeIntrinsic.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask standalone reduction route construction requires "
+          "mask producer, inactive-lane policy, compare, and inactive-neutral "
+          "merge facts from the verified family plan before creating "
+          "TCRVEmitCLowerableRoute");
+  } else if (!description.maskRole.empty() || !description.maskSource.empty() ||
+             !description.maskMemoryForm.empty() ||
+             !description.inactiveLaneZeroingRequirement.empty() ||
+             !description.compareIntrinsic.empty() ||
+             !description.maskedMergeIntrinsic.empty()) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain standalone reduction route construction must not carry "
+        "computed-mask or inactive-lane mirror facts before creating "
+        "TCRVEmitCLowerableRoute");
+  }
+
+  if (mathOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !mathOperandBindingFacts.bindsMathCluster ||
+      !mathOperandBindingFacts.bindsStandaloneReduction ||
+      mathOperandBindingFacts.bindsComputedMaskStandaloneReduction !=
+          isComputedMaskStandalone ||
+      mathOperandBindingFacts
+              .bindsRuntimeScalarComputedMaskStandaloneReduction !=
+          isRuntimeScalarComputedMaskStandalone)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires math "
+        "operand-binding facts from the same selected route analysis before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " standalone reduction route construction requires lhs/rhs/src/"
+          "acc/out/n operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " standalone reduction route construction requires ABI role for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+
+  if (llvm::Error error = requireABI(
+          mathOperandBindingFacts.lhsABI, "lhs",
+          support::RuntimeABIParameterRole::LHSInputBuffer))
+    return error;
+  if (isComputedMaskStandalone)
+    if (llvm::Error error = requireABI(
+            mathOperandBindingFacts.rhsABI, "rhs",
+            support::RuntimeABIParameterRole::RHSInputBuffer))
+      return error;
+  if (isRuntimeScalarComputedMaskStandalone)
+    if (llvm::Error error = requireABI(
+            mathOperandBindingFacts.rhsABI, "rhs_scalar",
+            support::RuntimeABIParameterRole::RHSScalarValue))
+      return error;
+  if (isComputedMaskFamily)
+    if (llvm::Error error = requireABI(
+            mathOperandBindingFacts.sourceABI, "src",
+            support::RuntimeABIParameterRole::SourceInputBuffer))
+      return error;
+  if (llvm::Error error = requireABI(
+          mathOperandBindingFacts.accumulatorABI, "acc",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer))
+    return error;
+  if (llvm::Error error =
+          requireABI(mathOperandBindingFacts.outABI, "out",
+                     support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          mathOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+
+  if (!statementPlan.plansStandaloneReductionRoute ||
+      statementPlan.standaloneReductionPlan != &plan ||
+      statementPlan.preLoopSteps.empty() ||
+      statementPlan.loop.bodySteps.empty() ||
+      statementPlan.plansPlainStandaloneReductionRoute != isPlainStandalone ||
+      statementPlan.plansComputedMaskStandaloneReductionRoute !=
+          isComputedMaskStandalone ||
+      statementPlan.plansRuntimeScalarComputedMaskStandaloneReductionRoute !=
+          isRuntimeScalarComputedMaskStandalone ||
+      statementPlan.plansStandaloneReduceAdd !=
+          (operation == RVVSelectedBodyOperationKind::StandaloneReduceAdd) ||
+      statementPlan.plansComputedMaskStandaloneReduceAdd !=
+          (operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd) ||
+      statementPlan.plansRuntimeScalarComputedMaskStandaloneReduction !=
+          isRuntimeScalarComputedMaskStandalone)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires the matching "
+        "RVV-owned standalone reduction statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto preLoopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.preLoopSteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto loopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!preLoopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.vectorLoadIntrinsic) ||
+      !preLoopHasCallee(plan.scalarSeedSplatIntrinsic) ||
+      !loopHasCallee(plan.scalarSeedSplatIntrinsic) ||
+      !loopHasCallee(plan.reductionIntrinsic) ||
+      !preLoopHasCallee(plan.storeIntrinsic) ||
+      !loopHasCallee(plan.storeIntrinsic) ||
+      (isComputedMaskFamily &&
+       (!loopHasCallee(plan.sourceSplatIntrinsic) ||
+        !loopHasCallee(plan.compareIntrinsic) ||
+        !loopHasCallee(plan.maskedMergeIntrinsic))) ||
+      (isRuntimeScalarComputedMaskStandalone &&
+       !loopHasCallee(plan.rhsScalarSplatIntrinsic)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route construction requires statement/leaf "
+        "facts for setvl, source load, scalar seed, reduction, scalar result "
+        "store, and computed-mask producers before creating "
+        "TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 llvm::Error
 verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
     const RVVSelectedBodyRouteAnalysis &analysis,

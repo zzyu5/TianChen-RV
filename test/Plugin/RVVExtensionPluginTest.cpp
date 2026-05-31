@@ -19293,6 +19293,11 @@ int runStandaloneReductionRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       analyzeRVVSelectedBodyRoute;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyStandaloneReductionRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
       isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer;
@@ -19300,6 +19305,8 @@ int runStandaloneReductionRouteFamilyProviderPlanTest(
       isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
@@ -19552,6 +19559,79 @@ module {
           "scalar-result m1, and ABI order from provider facts"))
     return result;
 
+  auto plainM2MaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *plainM2Analysis,
+          "standalone reduction m2 provider route facts unit test");
+  if (!plainM2MaterializationFacts)
+    return fail("get standalone m2 materialization facts: " +
+                llvm::toString(plainM2MaterializationFacts.takeError()));
+  auto plainM2MathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *plainM2Analysis,
+      "standalone reduction m2 provider route facts unit test");
+  if (!plainM2MathFacts)
+    return fail("get standalone m2 math operand-binding facts: " +
+                llvm::toString(plainM2MathFacts.takeError()));
+  auto plainM2StatementPlan =
+      getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+          *plainM2Analysis, *plainM2MaterializationFacts, *plainM2MathFacts,
+          "standalone reduction m2 provider route facts unit test");
+  if (!plainM2StatementPlan)
+    return fail("get standalone m2 statement plan: " +
+                llvm::toString(plainM2StatementPlan.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *plainM2Analysis, *plainM2MaterializationFacts,
+              *plainM2MathFacts, *plainM2StatementPlan,
+              "standalone reduction m2 provider route facts unit test"),
+          "valid standalone reduce-add m2 provider route facts"))
+    return result;
+
+  auto stalePlainM2MaterializationFacts = *plainM2MaterializationFacts;
+  stalePlainM2MaterializationFacts.standaloneReductionPlan = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *plainM2Analysis, stalePlainM2MaterializationFacts,
+              *plainM2MathFacts, *plainM2StatementPlan,
+              "standalone reduction m2 provider route facts unit test"),
+          {"requires exactly the verified standalone reduction family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  stalePlainM2MaterializationFacts = *plainM2MaterializationFacts;
+  stalePlainM2MaterializationFacts.sourceVectorCType = "vint32m1_t";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *plainM2Analysis, stalePlainM2MaterializationFacts,
+              *plainM2MathFacts, *plainM2StatementPlan,
+              "standalone reduction m2 provider route facts unit test"),
+          {"materialization facts", "verified standalone reduction family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto stalePlainM2StatementPlan = *plainM2StatementPlan;
+  stalePlainM2StatementPlan.preLoopSteps.clear();
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *plainM2Analysis, *plainM2MaterializationFacts,
+              *plainM2MathFacts, stalePlainM2StatementPlan,
+              "standalone reduction m2 provider route facts unit test"),
+          {"matching RVV-owned standalone reduction statement plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleProviderNonConsumer;
+  staleProviderNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              staleProviderNonConsumer, *plainM2MaterializationFacts,
+              *plainM2MathFacts, *plainM2StatementPlan,
+              "standalone reduction provider route facts unit test"),
+          {"must not carry standalone reduction provider facts",
+           "non-standalone operation", "TCRVEmitCLowerableRoute"}))
+    return result;
+
   RVVSelectedBodyRouteAnalysis stale = *plainAnalysis;
   stale.standaloneReductionRouteFamilyPlan->operation =
       RVVSelectedBodyOperationKind::StandaloneReduceMin;
@@ -19783,6 +19863,73 @@ module {
           "computed-mask standalone add m2 plan must derive source m2, scalar "
           "result m1, mask source, and zero-inactive facts from the family "
           "plan"))
+    return result;
+
+  auto computedMaskMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *computedMaskAnalysis,
+          "computed-mask standalone reduction provider route facts unit test");
+  if (!computedMaskMaterializationFacts)
+    return fail("get computed-mask standalone materialization facts: " +
+                llvm::toString(computedMaskMaterializationFacts.takeError()));
+  auto computedMaskMathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *computedMaskAnalysis,
+      "computed-mask standalone reduction provider route facts unit test");
+  if (!computedMaskMathFacts)
+    return fail("get computed-mask standalone math operand-binding facts: " +
+                llvm::toString(computedMaskMathFacts.takeError()));
+  auto computedMaskStatementPlan =
+      getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+          *computedMaskAnalysis, *computedMaskMaterializationFacts,
+          *computedMaskMathFacts,
+          "computed-mask standalone reduction provider route facts unit test");
+  if (!computedMaskStatementPlan)
+    return fail("get computed-mask standalone statement plan: " +
+                llvm::toString(computedMaskStatementPlan.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *computedMaskAnalysis, *computedMaskMaterializationFacts,
+              *computedMaskMathFacts, *computedMaskStatementPlan,
+              "computed-mask standalone reduction provider route facts unit "
+              "test"),
+          "valid computed-mask standalone reduction provider route facts"))
+    return result;
+
+  auto staleComputedMaskMaterializationFacts =
+      *computedMaskMaterializationFacts;
+  staleComputedMaskMaterializationFacts.computedMaskAccumulationPlan = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *computedMaskAnalysis, staleComputedMaskMaterializationFacts,
+              *computedMaskMathFacts, *computedMaskStatementPlan,
+              "computed-mask standalone reduction provider route facts unit "
+              "test"),
+          {"shared computed-mask accumulation provider facts",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  staleComputedMaskMaterializationFacts = *computedMaskMaterializationFacts;
+  staleComputedMaskMaterializationFacts.compareLeaf = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *computedMaskAnalysis, staleComputedMaskMaterializationFacts,
+              *computedMaskMathFacts, *computedMaskStatementPlan,
+              "computed-mask standalone reduction provider route facts unit "
+              "test"),
+          {"materialization facts", "verified standalone reduction family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  staleComputedMaskMaterializationFacts = *computedMaskMaterializationFacts;
+  staleComputedMaskMaterializationFacts.maskedMergeLeaf = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *computedMaskAnalysis, staleComputedMaskMaterializationFacts,
+              *computedMaskMathFacts, *computedMaskStatementPlan,
+              "computed-mask standalone reduction provider route facts unit "
+              "test"),
+          {"materialization facts", "verified standalone reduction family plan",
+           "TCRVEmitCLowerableRoute"}))
     return result;
 
   stale = *computedMaskAnalysis;

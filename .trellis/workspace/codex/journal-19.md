@@ -1349,3 +1349,34 @@ selected-boundary dry-run evidence and real `ssh rvv` correctness over counts
 ### Next Steps
 
 - None - task complete
+
+
+## Session 356: Stage2 RVV standalone reduction provider ABI boundary
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV standalone reduction provider ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed standalone reduction provider-route preflight, mirror validation evidence, generated-bundle dry-run and ssh rvv correctness for representative selected-boundary reductions.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
