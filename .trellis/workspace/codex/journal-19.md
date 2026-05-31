@@ -1108,3 +1108,51 @@ Closed runtime-scalar computed-mask store/load-store provider preflight before T
 ### Next Steps
 
 - None - task complete
+
+
+## Session 352: Stage2 RVV regular computed-mask memory provider boundary
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV regular computed-mask memory provider boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the RVV provider-boundary preflight for all five regular computed-mask memory routes before TCRVEmitCLowerableRoute construction; focused checks and check-tianchenrv passed.
+
+### Main Changes
+
+- Added RVV-owned regular computed-mask memory provider preflight in route planning and wired it from the selected-body EmitC route provider before TCRVEmitCLowerableRoute construction.
+- Closed provider preflight coverage for unit load/store, strided store, strided load/unit-store, indexed gather/load/unit-store, and indexed scatter/store/unit-load.
+- Added positive and fail-closed C++ plugin coverage for materialization, operand binding, statement plan, mask/tail policy, inactive/passthrough, typed config, runtime n/AVL/VL, ABI, stride/index, provider mirrors, and wrong memory form.
+- Checks passed: tianchenrv-rvv-extension-plugin-test; focused regular computed-mask lit filter; focused runtime-scalar non-regression lit filter; git diff --check; ninja -C build check-tianchenrv.
+- No ssh rvv evidence was run; no runtime, hardware correctness, or performance claim is made.
+- A final source/task/journal commit is created after this journal entry.
+
+
+### Git Commits
+
+Final source/task/journal commit is created after this journal entry.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused regular computed-mask lit filter:
+  `computed-masked-(unit-load-store|strided-store|strided-load|indexed-gather-load|indexed-scatter-store)`
+  passed 14/14 selected tests.
+- [OK] Focused runtime-scalar non-regression lit filter:
+  `runtime-scalar-cmp-masked-(store|load-store)|runtime-scalar-computed-mask-(store|load-store)`
+  passed 14/14 selected tests.
+- [OK] `ninja -C build check-tianchenrv` passed 464/464.
+- [OK] Production diff authority scan found no new descriptor,
+  source-front-door, route-id, artifact-name, common-EmitC, script, or
+  exact-intrinsic authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

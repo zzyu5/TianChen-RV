@@ -1,0 +1,31 @@
+{
+  "id": "05-31-stage2-rvv-regular-computed-mask-memory-provider-boundary",
+  "name": "05-31-stage2-rvv-regular-computed-mask-memory-provider-boundary",
+  "title": "Expand: Stage2 RVV regular computed-mask memory provider-boundary closure",
+  "description": "Extend RVV provider-boundary preflight from runtime-scalar computed-mask memory to regular computed-mask memory route forms before TCRVEmitCLowerableRoute construction.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-31",
+  "completedAt": "2026-05-31",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp",
+    "test/Plugin/RVVExtensionPluginTest.cpp"
+  ],
+  "notes": "Completed all five regular computed-mask memory provider-boundary forms before TCRVEmitCLowerableRoute construction; focused plugin, scoped lit filters, git diff --check, and check-tianchenrv passed. No ssh rvv runtime evidence was run, so no runtime/correctness/performance claim.",
+  "meta": {}
+}

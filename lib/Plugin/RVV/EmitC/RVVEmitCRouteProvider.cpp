@@ -348,7 +348,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
       description.operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
-  if (isRuntimeScalarComputedMaskMemory) {
+  const bool isRegularComputedMaskMemory =
+      description.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              ComputedMaskIndexedScatterStoreUnitLoad;
+  if (isRuntimeScalarComputedMaskMemory || isRegularComputedMaskMemory) {
     llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
         computedMaskMemoryStatementPlanOrError =
             getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
@@ -356,12 +368,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                 "selected RVV EmitC route construction");
     if (!computedMaskMemoryStatementPlanOrError)
       return computedMaskMemoryStatementPlanOrError.takeError();
-    if (llvm::Error error =
-            verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
-                analysis, materializationFacts, memoryOperandBindingFacts,
-                *computedMaskMemoryStatementPlanOrError,
-                "selected RVV EmitC route construction"))
-      return error;
+    if (isRuntimeScalarComputedMaskMemory) {
+      if (llvm::Error error =
+              verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+                  analysis, materializationFacts, memoryOperandBindingFacts,
+                  *computedMaskMemoryStatementPlanOrError,
+                  "selected RVV EmitC route construction"))
+        return error;
+    } else {
+      if (llvm::Error error =
+              verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+                  analysis, materializationFacts, memoryOperandBindingFacts,
+                  *computedMaskMemoryStatementPlanOrError,
+                  "selected RVV EmitC route construction"))
+        return error;
+    }
   }
   llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
       mathOperandBindingFactsOrError =

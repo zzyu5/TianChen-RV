@@ -10457,6 +10457,8 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
@@ -10911,6 +10913,18 @@ module {
               "consumes materialization, statement-plan, operand-binding, "
               "runtime-control, typed-config, and mask/tail facts before "
               "route construction"))
+        return result;
+    if (unitLoadStore || stridedStore || stridedLoad || indexedGather ||
+        indexedScatter)
+      if (int result = expectSuccess(
+              verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+                  analysis, *materializationFacts, *memoryFacts,
+                  *statementPlan,
+                  "regular computed-mask memory provider-boundary unit test"),
+              "regular computed-mask memory provider preflight consumes "
+              "materialization, statement-plan, operand-binding, "
+              "runtime-control, typed-config, mask/tail, stride/index, and "
+              "ABI facts before route construction"))
         return result;
 
     KernelOp kernel = findKernel(*module, kernelName);
@@ -11602,6 +11616,149 @@ module {
            "__riscv_vse32_v_i32m1"}))
     return result;
 
+  auto unitMaterializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *unitLoadStoreAnalysis,
+      "regular computed-mask memory provider-boundary unit test");
+  if (!unitMaterializationFacts)
+    return fail("regular computed-mask unit materialization facts: " +
+                llvm::toString(unitMaterializationFacts.takeError()));
+  auto unitBindingFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+      *unitLoadStoreAnalysis,
+      "regular computed-mask memory provider-boundary unit test");
+  if (!unitBindingFacts)
+    return fail("regular computed-mask unit binding facts: " +
+                llvm::toString(unitBindingFacts.takeError()));
+  auto unitStatementPlan = getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+      *unitLoadStoreAnalysis, *unitMaterializationFacts, *unitBindingFacts,
+      "regular computed-mask memory provider-boundary unit test");
+  if (!unitStatementPlan)
+    return fail("regular computed-mask unit statement plan: " +
+                llvm::toString(unitStatementPlan.takeError()));
+
+  auto missingRegularBindingFacts = *unitBindingFacts;
+  missingRegularBindingFacts.compareRhsABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *unitLoadStoreAnalysis, *unitMaterializationFacts,
+              missingRegularBindingFacts, *unitStatementPlan,
+              "regular computed-mask memory missing compare RHS "
+              "provider-boundary unit test"),
+          {"cmp_lhs/cmp_rhs/src/dst/n plus stride/index operand-binding "
+           "facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRegularStatementPlan = *unitStatementPlan;
+  staleRegularStatementPlan.plansComputedMaskUnitLoadStore = false;
+  staleRegularStatementPlan.plansComputedMaskStridedStore = true;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *unitLoadStoreAnalysis, *unitMaterializationFacts,
+              *unitBindingFacts, staleRegularStatementPlan,
+              "regular computed-mask memory stale statement-plan "
+              "provider-boundary unit test"),
+          {"matching regular computed-mask memory statement plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRegularLeafPlan = *unitStatementPlan;
+  staleRegularLeafPlan.loop.bodySteps[0].callee = "metadata-selected-setvl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *unitLoadStoreAnalysis, *unitMaterializationFacts,
+              *unitBindingFacts, staleRegularLeafPlan,
+              "regular computed-mask memory stale statement-leaf "
+              "provider-boundary unit test"),
+          {"statement/leaf facts for setvl, vector compare, masked load/store, "
+           "stride, and index calls",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRegularMaskTailPlan = *unitStatementPlan;
+  staleRegularMaskTailPlan.maskTailPolicyPlan.maskProducerSourceMirror =
+      "runtime-scalar-splat-compare-rhs";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *unitLoadStoreAnalysis, *unitMaterializationFacts,
+              *unitBindingFacts, staleRegularMaskTailPlan,
+              "regular computed-mask memory stale mask-tail "
+              "provider-boundary unit test"),
+          {"mask/tail policy provider plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRegularTypedFacts = *unitMaterializationFacts;
+  staleRegularTypedFacts.typedConfigFacts.lmul = "m2";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *unitLoadStoreAnalysis, staleRegularTypedFacts, *unitBindingFacts,
+              *unitStatementPlan,
+              "regular computed-mask memory stale typed-config "
+              "provider-boundary unit test"),
+          {"family-plan type/config facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto missingRegularMaterializationFacts = *unitMaterializationFacts;
+  missingRegularMaterializationFacts.computedMaskMemoryPlan = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *unitLoadStoreAnalysis, missingRegularMaterializationFacts,
+              *unitBindingFacts, *unitStatementPlan,
+              "regular computed-mask memory missing materialization "
+              "provider-boundary unit test"),
+          {"exactly the verified computed-mask memory family plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRegularMemoryForm =
+      *unitLoadStoreAnalysis;
+  staleRegularMemoryForm.computedMaskMemoryRouteFamilyPlan->memoryForm =
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
+  auto staleRegularMemoryFormFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRegularMemoryForm,
+          "regular computed-mask memory stale memory-form "
+          "provider-boundary unit test");
+  if (!staleRegularMemoryFormFacts)
+    return fail("stale regular computed-mask memory-form facts: " +
+                llvm::toString(staleRegularMemoryFormFacts.takeError()));
+  auto staleRegularMemoryFormBindingFacts = *unitBindingFacts;
+  staleRegularMemoryFormBindingFacts.bindingPlan =
+      &staleRegularMemoryForm.routeOperandBindingPlan;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              staleRegularMemoryForm, *staleRegularMemoryFormFacts,
+              staleRegularMemoryFormBindingFacts, *unitStatementPlan,
+              "regular computed-mask memory stale memory-form "
+              "provider-boundary unit test"),
+          {"vector compare-mask producer facts and the matching regular "
+           "memory form",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRegularMirror = *unitLoadStoreAnalysis;
+  staleRegularMirror.description.providerSupportedMirror = "metadata-supported";
+  auto staleRegularMirrorFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRegularMirror,
+      "regular computed-mask memory stale mirror provider-boundary unit test");
+  if (!staleRegularMirrorFacts)
+    return fail("stale regular computed-mask mirror facts: " +
+                llvm::toString(staleRegularMirrorFacts.takeError()));
+  auto staleRegularMirrorBindingFacts = *unitBindingFacts;
+  staleRegularMirrorBindingFacts.bindingPlan =
+      &staleRegularMirror.routeOperandBindingPlan;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              staleRegularMirror, *staleRegularMirrorFacts,
+              staleRegularMirrorBindingFacts, *unitStatementPlan,
+              "regular computed-mask memory stale mirror "
+              "provider-boundary unit test"),
+          {"provider-built family, memory-form, stride/index, mask/tail, "
+           "inactive-lane, provider support, and ABI mirror facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
   RVVSelectedBodyRouteAnalysis staleMissingUse = *runtimeScalarAnalysis;
   bool removedUse = false;
   for (tianchenrv::plugin::rvv::RVVRouteOperandBinding &binding :
@@ -11692,6 +11849,40 @@ module {
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmslt_vv_i32m1_b32", "__riscv_vsse32_v_i32m1_m"}))
+    return result;
+  auto stridedStoreMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *stridedStoreAnalysis,
+          "regular computed-mask strided-store provider-boundary unit test");
+  if (!stridedStoreMaterializationFacts)
+    return fail("regular computed-mask strided-store materialization facts: " +
+                llvm::toString(stridedStoreMaterializationFacts.takeError()));
+  auto stridedStoreBindingFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *stridedStoreAnalysis,
+          "regular computed-mask strided-store provider-boundary unit test");
+  if (!stridedStoreBindingFacts)
+    return fail("regular computed-mask strided-store binding facts: " +
+                llvm::toString(stridedStoreBindingFacts.takeError()));
+  auto stridedStoreStatementPlan =
+      getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+          *stridedStoreAnalysis, *stridedStoreMaterializationFacts,
+          *stridedStoreBindingFacts,
+          "regular computed-mask strided-store provider-boundary unit test");
+  if (!stridedStoreStatementPlan)
+    return fail("regular computed-mask strided-store statement plan: " +
+                llvm::toString(stridedStoreStatementPlan.takeError()));
+  auto missingDestinationStrideFacts = *stridedStoreBindingFacts;
+  missingDestinationStrideFacts.destinationStrideABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *stridedStoreAnalysis, *stridedStoreMaterializationFacts,
+              missingDestinationStrideFacts, *stridedStoreStatementPlan,
+              "regular computed-mask strided-store missing stride "
+              "provider-boundary unit test"),
+          {"cmp_lhs/cmp_rhs/src/dst/n plus stride/index operand-binding "
+           "facts",
+           "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedAnalysis =
@@ -11813,6 +12004,30 @@ module {
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmslt_vv_i32m1_b32", "__riscv_vluxei32_v_i32m1_tumu",
            "__riscv_vse32_v_i32m1"}))
+    return result;
+  auto indexedMaterializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *indexedAnalysis,
+      "regular computed-mask indexed provider-boundary unit test");
+  if (!indexedMaterializationFacts)
+    return fail("regular computed-mask indexed materialization facts: " +
+                llvm::toString(indexedMaterializationFacts.takeError()));
+  auto indexedStatementPlan = getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+      *indexedAnalysis, *indexedMaterializationFacts, *indexedBindingFacts,
+      "regular computed-mask indexed provider-boundary unit test");
+  if (!indexedStatementPlan)
+    return fail("regular computed-mask indexed statement plan: " +
+                llvm::toString(indexedStatementPlan.takeError()));
+  auto missingIndexBindingFacts = *indexedBindingFacts;
+  missingIndexBindingFacts.indexABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              *indexedAnalysis, *indexedMaterializationFacts,
+              missingIndexBindingFacts, *indexedStatementPlan,
+              "regular computed-mask indexed missing index "
+              "provider-boundary unit test"),
+          {"cmp_lhs/cmp_rhs/src/dst/n plus stride/index operand-binding "
+           "facts",
+           "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
   stale = *indexedAnalysis;

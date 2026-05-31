@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture, RVV-first authority chain, Stage1/Stage2 separation, and support/evidence constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, computed-mask memory statement-plan, route-control, memory operand-binding, provider construction, fail-closed diagnostics, and mirror rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime envelope contract; mem_window/runtime_param are role bindings, not RVV compute/dtype/config authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, common EmitC neutrality, and mirror-only emission/artifact metadata boundaries."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-regular-computed-mask-memory-provider-boundary/prd.md", "reason": "Current bounded task requirements and acceptance criteria."}

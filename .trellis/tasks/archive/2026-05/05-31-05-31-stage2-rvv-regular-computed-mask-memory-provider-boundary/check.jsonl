@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture, RVV-first authority chain, and support/evidence separation after changes."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify regular computed-mask memory provider preflight, route-control, memory operand-binding, statement-plan, and fail-closed compliance."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime role handling remains tcrv.exec envelope plus explicit typed tcrv_rvv consumption."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route authority and common EmitC neutrality."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-regular-computed-mask-memory-provider-boundary/prd.md", "reason": "Verify implementation against current task acceptance criteria."}
