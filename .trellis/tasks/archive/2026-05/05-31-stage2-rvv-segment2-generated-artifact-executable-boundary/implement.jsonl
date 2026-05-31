@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first stage order for this generated-artifact executable boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage2 selected-body/provider, segment2 target export, mask/tail, provider construction, and direct-route-entry retirement contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec runtime ABI envelope, mem_window/runtime_param, and mirror-only diagnostic boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute, and target artifact handoff rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, runtime hardware evidence, and mask/tail sentinel evidence requirements."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing layer checklist for RVV runtime and generated artifact claims."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected typed tcrv_rvv body authority and mirror-only selected-path metadata rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-05-31-stage2-rvv-segment2-route-family-provider-boundary-closure/prd.md", "reason": "Immediate predecessor task and its compiler/provider-only claim boundary."}

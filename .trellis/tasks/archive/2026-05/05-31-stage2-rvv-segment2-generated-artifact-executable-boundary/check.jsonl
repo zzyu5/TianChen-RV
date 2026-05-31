@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 selected-body/provider/target-artifact contract and direct-route-entry retirement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC and target artifact export remain provider-built and mirror-only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle evidence, ssh rvv runtime evidence, and tail/inactive preservation requirements."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check runtime ABI roles remain envelope declarations rather than compute or route authority."}
