@@ -1626,6 +1626,16 @@ llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
 getRVVSelectedBodyMemoryRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error
+verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+        &computedMaskMemoryStatementPlan,
+    llvm::StringRef context);
+
 llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
 getRVVSelectedBodyMathRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);

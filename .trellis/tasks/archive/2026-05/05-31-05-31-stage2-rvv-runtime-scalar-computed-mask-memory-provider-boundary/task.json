@@ -1,0 +1,31 @@
+{
+  "id": "05-31-stage2-rvv-runtime-scalar-computed-mask-memory-provider-boundary",
+  "name": "05-31-stage2-rvv-runtime-scalar-computed-mask-memory-provider-boundary",
+  "title": "Stage2 RVV runtime-scalar computed-mask memory provider-boundary closure",
+  "description": "Close the RVV plugin provider preflight boundary for runtime_scalar_cmp_masked_store and runtime_scalar_cmp_masked_load_store before TCRVEmitCLowerableRoute construction.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-31",
+  "completedAt": "2026-05-31",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "this commit",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp",
+    "test/Plugin/RVVExtensionPluginTest.cpp"
+  ],
+  "notes": "Completed provider-boundary preflight for runtime_scalar_cmp_masked_store and runtime_scalar_cmp_masked_load_store before TCRVEmitCLowerableRoute construction. Verification: git diff --check; ninja -C build tianchenrv-rvv-extension-plugin-test; ./build/bin/tianchenrv-rvv-extension-plugin-test; focused lit filters for pre-realized runtime-scalar cmp masked store/load-store generated-bundle dry-runs and target artifact tests; ninja -C build check-tianchenrv passed 464/464. Authority scan over new diff found no descriptor/direct-C/source-front-door/source-export/legacy-i32 route authority additions.",
+  "meta": {}
+}

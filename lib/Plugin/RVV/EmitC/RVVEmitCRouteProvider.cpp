@@ -343,6 +343,26 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return memoryOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMemoryRouteOperandBindingFacts
       &memoryOperandBindingFacts = *memoryOperandBindingFactsOrError;
+  const bool isRuntimeScalarComputedMaskMemory =
+      description.operation ==
+          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  if (isRuntimeScalarComputedMaskMemory) {
+    llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
+        computedMaskMemoryStatementPlanOrError =
+            getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+                analysis, materializationFacts, memoryOperandBindingFacts,
+                "selected RVV EmitC route construction");
+    if (!computedMaskMemoryStatementPlanOrError)
+      return computedMaskMemoryStatementPlanOrError.takeError();
+    if (llvm::Error error =
+            verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+                analysis, materializationFacts, memoryOperandBindingFacts,
+                *computedMaskMemoryStatementPlanOrError,
+                "selected RVV EmitC route construction"))
+      return error;
+  }
   llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
       mathOperandBindingFactsOrError =
           getRVVSelectedBodyMathRouteOperandBindingFacts(

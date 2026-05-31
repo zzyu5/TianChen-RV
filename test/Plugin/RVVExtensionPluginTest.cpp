@@ -10455,6 +10455,8 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
@@ -10898,6 +10900,18 @@ module {
         return result;
       ++index;
     }
+    if (runtimeScalarStore || runtimeScalarLoadStore)
+      if (int result = expectSuccess(
+              verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+                  analysis, *materializationFacts, *memoryFacts,
+                  *statementPlan,
+                  "runtime scalar computed-mask memory provider-boundary "
+                  "unit test"),
+              "runtime-scalar computed-mask memory provider preflight "
+              "consumes materialization, statement-plan, operand-binding, "
+              "runtime-control, typed-config, and mask/tail facts before "
+              "route construction"))
+        return result;
 
     KernelOp kernel = findKernel(*module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);
@@ -11137,6 +11151,179 @@ module {
   if (!runtimeScalarMaterializationFacts)
     return fail("runtime-scalar computed-mask materialization facts: " +
                 llvm::toString(runtimeScalarMaterializationFacts.takeError()));
+  llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
+      runtimeScalarProviderStatementPlan =
+          getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarBindingFacts,
+              "runtime scalar computed-mask memory provider-boundary unit "
+              "test");
+  if (!runtimeScalarProviderStatementPlan)
+    return fail("runtime-scalar computed-mask provider-boundary statement "
+                "plan: " +
+                llvm::toString(runtimeScalarProviderStatementPlan.takeError()));
+
+  auto missingRuntimeScalarBindingFacts = *runtimeScalarBindingFacts;
+  missingRuntimeScalarBindingFacts.rhsScalarABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              missingRuntimeScalarBindingFacts,
+              *runtimeScalarProviderStatementPlan,
+              "runtime scalar computed-mask memory missing scalar ABI "
+              "provider-boundary unit test"),
+          {"lhs/rhs_scalar/src/dst/n operand-binding facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRuntimeScalarStatementPlan = *runtimeScalarProviderStatementPlan;
+  staleRuntimeScalarStatementPlan.plansRuntimeScalarComputedMaskStore = false;
+  staleRuntimeScalarStatementPlan.plansRuntimeScalarComputedMaskLoadStore = true;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarBindingFacts, staleRuntimeScalarStatementPlan,
+              "runtime scalar computed-mask memory stale statement-plan "
+              "provider-boundary unit test"),
+          {"matching runtime-scalar store/load-store statement plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRuntimeScalarMaskTailPlan = *runtimeScalarProviderStatementPlan;
+  staleRuntimeScalarMaskTailPlan.maskTailPolicyPlan.maskProducerSourceMirror =
+      "vector-compare-rhs-load";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
+              *runtimeScalarBindingFacts, staleRuntimeScalarMaskTailPlan,
+              "runtime scalar computed-mask memory stale mask-tail "
+              "provider-boundary unit test"),
+          {"mask/tail policy provider plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRuntimeScalarTypedFacts = *runtimeScalarMaterializationFacts;
+  staleRuntimeScalarTypedFacts.typedConfigFacts.lmul = "m2";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              *runtimeScalarAnalysis, staleRuntimeScalarTypedFacts,
+              *runtimeScalarBindingFacts, *runtimeScalarProviderStatementPlan,
+              "runtime scalar computed-mask memory stale typed-config "
+              "provider-boundary unit test"),
+          {"family-plan type/config facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeScalarMemoryForm =
+      *runtimeScalarAnalysis;
+  staleRuntimeScalarMemoryForm.computedMaskMemoryRouteFamilyPlan->memoryForm =
+      RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore;
+  auto staleRuntimeScalarMemoryFormFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRuntimeScalarMemoryForm,
+          "runtime scalar computed-mask memory stale memory-form "
+          "provider-boundary unit test");
+  if (!staleRuntimeScalarMemoryFormFacts)
+    return fail("stale runtime-scalar computed-mask memory-form facts: " +
+                llvm::toString(
+                    staleRuntimeScalarMemoryFormFacts.takeError()));
+  auto staleRuntimeScalarMemoryFormBindingFacts =
+      *runtimeScalarBindingFacts;
+  staleRuntimeScalarMemoryFormBindingFacts.bindingPlan =
+      &staleRuntimeScalarMemoryForm.routeOperandBindingPlan;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              staleRuntimeScalarMemoryForm, *staleRuntimeScalarMemoryFormFacts,
+              staleRuntimeScalarMemoryFormBindingFacts,
+              *runtimeScalarProviderStatementPlan,
+              "runtime scalar computed-mask memory stale memory-form "
+              "provider-boundary unit test"),
+          {"runtime-scalar producer facts and the matching store/load-store "
+           "memory form",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeScalarRuntimeControl =
+      *runtimeScalarAnalysis;
+  staleRuntimeScalarRuntimeControl.description.runtimeAVLASource =
+      "metadata-selected-avl";
+  auto staleRuntimeScalarRuntimeControlFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRuntimeScalarRuntimeControl,
+          "runtime scalar computed-mask memory stale runtime-control "
+          "provider-boundary unit test");
+  if (!staleRuntimeScalarRuntimeControlFacts)
+    return fail("stale runtime-scalar computed-mask runtime-control facts: " +
+                llvm::toString(
+                    staleRuntimeScalarRuntimeControlFacts.takeError()));
+  auto staleRuntimeScalarRuntimeControlBindingFacts =
+      *runtimeScalarBindingFacts;
+  staleRuntimeScalarRuntimeControlBindingFacts.bindingPlan =
+      &staleRuntimeScalarRuntimeControl.routeOperandBindingPlan;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              staleRuntimeScalarRuntimeControl,
+              *staleRuntimeScalarRuntimeControlFacts,
+              staleRuntimeScalarRuntimeControlBindingFacts,
+              *runtimeScalarProviderStatementPlan,
+              "runtime scalar computed-mask memory stale runtime-control "
+              "provider-boundary unit test"),
+          {"computed-mask memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeScalarMirror =
+      *runtimeScalarAnalysis;
+  staleRuntimeScalarMirror.description.providerSupportedMirror =
+      "metadata-supported";
+  auto staleRuntimeScalarMirrorFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRuntimeScalarMirror,
+          "runtime scalar computed-mask memory stale mirror "
+          "provider-boundary unit test");
+  if (!staleRuntimeScalarMirrorFacts)
+    return fail("stale runtime-scalar computed-mask mirror facts: " +
+                llvm::toString(staleRuntimeScalarMirrorFacts.takeError()));
+  auto staleRuntimeScalarMirrorBindingFacts = *runtimeScalarBindingFacts;
+  staleRuntimeScalarMirrorBindingFacts.bindingPlan =
+      &staleRuntimeScalarMirror.routeOperandBindingPlan;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              staleRuntimeScalarMirror, *staleRuntimeScalarMirrorFacts,
+              staleRuntimeScalarMirrorBindingFacts,
+              *runtimeScalarProviderStatementPlan,
+              "runtime scalar computed-mask memory stale mirror "
+              "provider-boundary unit test"),
+          {"provider-built family, mask/tail, inactive-lane, provider "
+           "support, and ABI mirror facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeScalarABI =
+      *runtimeScalarAnalysis;
+  std::swap(staleRuntimeScalarABI.description.runtimeABIParameters[0],
+            staleRuntimeScalarABI.description.runtimeABIParameters[1]);
+  auto staleRuntimeScalarABIFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleRuntimeScalarABI,
+      "runtime scalar computed-mask memory stale ABI provider-boundary unit "
+      "test");
+  if (!staleRuntimeScalarABIFacts)
+    return fail("stale runtime-scalar computed-mask ABI facts: " +
+                llvm::toString(staleRuntimeScalarABIFacts.takeError()));
+  auto staleRuntimeScalarABIBindingFacts = *runtimeScalarBindingFacts;
+  staleRuntimeScalarABIBindingFacts.bindingPlan =
+      &staleRuntimeScalarABI.routeOperandBindingPlan;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              staleRuntimeScalarABI, *staleRuntimeScalarABIFacts,
+              staleRuntimeScalarABIBindingFacts,
+              *runtimeScalarProviderStatementPlan,
+              "runtime scalar computed-mask memory stale ABI "
+              "provider-boundary unit test"),
+          {"runtime ABI parameters",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
   auto missingRuntimeScalarMaterializationFacts =
       *runtimeScalarMaterializationFacts;
   missingRuntimeScalarMaterializationFacts.computedMaskMemoryPlan = nullptr;
@@ -11352,6 +11539,49 @@ module {
            "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmsle_vv_i32m1_b32", "__riscv_vle32_v_i32m1_tumu",
            "__riscv_vse32_v_i32m1"}))
+    return result;
+  auto runtimeScalarLoadStoreMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeScalarLoadStoreAnalysis,
+          "runtime scalar computed-mask load-store provider-boundary unit "
+          "test");
+  if (!runtimeScalarLoadStoreMaterializationFacts)
+    return fail("runtime-scalar computed-mask load-store materialization "
+                "facts: " +
+                llvm::toString(
+                    runtimeScalarLoadStoreMaterializationFacts.takeError()));
+  auto runtimeScalarLoadStoreBindingFacts =
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+          *runtimeScalarLoadStoreAnalysis,
+          "runtime scalar computed-mask load-store provider-boundary unit "
+          "test");
+  if (!runtimeScalarLoadStoreBindingFacts)
+    return fail("runtime-scalar computed-mask load-store binding facts: " +
+                llvm::toString(
+                    runtimeScalarLoadStoreBindingFacts.takeError()));
+  auto runtimeScalarLoadStoreStatementPlan =
+      getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
+          *runtimeScalarLoadStoreAnalysis,
+          *runtimeScalarLoadStoreMaterializationFacts,
+          *runtimeScalarLoadStoreBindingFacts,
+          "runtime scalar computed-mask load-store provider-boundary unit "
+          "test");
+  if (!runtimeScalarLoadStoreStatementPlan)
+    return fail("runtime-scalar computed-mask load-store statement plan: " +
+                llvm::toString(runtimeScalarLoadStoreStatementPlan.takeError()));
+  auto missingPassthroughLoadStoreBindingFacts =
+      *runtimeScalarLoadStoreBindingFacts;
+  missingPassthroughLoadStoreBindingFacts.passthroughABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              *runtimeScalarLoadStoreAnalysis,
+              *runtimeScalarLoadStoreMaterializationFacts,
+              missingPassthroughLoadStoreBindingFacts,
+              *runtimeScalarLoadStoreStatementPlan,
+              "runtime scalar computed-mask load-store missing passthrough "
+              "provider-boundary unit test"),
+          {"old-destination passthrough operand-binding facts",
+           "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> unitLoadStoreAnalysis =

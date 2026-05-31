@@ -1047,3 +1047,64 @@ Closed the elementwise/compare-select selected-body owner-to-provider boundary b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 351: Stage2 RVV runtime-scalar computed-mask memory provider boundary
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV runtime-scalar computed-mask memory provider boundary
+**Branch**: `main`
+
+### Summary
+
+Closed runtime-scalar computed-mask store/load-store provider preflight before TCRVEmitCLowerableRoute by verifying RVV-owned family, materialization, operand-binding, typed-config, route-control, mask/tail, statement-plan, ABI, passthrough, and mirror facts; focused RVV plugin, generated-bundle, target artifact, authority scan, and check-tianchenrv evidence passed.
+
+### Main Changes
+
+- Added
+  `verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(...)`
+  as the RVV provider preflight for
+  `runtime_scalar_cmp_masked_store` and
+  `runtime_scalar_cmp_masked_load_store`.
+- `RVVEmitCRouteProvider` now obtains the computed-mask memory statement plan
+  and runs this verifier after route-family/materialization/memory-binding
+  facts, before constructing `TCRVEmitCLowerableRoute`.
+- The verifier consumes the computed-mask memory family plan, statement plan,
+  runtime ABI parameters, memory operand bindings, typed config facts,
+  route-control n/AVL/VL plan, mask/tail policy plan, provider mirrors, and
+  passthrough/inactive-lane facts, and fails closed on stale or missing inputs.
+- Extended `RVVExtensionPluginTest` with positive preflight coverage for both
+  runtime-scalar computed-mask memory routes and negative diagnostics for
+  missing scalar binding, stale statement/mask-tail/typed-config/memory-form/
+  runtime-control/mirror/ABI facts, and missing load-store passthrough.
+- Archived the Trellis task under
+  `.trellis/tasks/archive/2026-05/05-31-05-31-stage2-rvv-runtime-scalar-computed-mask-memory-provider-boundary`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit filter for pre-realized
+  `runtime_scalar_cmp_masked_store` / `runtime_scalar_cmp_masked_load_store`
+  generated-bundle dry-runs: 4/4 passed.
+- [OK] Focused lit filter for related runtime-scalar cmp masked store/load-store
+  target artifact tests: 8/8 passed.
+- [OK] Bounded authority scan over the new diff found no new descriptor,
+  direct-C/source-front-door/source-export, legacy `rvv-i32m1`,
+  `tcrv_rvv.i32_`, or exact-intrinsic authority additions.
+- [OK] `ninja -C build check-tianchenrv` passed 464/464.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

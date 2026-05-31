@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture, RVV-first authority chain, and support/evidence separation after changes."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify runtime-scalar computed-mask memory provider preflight, route-control, memory operand-binding, statement-plan, and fail-closed compliance."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ABI/runtime role handling remains tcrv.exec envelope plus explicit typed tcrv_rvv consumption."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route authority and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests, generated-bundle evidence, authority scans, and check-tianchenrv evidence."}
+{"file": ".trellis/tasks/05-31-05-31-stage2-rvv-runtime-scalar-computed-mask-memory-provider-boundary/prd.md", "reason": "Verify implementation against current task acceptance criteria."}
