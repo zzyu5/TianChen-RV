@@ -7348,6 +7348,15 @@ llvm::StringRef getRVVCompareSelectMaskExpectedIndexedDestinationMemoryForm(
              : llvm::StringRef();
 }
 
+llvm::StringRef getRVVCompareSelectMaskExpectedIndexUniqueness(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return operation ==
+                 plugin::rvv::RVVSelectedBodyOperationKind::
+                     ComputedMaskIndexedScatterStoreUnitLoad
+             ? llvm::StringRef("unique")
+             : llvm::StringRef();
+}
+
 llvm::Error requireRVVCompareSelectMaskProviderField(llvm::StringRef label,
                                                     llvm::StringRef actual,
                                                     llvm::StringRef expected) {
@@ -8315,6 +8324,11 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
                       : llvm::StringRef()))
       return error;
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
+            "index uniqueness", description.indexUniqueness,
+            getRVVCompareSelectMaskExpectedIndexUniqueness(
+                description.operation)))
+      return error;
+    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
             "indexed data memory form", description.indexedDataMemoryForm,
             getRVVCompareSelectMaskExpectedIndexedDataMemoryForm(
                 description.operation)))
@@ -8607,6 +8621,11 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.offset_unit", description.offsetUnit,
             "selected typed RVV computed-mask index offset unit"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.index_uniqueness",
+            description.indexUniqueness,
+            "selected typed RVV computed-mask index uniqueness"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.indexed_data_memory_form",

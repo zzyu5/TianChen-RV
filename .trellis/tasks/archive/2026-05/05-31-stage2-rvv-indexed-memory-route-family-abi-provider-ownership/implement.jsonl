@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, RVV authority, descriptor/source-front-door, and evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, memory movement, computed masks, provider construction, fail-closed diagnostics, mirror metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "ABI role boundaries for mem_window/runtime_param and prohibition on core-owned RVV compute semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC materialization contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit/runtime evidence shape for RVV selected-body and generated artifact claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-segment2-generated-artifact-executable-boundary/prd.md", "reason": "Previous task boundary and non-repeat evidence-only constraint."}
+{"file": ".trellis/tasks/archive/2026-05/05-31-stage2-rvv-segment2-generated-artifact-executable-boundary/evidence-summary.md", "reason": "Segment2 evidence closure and next-owner distinction."}

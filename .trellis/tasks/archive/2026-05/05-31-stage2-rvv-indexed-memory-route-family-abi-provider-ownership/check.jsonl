@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check implementation against global RVV authority and forbidden-authority boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body/provider/target artifact ownership and computed-mask indexed memory contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check no new tcrv.exec compute or dtype authority was introduced."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains a neutral consumer of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and RVV evidence match project testing rules."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check runtime/evidence interpretation does not redefine architecture authority."}

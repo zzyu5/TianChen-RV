@@ -1231,3 +1231,36 @@ Validated all five provider-validated segment2 forms through selected-boundary g
 ### Next Steps
 
 - None - task complete
+
+
+## Session 354: Stage2 RVV indexed memory artifact ABI ownership
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV indexed memory artifact ABI ownership
+**Branch**: `main`
+
+### Summary
+
+Closed computed-mask indexed scatter target artifact ABI/mirror consumption for index uniqueness, validated four indexed memory forms with generated-bundle dry-run and ssh rvv evidence, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
