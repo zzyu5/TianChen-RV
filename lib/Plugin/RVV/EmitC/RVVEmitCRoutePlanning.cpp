@@ -20573,6 +20573,516 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
   return llvm::Error::success();
 }
 
+llvm::Error verifyRVVSelectedBodySegment2RouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan
+        &segment2ProviderPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isPlainDeinterleave =
+      operation == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  const bool isPlainInterleave =
+      operation == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+  const bool isComputedMaskSegment2Load =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isComputedMaskSegment2Store =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+  const bool isComputedMaskSegment2Update =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
+  const bool isComputedMaskSegment2StoreLike =
+      isComputedMaskSegment2Store || isComputedMaskSegment2Update;
+  const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
+  const bool isComputedMaskSegment2 =
+      isComputedMaskSegment2Load || isComputedMaskSegment2StoreLike;
+  const bool isSegment2Route = isPlainSegment2 || isComputedMaskSegment2;
+  if (!isSegment2Route)
+    return llvm::Error::success();
+
+  if (!segment2ProviderPlan.plansSegment2MemoryRoute ||
+      segment2ProviderPlan.selectedBodyFamilyName.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires an owner-built segment2 "
+        "route-family provider plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (segment2ProviderPlan.plansPlainSegment2DeinterleaveUnitStore !=
+          isPlainDeinterleave ||
+      segment2ProviderPlan.plansPlainSegment2InterleaveUnitLoad !=
+          isPlainInterleave ||
+      segment2ProviderPlan.plansComputedMaskSegment2LoadUnitStore !=
+          isComputedMaskSegment2Load ||
+      segment2ProviderPlan.plansComputedMaskSegment2StoreUnitLoad !=
+          isComputedMaskSegment2Store ||
+      segment2ProviderPlan.plansComputedMaskSegment2UpdateUnitLoad !=
+          isComputedMaskSegment2Update)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires provider-plan sub-family "
+        "flags to match the selected segment2 operation before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *plainPlan = nullptr;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan *computedPlan =
+      nullptr;
+  const RVVRuntimeAVLVLControlPlan *expectedRuntimeControlPlan = nullptr;
+  if (isPlainSegment2) {
+    if (!analysis.segment2MemoryRouteFamilyPlan ||
+        materializationFacts.segment2MemoryPlan !=
+            &*analysis.segment2MemoryRouteFamilyPlan ||
+        segment2ProviderPlan.segment2MemoryPlan !=
+            &*analysis.segment2MemoryRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain segment2 route construction requires exactly the verified "
+          "plain segment2 family plan before creating "
+          "TCRVEmitCLowerableRoute");
+    plainPlan = &*analysis.segment2MemoryRouteFamilyPlan;
+    expectedRuntimeControlPlan = &plainPlan->runtimeControlPlan;
+    if (plainPlan->operation != operation ||
+        plainPlan->memoryForm != description.memoryForm ||
+        plainPlan->usesDeinterleaveLoad != isPlainDeinterleave ||
+        plainPlan->usesInterleaveStore != isPlainInterleave ||
+        plainPlan->segmentCount != 2)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain segment2 route construction requires direction, memory "
+          "form, and segment count facts from the verified typed segment2 "
+          "body before creating TCRVEmitCLowerableRoute");
+    if (description.segment2MemoryRouteFamilyPlanID !=
+            plainPlan->familyPlanID ||
+        segment2ProviderPlan.familyPlanIDMirror != plainPlan->familyPlanID ||
+        description.providerSupportedMirror !=
+            plainPlan->providerSupportedMirror ||
+        segment2ProviderPlan.providerSupportedMirror !=
+            plainPlan->providerSupportedMirror ||
+        description.runtimeABIOrder != plainPlan->runtimeABIOrder ||
+        segment2ProviderPlan.runtimeABIOrderMirror !=
+            plainPlan->runtimeABIOrder ||
+        description.requiredHeaderDeclarations !=
+            plainPlan->requiredHeaderDeclarations ||
+        segment2ProviderPlan.requiredHeaderDeclarationsMirror !=
+            plainPlan->requiredHeaderDeclarations ||
+        description.cTypeMappingSummary != plainPlan->cTypeMappingSummary ||
+        segment2ProviderPlan.cTypeMappingSummaryMirror !=
+            plainPlan->cTypeMappingSummary ||
+        description.segmentTupleCType != plainPlan->segmentTupleCType ||
+        segment2ProviderPlan.segmentTupleCType !=
+            plainPlan->segmentTupleCType ||
+        description.segmentLoadIntrinsic != plainPlan->segmentLoadIntrinsic ||
+        segment2ProviderPlan.segmentLoadIntrinsic !=
+            plainPlan->segmentLoadIntrinsic ||
+        description.segmentStoreIntrinsic !=
+            plainPlan->segmentStoreIntrinsic ||
+        segment2ProviderPlan.segmentStoreIntrinsic !=
+            plainPlan->segmentStoreIntrinsic ||
+        description.segmentFieldExtractIntrinsic !=
+            plainPlan->segmentFieldExtractIntrinsic ||
+        segment2ProviderPlan.segmentFieldExtractIntrinsic !=
+            plainPlan->segmentFieldExtractIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain segment2 route construction requires provider-plan route, "
+          "type, segment tuple, intrinsic, support, and ABI mirrors from the "
+          "verified family plan before creating TCRVEmitCLowerableRoute");
+    if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                            plainPlan->runtimeABIParameters))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain segment2 route construction requires runtime ABI "
+          "parameters from the verified family plan before creating "
+          "TCRVEmitCLowerableRoute");
+  } else {
+    if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+        materializationFacts.computedMaskMemoryPlan !=
+            &*analysis.computedMaskMemoryRouteFamilyPlan ||
+        segment2ProviderPlan.computedMaskMemoryPlan !=
+            &*analysis.computedMaskMemoryRouteFamilyPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 route construction requires exactly the "
+          "verified computed-mask memory family plan before creating "
+          "TCRVEmitCLowerableRoute");
+    computedPlan = &*analysis.computedMaskMemoryRouteFamilyPlan;
+    expectedRuntimeControlPlan = &computedPlan->runtimeControlPlan;
+    if (computedPlan->operation != operation ||
+        computedPlan->memoryForm != description.memoryForm ||
+        computedPlan->usesRuntimeScalarProducer ||
+        !computedPlan->usesVectorCompareProducer ||
+        computedPlan->usesLoadMerge != isComputedMaskSegment2Load ||
+        computedPlan->usesStoreOnly != isComputedMaskSegment2StoreLike ||
+        computedPlan->usesSegment2Load != isComputedMaskSegment2Load ||
+        computedPlan->usesSegment2Store != isComputedMaskSegment2StoreLike ||
+        computedPlan->usesSegment2Update != isComputedMaskSegment2Update ||
+        computedPlan->segmentCount != 2)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 route construction requires computed-mask "
+          "producer, segment direction, memory form, and segment count facts "
+          "from the verified typed segment2 body before creating "
+          "TCRVEmitCLowerableRoute");
+    if (isComputedMaskSegment2Update &&
+        (computedPlan->arithmeticKind != "add" ||
+         computedPlan->arithmeticIntrinsic.empty()))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 update route construction requires "
+          "verified structural update arithmetic facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (!isComputedMaskSegment2Update &&
+        (!computedPlan->arithmeticKind.empty() ||
+         !computedPlan->arithmeticIntrinsic.empty() ||
+         !segment2ProviderPlan.arithmeticKind.empty() ||
+         !segment2ProviderPlan.arithmeticIntrinsic.empty()))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 load/store route construction rejects "
+          "stale update arithmetic facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (description.computedMaskMemoryRouteFamilyPlanID !=
+            computedPlan->familyPlanID ||
+        segment2ProviderPlan.familyPlanIDMirror != computedPlan->familyPlanID ||
+        description.computedMaskMemoryMaskProducerSource !=
+            computedPlan->maskProducerSource ||
+        description.maskRole != computedPlan->maskRole ||
+        description.maskSource != computedPlan->maskSource ||
+        description.maskMemoryForm != computedPlan->maskMemoryForm ||
+        description.inactiveLaneContract != computedPlan->inactiveLaneContract ||
+        description.maskedPassthroughLayout !=
+            computedPlan->maskedPassthroughLayout ||
+        description.providerSupportedMirror !=
+            computedPlan->providerSupportedMirror ||
+        segment2ProviderPlan.providerSupportedMirror !=
+            computedPlan->providerSupportedMirror ||
+        description.runtimeABIOrder != computedPlan->runtimeABIOrder ||
+        segment2ProviderPlan.runtimeABIOrderMirror !=
+            computedPlan->runtimeABIOrder ||
+        description.requiredHeaderDeclarations !=
+            computedPlan->requiredHeaderDeclarations ||
+        segment2ProviderPlan.requiredHeaderDeclarationsMirror !=
+            computedPlan->requiredHeaderDeclarations ||
+        description.cTypeMappingSummary != computedPlan->cTypeMappingSummary ||
+        segment2ProviderPlan.cTypeMappingSummaryMirror !=
+            computedPlan->cTypeMappingSummary ||
+        description.segmentTupleCType != computedPlan->segmentTupleCType ||
+        segment2ProviderPlan.segmentTupleCType !=
+            computedPlan->segmentTupleCType ||
+        description.segmentLoadIntrinsic !=
+            computedPlan->segmentLoadIntrinsic ||
+        segment2ProviderPlan.segmentLoadIntrinsic !=
+            computedPlan->segmentLoadIntrinsic ||
+        description.segmentStoreIntrinsic !=
+            computedPlan->segmentStoreIntrinsic ||
+        segment2ProviderPlan.segmentStoreIntrinsic !=
+            computedPlan->segmentStoreIntrinsic ||
+        description.segmentFieldExtractIntrinsic !=
+            computedPlan->segmentFieldExtractIntrinsic ||
+        segment2ProviderPlan.segmentFieldExtractIntrinsic !=
+            computedPlan->segmentFieldExtractIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 route construction requires "
+          "provider-built family, mask/tail, inactive/pass-through, segment "
+          "tuple, intrinsic, support, and ABI mirrors before creating "
+          "TCRVEmitCLowerableRoute");
+    if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                            computedPlan->runtimeABIParameters))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask segment2 route construction requires runtime ABI "
+          "parameters from the verified family plan before creating "
+          "TCRVEmitCLowerableRoute");
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires typed RVV body/config facts "
+        "before creating TCRVEmitCLowerableRoute");
+  if ((computedPlan &&
+       (typedFacts.sew != computedPlan->sew ||
+        typedFacts.lmul != computedPlan->lmul)) ||
+      typedFacts.vlCType != segment2ProviderPlan.vlCType ||
+      typedFacts.vectorTypeName != segment2ProviderPlan.vectorTypeName ||
+      typedFacts.vectorCType != segment2ProviderPlan.vectorCType ||
+      typedFacts.setVLIntrinsic != segment2ProviderPlan.setVLIntrinsic ||
+      typedFacts.vectorLoadIntrinsic !=
+          segment2ProviderPlan.vectorLoadIntrinsic ||
+      (isComputedMaskSegment2 &&
+       (typedFacts.maskTypeName != segment2ProviderPlan.maskTypeName ||
+        typedFacts.maskCType != segment2ProviderPlan.maskCType)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires family-plan type/config facts "
+        "to mirror the selected typed RVV body before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (materializationFacts.vlCType != segment2ProviderPlan.vlCType ||
+      materializationFacts.resultVectorTypeName !=
+          segment2ProviderPlan.vectorTypeName ||
+      materializationFacts.resultVectorCType !=
+          segment2ProviderPlan.vectorCType ||
+      materializationFacts.setVLLeaf != segment2ProviderPlan.setVLIntrinsic ||
+      materializationFacts.vectorLoadLeaf !=
+          segment2ProviderPlan.vectorLoadIntrinsic ||
+      (isComputedMaskSegment2 &&
+       (materializationFacts.maskTypeName != segment2ProviderPlan.maskTypeName ||
+        materializationFacts.maskCType != segment2ProviderPlan.maskCType ||
+        materializationFacts.compareLeaf !=
+            segment2ProviderPlan.compareIntrinsic)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires materialization facts to come "
+        "from the verified segment2 provider plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (segment2ProviderPlan.emitCRouteID !=
+          getRVVSelectedBodyEmitCRouteID(operation) ||
+      description.emitCRouteID != segment2ProviderPlan.emitCRouteID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires route-id metadata to mirror "
+        "the selected typed segment2 provider plan before creating "
+        "TCRVEmitCLowerableRoute");
+  if (segment2ProviderPlan.requiredHeaders.empty() ||
+      segment2ProviderPlan.vlTypeName.empty() ||
+      segment2ProviderPlan.vlCType.empty() ||
+      segment2ProviderPlan.vectorTypeName.empty() ||
+      segment2ProviderPlan.vectorCType.empty() ||
+      segment2ProviderPlan.segmentTupleCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires owner-built header, type, and "
+        "segment tuple facts before creating TCRVEmitCLowerableRoute");
+  if (isComputedMaskSegment2 &&
+      (segment2ProviderPlan.maskTypeName.empty() ||
+       segment2ProviderPlan.maskCType.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask segment2 route construction requires owner-built "
+        "mask type mapping facts before creating TCRVEmitCLowerableRoute");
+
+  if (memoryOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      segment2ProviderPlan.bindingPlan != &analysis.routeOperandBindingPlan ||
+      !memoryOperandBindingFacts.bindsMemoryCluster ||
+      !memoryOperandBindingFacts.bindsSegment2Memory ||
+      memoryOperandBindingFacts.bindsPlainSegment2Memory != isPlainSegment2 ||
+      memoryOperandBindingFacts.bindsComputedMaskMemory !=
+          isComputedMaskSegment2 ||
+      memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires memory operand-binding facts "
+        "from the same selected route analysis before creating "
+        "TCRVEmitCLowerableRoute");
+  if (segment2ProviderPlan.routeOperandBindingPlanIDMirror !=
+          analysis.routeOperandBindingPlan.planID ||
+      description.routeOperandBindingPlanID !=
+          analysis.routeOperandBindingPlan.planID ||
+      segment2ProviderPlan.routeOperandBindingSummaryMirror !=
+          description.routeOperandBindingSummary)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires route operand-binding mirrors "
+        "from RVV-owned binding facts before creating "
+        "TCRVEmitCLowerableRoute");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, description, context))
+    return error;
+
+  const std::optional<llvm::StringRef> expectedBindingPlanID =
+      getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanID(operation);
+  if (!expectedBindingPlanID ||
+      analysis.routeOperandBindingPlan.planID != *expectedBindingPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires the operation-specific "
+        "operand-binding plan before creating TCRVEmitCLowerableRoute");
+
+  auto requireABI =
+      [&](const support::RuntimeABIParameter *providerParameter,
+          const support::RuntimeABIParameter *bindingParameter,
+          llvm::StringRef logicalName) -> llvm::Error {
+    if (!providerParameter || !bindingParameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 route construction requires cmp/src/dst/field/n "
+          "operand-binding facts before creating TCRVEmitCLowerableRoute");
+    if (providerParameter->cName != bindingParameter->cName ||
+        providerParameter->cType != bindingParameter->cType ||
+        providerParameter->role != bindingParameter->role ||
+        providerParameter->ownership != bindingParameter->ownership)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 route construction requires provider-plan ABI binding "
+          "for '" +
+          logicalName +
+          "' to match memory operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+    std::optional<support::RuntimeABIParameterRole> expectedRole =
+        getExpectedRVVSelectedBodySegment2RouteOperandBindingRole(
+            *expectedBindingPlanID, logicalName);
+    if (!expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 route construction has no registered ABI role for "
+          "logical operand '" +
+          logicalName + "' before creating TCRVEmitCLowerableRoute");
+    if (providerParameter->role != *expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 route construction requires ABI role for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(*expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(providerParameter->role) +
+          "'");
+    return llvm::Error::success();
+  };
+
+  if (isComputedMaskSegment2) {
+    if (llvm::Error error =
+            requireABI(segment2ProviderPlan.compareLhsABI,
+                       memoryOperandBindingFacts.compareLhsABI, "cmp_lhs"))
+      return error;
+    if (llvm::Error error =
+            requireABI(segment2ProviderPlan.compareRhsABI,
+                       memoryOperandBindingFacts.compareRhsABI, "cmp_rhs"))
+      return error;
+  }
+  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+    if (llvm::Error error =
+            requireABI(segment2ProviderPlan.sourceABI,
+                       memoryOperandBindingFacts.sourceABI, "src"))
+      return error;
+  if (isPlainInterleave || isComputedMaskSegment2StoreLike)
+    if (llvm::Error error =
+            requireABI(segment2ProviderPlan.destinationABI,
+                       memoryOperandBindingFacts.destinationABI, "dst"))
+      return error;
+  if (llvm::Error error = requireABI(
+          segment2ProviderPlan.field0ABI, memoryOperandBindingFacts.field0ABI,
+          (isPlainInterleave || isComputedMaskSegment2StoreLike) ? "src0"
+                                                                : "out0"))
+    return error;
+  if (llvm::Error error = requireABI(
+          segment2ProviderPlan.field1ABI, memoryOperandBindingFacts.field1ABI,
+          (isPlainInterleave || isComputedMaskSegment2StoreLike) ? "src1"
+                                                                : "out1"))
+    return error;
+  if (llvm::Error error = requireABI(
+          segment2ProviderPlan.runtimeElementCountABI,
+          memoryOperandBindingFacts.runtimeElementCountABI, "n"))
+    return error;
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsSegment2Memory ||
+      routeControlPlan->controlsComputedMaskMemory ||
+      routeControlPlan->runtimeControlPlan != expectedRuntimeControlPlan ||
+      segment2ProviderPlan.runtimeControlPlan != expectedRuntimeControlPlan ||
+      routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan->selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan->controlPlanIDMirror !=
+          expectedRuntimeControlPlan->controlPlanID ||
+      routeControlPlan->configContractIDMirror !=
+          expectedRuntimeControlPlan->configContractID ||
+      routeControlPlan->runtimeVLContractIDMirror !=
+          expectedRuntimeControlPlan->runtimeVLContractID ||
+      routeControlPlan->runtimeAVLASourceMirror !=
+          expectedRuntimeControlPlan->runtimeAVLASource ||
+      routeControlPlan->runtimeABIOrderMirror !=
+          segment2ProviderPlan.runtimeABIOrderMirror ||
+      routeControlPlan->tailPolicyMirror !=
+          expectedRuntimeControlPlan->tailPolicy ||
+      routeControlPlan->maskPolicyMirror !=
+          expectedRuntimeControlPlan->maskPolicy)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires the RVV-owned route-control "
+        "provider plan and runtime n/AVL/VL facts before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (!statementPlanOwnerSelection.plansSelectedBodyRoute ||
+      statementPlanOwnerSelection.ownerKind !=
+          RVVSelectedBodyRouteStatementPlanOwnerKind::Migrated ||
+      statementPlanOwnerSelection.migratedFamily !=
+          RVVSelectedBodyMigratedRouteStatementPlanFamily::Segment2Memory ||
+      statementPlanOwnerSelection.ownerName != "segment2 memory" ||
+      statementPlanOwnerSelection.preLoopSteps.empty() ||
+      statementPlanOwnerSelection.loop.bodySteps.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires statement-plan owner "
+        "selection readiness from the migrated segment2 memory owner before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto preLoopHasCallee = [&](llvm::StringRef callee) {
+    if (callee.empty())
+      return false;
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlanOwnerSelection.preLoopSteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto statementHasCallee = [&](llvm::StringRef callee) {
+    if (callee.empty())
+      return false;
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlanOwnerSelection.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!preLoopHasCallee(segment2ProviderPlan.setVLIntrinsic) ||
+      !statementHasCallee(segment2ProviderPlan.setVLIntrinsic) ||
+      ((isPlainInterleave || isComputedMaskSegment2) &&
+       !statementHasCallee(segment2ProviderPlan.vectorLoadIntrinsic)) ||
+      (isComputedMaskSegment2 &&
+       !statementHasCallee(segment2ProviderPlan.compareIntrinsic)) ||
+      (isComputedMaskSegment2Update &&
+       !statementHasCallee(segment2ProviderPlan.arithmeticIntrinsic)) ||
+      ((isPlainDeinterleave || isComputedMaskSegment2Load) &&
+       !statementHasCallee(segment2ProviderPlan.segmentLoadIntrinsic)) ||
+      ((isPlainInterleave || isComputedMaskSegment2) &&
+       !statementHasCallee(segment2ProviderPlan.segmentStoreIntrinsic)) ||
+      !statementHasCallee(
+          segment2ProviderPlan.segmentFieldExtractIntrinsic) ||
+      ((isPlainDeinterleave || isComputedMaskSegment2Load) &&
+       !statementHasCallee(segment2ProviderPlan.storeIntrinsic)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " segment2 route construction requires statement-plan owner leaves "
+        "for setvl, compare, field load/store, tuple/field operations, "
+        "segment load/store, update, and runtime VL before creating "
+        "TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 static bool isRVVSelectedBodyElementwiseSelectRouteOperandBindingFactsConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   switch (description.operation) {

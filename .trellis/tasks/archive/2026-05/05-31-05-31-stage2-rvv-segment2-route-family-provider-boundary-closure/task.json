@@ -1,0 +1,31 @@
+{
+  "id": "05-31-stage2-rvv-segment2-route-family-provider-boundary-closure",
+  "name": "05-31-stage2-rvv-segment2-route-family-provider-boundary-closure",
+  "title": "Stage2 RVV segment2 route-family provider-boundary closure",
+  "description": "Add RVV-owned segment2 route-construction preflight before TCRVEmitCLowerableRoute construction for plain and computed-mask segment2 memory route forms.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-31",
+  "completedAt": "2026-05-31",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp",
+    "test/Plugin/RVVExtensionPluginTest.cpp"
+  ],
+  "notes": "Implemented RVV-owned segment2 route-construction provider preflight before TCRVEmitCLowerableRoute creation, covering plain deinterleave/interleave and computed-mask segment2 load/store/update. Checks passed: tianchenrv-rvv-extension-plugin-test, focused segment2/runtime-scalar/regular computed-mask lit filter 34/34, check-tianchenrv 464/464, git diff --check, bounded authority scan.",
+  "meta": {}
+}

@@ -64,6 +64,48 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 353: Stage2 RVV segment2 route-family provider boundary
+
+**Date**: 2026-05-31
+**Task**: Stage2 RVV segment2 route-family provider-boundary closure
+**Branch**: `main`
+
+### Summary
+
+Closed the RVV provider-boundary preflight for the segment2 memory route family before `TCRVEmitCLowerableRoute` construction. The round covered plain segment2 deinterleave/interleave and computed-mask segment2 load/store/update, with focused fail-closed C++ coverage and full `check-tianchenrv` passing.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodySegment2RouteProviderFacts(...)` in RVV route planning.
+- Wired the segment2 preflight in `RVVEmitCRouteProvider` after same-analysis segment2 provider-plan and statement-plan owner selection, before route construction.
+- Validated typed config/materialization facts, segment2 provider-plan facts, computed-mask producer and inactive/pass-through policy, mask type mapping, field/source/destination operand bindings, runtime n/AVL/VL route-control facts, ABI order, provider/header/type/intrinsic mirrors as mirrors only, route-id mirror consistency, and migrated segment2 statement-plan owner readiness.
+- Added positive C++ coverage for `segment2_deinterleave_unit_store`, `segment2_interleave_unit_load`, `computed_masked_segment2_load_unit_store`, `computed_masked_segment2_store_unit_load`, and `computed_masked_segment2_update_unit_load`.
+- Added fail-closed C++ coverage for missing provider plan, wrong sub-family flags, missing field binding, wrong segment count, missing mask mapping, stale inactive/pass-through policy, missing runtime control, ABI-order mismatch, stale provider mirror, stale route-id mirror, and missing statement-plan owner readiness.
+- Kept common EmitC neutral; no descriptor/source-front-door/artifact/script/common-EmitC/exact-intrinsic authority was added.
+
+### Git Commits
+
+Final source/task/journal commit is created after this journal entry.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit filter for segment2 plus runtime-scalar and regular computed-mask memory non-regression passed 34/34 selected tests.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 464/464.
+- [OK] `git diff --check`
+- [OK] Production diff authority scan found only mirror-validation references for route-id/provider/intrinsic metadata and no new descriptor, source-front-door, artifact-name, common-EmitC, script, exact-intrinsic, or legacy-i32 route authority.
+- [OK] No `ssh rvv` evidence was required or run because no runtime, hardware correctness, or performance claim is made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 351: Stage2 RVV runtime-scalar compare-select artifact/runtime closure
 
 **Date**: 2026-05-31

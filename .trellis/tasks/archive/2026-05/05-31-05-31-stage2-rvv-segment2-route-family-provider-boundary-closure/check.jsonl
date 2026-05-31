@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture, RVV Stage2 authority chain, and mirror-only constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 provider-plan, segment2 statement-plan, provider preflight, diagnostics, and authority scans."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check no tcrv.exec compute, dtype, operation, or route authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused compiler evidence and ssh-rvv claim boundary."}

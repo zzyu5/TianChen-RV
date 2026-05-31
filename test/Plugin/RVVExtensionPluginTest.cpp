@@ -302,6 +302,65 @@ int expectSegment2RouteConsumesProviderPlan(
                     " route ABI mappings follow provider-plan ABI order");
 }
 
+llvm::Expected<tianchenrv::plugin::rvv::
+                   RVVSelectedBodyRouteStatementPlanOwnerSelection>
+buildSegment2StatementPlanOwnerSelectionForTest(
+    tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis &analysis,
+    const tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts
+        &materializationFacts,
+    const tianchenrv::plugin::rvv::
+        RVVSelectedBodyMemoryRouteOperandBindingFacts &memoryFacts,
+    llvm::StringRef context) {
+  auto elementwiseFacts = tianchenrv::plugin::rvv::
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(analysis,
+                                                                  context);
+  if (!elementwiseFacts)
+    return elementwiseFacts.takeError();
+  auto mathFacts =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyMathRouteOperandBindingFacts(
+          analysis, context);
+  if (!mathFacts)
+    return mathFacts.takeError();
+  auto residualFacts = tianchenrv::plugin::rvv::
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(analysis, context);
+  if (!residualFacts)
+    return residualFacts.takeError();
+  auto directProviderPlan = tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          analysis, materializationFacts, *mathFacts, context);
+  if (!directProviderPlan)
+    return directProviderPlan.takeError();
+  return tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          analysis, materializationFacts, *elementwiseFacts, memoryFacts,
+          *mathFacts, *residualFacts, *directProviderPlan, context);
+}
+
+int expectSegment2ProviderBoundaryPreflight(
+    tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis &analysis,
+    const tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts
+        &materializationFacts,
+    const tianchenrv::plugin::rvv::
+        RVVSelectedBodyMemoryRouteOperandBindingFacts &memoryFacts,
+    const tianchenrv::plugin::rvv::
+        RVVSelectedBodySegment2RouteFamilyProviderPlan &providerPlan,
+    llvm::StringRef context) {
+  auto selection = buildSegment2StatementPlanOwnerSelectionForTest(
+      analysis, materializationFacts, memoryFacts, context);
+  if (!selection)
+    return fail(llvm::Twine(context) +
+                " statement-plan owner selection: " +
+                llvm::toString(selection.takeError()));
+  return expectSuccess(
+      tianchenrv::plugin::rvv::
+          verifyRVVSelectedBodySegment2RouteProviderFacts(
+              analysis, materializationFacts, memoryFacts, providerPlan,
+              *selection, context),
+      llvm::Twine(context) +
+          " accepts segment2 provider-boundary preflight before route "
+          "construction");
+}
+
 int expectRouteConsumesTypedConfigFacts(
     const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
     llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
@@ -11023,6 +11082,10 @@ module {
             "computed-mask segment2 provider plan exposes the selected "
             "family owner and sub-family flags"))
       return result;
+    if (int result = expectSegment2ProviderBoundaryPreflight(
+            analysis, *materializationFacts, *memoryFacts, *providerPlan,
+            "computed-mask segment2 provider-boundary unit test"))
+      return result;
 
     llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
         statementPlan = getRVVSelectedBodySegment2MemoryRouteStatementPlan(
@@ -12309,6 +12372,203 @@ module {
            "before provider route construction"}))
     return result;
 
+  auto segmentUpdateProviderPlan =
+      getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts,
+          "computed-mask segment2 provider-boundary baseline unit test");
+  if (!segmentUpdateProviderPlan)
+    return fail("computed-mask segment2 provider-boundary baseline plan: " +
+                llvm::toString(segmentUpdateProviderPlan.takeError()));
+  auto segmentUpdateSelection = buildSegment2StatementPlanOwnerSelectionForTest(
+      *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+      *segmentUpdateConstructionMemoryFacts,
+      "computed-mask segment2 provider-boundary baseline unit test");
+  if (!segmentUpdateSelection)
+    return fail("computed-mask segment2 provider-boundary baseline owner "
+                "selection: " +
+                llvm::toString(segmentUpdateSelection.takeError()));
+
+  auto expectSegment2ProviderBoundaryError =
+      [&](RVVSelectedBodyRouteAnalysis &analysis,
+          const tianchenrv::plugin::rvv::
+              RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+          const RVVSelectedBodyMemoryRouteOperandBindingFacts &memoryFacts,
+          const tianchenrv::plugin::rvv::
+              RVVSelectedBodySegment2RouteFamilyProviderPlan &providerPlan,
+          const tianchenrv::plugin::rvv::
+              RVVSelectedBodyRouteStatementPlanOwnerSelection &selection,
+          llvm::StringRef context,
+          std::initializer_list<llvm::StringRef> fragments) -> int {
+    return expectErrorContains(
+        tianchenrv::plugin::rvv::
+            verifyRVVSelectedBodySegment2RouteProviderFacts(
+                analysis, materializationFacts, memoryFacts, providerPlan,
+                selection, context),
+        fragments);
+  };
+
+  auto missingSegment2ProviderPlan = *segmentUpdateProviderPlan;
+  missingSegment2ProviderPlan.plansSegment2MemoryRoute = false;
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, missingSegment2ProviderPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 missing provider preflight unit test",
+          {"owner-built segment2 route-family provider plan",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto wrongSegment2KindProviderPlan = *segmentUpdateProviderPlan;
+  wrongSegment2KindProviderPlan.plansComputedMaskSegment2UpdateUnitLoad = false;
+  wrongSegment2KindProviderPlan.plansComputedMaskSegment2StoreUnitLoad = true;
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, wrongSegment2KindProviderPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 wrong operation preflight unit test",
+          {"provider-plan sub-family flags",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto missingSegment2FieldFacts = *segmentUpdateConstructionMemoryFacts;
+  missingSegment2FieldFacts.field0ABI = nullptr;
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          missingSegment2FieldFacts, *segmentUpdateProviderPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 missing field binding preflight unit test",
+          {"cmp/src/dst/field/n operand-binding facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis wrongSegmentCountAnalysis =
+      *segmentUpdateAnalysis;
+  wrongSegmentCountAnalysis.computedMaskMemoryRouteFamilyPlan->segmentCount = 3;
+  auto wrongSegmentCountFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      wrongSegmentCountAnalysis,
+      "computed-mask segment2 wrong segment count preflight unit test");
+  if (!wrongSegmentCountFacts)
+    return fail("computed-mask segment2 wrong segment-count facts: " +
+                llvm::toString(wrongSegmentCountFacts.takeError()));
+  auto wrongSegmentCountMemoryFacts = *segmentUpdateConstructionMemoryFacts;
+  wrongSegmentCountMemoryFacts.bindingPlan =
+      &wrongSegmentCountAnalysis.routeOperandBindingPlan;
+  auto wrongSegmentCountProviderPlan = *segmentUpdateProviderPlan;
+  wrongSegmentCountProviderPlan.computedMaskMemoryPlan =
+      &*wrongSegmentCountAnalysis.computedMaskMemoryRouteFamilyPlan;
+  wrongSegmentCountProviderPlan.bindingPlan =
+      &wrongSegmentCountAnalysis.routeOperandBindingPlan;
+  wrongSegmentCountProviderPlan.runtimeControlPlan =
+      &wrongSegmentCountAnalysis.computedMaskMemoryRouteFamilyPlan
+           ->runtimeControlPlan;
+  if (int result = expectSegment2ProviderBoundaryError(
+          wrongSegmentCountAnalysis, *wrongSegmentCountFacts,
+          wrongSegmentCountMemoryFacts, wrongSegmentCountProviderPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 wrong segment count preflight unit test",
+          {"segment direction, memory form, and segment count facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto missingSegment2MaskMappingPlan = *segmentUpdateProviderPlan;
+  missingSegment2MaskMappingPlan.maskTypeName = "";
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, missingSegment2MaskMappingPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 missing mask mapping preflight unit test",
+          {"type/config facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSegment2InactivePolicy =
+      *segmentUpdateAnalysis;
+  staleSegment2InactivePolicy.description.inactiveLaneContract =
+      "metadata-selected-inactive";
+  auto staleSegment2InactiveFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      staleSegment2InactivePolicy,
+      "computed-mask segment2 stale inactive policy preflight unit test");
+  if (!staleSegment2InactiveFacts)
+    return fail("computed-mask segment2 stale inactive-policy facts: " +
+                llvm::toString(staleSegment2InactiveFacts.takeError()));
+  auto staleSegment2InactiveMemoryFacts = *segmentUpdateConstructionMemoryFacts;
+  staleSegment2InactiveMemoryFacts.bindingPlan =
+      &staleSegment2InactivePolicy.routeOperandBindingPlan;
+  auto staleSegment2InactiveProviderPlan = *segmentUpdateProviderPlan;
+  staleSegment2InactiveProviderPlan.computedMaskMemoryPlan =
+      &*staleSegment2InactivePolicy.computedMaskMemoryRouteFamilyPlan;
+  staleSegment2InactiveProviderPlan.bindingPlan =
+      &staleSegment2InactivePolicy.routeOperandBindingPlan;
+  staleSegment2InactiveProviderPlan.runtimeControlPlan =
+      &staleSegment2InactivePolicy.computedMaskMemoryRouteFamilyPlan
+           ->runtimeControlPlan;
+  if (int result = expectSegment2ProviderBoundaryError(
+          staleSegment2InactivePolicy, *staleSegment2InactiveFacts,
+          staleSegment2InactiveMemoryFacts, staleSegment2InactiveProviderPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 stale inactive policy preflight unit test",
+          {"inactive/pass-through",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto missingSegment2RuntimePlan = *segmentUpdateProviderPlan;
+  missingSegment2RuntimePlan.runtimeControlPlan = nullptr;
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, missingSegment2RuntimePlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 missing runtime control preflight unit test",
+          {"route-control provider plan and runtime n/AVL/VL facts",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleSegment2ABIOrderPlan = *segmentUpdateProviderPlan;
+  staleSegment2ABIOrderPlan.runtimeABIOrderMirror =
+      "cmp_lhs,cmp_rhs,src0,src1,metadata_n";
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, staleSegment2ABIOrderPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 stale ABI order preflight unit test",
+          {"provider-built family, mask/tail, inactive/pass-through",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleSegment2ProviderMirrorPlan = *segmentUpdateProviderPlan;
+  staleSegment2ProviderMirrorPlan.providerSupportedMirror =
+      "metadata-supported";
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, staleSegment2ProviderMirrorPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 stale provider mirror preflight unit test",
+          {"provider-built family, mask/tail, inactive/pass-through",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleSegment2RouteIDPlan = *segmentUpdateProviderPlan;
+  staleSegment2RouteIDPlan.emitCRouteID = "metadata-selected-route";
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, staleSegment2RouteIDPlan,
+          *segmentUpdateSelection,
+          "computed-mask segment2 stale route-id preflight unit test",
+          {"route-id metadata",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto missingSegment2StatementOwner = *segmentUpdateSelection;
+  missingSegment2StatementOwner.preLoopSteps.clear();
+  if (int result = expectSegment2ProviderBoundaryError(
+          *segmentUpdateAnalysis, *segmentUpdateConstructionFacts,
+          *segmentUpdateConstructionMemoryFacts, *segmentUpdateProviderPlan,
+          missingSegment2StatementOwner,
+          "computed-mask segment2 missing statement owner preflight unit test",
+          {"statement-plan owner selection readiness",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+
   auto staleSegment2MaterializationFacts =
       getRVVSelectedBodyRouteMaterializationFacts(
           *segmentStoreAnalysis,
@@ -12658,6 +12918,10 @@ module {
                 !providerPlan->selectedBodyFamilyName.empty(),
             "plain segment2 provider plan exposes the selected family owner "
             "and sub-family flags"))
+      return result;
+    if (int result = expectSegment2ProviderBoundaryPreflight(
+            analysis, *materializationFacts, *memoryFacts, *providerPlan,
+            "plain segment2 provider-boundary unit test"))
       return result;
 
     llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>

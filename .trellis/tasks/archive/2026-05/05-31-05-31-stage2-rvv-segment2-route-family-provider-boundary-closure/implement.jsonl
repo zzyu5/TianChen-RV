@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage2 boundary constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, segment2 route-family planning owner, statement-plan, provider construction, fail-closed diagnostics, and mirror-only rules."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary and prohibition on core compute or route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute provider-built contract and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence expectations and RVV runtime evidence boundary."}

@@ -22,6 +22,8 @@
 
 namespace tianchenrv::plugin::rvv {
 
+struct RVVSelectedBodyRouteStatementPlanOwnerSelection;
+
 struct RVVRouteOperandBinding {
   std::string logicalOperand;
   support::RuntimeABIParameter parameter;
@@ -1644,6 +1646,17 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
         &memoryOperandBindingFacts,
     const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
         &computedMaskMemoryStatementPlan,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVSelectedBodySegment2RouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan
+        &segment2ProviderPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
     llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
