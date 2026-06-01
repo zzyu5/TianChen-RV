@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-20.md`
-- **Total Sessions**: 365
+- **Total Sessions**: 366
 - **Last Active**: 2026-06-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-20.md` | ~40 | Active |
+| `journal-20.md` | ~96 | Active |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
@@ -48,6 +48,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 366 | 2026-06-01 | Stage2 RVV reduction-accumulation selected-body realization boundary | this commit | `main` |
 | 365 | 2026-06-01 | Stage2 RVV widening conversion selected-body realization boundary | this commit | `main` |
 | 364 | 2026-06-01 | Stage2 RVV segment2 memory selected-body realization boundary | this commit | `main` |
 | 363 | 2026-06-01 | Stage2 RVV runtime computed-mask memory selected-body realization boundary | this commit | `main` |

@@ -2557,6 +2557,75 @@ module {
           {"pre-realized RVV selected reduce body currently supports only "
            "op_kind 'reduce_add'"}))
     return result;
+  badReduceBody->setAttr("op_kind", attrBuilder.getStringAttr("reduce_add"));
+
+  mlir::Operation *badReduceRuntimeN = badReduceBody.getN().getDefiningOp();
+  mlir::Attribute originalBadReduceRuntimeNRole =
+      badReduceRuntimeN->getAttr("role");
+  badReduceRuntimeN->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
+  mlir::OpBuilder badRuntimeBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> badRuntimeResult =
+      reductionOwner->realize(
+          VariantLoweringBoundaryRequest(
+              badReduceVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, badRuntimeBuilder),
+          badReduceBody.getOperation());
+  if (badRuntimeResult)
+    return fail("reduction owner-local hook accepted invalid runtime AVL");
+  if (int result = expectErrorContains(
+          badRuntimeResult.takeError(),
+          {"pre-realized RVV reduce runtime n/AVL operand",
+           "runtime-element-count"}))
+    return result;
+  badReduceRuntimeN->setAttr("role", originalBadReduceRuntimeNRole);
+
+  badReduceBody->setAttr("accumulator_layout",
+                         attrBuilder.getStringAttr("metadata-accumulator"));
+  mlir::OpBuilder badAccumulatorBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> badAccumulatorResult =
+      reductionOwner->realize(
+          VariantLoweringBoundaryRequest(
+              badReduceVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, badAccumulatorBuilder),
+          badReduceBody.getOperation());
+  if (badAccumulatorResult)
+    return fail("reduction owner-local hook accepted invalid accumulator "
+                "layout");
+  if (int result = expectErrorContains(
+          badAccumulatorResult.takeError(),
+          {"pre-realized RVV selected reduce body currently supports only "
+           "accumulator_layout 'rhs-vector-seed-lane0-per-vl-chunk'"}))
+    return result;
+  badReduceBody->setAttr(
+      "accumulator_layout",
+      attrBuilder.getStringAttr("rhs-vector-seed-lane0-per-vl-chunk"));
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      beforeRealization =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(reduceVariant, kernel,
+                                           capabilities,
+                                           VariantEmissionRole::DirectVariant));
+  if (beforeRealization)
+    return fail("reduction pre-realized body unexpectedly reached route facts "
+                "before selected-body realization");
+  if (int result = expectErrorContains(
+          beforeRealization.takeError(),
+          {"selected-body realization boundary must run before route facts",
+           "pre-realized tcrv_rvv body", "reduction"}))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+  llvm::Error directRouteError = registry.buildVariantEmitCLowerableRoute(
+      VariantEmitCLowerableRequest(reduceVariant, kernel, capabilities,
+                                   VariantEmissionRole::DirectVariant),
+      directRoute);
+  if (int result = expectErrorContains(
+          std::move(directRouteError),
+          {"pre-realized RVV selected body",
+           "owned by selected-body realization owner", "reduction",
+           "before provider route construction"}))
+    return result;
 
   VariantLoweringBoundaryResult boundaryResult;
   mlir::OpBuilder producerBuilder(module->getContext());
@@ -2581,6 +2650,159 @@ module {
           "typed facts"))
     return result;
 
+  mlir::Operation *reduceOp = findFirstNestedOp(reduceVariant,
+                                                "tcrv_rvv.reduce");
+  auto reduceKind =
+      reduceOp ? reduceOp->getAttrOfType<mlir::StringAttr>("kind")
+               : mlir::StringAttr();
+  if (int result = expect(
+          reduceKind && reduceKind.getValue() == "add",
+          "dedicated reduction owner preserves generic reduce operation kind"))
+    return result;
+
+  constexpr llvm::StringLiteral kExpectedSetVLLeaf("__riscv_vsetvl_e32m1");
+  constexpr llvm::StringLiteral kExpectedLoadLeaf("__riscv_vle32_v_i32m1");
+  constexpr llvm::StringLiteral kExpectedReduceLeaf(
+      "__riscv_vredsum_vs_i32m1_i32m1");
+  constexpr llvm::StringLiteral kExpectedStoreLeaf("__riscv_vse32_v_i32m1");
+
+  llvm::Expected<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(reduceVariant, kernel,
+                                           capabilities,
+                                           VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail("describe realized reduction route: " +
+                llvm::toString(routeDescription.takeError()));
+  if (int result = expect(
+          routeDescription->operation ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                      ReduceAdd &&
+              routeDescription->memoryForm ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                      VectorRHSLoad &&
+              routeDescription->sew == 32 &&
+              routeDescription->lmul == "m1" &&
+              routeDescription->vectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">" &&
+              routeDescription->typedComputeOpName == "tcrv_rvv.reduce" &&
+              routeDescription->runtimeABIOrder == "lhs,rhs,out,n" &&
+              routeDescription->routeOperandBindingPlanID ==
+                  "rvv-route-operand-binding:reduce_add.v1" &&
+              routeDescription->reductionAccumulatorLayout ==
+                  "rhs-vector-seed-lane0-per-vl-chunk" &&
+              routeDescription->reductionResultLayout ==
+                  "store-reduction-lane0-to-output-chunk-base" &&
+              routeDescription->reductionStoreVL == "1" &&
+              routeDescription->setVLIntrinsic == kExpectedSetVLLeaf &&
+              routeDescription->vectorLoadIntrinsic == kExpectedLoadLeaf &&
+              routeDescription->intrinsic == kExpectedReduceLeaf &&
+              routeDescription->storeIntrinsic == kExpectedStoreLeaf,
+          "realized reduction route records operation, ABI, runtime VL, "
+          "accumulator/result layout, and RVV-owned leaves"))
+    return result;
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+      analysis =
+          analyzeRouteInModule(*module, "rvv_reduction_owner_kernel",
+                               "rvv_pre_reduce");
+  if (!analysis)
+    return fail("analyze realized reduction route: " +
+                llvm::toString(analysis.takeError()));
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                  *analysis,
+                  "reduction realization-boundary unit test"),
+          "verify reduction route-family/provider plans after realization"))
+    return result;
+
+  auto materializationFacts =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts(
+          *analysis, "reduction realization-boundary unit test");
+  if (!materializationFacts)
+    return fail("reduction materialization facts after realization: " +
+                llvm::toString(materializationFacts.takeError()));
+  if (int result =
+          expect(materializationFacts->setVLLeaf == kExpectedSetVLLeaf &&
+                     materializationFacts->vectorLoadLeaf ==
+                         kExpectedLoadLeaf &&
+                     materializationFacts->elementwiseComputeLeaf ==
+                         kExpectedReduceLeaf &&
+                     materializationFacts->storeLeaf == kExpectedStoreLeaf,
+                 "reduction materialization facts derive RVV leaves from "
+                 "realized setvl/load/reduce/store structure"))
+    return result;
+
+  auto mathFacts =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *analysis, "reduction realization-boundary unit test");
+  if (!mathFacts)
+    return fail("reduction math operand-binding facts after realization: " +
+                llvm::toString(mathFacts.takeError()));
+  if (int result = expect(
+          mathFacts->bindsReduceAdd &&
+              mathFacts->bindingPlan == &analysis->routeOperandBindingPlan &&
+              mathFacts->lhsABI && mathFacts->lhsABI->cName == "lhs" &&
+              mathFacts->rhsABI && mathFacts->rhsABI->cName == "rhs" &&
+              mathFacts->outABI && mathFacts->outABI->cName == "out" &&
+              mathFacts->runtimeElementCountABI &&
+              mathFacts->runtimeElementCountABI->cName == "n",
+          "reduction math facts bind source, accumulator, output, and "
+          "runtime AVL operands from realized body"))
+    return result;
+
+  auto routeControlPlan =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan(
+          *analysis, *materializationFacts,
+          "reduction realization-boundary unit test");
+  if (!routeControlPlan)
+    return fail("reduction route-control plan after realization: " +
+                llvm::toString(routeControlPlan.takeError()));
+  if (int result = expect(
+          !routeControlPlan->plansRouteControl &&
+              !tianchenrv::plugin::rvv::
+                  isRVVSelectedBodyRouteControlProviderConsumer(
+                      analysis->description),
+          "ordinary reduction stays outside route-control provider ownership; "
+          "AVL/VL facts remain in materialization and statement plans"))
+    return result;
+
+  auto statementPlan =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyReductionRouteStatementPlan(
+          *analysis, *materializationFacts, *mathFacts,
+          "reduction realization-boundary unit test");
+  if (!statementPlan)
+    return fail("reduction statement plan after realization: " +
+                llvm::toString(statementPlan.takeError()));
+  llvm::StringRef expectedBodyCallees[5] = {
+      kExpectedSetVLLeaf, kExpectedLoadLeaf, kExpectedLoadLeaf,
+      kExpectedReduceLeaf, kExpectedStoreLeaf};
+  if (int result = expect(
+          statementPlan->plansReductionRoute &&
+              statementPlan->plansReduceAdd &&
+              statementPlan->bindingPlan == &analysis->routeOperandBindingPlan &&
+              statementPlan->preLoopSteps.size() == 1 &&
+              statementPlan->preLoopSteps.front().callee ==
+                  kExpectedSetVLLeaf &&
+              statementPlan->loop.bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "reduction statement plan consumes realized setvl/load/reduce/store "
+          "structure"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            statementPlan->loop.bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("reduction statement-plan loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
@@ -2590,9 +2812,26 @@ module {
               route),
           "provider consumes dedicated-owner realized reduction facts"))
     return result;
-  return expect(route.getForLoops().size() == 1 &&
-                    route.getForLoops().front().bodySteps.size() == 5,
-                "provider route preserves reduction statement-plan steps");
+  if (int result = expect(route.getCallOpaqueSteps().size() == 1 &&
+                              route.getCallOpaqueSteps().front().callee ==
+                                  kExpectedSetVLLeaf &&
+                              route.getForLoops().size() == 1 &&
+                              route.getForLoops().front().bodySteps.size() ==
+                                  std::size(expectedBodyCallees),
+                          "provider route preserves reduction statement-plan "
+                          "pre-loop and loop steps"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            route.getForLoops().front().bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("provider route reduction loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+  return 0;
 }
 
 int runWideningConversionSelectedBodyRealizationOwnerTest(

@@ -58,3 +58,46 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 366: Stage2 RVV reduction-accumulation selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV reduction-accumulation selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the focused RVV ordinary reduction selected-body realization boundary evidence before route construction.
+
+### Main Changes
+
+- Extended `runReductionSelectedBodyRealizationOwnerTest` with direct pre-realized route-description and route-construction fail-closed checks.
+- Added negative owner checks for unsupported reduction op kind, invalid runtime n/AVL ABI role, and invalid accumulator layout.
+- Verified realized reduction facts flow through route description, route-family checks, materialization facts, math operand binding, ordinary reduction's route-control non-consumer result, statement plan, and provider-built route construction.
+- Validation: task context validate passed; RVV extension plugin test target built; `tianchenrv-rvv-extension-plugin-test` passed; bounded old-authority scan classified hits; `rtk git diff --check` passed; `check-tianchenrv` passed 465/465.
+- Commit: included in final task commit for this session.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | Stage2 RVV reduction-accumulation selected-body realization boundary |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-reduction-accumulation-realization-boundary`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded old-authority scan classified remaining hits
+- [OK] `rtk git diff --check`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (465/465)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
