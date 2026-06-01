@@ -65,6 +65,91 @@ The route object is provider-built. It is not reconstructed from
 emission-plan diagnostics, route ids, artifact names, source-front-door
 markers, semantic role graphs, manifests, or descriptors.
 
+## Provider Operand Binding Summary Contract
+
+### 1. Scope / Trigger
+
+When an extension provider emits an operand-binding summary that is consumed by
+Common EmitC and later mirrored into a target artifact bundle, every runtime
+ABI parameter that appears in the generated C/C++ prototype or target header
+must be represented as a provider-derived binding entry and must explicitly
+mark header/prototype participation.
+
+### 2. Signatures
+
+The durable payload shape is a provider-owned route field:
+
+```text
+route_operand_binding_plan = <provider-plan-id>
+route_operand_binding_operands =
+  <provider-plan-id>;<logical>=<role>:<c-name>:abi|...|hdr;...
+```
+
+The exact tokens remain route-family-owned, but the `hdr` marker is required
+for runtime ABI parameters exported through the generated header/prototype.
+
+### 3. Contracts
+
+- The provider builds the summary from the same typed body/config/runtime facts
+  used to construct the route.
+- Common EmitC carries the summary unchanged as a provider payload; it must not
+  add, remove, or infer route-family tokens.
+- Target artifact validation compares the provider summary and candidate
+  mirror exactly before accepting the bundle.
+- Combined routes must keep all families of ABI facts in one summary. For
+  example, a computed-mask plus strided-input contraction route must bind
+  compare operands, dot source operands, accumulator/result operands, runtime
+  count, and stride operands in the same provider summary.
+
+### 4. Validation & Error Matrix
+
+- Missing binding entry for a generated header/prototype parameter -> fail
+  before target artifact acceptance.
+- Binding entry lacks the header/prototype marker for an exported runtime ABI
+  parameter -> fail before target artifact acceptance.
+- Binding role, C name, order, or route-family token disagrees with the
+  provider route description -> fail before target artifact acceptance.
+- Candidate artifact metadata carries a stale binding summary that does not
+  exactly match provider facts -> fail before target artifact acceptance.
+
+### 5. Good/Base/Bad Cases
+
+- Good: provider summary binds all exported compare/source/stride/result ABI
+  parameters and marks them as header/prototype participants.
+- Base: non-exported internal temporaries do not receive runtime ABI header
+  markers.
+- Bad: a combined route omits header/prototype markers on compare, dot source,
+  or stride runtime ABI entries while still emitting those parameters in the C
+  prototype.
+
+### 6. Tests Required
+
+- FileCheck or script dry-run tests must check the exact provider summary for
+  the route family.
+- C++ target artifact tests must mutate route descriptions or candidate
+  mirrors and prove stale/missing operand-binding summaries fail closed.
+- Runtime evidence must not be used to define the binding contract; it only
+  proves executable behavior after the provider and target validators accept
+  the route.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route summary omits hdr on an exported stride parameter
+  -> target header still emits size_t lhs_stride
+```
+
+Correct:
+
+```text
+typed body/runtime ABI fact
+  -> provider operand binding includes lhs_stride=...:abi|str|addr|hdr
+  -> Common EmitC carries it unchanged
+  -> target artifact mirror matches exactly
+```
+
 ## RVV Rules
 
 An RVV lowerable route is valid only when:

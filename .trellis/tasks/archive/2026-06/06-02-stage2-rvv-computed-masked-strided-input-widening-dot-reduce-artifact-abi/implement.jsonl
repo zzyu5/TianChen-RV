@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 selected-body route boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, contraction owner, mask/stride/dtype authority, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck, generated-bundle, fail-closed, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-widening-dot-reduce-artifact-abi/prd.md", "reason": "Previous computed-mask widening-dot artifact ABI boundary and evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Previous strided-input widening-dot artifact ABI boundary and evidence pattern."}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global RVV-first authority and Stage 2 selected-body route chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin/provider owns combined computed-mask and strided-input widening-dot semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export consumes provider facts without semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify evidence quality, direct route-entry negative coverage, old-authority scan, and ssh rvv correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-widening-dot-reduce-artifact-abi/prd.md", "reason": "Compare final combined-mask evidence shape to the previous computed-mask-only task."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Compare final combined-stride evidence shape to the previous strided-only task."}

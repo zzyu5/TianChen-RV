@@ -7336,6 +7336,120 @@ bool expectRVVTargetArtifactExporterShape(
            "source/result memory form"}))
     return false;
 
+  RVVRouteDescription staleComputedMaskStridedDotBinding =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:masked_strided_wdot.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+      "dot_lhs=metadata-derived-buffer:lhs:abi|sld|mlhs|i16|hdr;"
+      "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+      "out=output-buffer:out:abi|store|i32|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+      "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
+      "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotBinding,
+          "computed-mask strided widening-dot registry rejects stale combined "
+          "operand binding facts",
+          {"computed-mask widening dot-reduction",
+           "provider route operand binding plan",
+           "exact operand binding summary"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotLHSRole =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotLHSRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotLHSRole,
+          "computed-mask strided widening-dot registry rejects stale dot-lhs "
+          "ABI role",
+          {"runtime ABI parameter 2", "lhs", "dot-lhs-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotAccumulatorRole =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotAccumulatorRole.runtimeABIParameters[4].role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotAccumulatorRole,
+          "computed-mask strided widening-dot registry rejects stale "
+          "accumulator ABI role",
+          {"runtime ABI parameter 4", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotOutputRole =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotOutputRole.runtimeABIParameters[5].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotOutputRole,
+          "computed-mask strided widening-dot registry rejects stale output "
+          "ABI role",
+          {"runtime ABI parameter 5", "out", "output-buffer"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotLHSStrideRole =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotLHSStrideRole.runtimeABIParameters[7].role =
+      RuntimeABIParameterRole::RuntimeElementCount;
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotLHSStrideRole,
+          "computed-mask strided widening-dot registry rejects stale lhs "
+          "stride ABI role",
+          {"runtime ABI parameter 7", "lhs_stride", "lhs-input-stride"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotRHSStrideRole =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotRHSStrideRole.runtimeABIParameters[8].role =
+      RuntimeABIParameterRole::RuntimeElementCount;
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotRHSStrideRole,
+          "computed-mask strided widening-dot registry rejects stale rhs "
+          "stride ABI role",
+          {"runtime ABI parameter 8", "rhs_stride", "rhs-input-stride"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotMaskSource =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotMaskSource.maskSource =
+      "metadata-derived-mask-source";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotMaskSource,
+          "computed-mask strided widening-dot registry rejects stale mask "
+          "source",
+          {"computed-mask role/source/form facts"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotPredicate =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotPredicate.comparePredicateKind = "";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotPredicate,
+          "computed-mask strided widening-dot registry rejects missing "
+          "predicate",
+          {"mask, compare, masked product"}))
+    return false;
+
   RVVRouteDescription staleComputedMaskDotNonFamily =
       computedMaskWideningDotDescription;
   staleComputedMaskDotNonFamily.plainMAccRouteFamilyPlanID =

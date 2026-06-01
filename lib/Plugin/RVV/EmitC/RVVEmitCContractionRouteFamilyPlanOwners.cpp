@@ -2654,13 +2654,13 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
       ComputedMaskStridedInputWideningDotReduceAdd:
     context = "computed_masked_strided_input_widening_dot_reduce_add route";
     addContractionRouteOperandBinding(plan, "cmp_lhs", slice.lhsABI,
-                                      {"abi", "cmp", "mask"});
+                                      {"abi", "cmp", "mask", "hdr"});
     addContractionRouteOperandBinding(plan, "cmp_rhs", slice.rhsABI,
-                                      {"abi", "cmp", "mask"});
+                                      {"abi", "cmp", "mask", "hdr"});
     addContractionRouteOperandBinding(plan, "dot_lhs", slice.dotLHSABI,
-                                      {"abi", "sld", "mlhs", "i16"});
+                                      {"abi", "sld", "mlhs", "i16", "hdr"});
     addContractionRouteOperandBinding(plan, "dot_rhs", slice.dotRHSABI,
-                                      {"abi", "sld", "mrhs", "i16"});
+                                      {"abi", "sld", "mrhs", "i16", "hdr"});
     addContractionRouteOperandBinding(
         plan, "acc", slice.accumulatorABI, {"abi", "seed", "red", "i32", "hdr"});
     addContractionRouteOperandBinding(plan, "out", slice.outABI,
@@ -2669,9 +2669,9 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});
     addContractionRouteOperandBinding(plan, "lhs_stride", slice.lhsStrideABI,
-                                      {"abi", "str", "addr"});
+                                      {"abi", "str", "addr", "hdr"});
     addContractionRouteOperandBinding(plan, "rhs_stride", slice.rhsStrideABI,
-                                      {"abi", "str", "addr"});
+                                      {"abi", "str", "addr", "hdr"});
     break;
   default:
     return plan;

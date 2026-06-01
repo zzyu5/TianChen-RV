@@ -482,15 +482,15 @@ COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:masked_strided_wdot.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask;"
-    "dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16;"
-    "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+    "dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16|hdr;"
+    "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16|hdr;"
     "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
     "out=output-buffer:out:abi|store|i32|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
-    "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr;"
-    "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr"
+    "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
+    "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"
 )
 STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_load_unit_store.v1"

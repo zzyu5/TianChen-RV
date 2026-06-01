@@ -59,6 +59,60 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 
 - None - task complete
 
+## Session 378: Stage2 RVV computed-masked strided-input widening dot-reduction artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked strided-input widening dot-reduction artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded `computed_masked_strided_input_widening_dot_reduce_add`
+selected-body-to-generated-artifact ABI boundary. The round made the combined
+provider operand-binding summary carry header/prototype ABI participation for
+compare operands, strided dot source operands, and lhs/rhs stride operands,
+then pinned focused target-validator fail-closed coverage and real `ssh rvv`
+correctness.
+
+### Main Changes
+
+- Created Trellis task
+  `06-02-stage2-rvv-computed-masked-strided-input-widening-dot-reduce-artifact-abi`
+  from the Hermes brief.
+- Updated RVV contraction route-family operand binding facts so the combined
+  masked-strided widening-dot route marks all exported runtime ABI operands
+  with `hdr`.
+- Updated RVV target artifact validation, generated-bundle evidence constants,
+  focused MLIR/FileCheck expectations, and script dry-run expectations to
+  require the exact combined provider binding summary.
+- Added target artifact export regressions that mutate combined route binding,
+  dot-lhs role, accumulator/output roles, stride roles, mask source, and
+  predicate facts and require fail-closed validation.
+- Added the provider operand-binding summary contract to
+  `.trellis/spec/lowering-runtime/emitc-route.md`.
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused REALIZED, PLAN, and HEADER FileCheck paths for the combined pre-realized selected-body fixture
+- [OK] Focused generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] FileCheck `ROOT`, `MSDOT`, and `HARNESS` prefixes against focused dry-run artifacts
+- [OK] Direct pre-realized route-entry negative command failed with the expected retired shortcut diagnostic
+- [OK] Real `ssh rvv` generated-bundle correctness for counts `0,1,16,17,257` and stride/data/mask cases `2:3/0/0` and `3:2/1/1`
+- [OK] Bounded old-authority scan over touched files and added lines
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] Completed, archived, and committed in the final task commit.
+
+### Next Steps
+
+- None - task complete.
+
 
 ## Session 368: Stage2 RVV computed-mask MAcc selected-body realization boundary
 
