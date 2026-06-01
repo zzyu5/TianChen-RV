@@ -1254,6 +1254,152 @@ typed widening conversion tcrv_rvv body
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+### Runtime Scalar Splat-Store Route-Provider Facts Preflight
+
+#### 1. Scope / Trigger
+
+When the RVV provider is about to build a `TCRVEmitCLowerableRoute` for a
+runtime scalar splat-store route, it must prove that route construction is
+consuming the selected typed RVV body, the validated runtime scalar
+splat-store family plan, provider materialization facts, residual
+operand-binding facts, route-control facts, and the RVV-owned runtime scalar
+splat-store statement plan. This preflight is the provider-side closure for
+the existing `runtime_i32_splat_store` selected-body route; it must not add
+new dtype, LMUL, frontend, runtime-scalar, or store-family coverage.
+
+#### 2. Signatures
+
+The durable provider-side contract is:
+
+```c++
+llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan
+        &statementPlan,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this preflight after the top-level
+route-family verifier, after `getRVVSelectedBodyRouteMaterializationFacts(...)`,
+after `getRVVSelectedBodyResidualRouteOperandBindingFacts(...)`, and after the
+RVV-owned runtime scalar splat-store statement plan has been built, but before
+constructing the `TCRVEmitCLowerableRoute`.
+
+#### 3. Contracts
+
+For runtime scalar splat-store consumers, the preflight must require:
+
+- the same-analysis `RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan`;
+- typed config facts for SEW/LMUL, policy, VL C type, result vector type/C
+  type, setvl leaf, store leaf, and result vector name;
+- scalar splat and store facts from the runtime scalar splat-store family plan;
+- materialization facts that mirror the family plan for required headers,
+  VL type, result vector type/C type, setvl, runtime scalar splat, and store;
+- residual operand-binding facts from the same selected analysis for
+  `rhs_scalar`, `out`, and runtime `n`;
+- the RVV-owned route-control provider plan for the same typed config, selected
+  target capability, runtime AVL/VL control plan, policy, provider/legality
+  mirrors, and runtime ABI order;
+- the RVV-owned runtime scalar splat-store statement plan for the exact
+  selected splat/store form.
+
+The preflight must return success without changing behavior for unrelated RVV
+families only when they carry no stale runtime scalar splat-store facts. It
+must not build statements, choose intrinsics, infer dtype/config, read artifact
+metadata, consult route ids, or call selected-body owner hooks.
+
+#### 4. Validation & Error Matrix
+
+- Runtime scalar splat-store consumer lacks the family plan -> fail closed
+  before `TCRVEmitCLowerableRoute` construction.
+- Materialization facts do not point at the same selected-analysis family plan
+  -> fail closed.
+- Non-runtime-splat-store route carries a runtime scalar splat-store family
+  plan, materialization facts, residual binding flag, statement plan, or
+  family-plan mirror -> fail closed as stale provider facts.
+- Typed config disagrees with SEW/LMUL, policy, VL type, result vector type/C
+  type, setvl, or store facts -> fail closed.
+- Materialization facts lack the scalar splat or store leaf, carry the wrong
+  result vector type, or carry stale source, mask, conversion, reduction,
+  accumulation, contraction, or segment facts as authority -> fail closed.
+- Route-control provider plan is absent, from another analysis, or carries
+  stale runtime ABI, target capability, tail/mask policy, or runtime AVL/VL
+  mirrors -> fail closed.
+- Residual operand-binding facts are absent, from another analysis, missing
+  `rhs_scalar`/`out`/`n`, or carry the wrong ABI role/order -> fail closed.
+- Statement plan is absent, targets the wrong splat-store form, points at
+  another family plan, or lacks setvl/scalar-splat/store leaves -> fail closed.
+- Route description mirrors or runtime ABI parameter mirrors disagree with the
+  family plan -> fail closed.
+- Stale scalar-broadcast, compare/select, widening conversion,
+  standalone-reduction, accumulation, contraction, segment, artifact-name,
+  route-id, exact-intrinsic-as-authority, common EmitC, source-front-door,
+  descriptor, or legacy-i32 residue attempts to authorize the route -> fail
+  closed.
+
+#### 5. Good/Base/Bad Cases
+
+Good: typed `runtime_i32_splat_store` selected body -> runtime scalar
+splat-store family plan -> materialization facts -> residual operand bindings
+for `rhs_scalar`, `out`, and `n` -> route-control provider plan -> runtime
+scalar splat-store statement plan -> provider preflight -> provider-built
+`TCRVEmitCLowerableRoute`.
+
+Base: elementwise arithmetic, compare/select, widening conversion, reduction,
+memory, contraction, segment2, and unrelated routes do not consume this
+preflight and must not carry runtime scalar splat-store facts.
+
+Bad: provider construction trusts route ids, generated artifact names, ABI
+strings, exact intrinsic spellings, script options, status fields, common
+EmitC choices, or source-front-door fixtures instead of the selected typed
+body and verified runtime scalar splat-store provider facts.
+
+#### 6. Tests Required
+
+- C++ positive tests for `runtime_i32_splat_store` preflight success before
+  route construction.
+- C++ fail-closed tests for missing family plan, stale materialization facts,
+  wrong result vector type, missing scalar splat/store leaves, wrong residual
+  binding or ABI role, wrong runtime ABI order, stale route-control provider
+  facts, stale route description mirrors, stale statement leaves, and
+  non-consumer routes carrying runtime scalar splat-store facts.
+- Provider-route tests proving the selected-body runtime scalar splat-store
+  route attaches only provider-built statement plans to
+  `TCRVEmitCLowerableRoute`.
+- Generated-bundle dry-run coverage for the existing selected-boundary
+  runtime scalar splat-store fixture.
+- Runtime correctness evidence via `ssh rvv` when executable runtime scalar
+  splat-store correctness is claimed.
+- Bounded scans over touched planning/provider/test/target/script files for
+  name-, route-id-, metadata-, descriptor-, ABI-string-, script-,
+  artifact-name-, common-EmitC-, source-front-door-, exact-intrinsic-, or
+  legacy-i32-derived route authority.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider:
+  sees runtime_i32_splat_store route id / artifact name / ABI string
+  -> builds TCRVEmitCLowerableRoute
+```
+
+Correct:
+
+```text
+typed runtime_i32_splat_store tcrv_rvv body
+  -> verified runtime scalar splat-store family plan
+  -> materialization facts + residual operand-binding facts
+  -> route-control provider plan
+  -> RVV-owned runtime scalar splat-store statement plan
+  -> verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Route Materialization Facts Boundary
 
 ### 1. Scope / Trigger

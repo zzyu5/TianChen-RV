@@ -20233,6 +20233,323 @@ llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
   return llvm::Error::success();
 }
 
+llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan
+        &statementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(operation);
+  const bool carriesRuntimeSplatFacts =
+      analysis.runtimeScalarSplatStoreRouteFamilyPlan.has_value() ||
+      materializationFacts.runtimeScalarSplatStorePlan ||
+      residualOperandBindingFacts.bindsRuntimeScalarSplatStore ||
+      statementPlan.plansRuntimeScalarSplatStoreRoute ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty();
+  if (!isConsumer) {
+    if (carriesRuntimeSplatFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " must not carry runtime scalar splat-store provider facts for "
+          "non-runtime-splat-store operation '" +
+          stringifyRVVSelectedBodyOperationKind(operation) +
+          "' before creating TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  if (!analysis.runtimeScalarSplatStoreRouteFamilyPlan ||
+      materializationFacts.runtimeScalarSplatStorePlan !=
+          &*analysis.runtimeScalarSplatStoreRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires exactly the "
+        "verified runtime scalar splat-store family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan =
+      *materializationFacts.runtimeScalarSplatStorePlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation || plan.memoryForm != description.memoryForm ||
+      plan.memoryForm != RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires "
+        "family-plan operation and runtime-scalar-splat-store memory form to "
+        "match the selected typed body before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires typed RVV "
+        "body/config facts before creating TCRVEmitCLowerableRoute");
+  if (typedFacts.sew != plan.runtimeControlPlan.sew ||
+      typedFacts.lmul != plan.runtimeControlPlan.lmul ||
+      typedFacts.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      typedFacts.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      typedFacts.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      typedFacts.vlCType != plan.vlCType ||
+      typedFacts.vectorTypeName != plan.vectorTypeName ||
+      typedFacts.vectorCType != plan.vectorCType ||
+      typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
+      typedFacts.storeIntrinsic != plan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires "
+        "family-plan type/config facts to mirror the selected typed RVV body "
+        "before creating TCRVEmitCLowerableRoute");
+
+  auto requiredHeadersMatchPlan = [&]() {
+    if (materializationFacts.requiredHeaders.size() !=
+        plan.requiredHeaders.size())
+      return false;
+    for (std::size_t index = 0, count = plan.requiredHeaders.size();
+         index < count; ++index)
+      if (materializationFacts.requiredHeaders[index] !=
+          plan.requiredHeaders[index])
+        return false;
+    return true;
+  };
+  if (!requiredHeadersMatchPlan() ||
+      materializationFacts.vlCType != plan.vlCType ||
+      materializationFacts.resultVectorTypeName != plan.vectorTypeName ||
+      materializationFacts.resultVectorCType != plan.vectorCType ||
+      materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
+      materializationFacts.rhsScalarBroadcastLeaf !=
+          plan.rhsScalarSplatIntrinsic ||
+      materializationFacts.storeLeaf != plan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires "
+        "materialization facts to come from the verified splat-store family "
+        "plan before creating TCRVEmitCLowerableRoute");
+
+  if (!materializationFacts.sourceVectorTypeName.empty() ||
+      !materializationFacts.sourceVectorCType.empty() ||
+      !materializationFacts.maskTypeName.empty() ||
+      !materializationFacts.maskCType.empty() ||
+      !materializationFacts.stridedSourceLoadLeaf.empty() ||
+      (!materializationFacts.sourceSplatLeaf.empty() &&
+       materializationFacts.sourceSplatLeaf !=
+           plan.rhsScalarSplatIntrinsic) ||
+      !materializationFacts.contractionComputeLeaf.empty() ||
+      !materializationFacts.elementwiseComputeLeaf.empty() ||
+      !materializationFacts.wideningProductLeaf.empty() ||
+      !materializationFacts.maskedWideningProductLeaf.empty() ||
+      !materializationFacts.scalarSeedSplatLeaf.empty() ||
+      !materializationFacts.compareLeaf.empty() ||
+      !materializationFacts.maskedMergeLeaf.empty() ||
+      materializationFacts.standaloneReductionPlan ||
+      materializationFacts.wideningConversionPlan ||
+      materializationFacts.computedMaskAccumulationPlan ||
+      materializationFacts.contractionPlan ||
+      materializationFacts.segment2MemoryPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction rejects stale "
+        "source, mask, conversion, reduction, accumulation, contraction, or "
+        "segment materialization facts before creating "
+        "TCRVEmitCLowerableRoute");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsRuntimeScalarSplatStore ||
+      routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan->selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan->runtimeControlPlan != &plan.runtimeControlPlan ||
+      routeControlPlan->runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      routeControlPlan->selectedProviderMirror !=
+          analysis.selectedTargetCapabilityFacts.providerMirror ||
+      routeControlPlan->selectedLegalityMirror !=
+          analysis.selectedTargetCapabilityFacts.legalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires the "
+        "RVV-owned route-control provider plan from the same selected "
+        "analysis before creating TCRVEmitCLowerableRoute");
+
+  if (description.runtimeScalarSplatStoreRouteFamilyPlanID !=
+          plan.familyPlanID ||
+      description.memoryForm != plan.memoryForm ||
+      description.sew != plan.runtimeControlPlan.sew ||
+      description.lmul != plan.runtimeControlPlan.lmul ||
+      description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      description.runtimeABIOrder != plan.runtimeABIOrder ||
+      description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      description.vlDefOpName != plan.runtimeControlPlan.vlDefOpName ||
+      description.vlScopeOpName != plan.runtimeControlPlan.vlScopeOpName ||
+      description.vlUses != plan.runtimeControlPlan.vlUses ||
+      description.emitCLoopKind != plan.runtimeControlPlan.emitCLoopKind ||
+      description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      description.multiVL != plan.runtimeControlPlan.multiVL ||
+      description.targetLeafProfile != plan.targetLeafProfile ||
+      description.providerSupportedMirror != plan.providerSupportedMirror ||
+      description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      description.vlCType != plan.vlCType ||
+      description.vectorTypeName != plan.vectorTypeName ||
+      description.vectorCType != plan.vectorCType ||
+      description.setVLIntrinsic != plan.setVLIntrinsic ||
+      description.rhsBroadcastIntrinsic != plan.rhsScalarSplatIntrinsic ||
+      description.storeIntrinsic != plan.storeIntrinsic ||
+      description.resultName != plan.resultName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires route "
+        "description and artifact ABI mirror facts to be populated from the "
+        "validated family plan before creating TCRVEmitCLowerableRoute");
+  if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires runtime ABI "
+        "parameters from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.maskRole.empty() || !description.maskSource.empty() ||
+      !description.maskMemoryForm.empty() ||
+      !description.inactiveLaneContract.empty() ||
+      !description.inactiveLaneZeroingRequirement.empty() ||
+      !description.sourceVectorLoadIntrinsic.empty() ||
+      !description.compareIntrinsic.empty() ||
+      !description.intrinsic.empty() ||
+      !description.maskedMergeIntrinsic.empty() ||
+      !description.conversionRelation.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction rejects stale scalar, "
+        "mask, memory, conversion, reduction, accumulation, contraction, or "
+        "segment route mirrors before creating TCRVEmitCLowerableRoute");
+
+  if (residualOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !residualOperandBindingFacts.bindsResidualCluster ||
+      !residualOperandBindingFacts.bindsRuntimeScalarSplatStore ||
+      residualOperandBindingFacts.bindsMaskedElementwiseArithmetic ||
+      residualOperandBindingFacts.bindsStridedElementwiseAdd)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires residual "
+        "operand-binding facts from the same selected route analysis before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar splat-store route construction requires "
+          "rhs_scalar/out/n operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar splat-store route construction requires ABI role "
+          "for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+  if (llvm::Error error = requireABI(
+          residualOperandBindingFacts.rhsScalarABI, "rhs_scalar",
+          support::RuntimeABIParameterRole::RHSScalarValue))
+    return error;
+  if (llvm::Error error =
+          requireABI(residualOperandBindingFacts.outABI, "out",
+                     support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          residualOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+
+  if (!statementPlan.plansRuntimeScalarSplatStoreRoute ||
+      !statementPlan.plansRuntimeI32SplatStore ||
+      statementPlan.runtimeScalarSplatStorePlan != &plan ||
+      statementPlan.preLoopSteps.empty() ||
+      statementPlan.loop.bodySteps.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires the "
+        "matching RVV-owned runtime scalar splat-store statement plan before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto preLoopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.preLoopSteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto loopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!preLoopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.rhsScalarSplatIntrinsic) ||
+      !loopHasCallee(plan.storeIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route construction requires "
+        "statement/leaf facts for setvl, scalar splat, and store before "
+        "creating TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,

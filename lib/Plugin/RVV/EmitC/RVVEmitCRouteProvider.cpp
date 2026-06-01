@@ -426,6 +426,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return residualOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyResidualRouteOperandBindingFacts
       &residualOperandBindingFacts = *residualOperandBindingFactsOrError;
+  llvm::Expected<RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan>
+      runtimeScalarSplatStoreStatementPlanOrError =
+          getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan(
+              analysis, materializationFacts, residualOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!runtimeScalarSplatStoreStatementPlanOrError)
+    return runtimeScalarSplatStoreStatementPlanOrError.takeError();
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              analysis, materializationFacts, residualOperandBindingFacts,
+              *runtimeScalarSplatStoreStatementPlanOrError,
+              "selected RVV EmitC route construction"))
+    return error;
 
   const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
       materializationFacts.typedConfigFacts;

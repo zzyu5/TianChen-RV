@@ -5993,6 +5993,8 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts;
+  using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
 
@@ -6520,6 +6522,181 @@ module {
                       .expression == "vl",
           "runtime_i32_splat_store statement plan derives pre-loop setvl, "
           "loop setvl, splat, and store from typed runtime AVL/VL facts"))
+    return result;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact preflight unit test"),
+          "runtime_i32_splat_store provider fact preflight accepts validated "
+          "typed body, family plan, materialization, residual binding, "
+          "route-control, ABI, and statement facts before route construction"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeSplatProviderPlan =
+      *runtimeSplatAnalysis;
+  missingRuntimeSplatProviderPlan.runtimeScalarSplatStoreRouteFamilyPlan.reset();
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              missingRuntimeSplatProviderPlan, *runtimeSplatStatementFacts,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact missing family unit test"),
+          {"requires the runtime scalar splat-store route-family plan",
+           "provider materialization"}))
+    return result;
+
+  auto staleRuntimeSplatProviderMaterialization =
+      *runtimeSplatStatementFacts;
+  staleRuntimeSplatProviderMaterialization.resultVectorTypeName =
+      "!tcrv_rvv.vector<i64, \"m1\">";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis,
+              staleRuntimeSplatProviderMaterialization,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact stale vector type unit "
+              "test"),
+          {"runtime scalar splat-store route construction requires "
+           "materialization facts",
+           "verified splat-store family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  staleRuntimeSplatProviderMaterialization = *runtimeSplatStatementFacts;
+  staleRuntimeSplatProviderMaterialization.rhsScalarBroadcastLeaf = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis,
+              staleRuntimeSplatProviderMaterialization,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact missing splat leaf unit "
+              "test"),
+          {"runtime scalar splat-store route construction requires "
+           "materialization facts",
+           "verified splat-store family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  staleRuntimeSplatProviderMaterialization = *runtimeSplatStatementFacts;
+  staleRuntimeSplatProviderMaterialization.storeLeaf = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis,
+              staleRuntimeSplatProviderMaterialization,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact missing store leaf unit "
+              "test"),
+          {"runtime scalar splat-store route construction requires "
+           "materialization facts",
+           "verified splat-store family plan",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRuntimeSplatProviderResidualFacts =
+      *runtimeSplatStatementResidualFacts;
+  staleRuntimeSplatProviderResidualFacts.rhsScalarABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+              staleRuntimeSplatProviderResidualFacts,
+              *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact stale scalar binding "
+              "unit test"),
+          {"rhs_scalar/out/n operand-binding facts",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  staleRuntimeSplatProviderResidualFacts =
+      *runtimeSplatStatementResidualFacts;
+  staleRuntimeSplatProviderResidualFacts.outABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+              staleRuntimeSplatProviderResidualFacts,
+              *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact stale output binding "
+              "unit test"),
+          {"rhs_scalar/out/n operand-binding facts",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  staleRuntimeSplatProviderResidualFacts =
+      *runtimeSplatStatementResidualFacts;
+  staleRuntimeSplatProviderResidualFacts.runtimeElementCountABI = nullptr;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+              staleRuntimeSplatProviderResidualFacts,
+              *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact stale n binding unit "
+              "test"),
+          {"rhs_scalar/out/n operand-binding facts",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeSplatProviderControl =
+      *runtimeSplatAnalysis;
+  staleRuntimeSplatProviderControl.selectedTargetCapabilityFacts.supportedSEW =
+      "64";
+  auto staleRuntimeSplatProviderControlFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleRuntimeSplatProviderControl,
+          "runtime_i32_splat_store provider-fact stale route-control unit test");
+  if (!staleRuntimeSplatProviderControlFacts)
+    return fail("runtime_i32_splat_store provider stale route-control "
+                "materialization facts: " +
+                llvm::toString(
+                    staleRuntimeSplatProviderControlFacts.takeError()));
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              staleRuntimeSplatProviderControl,
+              *staleRuntimeSplatProviderControlFacts,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact stale route-control unit "
+              "test"),
+          {"route-control provider plan target-capability gate",
+           "supported_sew", "32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeSplatProviderABI =
+      *runtimeSplatAnalysis;
+  staleRuntimeSplatProviderABI.description.runtimeABIOrder =
+      "rhs_scalar,n,out";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              staleRuntimeSplatProviderABI, *runtimeSplatStatementFacts,
+              *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
+              "runtime_i32_splat_store provider-fact stale ABI order unit "
+              "test"),
+          {"runtime scalar splat-store route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  auto staleRuntimeSplatProviderStatement = *runtimeSplatStatementPlan;
+  staleRuntimeSplatProviderStatement.loop.bodySteps[1].callee =
+      "stale_runtime_scalar_splat";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
+              *runtimeSplatStatementResidualFacts,
+              staleRuntimeSplatProviderStatement,
+              "runtime_i32_splat_store provider-fact stale statement unit "
+              "test"),
+          {"statement/leaf facts for setvl, scalar splat, and store",
+           "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeSplatNonConsumerProviderFacts;
+  staleRuntimeSplatNonConsumerProviderFacts.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              staleRuntimeSplatNonConsumerProviderFacts,
+              *runtimeSplatStatementFacts, {}, {},
+              "runtime_i32_splat_store non-consumer provider-fact unit test"),
+          {"must not carry runtime scalar splat-store provider facts",
+           "non-runtime-splat-store operation", "add",
+           "TCRVEmitCLowerableRoute"}))
     return result;
 
   RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts

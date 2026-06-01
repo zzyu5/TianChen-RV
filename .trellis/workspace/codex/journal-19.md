@@ -64,6 +64,55 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 357: Stage2 RVV runtime-scalar splat-store provider ABI preflight
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV runtime-scalar splat-store provider ABI preflight
+**Branch**: `main`
+
+### Summary
+
+Closed runtime scalar splat-store provider-route preflight before
+`TCRVEmitCLowerableRoute` construction. The RVV provider now proves the
+selected-analysis runtime splat-store family plan, typed materialization facts,
+residual operand bindings, route-control facts, runtime ABI mirrors, and
+RVV-owned statement plan before route construction.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts`.
+- Wired the preflight into selected-body RVV EmitC route construction.
+- Added focused C++ positive/fail-closed coverage for missing/stale family
+  plan, materialization, scalar/output/n binding, route-control, ABI order,
+  statement leaves, and non-consumer stale facts.
+- Documented the runtime scalar splat-store provider preflight contract in the
+  RVV plugin spec.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: close runtime splat-store provider ABI boundary |
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] generated-bundle dry-run for selected-boundary `runtime_i32_splat_store`, counts `0,1,16,17,257`, scalar values `11,-5`.
+- [OK] `ssh rvv` generated-bundle correctness for selected-boundary `runtime_i32_splat_store`, counts `0,1,16,17,257`, scalar values `11,-5`, tail preserved.
+- [OK] bounded authority scan over touched files.
+- [OK] `git diff --check`
+- [OK] `check-tianchenrv` passed 464/464.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 357: Stage2 RVV widening conversion provider ABI boundary
 
 **Date**: 2026-05-31
