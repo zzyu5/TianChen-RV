@@ -409,6 +409,68 @@ counts `0,1,16,17,257`.
 - None - task complete after archive, commit, and clean status verification
 
 
+## Session 376: Stage2 RVV widening conversion artifact ABI boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV widening conversion artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved the pre-realized `widen_i16_to_i32` / `sign_extend_widen_vf2`
+selected-body-to-generated-bundle conversion ABI with stricter evidence JSON,
+focused FileCheck, direct route-entry fail-closed coverage, focused C++ tests,
+and real `ssh rvv` correctness for runtime counts `0,1,16,23,257`.
+
+### Main Changes
+
+- Created task
+  `06-01-stage2-rvv-widening-conversion-artifact-abi` with PRD and context
+  scoped to exactly one widening conversion selected body.
+- Verified the existing production path carries `widen_i16_to_i32` through RVV
+  selected-body realization, widening-conversion provider facts, common EmitC,
+  RVV target artifact bundle export, and external ABI execution.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` so
+  `conversion_sew_policy_boundary` explicitly records selected ABI roles,
+  source-load/result-store statement-plan facts, provider route facts,
+  tail/mask policy mirrors, and retired direct route-entry status.
+- Updated the focused dry-run FileCheck test to pin those boundary fields.
+- Recorded final dry-run, direct fail-closed, `ssh rvv`, focused C++/FileCheck,
+  old-authority scan, and `git diff --check` evidence in the task PRD.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-01-stage2-rvv-widening-conversion-artifact-abi`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind widen_i16_to_i32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-widening-conversion-artifact-abi/focused-dry-run-v2`
+- [OK] Direct route-entry negative command exited 1 with the expected retired
+  direct route-entry diagnostic for `widen_i16_to_i32`.
+- [OK] Focused FileCheck checks for script `ROOT`, `WIDEN`, `HARNESS` prefixes
+  and target fixture `REALIZED`, `PLAN`, `HEADER` prefixes.
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind widen_i16_to_i32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-widening-conversion-artifact-abi/final-ssh-rvv-v2`
+- [OK] Bounded old-authority scan over touched script/test/task files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification
+
+
 ## Session 375: Stage2 RVV dual runtime-scalar mask-and-select artifact ABI boundary
 
 **Date**: 2026-06-01

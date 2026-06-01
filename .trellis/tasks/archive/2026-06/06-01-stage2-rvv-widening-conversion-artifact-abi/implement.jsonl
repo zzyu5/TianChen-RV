@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Implementation must preserve the RVV-first authority chain and Stage 2 typed RVV route boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Implementation must keep widening conversion realization, legality, conversion facts, ABI binding, and fail-closed diagnostics RVV-plugin-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Implementation must keep common EmitC/export neutral and consume provider-built route payloads only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Implementation must satisfy generated-bundle and ssh rvv evidence requirements for runtime correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-dual-runtime-scalar-mask-select-artifact-abi/prd.md", "reason": "Previous completed Stage 2 artifact ABI task provides the bounded evidence/update pattern to follow."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, non-goals, and evidence plan."}

@@ -72,8 +72,21 @@
 # WIDEN-DAG: "conversion_sew_policy_boundary"
 # WIDEN-DAG: "authority": "provider-derived typed tcrv_rvv conversion body/config/runtime facts"
 # WIDEN-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# WIDEN-DAG: "direct_pre_realized_route_entry_supported": false
 # WIDEN-DAG: "conversion_kind": "sign_extend_widen_vf2"
 # WIDEN-DAG: "conversion_relation": "signed-i16mf2-to-i32m1"
+# WIDEN-DAG: "memory_form": "unit-stride-conversion"
+# WIDEN-DAG: "tail_policy": "agnostic"
+# WIDEN-DAG: "mask_policy": "agnostic"
+# WIDEN-DAG: "selected_source_abi"
+# WIDEN-DAG: "lhs": "lhs-input-buffer source-load convert-src"
+# WIDEN-DAG: "out": "output-buffer result-store convert-result"
+# WIDEN-DAG: "n": "runtime-element-count setvl-avl loop"
+# WIDEN-DAG: "statement_plan"
+# WIDEN-DAG: "family": "widening conversion"
+# WIDEN-DAG: "source_load_operand_order": "lhs + loop_induction, vl"
+# WIDEN-DAG: "conversion_operand_order": "loaded_source, vl"
+# WIDEN-DAG: "store_operand_order": "out + loop_induction, converted_result, vl"
 # WIDEN-DAG: "source_type_policy"
 # WIDEN-DAG: "element_type": "i16"
 # WIDEN-DAG: "element_c_type": "int16_t"
@@ -94,6 +107,12 @@
 # WIDEN-DAG: "conversion_uses_loaded_source": true
 # WIDEN-DAG: "conversion_uses_loop_vl": true
 # WIDEN-DAG: "store_uses_converted_result": true
+# WIDEN-DAG: "provider_route_facts"
+# WIDEN-DAG: "runtime_abi_order": "lhs,out,n"
+# WIDEN-DAG: "route_operand_binding_plan": "rvv-route-operand-binding:widen_i16_to_i32.v1"
+# WIDEN-DAG: "source_load_intrinsic": "__riscv_vle16_v_i16mf2"
+# WIDEN-DAG: "conversion_intrinsic": "__riscv_vwcvt_x_x_v_i32m1"
+# WIDEN-DAG: "store_intrinsic": "__riscv_vse32_v_i32m1"
 # WIDEN-DAG: "conversion_sign_extension_contract": "two signed i16 input patterns cover mixed-sign values, wide-magnitude int16 values, expected i32 sign-extension, and output tail sentinel preservation"
 # WIDEN-DAG: "runtime_counts_are_execution_cases_not_conversion_authority": true
 # WIDEN-DAG: "status": "dry_run_success"

@@ -21610,6 +21610,9 @@ def conversion_sew_policy_boundary_summary(
 ) -> dict[str, Any]:
     if not expectation.has_conversion_sew_policy_boundary:
         return {}
+    route_metadata = conversion_sew_policy_metadata_from_bundle(
+        bundle_checks, expectation
+    )
     return {
         "source": (
             "typed tcrv_rvv widening conversion body/config -> RVV "
@@ -21622,8 +21625,30 @@ def conversion_sew_policy_boundary_summary(
             "facts"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
+        "direct_pre_realized_route_entry_supported": False,
         "conversion_kind": expectation.conversion_kind,
         "conversion_relation": expectation.conversion_relation,
+        "memory_form": expectation.memory_form,
+        "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
+        "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+        "selected_source_abi": {
+            "lhs": "lhs-input-buffer source-load convert-src",
+            "out": "output-buffer result-store convert-result",
+            "n": "runtime-element-count setvl-avl loop",
+        },
+        "statement_plan": {
+            "family": "widening conversion",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.conversion_source_load_intrinsic,
+                expectation.conversion_intrinsic,
+                expectation.unit_store_intrinsic,
+            ],
+            "source_load_operand_order": "lhs + loop_induction, vl",
+            "conversion_operand_order": "loaded_source, vl",
+            "store_operand_order": "out + loop_induction, converted_result, vl",
+        },
         "source_type_policy": {
             "element_type": expectation.conversion_source_element_type,
             "element_c_type": expectation.conversion_source_element_c_type,
@@ -21644,9 +21669,29 @@ def conversion_sew_policy_boundary_summary(
         "emitted_cpp": emitted_cpp_checks.get(
             "conversion_sew_policy_boundary", {}
         ),
-        "route_metadata": conversion_sew_policy_metadata_from_bundle(
-            bundle_checks, expectation
-        ),
+        "provider_route_facts": {
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "route_operand_binding_plan": route_metadata.get(
+                "tcrv_rvv.route_operand_binding_plan"
+            ),
+            "route_operand_binding_operands": route_metadata.get(
+                "tcrv_rvv.route_operand_binding_operands"
+            ),
+            "runtime_control_plan": route_metadata.get(
+                "tcrv_rvv.runtime_control_plan"
+            ),
+            "source_load_intrinsic": expectation.conversion_source_load_intrinsic,
+            "conversion_intrinsic": expectation.conversion_intrinsic,
+            "store_intrinsic": expectation.unit_store_intrinsic,
+            "target_leaf_profile": route_metadata.get(
+                "tcrv_rvv.target_leaf_profile"
+            ),
+            "provider_supported_mirror": route_metadata.get(
+                "tcrv_rvv.provider_supported_mirror"
+            ),
+            "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+        },
+        "route_metadata": route_metadata,
         "artifact_abi": {
             "prototype": bundle_checks["header"]["prototype"],
             "runtime_abi_order": expectation.runtime_abi_order,
@@ -24439,6 +24484,60 @@ def run_self_test() -> int:
                     raise AssertionError(
                         "self-test fake bundle generation lost vector "
                         "reduction validator-backed metadata"
+                    )
+            if expectation.is_widening_conversion:
+                conversion_metadata = conversion_sew_policy_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                expected_binding_plan = (
+                    WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_PLAN
+                    if expectation.is_widen_i16_to_i32
+                    else WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_PLAN
+                )
+                expected_binding_operands = (
+                    WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_OPERANDS
+                    if expectation.is_widen_i16_to_i32
+                    else WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_OPERANDS
+                )
+                conversion_boundary = conversion_sew_policy_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[1, 17, 257],
+                )
+                provider_facts = conversion_boundary.get(
+                    "provider_route_facts", {}
+                )
+                statement_plan = conversion_boundary.get("statement_plan", {})
+                if (
+                    conversion_metadata.get("tcrv_rvv.conversion_relation")
+                    != expectation.conversion_relation
+                    or conversion_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != expected_binding_plan
+                    or conversion_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != expected_binding_operands
+                    or provider_facts.get("source_load_intrinsic")
+                    != expectation.conversion_source_load_intrinsic
+                    or provider_facts.get("conversion_intrinsic")
+                    != expectation.conversion_intrinsic
+                    or provider_facts.get("store_intrinsic")
+                    != expectation.unit_store_intrinsic
+                    or statement_plan.get("conversion_operand_order")
+                    != "loaded_source, vl"
+                    or conversion_boundary.get(
+                        "direct_pre_realized_route_entry_supported"
+                    )
+                    is not False
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost widening "
+                        "conversion provider-backed source/result/statement "
+                        "facts"
                     )
             if expectation.is_widening_macc_add:
                 widening_macc_metadata = widening_macc_metadata_from_bundle(

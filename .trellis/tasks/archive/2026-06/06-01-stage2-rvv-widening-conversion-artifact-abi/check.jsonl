@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must verify the RVV-first authority chain remains intact."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify selected-body realization, provider-owned widening conversion facts, and fail-closed direct route-entry behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify common EmitC/export remains neutral and route-provider-owned."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify generated-bundle, lit/FileCheck, and ssh rvv evidence quality."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-dual-runtime-scalar-mask-select-artifact-abi/prd.md", "reason": "Final check should mirror the previous completed task's evidence and archive discipline where applicable."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Final acceptance criteria and completion notes for this task."}
