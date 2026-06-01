@@ -1624,6 +1624,300 @@ module {
       "runtime_abi:dst_stride_bytes", "unit-stride-load", "strided-store");
 }
 
+int runRuntimeScalarComputedMaskMemoryRealizationBoundaryTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_runtime_scalar_computed_mask_memory_realization_boundary_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_runtime_scalar_cmp_masked_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body %lhs, %rhs_scalar, %src, %dst, %n {inactive_lane_policy = "preserve-output-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-store", op_kind = "runtime_scalar_cmp_masked_store", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_runtime_scalar_cmp_masked_load_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body %lhs, %rhs_scalar, %src, %dst, %n {inactive_lane_policy = "preserve-old-destination", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-load-store", op_kind = "runtime_scalar_cmp_masked_load_store", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV runtime-scalar computed-mask memory "
+                "realization-boundary module");
+  KernelOp kernel = findKernel(
+      *module,
+      "rvv_runtime_scalar_computed_mask_memory_realization_boundary_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for runtime-scalar computed-mask memory "
+          "realization-boundary test"))
+    return result;
+
+  auto realizeRuntimeScalarComputedMaskMemoryVariant =
+      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          llvm::StringRef expectedOwnerName, llvm::StringRef expectedComputeOp,
+          llvm::StringRef expectedOperation, llvm::StringRef expectedPolicy,
+          llvm::StringRef expectedBindingPlan,
+          llvm::StringRef expectedBindingSummaryFragment,
+          llvm::StringRef expectedInactiveLaneContract,
+          llvm::StringRef expectedPassthroughLayout) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found runtime-scalar computed-mask "
+                                        "memory pre-realized body for @") +
+                                variantName))
+      return result;
+
+    llvm::Expected<const tianchenrv::plugin::rvv::
+                       RVVSelectedBodyRealizationOwner *>
+        owner = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyRealizationOwnerForBody(
+                preRealized,
+                "runtime-scalar computed-mask memory selected-body "
+                "realization boundary unit test");
+    if (!owner)
+      return fail(llvm::Twine("runtime-scalar computed-mask memory owner "
+                              "lookup failed for @") +
+                  variantName + ": " + llvm::toString(owner.takeError()));
+    if (int result = expect((*owner)->familyName == expectedOwnerName &&
+                                (*owner)->realize != nullptr,
+                            llvm::Twine("runtime-scalar computed-mask memory "
+                                        "selected body @") +
+                                variantName +
+                                " is registry-owned before route planning"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        beforeRealization =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (beforeRealization)
+      return fail(llvm::Twine("runtime-scalar computed-mask memory "
+                              "pre-realized @") +
+                  variantName +
+                  " unexpectedly reached route facts before realization");
+    if (int result = expectErrorContains(
+            beforeRealization.takeError(),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body", expectedOwnerName}))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+    llvm::Error directRouteError = registry.buildVariantEmitCLowerableRoute(
+        VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+        directRoute);
+    if (int result = expectErrorContains(
+            std::move(directRouteError),
+            {"pre-realized RVV selected body",
+             "owned by selected-body realization owner", expectedOwnerName,
+             "before provider route construction"}))
+      return result;
+
+    mlir::OpBuilder validationBuilder(module->getContext());
+    if (auto storeBody =
+            llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                               TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
+                preRealized)) {
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          validationBuilder),
+                      storeBody),
+              "runtime-scalar computed-mask memory owner-local validation "
+              "accepts the selected store body"))
+        return result;
+    } else if (auto loadStoreBody =
+                   llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                                      TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp>(
+                       preRealized)) {
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          validationBuilder),
+                      loadStoreBody),
+              "runtime-scalar computed-mask memory owner-local validation "
+              "accepts the selected load-store body"))
+        return result;
+    } else {
+      return fail(llvm::Twine("unexpected runtime-scalar computed-mask memory "
+                              "pre-realized op @") +
+                  variantName);
+    }
+
+    mlir::OpBuilder producerBuilder(module->getContext());
+    VariantLoweringBoundaryResult boundaryResult;
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, producerBuilder),
+                boundaryResult),
+            llvm::Twine("public selected lowering-boundary producer consumes "
+                        "runtime-scalar computed-mask memory pre-realized @") +
+                variantName))
+      return result;
+    if (int result = expect(boundaryResult.isMaterialized(),
+                            llvm::Twine("runtime-scalar computed-mask memory "
+                                        "selected-boundary producer "
+                                        "materializes @") +
+                                variantName))
+      return result;
+    if (int result =
+            expect(countNestedOps(variant, preRealizedOpName) == 0 &&
+                       countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.compare") == 1,
+                   llvm::Twine("runtime-scalar computed-mask memory "
+                               "pre-realized @") +
+                       variantName +
+                       " is consumed into explicit setvl/with_vl/splat/"
+                       "compare structure"))
+      return result;
+
+    if (variantName == "rvv_pre_runtime_scalar_cmp_masked_store") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.masked_store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.masked_load") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 0,
+              "runtime-scalar computed-mask store realization materializes "
+              "lhs load, scalar splat, payload load, compare, and "
+              "masked_store before route construction"))
+        return result;
+    } else {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.masked_load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.masked_store") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 0,
+              "runtime-scalar computed-mask load-store realization "
+              "materializes lhs load, scalar splat, old-destination "
+              "passthrough load, compare, masked_load, and store before "
+              "route construction"))
+        return result;
+    }
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized runtime-scalar computed-mask "
+                              "memory route for @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
+    if (int result = expect(
+            routeDescription->computedMaskMemoryRouteFamilyPlanID ==
+                    "rvv-computed-mask-memory-route-family-plan.v1" &&
+                routeDescription->computedMaskMemoryMaskProducerSource ==
+                    "runtime-scalar-splat-compare-rhs" &&
+                routeDescription->runtimeControlPlanID ==
+                    "rvv-runtime-avl-vl-control-plan.v1" &&
+                routeDescription->runtimeABIOrder == "lhs,rhs_scalar,src,dst,n",
+            llvm::Twine("realized runtime-scalar computed-mask memory @") +
+                variantName +
+                " records RVV-owned computed-mask memory and runtime-control "
+                "provider plans"))
+      return result;
+    if (int result = expect(
+            routeDescription->typedComputeOpName == expectedComputeOp &&
+                routeDescription->comparePredicateKind == "sle" &&
+                routeDescription->tailPolicy == expectedPolicy &&
+                routeDescription->maskPolicy == expectedPolicy &&
+                routeDescription->inactiveLaneContract ==
+                    expectedInactiveLaneContract &&
+                routeDescription->maskedPassthroughLayout ==
+                    expectedPassthroughLayout,
+            llvm::Twine("realized runtime-scalar computed-mask memory @") +
+                variantName +
+                " preserves mask, inactive-lane, and policy facts"))
+      return result;
+    if (int result = expect(
+            routeDescription->routeOperandBindingPlanID ==
+                    expectedBindingPlan &&
+                llvm::StringRef(routeDescription->routeOperandBindingSummary)
+                    .contains(expectedBindingSummaryFragment),
+            llvm::Twine("realized runtime-scalar computed-mask memory @") +
+                variantName + " preserves operand-binding facts"))
+      return result;
+    if (int result = expect(
+            stringifyRVVSelectedBodyOperationKind(
+                routeDescription->operation) == expectedOperation,
+            llvm::Twine("realized runtime-scalar computed-mask memory @") +
+                variantName + " preserves selected operation kind"))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider consumes realized runtime-scalar "
+                        "computed-mask memory body for @") +
+                variantName))
+      return result;
+    return expect(route.getForLoops().size() == 1,
+                  llvm::Twine("provider builds one runtime-scalar "
+                              "computed-mask memory route loop after "
+                              "realization for @") +
+                      variantName);
+  };
+
+  if (int result = realizeRuntimeScalarComputedMaskMemoryVariant(
+          "rvv_pre_runtime_scalar_cmp_masked_store",
+          "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body",
+          "runtime scalar computed-mask store", "tcrv_rvv.masked_store",
+          "runtime_scalar_cmp_masked_store", "undisturbed",
+          "rvv-route-operand-binding:runtime_scalar_cmp_masked_store.v1",
+          "dst=output-buffer:dst:abi|mstore-base|mstore-dst|hdr",
+          "masked-store-false-lanes-preserve-output-buffer",
+          "masked-store-has-no-passthrough-load"))
+    return result;
+  return realizeRuntimeScalarComputedMaskMemoryVariant(
+      "rvv_pre_runtime_scalar_cmp_masked_load_store",
+      "tcrv_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body",
+      "runtime scalar computed-mask load-store", "tcrv_rvv.masked_load",
+      "runtime_scalar_cmp_masked_load_store", "agnostic",
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_load_store.v1",
+      "dst=output-buffer:dst:abi|old-dst-load|mload-pass|store|hdr",
+      "masked-off-lanes-preserve-old-destination",
+      "old-destination-vector-preserves-inactive-lanes");
+}
+
 int runSelectedBodyRealizationOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody;
@@ -24200,6 +24494,9 @@ int main() {
     return result;
   if (int result =
           runBaseMemoryMovementRealizationBoundaryTest(context))
+    return result;
+  if (int result =
+          runRuntimeScalarComputedMaskMemoryRealizationBoundaryTest(context))
     return result;
   if (int result = runSelectedBodyRealizationOwnerRegistryTest())
     return result;

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Check implementation remains within Stage 2 RVV selected-body realization scope and does not reintroduce Stage 1 old authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body owner registry, runtime-scalar computed-mask memory realization, statement-plan boundary, route-control/provider plan, and negative diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC consumes provider-built routes only and does not infer RVV memory/mask semantics."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization stays before route provider and mirrors remain non-authoritative."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test coverage, generated-bundle dry-run expectations, old-authority negative paths, and evidence quality."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality and absence of core/common RVV semantic branches."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/dtype/config/runtime authority placement."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review tcrv.exec/common EmitC do not own memory compute semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-base-memory-movement-selected-body-realization-boundary/prd.md", "reason": "Check current task follows the adjacent base-memory selected-body boundary evidence pattern without broadening scope."}

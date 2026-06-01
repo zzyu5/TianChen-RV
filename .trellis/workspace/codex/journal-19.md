@@ -1923,3 +1923,36 @@ Proved the RVV base memory selected-body realization boundary for strided-load/u
 ### Next Steps
 
 - None - task complete
+
+
+## Session 363: Stage2 RVV runtime computed-mask memory selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV runtime computed-mask memory selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Added focused RVV plugin C++ evidence that runtime-scalar computed-mask store/load-store pre-realized bodies fail closed before route construction, are consumed by the public selected lowering-boundary producer into explicit setvl/with_vl/load-or-splat/compare/masked memory structure, and then feed the computed-mask memory provider route.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
