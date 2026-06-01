@@ -1,6 +1,6 @@
 # 课程主线：llama.cpp `q8_0_q8_0` RVV VDot Slice
 
-本分支不再随机分配 25 个互不相同的 RVV slice。所有学生围绕同一个有 LLM 应用价值的目标推进：
+本轮课程围绕同一个有 LLM 应用价值的目标推进：
 
 ```text
 llama.cpp q8_0_q8_0 quantized vector dot
@@ -72,53 +72,30 @@ dot_i32(a, b) = sum_{lane=0..31} int32(a[lane]) * int32(b[lane])
 - 新增 `tcrv_rvv.i8_*` 这类 dtype-prefixed helper。
 - 使用 source-front-door/source-artifact 正向路径绕过 typed body/provider。
 
-## 推荐拆分
+## 实现自由度
 
-虽然全班目标相同，但每个 PR 应保持边界清晰。可以按下面顺序推进：
+所有学生都面向同一个 `q8_0_q8_0` 目标，这样结果才可比较。每个提交都应该说明自己怎样从 MLIR 走到 generated RVV C，并用同一类 harness 验证输出。
 
-### Slice A：i8 typed vector load
+允许存在不同实现方案，例如：
 
-交付：
+- block struct ABI，接近 llama.cpp 的 `block_q8_0 *x, block_q8_0 *y, float *out, size_t n`。
+- 拆分数组 ABI，例如 `x_qs/y_qs/x_d/y_d/out/n`，更容易先打通 compiler path。
+- 先生成 raw int32 dot，再扩展到 `float scale` 输出；但只有包含 scale/dequant 的版本才能声明完整 `q8_0_q8_0` correctness。
+- 选择不同 LMUL 或 loop shape，但必须解释 vector type、VL、reduction boundary 和 baseline 的等价性。
+- 增加更强的 negative tests、tail case、不同 block 数、不同 scale 数据或真实 RVV 性能记录。
 
-- typed i8 vector/config legality；
-- unit-stride i8 load；
-- target FileCheck 能看到 `__riscv_vle8_v_i8m*`；
-- negative test 覆盖不支持的 dtype/LMUL 或 ABI role。
+无论选择哪条路线，最终都要保持同一个语义：
 
-### Slice B：i8 widening multiply
+```text
+dot_i32(qs_x, qs_y) * x.d * y.d
+```
 
-交付：
+评审时统一看：
 
-- `i8 x i8 -> i16` widening multiply typed op 或扩展现有 widening op；
-- provider route 到 `__riscv_vwmul_vv_i16m*`；
-- FileCheck 覆盖 C vector type 和 intrinsic。
-
-### Slice C：i16-to-i32 widening reduction
-
-交付：
-
-- `i16 vector -> i32 scalar/lane0` reduction relation；
-- provider route 到 `__riscv_vwredsum_vs_i16m*_i32m1`；
-- harness 或 FileCheck 证明 scalar result boundary。
-
-### Slice D：`q8_0_q8_0` selected body
-
-交付：
-
-- selected-body 或显式 typed body 表达完整 q8 dot；
-- `lhs/rhs/out/n` ABI 显式绑定；
-- generated RVV C 与 baseline 同形；
-- runtime harness 与 scalar oracle 通过。
-
-### Slice E：scale/dequant
-
-交付：
-
-- 把 raw int32 dot 乘以 `x.d * y.d`；
-- 明确 scale ABI 和 float output；
-- QEMU 或真实 RVV 运行输出与 scalar oracle 匹配。
-
-教师可根据班级人数把 Slice A-E 分给多个学生，也可以要求每个学生独立完成完整路径的不同实现方案。评审时统一用 `q8_0_q8_0` baseline 和同一套 harness 比较。
+- 是否走 TianChenRV compiler path；
+- generated RVV C 是否包含 q8 dot 需要的 intrinsic family；
+- harness 输出是否匹配 scalar oracle；
+- 实现说明是否清楚解释了和 baseline 的差异。
 
 ## Baseline 位置
 
@@ -139,4 +116,3 @@ docs/build-and-rvv-proof.md
 ```
 
 学生最终 generated C/C++ 不要求逐字符等同 baseline，但必须保持同一计算语义，并能解释与 baseline 的差异。
-

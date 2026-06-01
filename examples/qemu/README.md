@@ -8,8 +8,12 @@
 llama_q8_0_q8_0.h
 llama_q8_0_q8_0_rvv.cpp
 harness_llama_q8_0_q8_0.cpp
+harness_add.cpp
+harness_xor.cpp
 Makefile.rvv
 ```
+
+`llama_q8_0_q8_0_*` 是本轮主任务的 baseline。`harness_add.cpp` 和 `harness_xor.cpp` 是参考例子，用来展示一个 generated kernel 如何被普通 C++ harness 调用和验证。
 
 ## Baseline 语义
 
@@ -143,3 +147,39 @@ make -C /tmp/tcrv-student-q8 \
 ```
 
 如果学生生成的 function signature 与 baseline 不同，必须同步修改 harness 的 `extern "C"` 声明和 call site，并在 PR 中解释 ABI 差异。
+
+## add/xor 参考 harness
+
+`harness_add.cpp` 和 `harness_xor.cpp` 用来展示一个普通 generated kernel 怎么被 harness 调用。它们不是 `q8_0_q8_0` baseline，但很适合学生先看懂“MLIR 生成 kernel，harness 提供输入和 oracle”的工作方式。
+
+add 示例：
+
+```bash
+mkdir -p /tmp/tcrv-rvv-add
+build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
+  --tcrv-materialize-emission-plans \
+| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
+> /tmp/tcrv-rvv-add/generated.cpp
+
+cp examples/qemu/harness_add.cpp /tmp/tcrv-rvv-add/harness.cpp
+make -C /tmp/tcrv-rvv-add \
+  -f "$PWD/examples/qemu/Makefile.rvv" \
+  run-rvv
+```
+
+xor 示例：
+
+```bash
+mkdir -p /tmp/tcrv-rvv-xor
+build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-xor.mlir \
+  --tcrv-materialize-emission-plans \
+| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
+> /tmp/tcrv-rvv-xor/generated.cpp
+
+cp examples/qemu/harness_xor.cpp /tmp/tcrv-rvv-xor/harness.cpp
+make -C /tmp/tcrv-rvv-xor \
+  -f "$PWD/examples/qemu/Makefile.rvv" \
+  run-rvv
+```
+
+如果本机 RISC-V toolchain 需要显式参数，沿用前面 `RVV_CXX`、`RVV_EXTRA_CXXFLAGS` 和 `RVV_EXTRA_LDFLAGS` 的覆盖方式。

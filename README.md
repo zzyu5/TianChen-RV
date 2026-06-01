@@ -1,6 +1,6 @@
 # TianChen-RV Classroom：LLM `q8_0_q8_0` RVV VDot
 
-这是 TianChen-RV 的课堂贡献分支。本分支不再分配 25 个互不相同的 RVV 小题，而是让所有学生围绕同一个真实 LLM 算子推进：
+这是 TianChen-RV 的课堂贡献分支。课程目标是让学生围绕一个真实 LLM 算子完成可 review、可运行、可比较的 RVV compiler slice：
 
 ```text
 llama.cpp q8_0_q8_0 quantized vector dot
@@ -35,11 +35,13 @@ MLIR fixture
    编译 TianChenRV，运行参考 RVV C baseline，并了解 QEMU/ssh-rvv proof 如何收集。
 3. [本地 RVV QEMU/ssh-rvv 示例](examples/qemu/README.md)
    直接运行 `llama_q8_0_q8_0_rvv.cpp + harness_llama_q8_0_q8_0.cpp`，看真实 kernel 输入输出。
-4. [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
+4. [从零新增一个 RVV Slice：`binary {kind = "xor"}`](docs/add-rvv-xor-slice-workflow.md)
+   先看一个已经完成的小 slice，理解应该改哪些源码、补哪些测试、怎样写 harness。
+5. [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
    说明学生怎样把 baseline 变成 TianChenRV 的 MLIR/compiler slice。
-5. [RVV Slice 模块化落点](docs/rvv-slice-module-map.md)
+6. [RVV Slice 模块化落点](docs/rvv-slice-module-map.md)
    判断应该改 typed IR、verifier、selected-body realization、provider route、EmitC 还是测试。
-6. [测试用例收集格式](docs/testcase-submission-format.md)
+7. [测试用例收集格式](docs/testcase-submission-format.md)
    提 PR 前按统一格式提交 MLIR、generated kernel evidence、harness 输入输出和运行输出。
 
 ## 当前参考 Baseline
@@ -50,6 +52,8 @@ MLIR fixture
 examples/qemu/llama_q8_0_q8_0.h
 examples/qemu/llama_q8_0_q8_0_rvv.cpp
 examples/qemu/harness_llama_q8_0_q8_0.cpp
+examples/qemu/harness_add.cpp
+examples/qemu/harness_xor.cpp
 examples/qemu/Makefile.rvv
 ```
 
@@ -71,6 +75,8 @@ block_q8_0:
 ```
 
 真实 llama.cpp 使用 fp16 scale；课堂 baseline 使用 `float d`，先把重点放在 i8 load、i8 widening multiply、i16 widening reduction、scalar output 和 provider route 上。
+
+`harness_add.cpp` 和 `harness_xor.cpp` 不是本轮主任务，它们是参考例子：学生可以从 add/xor 看一个普通 slice 如何组织 MLIR fixture、generated kernel ABI、harness 输入和 scalar oracle。
 
 ## 快速运行 Baseline
 
