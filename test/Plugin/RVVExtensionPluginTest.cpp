@@ -9099,23 +9099,79 @@ module {
   auto body = llvm::cast<tianchenrv::tcrv::rvv::
                              TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
       negativeBody);
-  mlir::Operation *nOp = body.getN().getDefiningOp();
-  mlir::Attribute originalNRole = nOp->getAttr("role");
-  nOp->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
+  mlir::Attribute originalPolicy = negativeBody->getAttr("policy");
+  negativeBody->setAttr(
+      "policy",
+      tianchenrv::tcrv::rvv::PolicyAttr::get(
+          module->getContext(), tianchenrv::tcrv::rvv::TailPolicy::Undisturbed,
+          tianchenrv::tcrv::rvv::MaskPolicy::Agnostic));
   if (int result = expectContractionOwnerError(
+          {"computed-mask strided-input widening dot-product reduction body "
+           "requires tail agnostic, mask agnostic policy"})) {
+    negativeBody->setAttr("policy", originalPolicy);
+    return result;
+  }
+  negativeBody->setAttr("policy", originalPolicy);
+
+  auto expectRuntimeRoleError =
+      [&](mlir::Value value, llvm::StringRef replacementRole,
+          std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::Operation *binding = value.getDefiningOp();
+    if (int result =
+            expect(binding != nullptr,
+                   "contraction owner negative role test finds ABI binding"))
+      return result;
+    mlir::Attribute originalRole = binding->getAttr("role");
+    binding->setAttr("role", attrBuilder.getStringAttr(replacementRole));
+    int result = expectContractionOwnerError(fragments);
+    binding->setAttr("role", originalRole);
+    return result;
+  };
+
+  if (int result = expectRuntimeRoleError(
+          body.getCompareLhs(), "output-buffer",
+          {"compare lhs operand must bind runtime ABI role "
+           "'lhs-input-buffer'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getCompareRhs(), "output-buffer",
+          {"compare rhs operand must bind runtime ABI role "
+           "'rhs-input-buffer'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getLhs(), "lhs-input-buffer",
+          {"dot lhs operand must bind runtime ABI role "
+           "'dot-lhs-input-buffer'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getRhs(), "rhs-input-buffer",
+          {"dot rhs operand must bind runtime ABI role "
+           "'dot-rhs-input-buffer'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getAcc(), "output-buffer",
+          {"accumulator seed operand must bind runtime ABI role "
+           "'accumulator-input-buffer'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getOut(), "lhs-input-buffer",
+          {"out operand must bind runtime ABI role 'output-buffer'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getN(), "output-buffer",
           {"runtime n/AVL operand must bind runtime ABI role "
            "'runtime-element-count'"}))
     return result;
-  nOp->setAttr("role", originalNRole);
-
-  mlir::Operation *rhsStrideOp = body.getRhsStride().getDefiningOp();
-  mlir::Attribute originalRhsStrideRole = rhsStrideOp->getAttr("role");
-  rhsStrideOp->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
-  if (int result = expectContractionOwnerError(
+  if (int result = expectRuntimeRoleError(
+          body.getLhsStride(), "output-buffer",
+          {"lhs stride operand must bind runtime ABI role "
+           "'lhs-input-stride'"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          body.getRhsStride(), "output-buffer",
           {"rhs stride operand must bind runtime ABI role "
            "'rhs-input-stride'"}))
     return result;
-  rhsStrideOp->setAttr("role", originalRhsStrideRole);
 
   return 0;
 }

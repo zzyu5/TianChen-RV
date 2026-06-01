@@ -211,3 +211,41 @@ Added focused standalone reduction selected-body owner-boundary evidence: direct
 ### Next Steps
 
 - None - task complete
+
+
+## Session 368: Stage2 RVV contraction selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV contraction selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Added focused contraction owner negative evidence, archived the Trellis task, and verified RVV plugin checks.
+
+### Main Changes
+
+- Created and archived Trellis task `06-01-stage2-rvv-contraction-realization-boundary` from the Hermes direction brief.
+- Added focused owner-local negative coverage to `runPreRealizedContractionRouteEntryOwnerTest` for computed-mask strided contraction rejecting non-agnostic policy and wrong ABI roles on compare lhs/rhs, dot lhs/rhs, accumulator seed, output, runtime `n`/AVL, lhs stride, and rhs stride.
+- No production contraction owner/provider changes were required; existing code already materializes the five bounded contraction pre-realized families before route analysis and provider construction.
+- Bounded old-authority scan found no requested legacy-authority strings in the new diff hunk; existing hits remain fail-closed guards, negative tests, provider-derived exact-intrinsic leaf evidence, selected-route diagnostics, or spec guardrails.
+- Checks passed: task context validation, RVV plugin test target build, direct RVV plugin test binary, `git diff --check`, and `check-tianchenrv` 465/465.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
