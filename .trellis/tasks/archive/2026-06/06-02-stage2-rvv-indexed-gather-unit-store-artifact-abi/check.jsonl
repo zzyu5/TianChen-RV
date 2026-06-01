@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global RVV-first authority and Stage 2 selected-body route chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify base memory movement owner/facts/statement-plan ownership for indexed gather unit-store."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export consumes provider facts without semantic inference and target artifact validation compares provider mirrors."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle evidence quality, direct route-entry negative coverage, old-authority scan, and ssh rvv correctness claims."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check dtype/config/route facts remain structural and capability-scoped."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV plugin locality and absence of core/common semantic branching."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute/core dialect authority was introduced."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Compare final evidence and completion notes to the previous completed artifact ABI boundary."}

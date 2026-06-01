@@ -1228,6 +1228,89 @@ const support::RuntimeABIParameter *findRuntimeElementCountABIParameter(
   return nullptr;
 }
 
+bool bindingSummaryUseListContains(llvm::StringRef useList,
+                                   llvm::StringRef expectedUse) {
+  llvm::SmallVector<llvm::StringRef, 8> uses;
+  useList.split(uses, '|', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (llvm::StringRef use : uses)
+    if (use == expectedUse)
+      return true;
+  return false;
+}
+
+llvm::Error requireIndexedGatherHeaderBindingSummaryEntry(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef logicalOperand,
+    const support::RuntimeABIParameter &parameter) {
+  llvm::SmallVector<llvm::StringRef, 8> entries;
+  llvm::StringRef(description.routeOperandBindingSummary)
+      .split(entries, ';', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  const std::string expectedPrefix = (llvm::Twine(logicalOperand) + "=").str();
+  for (llvm::StringRef entry : entries) {
+    if (!entry.starts_with(expectedPrefix))
+      continue;
+
+    llvm::StringRef rest = entry.drop_front(expectedPrefix.size());
+    llvm::SmallVector<llvm::StringRef, 4> fields;
+    rest.split(fields, ':', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    if (fields.size() != 3)
+      return makeRVVTargetRouteError(
+          llvm::Twine("indexed_gather_unit_store route operand binding "
+                      "summary requires logical operand '") +
+          logicalOperand + "' to record role, C name, and materialized uses "
+                           "before artifact export");
+
+    llvm::StringRef expectedRole =
+        support::stringifyRuntimeABIParameterRole(parameter.role);
+    if (fields[0] != expectedRole || fields[1] != parameter.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("indexed_gather_unit_store route operand binding "
+                      "summary requires logical operand '") +
+          logicalOperand + "' to bind runtime ABI role '" + expectedRole +
+          "' and C name '" + parameter.cName + "' before artifact export");
+
+    if (!bindingSummaryUseListContains(fields[2], "abi") ||
+        !bindingSummaryUseListContains(fields[2], "hdr"))
+      return makeRVVTargetRouteError(
+          llvm::Twine("indexed_gather_unit_store route operand binding "
+                      "summary requires logical operand '") +
+          logicalOperand +
+          "' to carry provider ABI marker 'abi' and header/prototype marker "
+          "'hdr' before artifact export");
+    return llvm::Error::success();
+  }
+
+  return makeRVVTargetRouteError(
+      llvm::Twine("indexed_gather_unit_store route operand binding summary "
+                  "requires logical operand '") +
+      logicalOperand + "' before artifact export");
+}
+
+llvm::Error validateIndexedGatherHeaderBindingSummary(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.operation !=
+      plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore)
+    return llvm::Error::success();
+  if (description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        "indexed_gather_unit_store route operand binding summary is required "
+        "before artifact export");
+  constexpr llvm::StringLiteral logicalOperands[] = {"data", "index", "out",
+                                                     "n"};
+  constexpr std::size_t logicalOperandCount =
+      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
+  if (description.runtimeABIParameters.size() != logicalOperandCount)
+    return makeRVVTargetRouteError(
+        "indexed_gather_unit_store route operand binding summary requires the "
+        "data,index,out,n runtime ABI order before artifact export");
+  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+    if (llvm::Error error = requireIndexedGatherHeaderBindingSummaryEntry(
+            description, logicalOperands[index],
+            description.runtimeABIParameters[index]))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVBaseMemoryMovementRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -1451,7 +1534,7 @@ llvm::Error validateRVVBaseMemoryMovementRuntimeABIFacts(
           " before validating route statements");
   }
 
-  return llvm::Error::success();
+  return validateIndexedGatherHeaderBindingSummary(description);
 }
 
 llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(

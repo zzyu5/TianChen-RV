@@ -35,12 +35,14 @@
 # GATHER-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # GATHER-DAG: "value": "rvv-route-operand-binding:indexed_gather_unit_store.v1"
 # GATHER-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# GATHER-DAG: "value": "rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:runtime-abi-mirror|materialized-indexed-data-base|indexed-load-base|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# GATHER-DAG: "value": "rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:abi|materialized-indexed-data-base|indexed-load-base|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # GATHER-DAG: "typed_compute_op": "tcrv_rvv.move"
 # GATHER-DAG: "memory_form": "indexed-load-unit-store"
 # GATHER-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store(data, indices, out, n);
 # HARNESS: int32_t expected = data[indices[index]];
-# HARNESS: non_monotonic_indexed_gather
-# HARNESS: PASS op=indexed_gather_unit_store counts=7,16,23
+# HARNESS-DAG: non_monotonic_indexed_gather
+# HARNESS-DAG: output_order_distinguishing_lanes
+# HARNESS-DAG: tail sentinel
+# HARNESS: PASS op=indexed_gather_unit_store counts=7,16,23 index_patterns=2 tail_preserved

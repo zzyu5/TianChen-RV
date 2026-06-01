@@ -9410,6 +9410,30 @@ bool expectRVVTargetArtifactExporterShape(
           {"index source", "runtime_abi:index", "metadata-derived-index"}))
     return false;
 
+  RVVRouteDescription staleIndexedGatherBindingSummary =
+      baseIndexedDescription;
+  std::string staleIndexedGatherSummary =
+      staleIndexedGatherBindingSummary.routeOperandBindingSummary;
+  const std::string::size_type firstHeaderMarker =
+      staleIndexedGatherSummary.find("|hdr");
+  if (firstHeaderMarker == std::string::npos) {
+    llvm::errs() << "indexed-gather test fixture did not contain header "
+                    "binding marker\n";
+    return false;
+  }
+  staleIndexedGatherSummary.replace(firstHeaderMarker,
+                                    std::string("|hdr").size(),
+                                    "|header-mirror");
+  staleIndexedGatherBindingSummary.routeOperandBindingSummary =
+      staleIndexedGatherSummary;
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          staleIndexedGatherBindingSummary,
+          "base-memory registry rejects stale indexed gather binding summary",
+          {"indexed_gather_unit_store", "logical operand 'data'", "abi",
+           "hdr"}))
+    return false;
+
   RVVRouteDescription wrongBaseMaskBinding = baseMaskedDescription;
   wrongBaseMaskBinding.maskSource = "metadata-derived-mask";
   if (!expectBaseMemoryProviderFailure(
@@ -9826,6 +9850,25 @@ bool expectRVVTargetArtifactExporterShape(
           wrongBaseIndexMirror, baseIndexedRoute, baseIndexedDescription,
           "base-memory registry rejects stale index mirror",
           {"index_source", "runtime_abi:index", "metadata-derived-index"}))
+    return false;
+
+  TargetArtifactCandidate staleIndexedGatherBindingMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleIndexedGatherBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          "metadata-derived-indexed-gather-binding")) {
+    llvm::errs() << "base-memory test fixture did not contain route operand "
+                    "binding metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          staleIndexedGatherBindingMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather binding mirror",
+          {"route_operand_binding_operands",
+           "selected typed RVV base-memory binding summary",
+           "metadata-derived-indexed-gather-binding"}))
     return false;
 
   TargetArtifactCandidate wrongBaseMaskMirror = baseMaskedFixture.candidate;

@@ -59,6 +59,55 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 
 - None - task complete
 
+
+## Session 375: Stage2 RVV indexed gather unit-store artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV indexed gather unit-store artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved and tightened the bounded `indexed_gather_unit_store`
+selected-body-to-generated-bundle ABI boundary. The production path now exports
+provider-backed `data,index,out,n` operand binding summaries with `abi` and
+`hdr` markers while preserving indexed data-base, index-token/source, unit
+store, runtime AVL, and loop-control facts. The generated harness now exercises
+two index/data patterns across zero, unit, VL-boundary, tail, and larger counts
+on real `ssh rvv`.
+
+### Main Changes
+
+- Added indexed-gather target artifact validation for route operand binding
+  summaries, requiring the provider runtime ABI order, roles, C names, `abi`
+  marker, and `hdr` header/prototype marker before artifact export.
+- Added C++ target artifact fail-closed coverage for stale indexed-gather
+  binding summaries and stale `route_operand_binding_operands` candidate
+  mirrors.
+- Strengthened indexed-gather generated-bundle evidence and harness checks for
+  two non-contiguous index/data patterns, `data[indices[index]]`, output order
+  distinction, and tail sentinel preservation.
+- Added direct pre-realized route-entry fail-closed script coverage for
+  `indexed_gather_unit_store`.
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk git diff --check`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter indexed-gather-unit-store` from `build/test`
+- [OK] Focused pre-realized dry-run evidence for counts `0,1,16,17,257`
+- [OK] Direct route-entry negative command failed with the expected retired
+  shortcut diagnostic
+- [OK] Real `ssh rvv` generated bundle correctness for counts `0,1,16,17,257`
+  and two index/data patterns
+
+### Status
+
+[OK] Completed and ready for archive plus the single task commit.
+
 ## Session 378: Stage2 RVV computed-masked strided-input widening dot-reduction artifact ABI boundary
 
 **Date**: 2026-06-02

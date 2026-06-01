@@ -517,10 +517,10 @@ INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN = (
 )
 INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:indexed_gather_unit_store.v1;"
-    "data=lhs-input-buffer:data:runtime-abi-mirror|materialized-indexed-data-base|indexed-load-base|header-mirror;"
-    "index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;"
-    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+    "data=lhs-input-buffer:data:abi|materialized-indexed-data-base|indexed-load-base|hdr;"
+    "index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;"
+    "out=output-buffer:out:abi|materialized-store-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
 INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:indexed_scatter_unit_load.v1"
@@ -16850,21 +16850,37 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static uint32_t make_index(size_t logical_index, size_t n) {{
+static uint32_t make_index(size_t logical_index, size_t n, int pattern) {{
   if (n == 0)
     return 0;
-  size_t mixed = (logical_index * 5 + 3) % n;
-  if ((logical_index % 2) == 0)
-    mixed = (n - 1) - mixed;
+  size_t mixed;
+  if (pattern == 0) {{
+    mixed = (logical_index * 5 + 3) % n;
+    if ((logical_index % 2) == 0)
+      mixed = (n - 1) - mixed;
+  }} else {{
+    mixed = (logical_index * 7 + 1 + ((logical_index % 3) * 2)) % n;
+    if ((logical_index % 4) == 1)
+      mixed = (n - 1) - mixed;
+  }}
   return (uint32_t)mixed;
 }}
 
-static int run_case(size_t n) {{
+static int32_t init_data_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  return (int32_t)(((index % 2) == 0)
+                       ? (int32_t)(-700 - (int32_t)(index * 11))
+                       : (int32_t)(900 + (int32_t)(index * 13)));
+}}
+
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
   int32_t *data = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   uint32_t *indices = (uint32_t *)malloc(sizeof(uint32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
   if (!data || !indices || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(data);
@@ -16874,54 +16890,87 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    data[index] = {expectation.lhs_initializer};
-    indices[index] = make_index(index, alloc_n);
+    data[index] = init_data_value(index, pattern);
+    indices[index] = make_index(index, alloc_n, pattern);
+  }}
+  for (size_t index = 0; index < out_alloc_n; ++index) {{
     out[index] = {OUT_SENTINEL};
   }}
 
   {expectation.function_name}(data, indices, out, n);
 
+  size_t output_order_distinguishing_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
-    int32_t expected = {expectation.expected_expression};
-    if (out[index] != expected) {{
+    if ((size_t)indices[index] >= n) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu gather_index=%u got=%d expected=%d data_at_index=%d\\n",
-              n, index, indices[index], out[index], expected,
-              data[indices[index]]);
+              "{expectation.kind} generated out-of-range index n=%zu pattern=%d index=%zu gather_index=%u\\n",
+              n, pattern, index, indices[index]);
       free(data);
       free(indices);
       free(out);
       return 12;
     }}
+    int32_t expected = {expectation.expected_expression};
+    if ((size_t)indices[index] != index && data[indices[index]] != data[index])
+      ++output_order_distinguishing_lanes;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu gather_index=%u got=%d expected=%d data_at_index=%d\\n",
+              n, pattern, index, indices[index], out[index], expected,
+              data[indices[index]]);
+      free(data);
+      free(indices);
+      free(out);
+      return 13;
+    }}
   }}
 
-  if (n > 3 && indices[0] == 0 && indices[1] == 1 && indices[2] == 2) {{
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, pattern, index, out[index], {OUT_SENTINEL});
+      free(data);
+      free(indices);
+      free(out);
+      return 14;
+    }}
+  }}
+
+  if (n > 3 && output_order_distinguishing_lanes == 0) {{
     fprintf(stderr,
-            "{expectation.kind} vacuous indexed gather check failed n=%zu indices=[%u,%u,%u]\\n",
-            n, indices[0], indices[1], indices[2]);
+            "{expectation.kind} vacuous indexed gather check failed n=%zu pattern=%d indices=[%u,%u,%u]\\n",
+            n, pattern, indices[0], indices[1], indices[2]);
     free(data);
     free(indices);
     free(out);
-    return 13;
+    return 15;
   }}
 
   free(data);
   free(indices);
   free(out);
-  printf("{expectation.kind} case n=%zu ok non_monotonic_indexed_gather\\n", n);
+  printf("{expectation.kind} case n=%zu pattern=%d ok non_monotonic_indexed_gather output_order_distinguishing_lanes=%zu tail_preserved\\n",
+         n, pattern, output_order_distinguishing_lanes);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const int index_patterns[] = {{0, 1}};
+  const size_t index_pattern_count =
+      sizeof(index_patterns) / sizeof(index_patterns[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t pattern_index = 0; pattern_index < index_pattern_count;
+         ++pattern_index) {{
+      int status = run_case(counts[index], index_patterns[pattern_index]);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} index_patterns=2 tail_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} index_patterns=2 tail_preserved\\n");
   return 0;
 }}
 """.lstrip()
@@ -24995,6 +25044,49 @@ def run_self_test() -> int:
                     "self-test harness generation lost runtime destination "
                     "byte-stride coverage"
                 )
+            if expectation.is_indexed_gather_unit_store:
+                bundle_checks = verify_bundle(
+                    bundle, readobj=None, expectation=expectation
+                )
+                boundary = base_memory_movement_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 17, 257],
+                )
+                route_metadata = boundary.get("route_metadata", {})
+                statement_plan = boundary.get("statement_plan", {})
+                selected_source_abi = statement_plan.get("selected_source_abi", {})
+                if (
+                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    != INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
+                    or route_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
+                    or selected_source_abi.get("data") != "lhs-input-buffer"
+                    or selected_source_abi.get("index") != "index-input-buffer"
+                    or selected_source_abi.get("out") != "output-buffer"
+                    or statement_plan.get("pointer_roles", {}).get("index")
+                    != "index + loop_induction"
+                    or boundary.get("runtime_counts") != [0, 1, 16, 17, 257]
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost indexed gather "
+                        "provider-backed ABI, index, statement, or route "
+                        "binding facts"
+                    )
+                if (
+                    "index_patterns=2" not in harness
+                    or "output_order_distinguishing_lanes" not in harness
+                    or "tail sentinel" not in harness
+                    or "data[indices[index]]" not in harness
+                ):
+                    raise AssertionError(
+                        "self-test harness generation lost indexed gather "
+                        "index/data pattern, output-order, or tail coverage"
+                    )
             if expectation.is_computed_masked_strided_store and (
                 "stride_bytes_values" not in harness
                 or "byte_strided_store" not in harness

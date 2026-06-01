@@ -983,6 +983,14 @@ getRVVRouteOperandBindingParameter(
 std::string
 stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
   auto stringifyUseForSummary = [&](llvm::StringRef use) -> llvm::StringRef {
+    if (plan.planID ==
+        "rvv-route-operand-binding:indexed_gather_unit_store.v1") {
+      if (use == "runtime-abi-mirror")
+        return "abi";
+      if (use == "header-mirror")
+        return "hdr";
+      return use;
+    }
     const bool usesCompactSummary =
         plan.planID == kRVVRuntimeScalarCompareSelectOperandBindingPlanID ||
         plan.planID ==
