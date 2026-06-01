@@ -1701,3 +1701,36 @@ Derived contraction route-family leaves from selected typed RVV source/result/co
 ### Next Steps
 
 - None - task complete
+
+
+## Session 359: Stage1 typed RVV shared route-profile leaf derivation
+
+**Date**: 2026-06-01
+**Task**: Stage1 typed RVV shared route-profile leaf derivation
+**Branch**: `main`
+
+### Summary
+
+Derived shared RVV route/profile leaf names from typed selected-body facts, including config, masked/computed-mask memory, segment2, reduction, computed-mask select, and widening conversion leaves; archived the Trellis task after focused build, plugin, lit, scan, and diff checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

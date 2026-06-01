@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and RVV Stage 1 route-authority reset gate."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed body/config facts, route materialization, route-control, computed-mask memory, and segment2 contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built RVV route boundary."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant and metadata mirror rules for RVV Stage 1."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit testing and legacy i32 authority scan requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and profile facts constrain legality without becoming RVV route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV plugin owns route/provider leaves and common/core code must stay neutral."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep work on low-level RVV execution bodies, not high-level compute IR."}

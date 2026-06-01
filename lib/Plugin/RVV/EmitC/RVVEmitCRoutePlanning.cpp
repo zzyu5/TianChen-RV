@@ -1965,20 +1965,12 @@ constexpr llvm::StringLiteral kRVVMaskedMemoryPassthroughLayout(
 constexpr llvm::StringLiteral kRVVMaskedLoadMemoryForm("masked-unit-load");
 constexpr llvm::StringLiteral kRVVMaskedLoadInactiveLanePolicy(
     "preserve-passthrough-on-false-lanes");
-constexpr llvm::StringLiteral kRVVMaskedLoadIntrinsic(
-    "__riscv_vle32_v_i32m1_tumu");
 constexpr llvm::StringLiteral kRVVMaskedStridedLoadSourceMemoryForm(
     "masked-strided-load");
-constexpr llvm::StringLiteral kRVVMaskedStridedLoadIntrinsic(
-    "__riscv_vlse32_v_i32m1_tumu");
 constexpr llvm::StringLiteral kRVVMaskedIndexedLoadSourceMemoryForm(
     "masked-indexed-load");
-constexpr llvm::StringLiteral kRVVMaskedIndexedLoadIntrinsic(
-    "__riscv_vluxei32_v_i32m1_tumu");
 constexpr llvm::StringLiteral kRVVMaskedIndexedStoreDestinationMemoryForm(
     "masked-indexed-store");
-constexpr llvm::StringLiteral kRVVMaskedIndexedStoreIntrinsic(
-    "__riscv_vsoxei32_v_i32m1_m");
 constexpr llvm::StringLiteral kRVVMaskedIndexedStoreInactiveLaneContract(
     "masked-indexed-store-false-lanes-preserve-output-buffer");
 constexpr llvm::StringLiteral kRVVMaskedIndexedStorePassthroughLayout(
@@ -1989,12 +1981,8 @@ constexpr llvm::StringLiteral kRVVMaskedStorePassthroughLayout(
     "masked-store-has-no-passthrough-load");
 constexpr llvm::StringLiteral kRVVMaskedStoreDestinationMemoryForm(
     "masked-unit-store");
-constexpr llvm::StringLiteral kRVVMaskedStoreIntrinsic(
-    "__riscv_vse32_v_i32m1_m");
 constexpr llvm::StringLiteral kRVVMaskedStridedStoreDestinationMemoryForm(
     "masked-strided-store");
-constexpr llvm::StringLiteral kRVVMaskedStridedStoreIntrinsic(
-    "__riscv_vsse32_v_i32m1_m");
 constexpr llvm::StringLiteral kRVVMaskedStridedStoreInactiveLaneContract(
     "masked-strided-store-false-lanes-preserve-output-buffer");
 constexpr llvm::StringLiteral kRVVMaskedStridedStorePassthroughLayout(
@@ -2011,19 +1999,6 @@ constexpr llvm::StringLiteral kRVVSegment2Field0InputRole(
     "segment-field0-input-buffer");
 constexpr llvm::StringLiteral kRVVSegment2Field1InputRole(
     "segment-field1-input-buffer");
-constexpr llvm::StringLiteral kRVVSegment2TupleCType("vint32m1x2_t");
-constexpr llvm::StringLiteral kRVVSegment2LoadIntrinsic(
-    "__riscv_vlseg2e32_v_i32m1x2");
-constexpr llvm::StringLiteral kRVVMaskedSegment2LoadIntrinsic(
-    "__riscv_vlseg2e32_v_i32m1x2_tumu");
-constexpr llvm::StringLiteral kRVVSegment2StoreIntrinsic(
-    "__riscv_vsseg2e32_v_i32m1x2");
-constexpr llvm::StringLiteral kRVVMaskedSegment2StoreIntrinsic(
-    "__riscv_vsseg2e32_v_i32m1x2_m");
-constexpr llvm::StringLiteral kRVVSegment2FieldExtractIntrinsic(
-    "__riscv_vget_v_i32m1x2_i32m1");
-constexpr llvm::StringLiteral kRVVSegment2TupleCreateIntrinsic(
-    "__riscv_vcreate_v_i32m1x2");
 constexpr llvm::StringLiteral kRVVSegment2InterleavedDestinationMemoryForm(
     "segment2-interleaved-unit-stride-store");
 constexpr llvm::StringLiteral kRVVIndexedGatherOffsetUnit("element");
@@ -2088,6 +2063,430 @@ struct RVVSelectedBodyTargetLeafProfile {
   llvm::StringRef maskAndIntrinsic;
 };
 
+llvm::StringRef internRVVSelectedBodyDerivedText(std::string text) {
+  static llvm::StringSet<> textPool;
+  return textPool.insert(std::move(text)).first->getKey();
+}
+
+llvm::StringRef getRVVSelectedBodyIntegerElementTypeName(std::int64_t sew) {
+  if (sew == tcrv::rvv::getRVVSEW16Bits())
+    return "i16";
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return "i32";
+  if (sew == tcrv::rvv::getRVVSEW64Bits())
+    return "i64";
+  return {};
+}
+
+llvm::StringRef getRVVSelectedBodySignedScalarCType(std::int64_t sew) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("int") + llvm::Twine(sew) + "_t").str());
+}
+
+llvm::StringRef getRVVSelectedBodyConstInputPointerCType(std::int64_t sew) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("const int") + llvm::Twine(sew) + "_t *").str());
+}
+
+llvm::StringRef getRVVSelectedBodyOutputPointerCType(std::int64_t sew) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("int") + llvm::Twine(sew) + "_t *").str());
+}
+
+llvm::StringRef getRVVSelectedBodyElementByteSize(std::int64_t sew) {
+  if (sew <= 0 || sew % 8 != 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(llvm::Twine(sew / 8).str());
+}
+
+llvm::StringRef getRVVSelectedBodyVectorTypeName(std::int64_t sew,
+                                                 llvm::StringRef lmul) {
+  llvm::StringRef elementType = getRVVSelectedBodyIntegerElementTypeName(sew);
+  if (elementType.empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("!tcrv_rvv.vector<") + elementType + ", \"" + lmul +
+       "\">")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyMaskTypeName(std::int64_t sew,
+                                               llvm::StringRef lmul) {
+  llvm::StringRef elementType = getRVVSelectedBodyIntegerElementTypeName(sew);
+  if (elementType.empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("!tcrv_rvv.mask<") + elementType + ", \"" + lmul + "\">")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodySignedVectorCType(std::int64_t sew,
+                                                    llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("vint") + llvm::Twine(sew) + lmul + "_t").str());
+}
+
+std::optional<std::int64_t>
+getRVVSelectedBodyMaskBitWidth(std::int64_t sew, llvm::StringRef lmul) {
+  if (sew <= 0)
+    return std::nullopt;
+  if (lmul == tcrv::rvv::getRVVLMULM1())
+    return sew;
+  if (lmul == tcrv::rvv::getRVVLMULM2())
+    return sew / 2;
+  if (lmul == tcrv::rvv::getRVVLMULMF2())
+    return sew * 2;
+  return std::nullopt;
+}
+
+llvm::StringRef getRVVSelectedBodyMaskCType(std::int64_t sew,
+                                            llvm::StringRef lmul) {
+  std::optional<std::int64_t> maskBits =
+      getRVVSelectedBodyMaskBitWidth(sew, lmul);
+  if (!maskBits)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("vbool") + llvm::Twine(*maskBits) + "_t").str());
+}
+
+llvm::StringRef getRVVSelectedBodySetVLIntrinsic(std::int64_t sew,
+                                                 llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vsetvl_e") + llvm::Twine(sew) + lmul).str());
+}
+
+llvm::StringRef getRVVSelectedBodyVectorLoadIntrinsic(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vle") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyStridedLoadIntrinsic(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vlse") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyScalarSplatIntrinsic(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vmv_v_x_i") + llvm::Twine(sew) + lmul).str());
+}
+
+llvm::StringRef getRVVSelectedBodyStoreIntrinsic(std::int64_t sew,
+                                                 llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyStridedStoreIntrinsic(std::int64_t sew,
+                                                        llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vsse") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+bool hasRVVSelectedBodyI32M1IndexFacts(std::int64_t sew,
+                                       llvm::StringRef lmul) {
+  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         lmul == tcrv::rvv::getRVVLMULM1();
+}
+
+llvm::StringRef getRVVSelectedBodyIndexVectorTypeName(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("!tcrv_rvv.index_vector<i") + llvm::Twine(sew) + ", \"" +
+       lmul + "\">")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyIndexVectorCType(std::int64_t sew,
+                                                   llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("vuint") + llvm::Twine(sew) + lmul + "_t").str());
+}
+
+llvm::StringRef getRVVSelectedBodyIndexLoadIntrinsic(std::int64_t sew,
+                                                     llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vle") + llvm::Twine(sew) + "_v_u" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyIndexScaleIntrinsic(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vmul_vx_u") + llvm::Twine(sew) + lmul).str());
+}
+
+llvm::StringRef getRVVSelectedBodyIndexedLoadIntrinsic(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vloxei") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyIndexedStoreIntrinsic(std::int64_t sew,
+                                                        llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vsoxei") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyMaskedLoadIntrinsic(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  llvm::StringRef load = getRVVSelectedBodyVectorLoadIntrinsic(sew, lmul);
+  if (load.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText((llvm::Twine(load) + "_tumu").str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyMaskedStridedLoadIntrinsic(std::int64_t sew,
+                                             llvm::StringRef lmul) {
+  llvm::StringRef load = getRVVSelectedBodyStridedLoadIntrinsic(sew, lmul);
+  if (load.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText((llvm::Twine(load) + "_tumu").str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyMaskedIndexedLoadIntrinsic(std::int64_t sew,
+                                             llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vluxei") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul + "_tumu")
+          .str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyMaskedIndexedStoreIntrinsic(std::int64_t sew,
+                                              llvm::StringRef lmul) {
+  if (!hasRVVSelectedBodyI32M1IndexFacts(sew, lmul))
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vsoxei") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul + "_m")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyMaskedStoreIntrinsic(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  llvm::StringRef store = getRVVSelectedBodyStoreIntrinsic(sew, lmul);
+  if (store.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText((llvm::Twine(store) + "_m").str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyMaskedStridedStoreIntrinsic(std::int64_t sew,
+                                              llvm::StringRef lmul) {
+  llvm::StringRef store = getRVVSelectedBodyStridedStoreIntrinsic(sew, lmul);
+  if (store.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText((llvm::Twine(store) + "_m").str());
+}
+
+llvm::StringRef getRVVSelectedBodySegmentTupleCType(std::int64_t sew,
+                                                    llvm::StringRef lmul,
+                                                    std::int64_t count) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty() ||
+      count <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("vint") + llvm::Twine(sew) + lmul + "x" +
+       llvm::Twine(count) + "_t")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodySegmentLoadIntrinsic(std::int64_t sew,
+                                                       llvm::StringRef lmul,
+                                                       std::int64_t count) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty() ||
+      count <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vlseg") + llvm::Twine(count) + "e" +
+       llvm::Twine(sew) + "_v_i" + llvm::Twine(sew) + lmul + "x" +
+       llvm::Twine(count))
+          .str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyMaskedSegmentLoadIntrinsic(std::int64_t sew,
+                                             llvm::StringRef lmul,
+                                             std::int64_t count) {
+  llvm::StringRef load =
+      getRVVSelectedBodySegmentLoadIntrinsic(sew, lmul, count);
+  if (load.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText((llvm::Twine(load) + "_tumu").str());
+}
+
+llvm::StringRef getRVVSelectedBodySegmentStoreIntrinsic(std::int64_t sew,
+                                                        llvm::StringRef lmul,
+                                                        std::int64_t count) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty() ||
+      count <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vsseg") + llvm::Twine(count) + "e" +
+       llvm::Twine(sew) + "_v_i" + llvm::Twine(sew) + lmul + "x" +
+       llvm::Twine(count))
+          .str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyMaskedSegmentStoreIntrinsic(std::int64_t sew,
+                                              llvm::StringRef lmul,
+                                              std::int64_t count) {
+  llvm::StringRef store =
+      getRVVSelectedBodySegmentStoreIntrinsic(sew, lmul, count);
+  if (store.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText((llvm::Twine(store) + "_m").str());
+}
+
+llvm::StringRef getRVVSelectedBodySegmentFieldExtractIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul, std::int64_t count) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty() ||
+      count <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vget_v_i") + llvm::Twine(sew) + lmul + "x" +
+       llvm::Twine(count) + "_i" + llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodySegmentTupleCreateIntrinsic(
+    std::int64_t sew, llvm::StringRef lmul, std::int64_t count) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty() ||
+      count <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vcreate_v_i") + llvm::Twine(sew) + lmul + "x" +
+       llvm::Twine(count))
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  llvm::StringRef mnemonic;
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::StridedAdd:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+    mnemonic = "vadd";
+    break;
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case RVVSelectedBodyOperationKind::MaskedSub:
+    mnemonic = "vsub";
+    break;
+  case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+  case RVVSelectedBodyOperationKind::MaskedMul:
+    mnemonic = "vmul";
+    break;
+  default:
+    return {};
+  }
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_") + mnemonic + "_vv_i" + llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyCompareIntrinsicForPredicate(
+    llvm::StringRef predicateKind, std::int64_t sew, llvm::StringRef lmul) {
+  std::optional<std::int64_t> maskBits =
+      getRVVSelectedBodyMaskBitWidth(sew, lmul);
+  if (!maskBits)
+    return {};
+  llvm::StringRef mnemonic;
+  if (predicateKind == "eq")
+    mnemonic = "vmseq";
+  else if (predicateKind == "slt")
+    mnemonic = "vmslt";
+  else if (predicateKind == "sle")
+    mnemonic = "vmsle";
+  else if (predicateKind == "ne_vx")
+    mnemonic = "vmsne";
+  else
+    return {};
+  const char *operandForm = predicateKind == "ne_vx" ? "_vx_i" : "_vv_i";
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_") + mnemonic + operandForm +
+       llvm::Twine(sew) + lmul + "_b" + llvm::Twine(*maskBits))
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodySelectIntrinsic(std::int64_t sew,
+                                                  llvm::StringRef lmul) {
+  if (getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vmerge_vvm_i") + llvm::Twine(sew) + lmul).str());
+}
+
+llvm::StringRef getRVVSelectedBodyMaskAndIntrinsic(std::int64_t sew,
+                                                   llvm::StringRef lmul) {
+  std::optional<std::int64_t> maskBits =
+      getRVVSelectedBodyMaskBitWidth(sew, lmul);
+  if (!maskBits)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vmand_mm_b") + llvm::Twine(*maskBits)).str());
+}
+
 bool isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(
     std::int64_t sew, llvm::StringRef lmul) {
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
@@ -2119,10 +2518,10 @@ llvm::StringRef getRVVStandaloneReductionScalarResultVectorTypeName(
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       (lmul == tcrv::rvv::getRVVLMULM1() ||
        lmul == tcrv::rvv::getRVVLMULM2()))
-    return "!tcrv_rvv.vector<i32, \"m1\">";
+    return getRVVSelectedBodyVectorTypeName(sew, tcrv::rvv::getRVVLMULM1());
   if (sew == tcrv::rvv::getRVVSEW64Bits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
-    return "!tcrv_rvv.vector<i64, \"m1\">";
+    return getRVVSelectedBodyVectorTypeName(sew, tcrv::rvv::getRVVLMULM1());
   return {};
 }
 
@@ -2131,10 +2530,12 @@ llvm::StringRef getRVVStandaloneReductionScalarResultVectorCType(
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       (lmul == tcrv::rvv::getRVVLMULM1() ||
        lmul == tcrv::rvv::getRVVLMULM2()))
-    return "vint32m1_t";
+    return getRVVSelectedBodySignedVectorCType(
+        sew, tcrv::rvv::getRVVLMULM1());
   if (sew == tcrv::rvv::getRVVSEW64Bits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
-    return "vint64m1_t";
+    return getRVVSelectedBodySignedVectorCType(
+        sew, tcrv::rvv::getRVVLMULM1());
   return {};
 }
 
@@ -2143,10 +2544,12 @@ llvm::StringRef getRVVStandaloneReductionScalarSeedSplatIntrinsic(
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       (lmul == tcrv::rvv::getRVVLMULM1() ||
        lmul == tcrv::rvv::getRVVLMULM2()))
-    return "__riscv_vmv_v_x_i32m1";
+    return getRVVSelectedBodyScalarSplatIntrinsic(
+        sew, tcrv::rvv::getRVVLMULM1());
   if (sew == tcrv::rvv::getRVVSEW64Bits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i64m1";
+    return getRVVSelectedBodyScalarSplatIntrinsic(
+        sew, tcrv::rvv::getRVVLMULM1());
   return {};
 }
 
@@ -2155,25 +2558,20 @@ llvm::StringRef getRVVStandaloneReductionScalarResultStoreIntrinsic(
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       (lmul == tcrv::rvv::getRVVLMULM1() ||
        lmul == tcrv::rvv::getRVVLMULM2()))
-    return "__riscv_vse32_v_i32m1";
+    return getRVVSelectedBodyStoreIntrinsic(sew,
+                                            tcrv::rvv::getRVVLMULM1());
   if (sew == tcrv::rvv::getRVVSEW64Bits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vse64_v_i64m1";
+    return getRVVSelectedBodyStoreIntrinsic(sew,
+                                            tcrv::rvv::getRVVLMULM1());
   return {};
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vle64_v_i64m1_tumu";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vle32_v_i32m2_tumu";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return kRVVMaskedLoadIntrinsic;
-  return {};
+  if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew, lmul))
+    return {};
+  return getRVVSelectedBodyMaskedLoadIntrinsic(sew, lmul);
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
@@ -2184,16 +2582,9 @@ llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
 
 llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vse64_v_i64m1_m";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vse32_v_i32m2_m";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return kRVVMaskedStoreIntrinsic;
-  return {};
+  if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew, lmul))
+    return {};
+  return getRVVSelectedBodyMaskedStoreIntrinsic(sew, lmul);
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
@@ -2206,133 +2597,14 @@ llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryElementCType(
     std::int64_t sew, llvm::StringRef lmul) {
   if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew, lmul))
     return {};
-  return sew == tcrv::rvv::getRVVSEW64Bits() ? "int64_t" : "int32_t";
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryVectorTypeName(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "!tcrv_rvv.vector<i64, \"m1\">";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "!tcrv_rvv.vector<i32, \"m2\">";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "!tcrv_rvv.vector<i32, \"m1\">";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryVectorCType(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "vint64m1_t";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "vint32m2_t";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "vint32m1_t";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryMaskTypeName(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "!tcrv_rvv.mask<i64, \"m1\">";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "!tcrv_rvv.mask<i32, \"m2\">";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "!tcrv_rvv.mask<i32, \"m1\">";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryMaskCType(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "vbool64_t";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "vbool16_t";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "vbool32_t";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemorySetVLIntrinsic(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vsetvl_e64m1";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vsetvl_e32m2";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vsetvl_e32m1";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryVectorLoadIntrinsic(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vle64_v_i64m1";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vle32_v_i32m2";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vle32_v_i32m1";
-  return {};
+  return getRVVSelectedBodySignedScalarCType(sew);
 }
 
 llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryUnitStoreIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vse64_v_i64m1";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vse32_v_i32m2";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vse32_v_i32m1";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemorySplatIntrinsic(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i64m1";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vmv_v_x_i32m2";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i32m1";
-  return {};
-}
-
-llvm::StringRef getRVVRuntimeScalarComputedMaskMemoryCompareIntrinsic(
-    std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmsle_vv_i64m1_b64";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vmsle_vv_i32m2_b16";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmsle_vv_i32m1_b32";
-  return {};
+  if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew, lmul))
+    return {};
+  return getRVVSelectedBodyStoreIntrinsic(sew, lmul);
 }
 
 struct RVVSelectedBodyRouteProfile {
@@ -3104,135 +3376,90 @@ deriveRVVSelectedBodyConfigProfile(
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
   }
 
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract *configContract = nullptr;
   if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1())
-    return RVVSelectedBodyConfigProfile{
-        32,
-        "m1",
-        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
-        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+      description.lmul == tcrv::rvv::getRVVLMULM1()) {
+    configContract =
         usesUndisturbedPolicy
             ? &tcrv::rvv::getRVVSelectedBodyM1UndisturbedConfigVLContract()
-            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m1"),
-        "size_t",
-        "!tcrv_rvv.vector<i32, \"m1\">",
-        "!tcrv_rvv.index_vector<i32, \"m1\">",
-        "!tcrv_rvv.mask<i32, \"m1\">",
-        "vint32m1_t",
-        "vuint32m1_t",
-        "vbool32_t",
-        "int32_t",
-        "const int32_t *",
-        "int32_t *",
-        "4",
-        "__riscv_vsetvl_e32m1",
-        "__riscv_vle32_v_i32m1",
-        "__riscv_vle32_v_u32m1",
-        "__riscv_vmul_vx_u32m1",
-        "__riscv_vloxei32_v_i32m1",
-        "__riscv_vsoxei32_v_i32m1",
-        "__riscv_vlse32_v_i32m1",
-        "__riscv_vmv_v_x_i32m1",
-        "__riscv_vse32_v_i32m1",
-        "__riscv_vsse32_v_i32m1"};
-
-  if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM2())
-    return RVVSelectedBodyConfigProfile{
-        32,
-        "m2",
-        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
-        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m1");
+  } else if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+             description.lmul == tcrv::rvv::getRVVLMULM2()) {
+    configContract =
         usesUndisturbedPolicy
             ? &tcrv::rvv::getRVVSelectedBodyM2UndisturbedConfigVLContract()
-            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m2"),
-        "size_t",
-        "!tcrv_rvv.vector<i32, \"m2\">",
-        "",
-        "!tcrv_rvv.mask<i32, \"m2\">",
-        "vint32m2_t",
-        "",
-        "vbool16_t",
-        "int32_t",
-        "const int32_t *",
-        "int32_t *",
-        "4",
-        "__riscv_vsetvl_e32m2",
-        "__riscv_vle32_v_i32m2",
-        "",
-        "",
-        "",
-        "",
-        "__riscv_vlse32_v_i32m2",
-        "__riscv_vmv_v_x_i32m2",
-        "__riscv_vse32_v_i32m2",
-        "__riscv_vsse32_v_i32m2"};
-
-  if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1())
-    return RVVSelectedBodyConfigProfile{
-        64,
-        "m1",
-        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
-        usesUndisturbedPolicy ? "undisturbed" : "agnostic",
+            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m2");
+  } else if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
+             description.lmul == tcrv::rvv::getRVVLMULM1()) {
+    configContract =
         usesUndisturbedPolicy
             ? &tcrv::rvv::getRVVSelectedBodyI64M1UndisturbedConfigVLContract()
-            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m1"),
-        "size_t",
-        "!tcrv_rvv.vector<i64, \"m1\">",
-        "",
-        "!tcrv_rvv.mask<i64, \"m1\">",
-        "vint64m1_t",
-        "",
-        "vbool64_t",
-        "int64_t",
-        "const int64_t *",
-        "int64_t *",
-        "8",
-        "__riscv_vsetvl_e64m1",
-        "__riscv_vle64_v_i64m1",
-        "",
-        "",
-        "",
-        "",
-        "__riscv_vlse64_v_i64m1",
-        "__riscv_vmv_v_x_i64m1",
-        "__riscv_vse64_v_i64m1",
-        "__riscv_vsse64_v_i64m1"};
+            : &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m1");
+  } else if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
+             description.lmul == tcrv::rvv::getRVVLMULM2() &&
+             description.tailPolicy == "agnostic" &&
+             description.maskPolicy == "agnostic") {
+    configContract = &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m2");
+  } else {
+    return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+  }
 
-  if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM2() &&
-      description.tailPolicy == "agnostic" &&
-      description.maskPolicy == "agnostic")
-    return RVVSelectedBodyConfigProfile{
-        64,
-        "m2",
-        "agnostic",
-        "agnostic",
-        &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m2"),
-        "size_t",
-        "!tcrv_rvv.vector<i64, \"m2\">",
-        "",
-        "!tcrv_rvv.mask<i64, \"m2\">",
-        "vint64m2_t",
-        "",
-        "vbool32_t",
-        "int64_t",
-        "const int64_t *",
-        "int64_t *",
-        "8",
-        "__riscv_vsetvl_e64m2",
-        "__riscv_vle64_v_i64m2",
-        "",
-        "",
-        "",
-        "",
-        "__riscv_vlse64_v_i64m2",
-        "__riscv_vmv_v_x_i64m2",
-        "__riscv_vse64_v_i64m2",
-        "__riscv_vsse64_v_i64m2"};
+  RVVSelectedBodyConfigProfile profile;
+  profile.sew = description.sew;
+  profile.lmul = description.lmul;
+  profile.tailPolicy = usesUndisturbedPolicy ? "undisturbed" : "agnostic";
+  profile.maskPolicy = usesUndisturbedPolicy ? "undisturbed" : "agnostic";
+  profile.configContract = configContract;
+  profile.vlCType = "size_t";
+  profile.vectorTypeName =
+      getRVVSelectedBodyVectorTypeName(profile.sew, profile.lmul);
+  profile.indexVectorTypeName =
+      getRVVSelectedBodyIndexVectorTypeName(profile.sew, profile.lmul);
+  profile.maskTypeName =
+      getRVVSelectedBodyMaskTypeName(profile.sew, profile.lmul);
+  profile.vectorCType =
+      getRVVSelectedBodySignedVectorCType(profile.sew, profile.lmul);
+  profile.indexVectorCType =
+      getRVVSelectedBodyIndexVectorCType(profile.sew, profile.lmul);
+  profile.maskCType = getRVVSelectedBodyMaskCType(profile.sew, profile.lmul);
+  profile.scalarCType = getRVVSelectedBodySignedScalarCType(profile.sew);
+  profile.constInputPointerCType =
+      getRVVSelectedBodyConstInputPointerCType(profile.sew);
+  profile.outputPointerCType =
+      getRVVSelectedBodyOutputPointerCType(profile.sew);
+  profile.elementByteSize = getRVVSelectedBodyElementByteSize(profile.sew);
+  profile.setVLIntrinsic =
+      getRVVSelectedBodySetVLIntrinsic(profile.sew, profile.lmul);
+  profile.vectorLoadIntrinsic =
+      getRVVSelectedBodyVectorLoadIntrinsic(profile.sew, profile.lmul);
+  profile.indexLoadIntrinsic =
+      getRVVSelectedBodyIndexLoadIntrinsic(profile.sew, profile.lmul);
+  profile.indexScaleIntrinsic =
+      getRVVSelectedBodyIndexScaleIntrinsic(profile.sew, profile.lmul);
+  profile.indexedLoadIntrinsic =
+      getRVVSelectedBodyIndexedLoadIntrinsic(profile.sew, profile.lmul);
+  profile.indexedStoreIntrinsic =
+      getRVVSelectedBodyIndexedStoreIntrinsic(profile.sew, profile.lmul);
+  profile.stridedLoadIntrinsic =
+      getRVVSelectedBodyStridedLoadIntrinsic(profile.sew, profile.lmul);
+  profile.rhsBroadcastIntrinsic =
+      getRVVSelectedBodyScalarSplatIntrinsic(profile.sew, profile.lmul);
+  profile.storeIntrinsic =
+      getRVVSelectedBodyStoreIntrinsic(profile.sew, profile.lmul);
+  profile.stridedStoreIntrinsic =
+      getRVVSelectedBodyStridedStoreIntrinsic(profile.sew, profile.lmul);
 
-  return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+  if (profile.vectorTypeName.empty() || profile.maskTypeName.empty() ||
+      profile.vectorCType.empty() || profile.maskCType.empty() ||
+      profile.scalarCType.empty() || profile.constInputPointerCType.empty() ||
+      profile.outputPointerCType.empty() || profile.elementByteSize.empty() ||
+      profile.setVLIntrinsic.empty() || profile.vectorLoadIntrinsic.empty() ||
+      profile.stridedLoadIntrinsic.empty() ||
+      profile.rhsBroadcastIntrinsic.empty() || profile.storeIntrinsic.empty() ||
+      profile.stridedStoreIntrinsic.empty())
+    return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+
+  return profile;
 }
 
 llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
@@ -3240,9 +3467,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     const RVVSelectedBodyConfigProfile &config) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
-    return config.lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vadd_vv_i32m2"
-               : "__riscv_vadd_vv_i32m1";
+    return getRVVSelectedBodyArithmeticIntrinsic(operation, config.sew,
+                                                 config.lmul);
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::Mul:
@@ -3325,20 +3551,37 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
 }
 
 llvm::StringRef getRVVSelectedBodyWideningConversionIntrinsic(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL,
+    llvm::StringRef conversionRelation) {
+  const bool isI32ToI64 =
+      sourceSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      sourceLMUL == tcrv::rvv::getRVVLMULM1() &&
+      resultSEW == tcrv::rvv::getRVVSEW64Bits() &&
+      resultLMUL == tcrv::rvv::getRVVLMULM2() &&
+      conversionRelation == kRVVWideningConversionRelation;
+  const bool isI16ToI32 =
+      sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
+      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == tcrv::rvv::getRVVLMULM1() &&
+      conversionRelation == kRVVWidenI16ToI32ConversionRelation;
+  if (!isI32ToI64 && !isI16ToI32)
+    return {};
+  if (getRVVSelectedBodyVectorTypeName(sourceSEW, sourceLMUL).empty() ||
+      getRVVSelectedBodyVectorTypeName(resultSEW, resultLMUL).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vwcvt_x_x_v_i") + llvm::Twine(resultSEW) +
+       resultLMUL)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyWideningConversionIntrinsic(
     const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.sourceSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.sourceLMUL == tcrv::rvv::getRVVLMULM1() &&
-      description.sew == tcrv::rvv::getRVVSEW64Bits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM2() &&
-      description.conversionRelation == kRVVWideningConversionRelation)
-    return "__riscv_vwcvt_x_x_v_i64m2";
-  if (description.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      description.sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      description.lmul == tcrv::rvv::getRVVLMULM1() &&
-      description.conversionRelation == kRVVWidenI16ToI32ConversionRelation)
-    return "__riscv_vwcvt_x_x_v_i32m1";
-  return {};
+  return getRVVSelectedBodyWideningConversionIntrinsic(
+      description.sourceSEW, description.sourceLMUL, description.sew,
+      description.lmul, description.conversionRelation);
 }
 
 llvm::StringRef getRVVSelectedBodyMAccIntrinsic(std::int64_t sew,
@@ -3354,53 +3597,49 @@ llvm::StringRef getRVVSelectedBodyMAccIntrinsic(std::int64_t sew,
       .first->getKey();
 }
 
-llvm::StringRef
-getRVVSelectedBodyReductionIntrinsic(llvm::StringRef lmul) {
-  if (lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vredsum_vs_i32m1_i32m1";
-  return {};
+llvm::StringRef getRVVSelectedBodyReductionIntrinsicForMnemonic(
+    llvm::StringRef mnemonic, std::int64_t sew, llvm::StringRef lmul) {
+  if (mnemonic.empty() ||
+      getRVVSelectedBodyIntegerElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_") + mnemonic + "_vs_i" + llvm::Twine(sew) +
+       lmul + "_i" + llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+          .str());
 }
 
 llvm::StringRef
 getRVVSelectedBodyReductionIntrinsic(
     const RVVSelectedBodyConfigProfile &config) {
-  if (config.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      config.lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vredsum_vs_i32m1_i32m1";
-  if (config.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      config.lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vredsum_vs_i32m2_i32m1";
-  if (config.sew == tcrv::rvv::getRVVSEW64Bits() &&
-      config.lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vredsum_vs_i64m1_i64m1";
-  return {};
+  return getRVVSelectedBodyReductionIntrinsicForMnemonic("vredsum",
+                                                         config.sew,
+                                                         config.lmul);
 }
 
 llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
-    RVVSelectedBodyOperationKind operation, llvm::StringRef lmul) {
-  const bool usesM1 = lmul == tcrv::rvv::getRVVLMULM1();
-  const bool usesM2 = lmul == tcrv::rvv::getRVVLMULM2();
-  if (!usesM1 && !usesM2)
-    return {};
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul) {
+  llvm::StringRef mnemonic;
   switch (operation) {
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd:
-    return usesM2 ? "__riscv_vredsum_vs_i32m2_i32m1"
-                  : "__riscv_vredsum_vs_i32m1_i32m1";
+    mnemonic = "vredsum";
+    break;
   case RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceMin:
-    return usesM2 ? "__riscv_vredmin_vs_i32m2_i32m1"
-                  : "__riscv_vredmin_vs_i32m1_i32m1";
+    mnemonic = "vredmin";
+    break;
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceMax:
-    return usesM2 ? "__riscv_vredmax_vs_i32m2_i32m1"
-                  : "__riscv_vredmax_vs_i32m1_i32m1";
+    mnemonic = "vredmax";
+    break;
   default:
     return {};
   }
+  return getRVVSelectedBodyReductionIntrinsicForMnemonic(mnemonic, sew, lmul);
 }
 
 llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
@@ -3413,61 +3652,49 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
                        RuntimeScalarComputedMaskStandaloneReduceMin ||
       operation == RVVSelectedBodyOperationKind::
                        RuntimeScalarComputedMaskStandaloneReduceMax)
-    return getRVVSelectedBodyStandaloneReductionIntrinsic(operation,
-                                                         config.lmul);
+    return getRVVSelectedBodyStandaloneReductionIntrinsic(
+        operation, config.sew, config.lmul);
   if (config.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
     return {};
-  return getRVVSelectedBodyStandaloneReductionIntrinsic(operation,
+  return getRVVSelectedBodyStandaloneReductionIntrinsic(operation, config.sew,
                                                        config.lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodyEqualCompareIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmseq_vv_i32m2_b16"
-             : "__riscv_vmseq_vv_i32m1_b32";
+  return getRVVSelectedBodyCompareIntrinsicForPredicate(
+      "eq", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodyEqualCompareIntrinsic(
     const RVVSelectedBodyConfigProfile &config) {
-  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
-    return config.lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vmseq_vv_i64m2_b32"
-               : "__riscv_vmseq_vv_i64m1_b64";
-  return getRVVSelectedBodyEqualCompareIntrinsic(config.lmul);
+  return getRVVSelectedBodyCompareIntrinsicForPredicate("eq", config.sew,
+                                                        config.lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodySignedLessThanCompareIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmslt_vv_i32m2_b16"
-             : "__riscv_vmslt_vv_i32m1_b32";
+  return getRVVSelectedBodyCompareIntrinsicForPredicate(
+      "slt", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef getRVVSelectedBodySignedLessThanCompareIntrinsic(
     const RVVSelectedBodyConfigProfile &config) {
-  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
-    return config.lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vmslt_vv_i64m2_b32"
-               : "__riscv_vmslt_vv_i64m1_b64";
-  return getRVVSelectedBodySignedLessThanCompareIntrinsic(config.lmul);
+  return getRVVSelectedBodyCompareIntrinsicForPredicate("slt", config.sew,
+                                                        config.lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodySignedLessEqualCompareIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmsle_vv_i32m2_b16"
-             : "__riscv_vmsle_vv_i32m1_b32";
+  return getRVVSelectedBodyCompareIntrinsicForPredicate(
+      "sle", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef getRVVSelectedBodySignedLessEqualCompareIntrinsic(
     const RVVSelectedBodyConfigProfile &config) {
-  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
-    return config.lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vmsle_vv_i64m2_b32"
-               : "__riscv_vmsle_vv_i64m1_b64";
-  return getRVVSelectedBodySignedLessEqualCompareIntrinsic(config.lmul);
+  return getRVVSelectedBodyCompareIntrinsicForPredicate("sle", config.sew,
+                                                        config.lmul);
 }
 
 llvm::StringRef
@@ -3494,36 +3721,24 @@ llvm::StringRef getRVVSelectedBodyCompareIntrinsic(
 }
 
 llvm::StringRef getRVVSelectedBodyMaskFromI32Intrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmsne_vx_i32m2_b16"
-             : "__riscv_vmsne_vx_i32m1_b32";
+  return getRVVSelectedBodyCompareIntrinsicForPredicate(
+      "ne_vx", tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodySelectIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmerge_vvm_i32m2"
-             : "__riscv_vmerge_vvm_i32m1";
+  return getRVVSelectedBodySelectIntrinsic(
+      tcrv::rvv::getRVVFirstSliceSEWBits(), lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodySelectIntrinsic(const RVVSelectedBodyConfigProfile &config) {
-  if (config.sew == tcrv::rvv::getRVVSEW64Bits())
-    return config.lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vmerge_vvm_i64m2"
-               : "__riscv_vmerge_vvm_i64m1";
-  return getRVVSelectedBodySelectIntrinsic(config.lmul);
+  return getRVVSelectedBodySelectIntrinsic(config.sew, config.lmul);
 }
 
 llvm::StringRef
 getRVVSelectedBodyMaskAndIntrinsic(const RVVSelectedBodyConfigProfile &config) {
-  if (config.maskCType == "vbool64_t")
-    return "__riscv_vmand_mm_b64";
-  if (config.maskCType == "vbool32_t")
-    return "__riscv_vmand_mm_b32";
-  if (config.maskCType == "vbool16_t")
-    return "__riscv_vmand_mm_b16";
-  return {};
+  return getRVVSelectedBodyMaskAndIntrinsic(config.sew, config.lmul);
 }
 
 bool isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
@@ -4240,12 +4455,13 @@ llvm::Error validateRVVSelectedBodyWideningConversionRouteFamilyPlan(
       isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
                  : tcrv::rvv::getRVVLMULM1();
   const llvm::StringRef expectedSourceVectorType =
-      isI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
-                 : "!tcrv_rvv.vector<i32, \"m1\">";
+      getRVVSelectedBodyVectorTypeName(expectedSourceSEW, expectedSourceLMUL);
   const llvm::StringRef expectedSourceVectorCType =
-      isI16ToI32 ? "vint16mf2_t" : "vint32m1_t";
+      getRVVSelectedBodySignedVectorCType(expectedSourceSEW,
+                                          expectedSourceLMUL);
   const llvm::StringRef expectedSourceVectorLoadIntrinsic =
-      isI16ToI32 ? "__riscv_vle16_v_i16mf2" : "__riscv_vle32_v_i32m1";
+      getRVVSelectedBodyVectorLoadIntrinsic(expectedSourceSEW,
+                                            expectedSourceLMUL);
   const std::int64_t expectedResultSEW =
       isI16ToI32 ? tcrv::rvv::getRVVFirstSliceSEWBits()
                  : tcrv::rvv::getRVVSEW64Bits();
@@ -4253,20 +4469,21 @@ llvm::Error validateRVVSelectedBodyWideningConversionRouteFamilyPlan(
       isI16ToI32 ? tcrv::rvv::getRVVLMULM1()
                  : tcrv::rvv::getRVVLMULM2();
   const llvm::StringRef expectedResultVectorType =
-      isI16ToI32 ? "!tcrv_rvv.vector<i32, \"m1\">"
-                 : "!tcrv_rvv.vector<i64, \"m2\">";
+      getRVVSelectedBodyVectorTypeName(expectedResultSEW, expectedResultLMUL);
   const llvm::StringRef expectedResultVectorCType =
-      isI16ToI32 ? "vint32m1_t" : "vint64m2_t";
+      getRVVSelectedBodySignedVectorCType(expectedResultSEW,
+                                          expectedResultLMUL);
   const llvm::StringRef expectedSetVLIntrinsic =
-      isI16ToI32 ? "__riscv_vsetvl_e32m1" : "__riscv_vsetvl_e64m2";
-  const llvm::StringRef expectedConversionIntrinsic =
-      isI16ToI32 ? "__riscv_vwcvt_x_x_v_i32m1"
-                 : "__riscv_vwcvt_x_x_v_i64m2";
+      getRVVSelectedBodySetVLIntrinsic(expectedResultSEW, expectedResultLMUL);
   const llvm::StringRef expectedStoreIntrinsic =
-      isI16ToI32 ? "__riscv_vse32_v_i32m1" : "__riscv_vse64_v_i64m2";
+      getRVVSelectedBodyStoreIntrinsic(expectedResultSEW, expectedResultLMUL);
   const llvm::StringRef expectedConversionRelation =
       isI16ToI32 ? kRVVWidenI16ToI32ConversionRelation
                  : kRVVWideningConversionRelation;
+  const llvm::StringRef expectedConversionIntrinsic =
+      getRVVSelectedBodyWideningConversionIntrinsic(
+          expectedSourceSEW, expectedSourceLMUL, expectedResultSEW,
+          expectedResultLMUL, expectedConversionRelation);
 
   if (plan.sourceSEW != expectedSourceSEW)
     return makeRVVEmitCRouteProviderError(
@@ -4398,11 +4615,12 @@ deriveRVVSelectedBodyWideningConversionRouteFamilyPlan(
                               : tcrv::rvv::getRVVFirstSliceSEWBits();
   plan.sourceLMUL = isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
                                : tcrv::rvv::getRVVLMULM1();
-  plan.sourceVectorTypeName = isI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
-                                         : "!tcrv_rvv.vector<i32, \"m1\">";
-  plan.sourceVectorCType = isI16ToI32 ? "vint16mf2_t" : "vint32m1_t";
+  plan.sourceVectorTypeName =
+      getRVVSelectedBodyVectorTypeName(plan.sourceSEW, plan.sourceLMUL);
+  plan.sourceVectorCType =
+      getRVVSelectedBodySignedVectorCType(plan.sourceSEW, plan.sourceLMUL);
   plan.sourceVectorLoadIntrinsic =
-      isI16ToI32 ? "__riscv_vle16_v_i16mf2" : "__riscv_vle32_v_i32m1";
+      getRVVSelectedBodyVectorLoadIntrinsic(plan.sourceSEW, plan.sourceLMUL);
   plan.resultSEW = configProfile.sew;
   plan.resultLMUL = configProfile.lmul;
   plan.resultVectorTypeName = configProfile.vectorTypeName;
@@ -4490,22 +4708,7 @@ bool isSupportedTypedComputedMaskSelectRouteConfig(std::int64_t sew,
 }
 
 llvm::StringRef getComputedMaskSelectElementTypeForSEW(std::int64_t sew) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
-    return "i32";
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
-    return "i64";
-  return {};
-}
-
-llvm::StringRef getComputedMaskSelectMaskAndIntrinsicForMaskCType(
-    llvm::StringRef maskCType) {
-  if (maskCType == "vbool64_t")
-    return "__riscv_vmand_mm_b64";
-  if (maskCType == "vbool32_t")
-    return "__riscv_vmand_mm_b32";
-  if (maskCType == "vbool16_t")
-    return "__riscv_vmand_mm_b16";
-  return {};
+  return getRVVSelectedBodyIntegerElementTypeName(sew);
 }
 
 llvm::StringRef getComputedMaskSelectRuntimeABIOrder(
@@ -4589,16 +4792,7 @@ getComputedMaskSelectExpectedRhsScalarSplatIntrinsic(
     const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan) {
   if (!usesRuntimeScalarComputedMaskSelectProducer(plan.operation))
     return "";
-  if (plan.sew == tcrv::rvv::getRVVSEW64Bits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i64m1";
-  if (plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vmv_v_x_i32m2";
-  if (plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      plan.lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i32m1";
-  return "";
+  return getRVVSelectedBodyScalarSplatIntrinsic(plan.sew, plan.lmul);
 }
 
 llvm::Error requireRVVSelectedBodyComputedMaskSelectPlanField(
@@ -4788,8 +4982,7 @@ validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskSelectPlanField(
               plan, "mask-and leaf", plan.maskAndIntrinsic,
-              isDual ? getComputedMaskSelectMaskAndIntrinsicForMaskCType(
-                           plan.maskCType)
+              isDual ? getRVVSelectedBodyMaskAndIntrinsic(plan.sew, plan.lmul)
                      : ""))
     return error;
   if (plan.selectIntrinsic.empty() || plan.storeIntrinsic.empty())
@@ -5615,44 +5808,25 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
         "computed-mask memory config to be SEW32 LMUL m1");
   }
   llvm::StringRef expectedVectorTypeName =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemoryVectorTypeName(plan.sew,
-                                                               plan.lmul)
-          : llvm::StringRef("!tcrv_rvv.vector<i32, \"m1\">");
+      getRVVSelectedBodyVectorTypeName(plan.sew, plan.lmul);
   llvm::StringRef expectedVectorCType =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemoryVectorCType(plan.sew,
-                                                            plan.lmul)
-          : llvm::StringRef("vint32m1_t");
+      getRVVSelectedBodySignedVectorCType(plan.sew, plan.lmul);
   llvm::StringRef expectedMaskTypeName =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemoryMaskTypeName(plan.sew,
-                                                             plan.lmul)
-          : llvm::StringRef("!tcrv_rvv.mask<i32, \"m1\">");
+      getRVVSelectedBodyMaskTypeName(plan.sew, plan.lmul);
   llvm::StringRef expectedMaskCType =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemoryMaskCType(plan.sew, plan.lmul)
-          : llvm::StringRef("vbool32_t");
+      getRVVSelectedBodyMaskCType(plan.sew, plan.lmul);
   llvm::StringRef expectedSetVLIntrinsic =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemorySetVLIntrinsic(plan.sew,
-                                                               plan.lmul)
-          : llvm::StringRef("__riscv_vsetvl_e32m1");
+      getRVVSelectedBodySetVLIntrinsic(plan.sew, plan.lmul);
   llvm::StringRef expectedVectorLoadIntrinsic =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemoryVectorLoadIntrinsic(
-                plan.sew, plan.lmul)
-          : llvm::StringRef("__riscv_vle32_v_i32m1");
+      getRVVSelectedBodyVectorLoadIntrinsic(plan.sew, plan.lmul);
   llvm::StringRef expectedRHSScalarSplatIntrinsic =
       isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemorySplatIntrinsic(plan.sew,
-                                                               plan.lmul)
+          ? getRVVSelectedBodyScalarSplatIntrinsic(plan.sew, plan.lmul)
           : llvm::StringRef();
   llvm::StringRef expectedCompareIntrinsic =
-      isRuntimeScalar
-          ? getRVVRuntimeScalarComputedMaskMemoryCompareIntrinsic(plan.sew,
-                                                                 plan.lmul)
-          : llvm::StringRef("__riscv_vmslt_vv_i32m1_b32");
+      getRVVSelectedBodyCompareIntrinsicForPredicate(
+          isRuntimeScalar ? llvm::StringRef("sle") : llvm::StringRef("slt"),
+          plan.sew, plan.lmul);
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "vector type", plan.vectorTypeName,
@@ -5666,14 +5840,14 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "index vector type", plan.indexVectorTypeName,
               (isIndexedGather || isIndexedScatter)
-                  ? llvm::StringRef("!tcrv_rvv.index_vector<i32, \"m1\">")
+                  ? getRVVSelectedBodyIndexVectorTypeName(plan.sew, plan.lmul)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "index vector C type", plan.indexVectorCType,
               (isIndexedGather || isIndexedScatter)
-                  ? llvm::StringRef("vuint32m1_t")
+                  ? getRVVSelectedBodyIndexVectorCType(plan.sew, plan.lmul)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
@@ -5698,14 +5872,14 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "index-load leaf", plan.indexLoadIntrinsic,
               (isIndexedGather || isIndexedScatter)
-                  ? llvm::StringRef("__riscv_vle32_v_u32m1")
+                  ? getRVVSelectedBodyIndexLoadIntrinsic(plan.sew, plan.lmul)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "index-scale leaf", plan.indexScaleIntrinsic,
               (isIndexedGather || isIndexedScatter)
-                  ? llvm::StringRef("__riscv_vmul_vx_u32m1")
+                  ? getRVVSelectedBodyIndexScaleIntrinsic(plan.sew, plan.lmul)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
@@ -5727,23 +5901,30 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "arithmetic leaf", plan.arithmeticIntrinsic,
-              isSegment2Update ? llvm::StringRef("__riscv_vadd_vv_i32m1")
-                               : llvm::StringRef()))
+              isSegment2Update
+                  ? getRVVSelectedBodyArithmeticIntrinsic(plan.operation,
+                                                          plan.sew, plan.lmul)
+                  : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "masked-load leaf", plan.maskedLoadIntrinsic,
-              isIndexedGather ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
+              isIndexedGather
+                  ? getRVVSelectedBodyMaskedIndexedLoadIntrinsic(plan.sew,
+                                                                 plan.lmul)
               : plan.operation ==
                       RVVSelectedBodyOperationKind::
                           ComputedMaskStridedLoadUnitStore
-                  ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
+                  ? getRVVSelectedBodyMaskedStridedLoadIntrinsic(plan.sew,
+                                                                 plan.lmul)
               : isSegment2Load
-                  ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
+                  ? getRVVSelectedBodyMaskedSegmentLoadIntrinsic(plan.sew,
+                                                                 plan.lmul, 2)
               : isRuntimeScalar && isLoadMerge
                   ? getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(
                         plan.sew, plan.lmul)
-              : isLoadMerge ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
+              : isLoadMerge
+                  ? getRVVSelectedBodyMaskedLoadIntrinsic(plan.sew, plan.lmul)
                             : llvm::StringRef()))
     return error;
   if (plan.operation ==
@@ -5761,7 +5942,7 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                 isRuntimeScalar
                     ? getRVVRuntimeScalarComputedMaskMemoryUnitStoreIntrinsic(
                           plan.sew, plan.lmul)
-                    : llvm::StringRef("__riscv_vse32_v_i32m1")))
+                    : getRVVSelectedBodyStoreIntrinsic(plan.sew, plan.lmul)))
       return error;
   } else {
     if (llvm::Error error =
@@ -5773,14 +5954,17 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "strided-store leaf", plan.stridedStoreIntrinsic,
               plan.operation == RVVSelectedBodyOperationKind::ComputedMaskStridedStore
-                  ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
+                  ? getRVVSelectedBodyMaskedStridedStoreIntrinsic(plan.sew,
+                                                                  plan.lmul)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "indexed-store leaf", plan.indexedStoreIntrinsic,
-              isIndexedScatter ? llvm::StringRef(kRVVMaskedIndexedStoreIntrinsic)
-                               : llvm::StringRef()))
+              isIndexedScatter
+                  ? getRVVSelectedBodyMaskedIndexedStoreIntrinsic(plan.sew,
+                                                                  plan.lmul)
+                  : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
@@ -5906,7 +6090,9 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                   ? llvm::StringRef(kRVVComputedMaskSegment2UpdateMemoryLayout)
                   : llvm::StringRef()))
     return error;
-  if (plan.segmentCount != ((isSegment2Load || isSegment2StoreLike) ? 2 : 0))
+  const std::int64_t expectedSegmentCount =
+      (isSegment2Load || isSegment2StoreLike) ? 2 : 0;
+  if (plan.segmentCount != expectedSegmentCount)
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan requires segment count to "
         "mirror the selected segment2 memory consumer");
@@ -5914,30 +6100,39 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "segment tuple C type", plan.segmentTupleCType,
               (isSegment2Load || isSegment2StoreLike)
-                  ? llvm::StringRef(kRVVSegment2TupleCType)
+                  ? getRVVSelectedBodySegmentTupleCType(plan.sew, plan.lmul,
+                                                        expectedSegmentCount)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "segment-load leaf", plan.segmentLoadIntrinsic,
-              isSegment2Load ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
-                             : llvm::StringRef()))
+              isSegment2Load
+                  ? getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
+                        plan.sew, plan.lmul, expectedSegmentCount)
+                  : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "segment-store leaf", plan.segmentStoreIntrinsic,
-              isSegment2Load ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+              isSegment2Load
+                  ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                        plan.sew, plan.lmul, expectedSegmentCount)
               : isSegment2StoreLike
-                  ? llvm::StringRef(kRVVMaskedSegment2StoreIntrinsic)
+                  ? getRVVSelectedBodyMaskedSegmentStoreIntrinsic(
+                        plan.sew, plan.lmul, expectedSegmentCount)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "segment field extract leaf",
               plan.segmentFieldExtractIntrinsic,
-              isSegment2Load ? llvm::StringRef(kRVVSegment2FieldExtractIntrinsic)
+              isSegment2Load
+                  ? getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                        plan.sew, plan.lmul, expectedSegmentCount)
               : isSegment2StoreLike
-                  ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+                  ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                        plan.sew, plan.lmul, expectedSegmentCount)
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
@@ -6339,30 +6534,40 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
 	            : llvm::StringRef();
 	  }
   if (isComputedMaskSegment2Load || isComputedMaskSegment2StoreLike) {
+    const std::int64_t segmentCount =
+        isComputedMaskSegment2Load
+            ? static_cast<std::int64_t>(
+                  analysis.slice.maskedSegment2LoadOp.getSegmentCount())
+            : static_cast<std::int64_t>(
+                  analysis.slice.maskedSegment2Store.getSegmentCount());
     plan.segmentMemoryLayout =
         isComputedMaskSegment2Load
             ? llvm::StringRef(kRVVComputedMaskSegment2LoadMemoryLayout)
         : isComputedMaskSegment2Update
             ? llvm::StringRef(kRVVComputedMaskSegment2UpdateMemoryLayout)
             : llvm::StringRef(kRVVComputedMaskSegment2StoreMemoryLayout);
-    plan.segmentCount =
-        isComputedMaskSegment2Load
-            ? static_cast<std::int64_t>(
-                  analysis.slice.maskedSegment2LoadOp.getSegmentCount())
-            : static_cast<std::int64_t>(
-                  analysis.slice.maskedSegment2Store.getSegmentCount());
-    plan.segmentTupleCType = kRVVSegment2TupleCType;
+    plan.segmentCount = segmentCount;
+    plan.segmentTupleCType = getRVVSelectedBodySegmentTupleCType(
+        configProfile.sew, configProfile.lmul, segmentCount);
     plan.segmentLoadIntrinsic =
-        isComputedMaskSegment2Load ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
-                                   : llvm::StringRef();
+        isComputedMaskSegment2Load
+            ? getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
+                  configProfile.sew, configProfile.lmul, segmentCount)
+            : llvm::StringRef();
     plan.segmentStoreIntrinsic =
-        isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+        isComputedMaskSegment2Load
+            ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                  configProfile.sew, configProfile.lmul, segmentCount)
         : isComputedMaskSegment2StoreLike
-            ? llvm::StringRef(kRVVMaskedSegment2StoreIntrinsic)
+            ? getRVVSelectedBodyMaskedSegmentStoreIntrinsic(
+                  configProfile.sew, configProfile.lmul, segmentCount)
             : llvm::StringRef();
     plan.segmentFieldExtractIntrinsic =
-        isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2FieldExtractIntrinsic)
-                                   : llvm::StringRef(kRVVSegment2TupleCreateIntrinsic);
+        isComputedMaskSegment2Load
+            ? getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                  configProfile.sew, configProfile.lmul, segmentCount)
+            : getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                  configProfile.sew, configProfile.lmul, segmentCount);
     plan.field0Role =
         isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2Field0Role)
                                    : llvm::StringRef(kRVVSegment2Field0InputRole);
@@ -6675,7 +6880,9 @@ llvm::Error validateRVVSelectedBodySegment2MemoryRouteFamilyPlan(
         "plain segment2 memory route-family plan requires segment_count 2");
   if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
           plan, "segment tuple C type", plan.segmentTupleCType,
-          kRVVSegment2TupleCType))
+          getRVVSelectedBodySegmentTupleCType(plan.runtimeControlPlan.sew,
+                                              plan.runtimeControlPlan.lmul,
+                                              plan.segmentCount)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
           plan, "source memory form", plan.sourceMemoryForm,
@@ -6690,19 +6897,30 @@ llvm::Error validateRVVSelectedBodySegment2MemoryRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
           plan, "segment-load intrinsic", plan.segmentLoadIntrinsic,
-          isDeinterleave ? llvm::StringRef(kRVVSegment2LoadIntrinsic)
-                         : llvm::StringRef()))
+          isDeinterleave
+              ? getRVVSelectedBodySegmentLoadIntrinsic(
+                    plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul,
+                    plan.segmentCount)
+              : llvm::StringRef()))
     return error;
   if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
           plan, "segment-store intrinsic", plan.segmentStoreIntrinsic,
-          isInterleave ? llvm::StringRef(kRVVSegment2StoreIntrinsic)
-                       : llvm::StringRef()))
+          isInterleave
+              ? getRVVSelectedBodySegmentStoreIntrinsic(
+                    plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul,
+                    plan.segmentCount)
+              : llvm::StringRef()))
     return error;
   if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
           plan, "segment field extract intrinsic",
           plan.segmentFieldExtractIntrinsic,
-          isInterleave ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
-                       : llvm::StringRef(kRVVSegment2FieldExtractIntrinsic)))
+          isInterleave
+              ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                    plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul,
+                    plan.segmentCount)
+              : getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                    plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul,
+                    plan.segmentCount)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
           plan, "field0 role", plan.field0Role,
@@ -6857,16 +7075,24 @@ deriveRVVSelectedBodySegment2MemoryRouteFamilyPlan(
                          analysis.slice.segment2Store.getSegmentCount())
                    : static_cast<std::int64_t>(
                          analysis.slice.segment2Load.getSegmentCount());
-  plan.segmentTupleCType = kRVVSegment2TupleCType;
+  plan.segmentTupleCType = getRVVSelectedBodySegmentTupleCType(
+      configProfile.sew, configProfile.lmul, plan.segmentCount);
   plan.segmentLoadIntrinsic =
-      isDeinterleave ? llvm::StringRef(kRVVSegment2LoadIntrinsic)
-                     : llvm::StringRef();
+      isDeinterleave
+          ? getRVVSelectedBodySegmentLoadIntrinsic(
+                configProfile.sew, configProfile.lmul, plan.segmentCount)
+          : llvm::StringRef();
   plan.segmentStoreIntrinsic =
-      isInterleave ? llvm::StringRef(kRVVSegment2StoreIntrinsic)
-                   : llvm::StringRef();
+      isInterleave
+          ? getRVVSelectedBodySegmentStoreIntrinsic(
+                configProfile.sew, configProfile.lmul, plan.segmentCount)
+          : llvm::StringRef();
   plan.segmentFieldExtractIntrinsic =
-      isInterleave ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
-                   : llvm::StringRef(kRVVSegment2FieldExtractIntrinsic);
+      isInterleave
+          ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                configProfile.sew, configProfile.lmul, plan.segmentCount)
+          : getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                configProfile.sew, configProfile.lmul, plan.segmentCount);
   plan.field0Role =
       isInterleave ? analysis.slice.segment2Store.getField0Role()
                    : analysis.slice.segment2Load.getField0Role();
@@ -7815,7 +8041,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
          isRuntimeScalarComputedMaskStandalone)
             ? getRVVSelectedBodyStandaloneReductionIntrinsic(
                   description.operation, configProfile)
-            : getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
+            : getRVVSelectedBodyReductionIntrinsic(configProfile);
     llvm::StringRef compareIntrinsic =
         (isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone)
             ? getRVVSelectedBodyCompareIntrinsic(
@@ -7945,12 +8171,14 @@ deriveRVVSelectedBodyTargetLeafProfile(
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (isComputedMaskSegment2Load)
       return RVVSelectedBodyTargetLeafProfile{
-          llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic),
+          getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
+              configProfile.sew, configProfile.lmul, 2),
           getRVVSelectedBodySignedLessThanCompareIntrinsic(configProfile.lmul),
           "", ""};
     if (isComputedMaskSegment2Store || isComputedMaskSegment2Update)
       return RVVSelectedBodyTargetLeafProfile{
-          llvm::StringRef(kRVVMaskedSegment2StoreIntrinsic),
+          getRVVSelectedBodyMaskedSegmentStoreIntrinsic(
+              configProfile.sew, configProfile.lmul, 2),
           getRVVSelectedBodySignedLessThanCompareIntrinsic(configProfile.lmul),
           "", ""};
     return RVVSelectedBodyTargetLeafProfile{"", "", "", ""};
@@ -7996,12 +8224,14 @@ deriveRVVSelectedBodyTargetLeafProfile(
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (isComputedMaskIndexedGather)
       return RVVSelectedBodyTargetLeafProfile{
-          llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic),
+          getRVVSelectedBodyMaskedIndexedLoadIntrinsic(configProfile.sew,
+                                                       configProfile.lmul),
           getRVVSelectedBodySignedLessThanCompareIntrinsic(configProfile.lmul),
           "", ""};
     if (isComputedMaskIndexedScatter)
       return RVVSelectedBodyTargetLeafProfile{
-          llvm::StringRef(kRVVMaskedIndexedStoreIntrinsic),
+          getRVVSelectedBodyMaskedIndexedStoreIntrinsic(configProfile.sew,
+                                                        configProfile.lmul),
           getRVVSelectedBodySignedLessThanCompareIntrinsic(configProfile.lmul),
           "", ""};
     return RVVSelectedBodyTargetLeafProfile{"", "", "", ""};
@@ -8051,17 +8281,22 @@ deriveRVVSelectedBodyTargetLeafProfile(
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
       isComputedMaskIndexedScatter
-          ? llvm::StringRef(kRVVMaskedIndexedStoreIntrinsic)
+          ? getRVVSelectedBodyMaskedIndexedStoreIntrinsic(configProfile.sew,
+                                                          configProfile.lmul)
         : isComputedMaskIndexedGather
-            ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
+            ? getRVVSelectedBodyMaskedIndexedLoadIntrinsic(configProfile.sew,
+                                                           configProfile.lmul)
         : isComputedMaskStridedStore
-            ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
+            ? getRVVSelectedBodyMaskedStridedStoreIntrinsic(configProfile.sew,
+                                                            configProfile.lmul)
         : isComputedMaskStridedLoad
-            ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
+            ? getRVVSelectedBodyMaskedStridedLoadIntrinsic(configProfile.sew,
+                                                           configProfile.lmul)
       : isRuntimeScalarComputedMaskLoadStore
           ? getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(configProfile)
       : (isRuntimeMask || isComputedMask)
-          ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
+          ? getRVVSelectedBodyMaskedLoadIntrinsic(configProfile.sew,
+                                                  configProfile.lmul)
       : isRuntimeScalarComputedMaskStore
           ? getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(configProfile)
           : llvm::StringRef(),
@@ -25550,20 +25785,30 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.description.sourceSEW = tcrv::rvv::getRVVSEW16Bits();
       analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULMF2();
       analysis.description.sourceVectorTypeName =
-          "!tcrv_rvv.vector<i16, \"mf2\">";
-      analysis.description.sourceVectorCType = "vint16mf2_t";
+          getRVVSelectedBodyVectorTypeName(analysis.description.sourceSEW,
+                                           analysis.description.sourceLMUL);
+      analysis.description.sourceVectorCType =
+          getRVVSelectedBodySignedVectorCType(analysis.description.sourceSEW,
+                                              analysis.description.sourceLMUL);
       analysis.description.sourceVectorLoadIntrinsic =
-          "__riscv_vle16_v_i16mf2";
+          getRVVSelectedBodyVectorLoadIntrinsic(
+              analysis.description.sourceSEW,
+              analysis.description.sourceLMUL);
       analysis.description.conversionRelation =
           kRVVWidenI16ToI32ConversionRelation;
     } else {
       analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
       analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
       analysis.description.sourceVectorTypeName =
-          "!tcrv_rvv.vector<i32, \"m1\">";
-      analysis.description.sourceVectorCType = "vint32m1_t";
+          getRVVSelectedBodyVectorTypeName(analysis.description.sourceSEW,
+                                           analysis.description.sourceLMUL);
+      analysis.description.sourceVectorCType =
+          getRVVSelectedBodySignedVectorCType(analysis.description.sourceSEW,
+                                              analysis.description.sourceLMUL);
       analysis.description.sourceVectorLoadIntrinsic =
-          "__riscv_vle32_v_i32m1";
+          getRVVSelectedBodyVectorLoadIntrinsic(
+              analysis.description.sourceSEW,
+              analysis.description.sourceLMUL);
       analysis.description.conversionRelation = kRVVWideningConversionRelation;
     }
   }
@@ -25904,7 +26149,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       : routeProfile->operation.operation ==
               RVVSelectedBodyOperationKind::
                   ComputedMaskIndexedScatterStoreUnitLoad
-          ? llvm::StringRef(kRVVMaskedIndexedStoreIntrinsic)
+          ? getRVVSelectedBodyMaskedIndexedStoreIntrinsic(
+                routeProfile->config.sew, routeProfile->config.lmul)
           : "";
   analysis.description.stridedLoadIntrinsic =
       (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
@@ -25932,7 +26178,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
               RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore
           ? routeProfile->targetLeaves.intrinsic
       : analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::MaskedUnitStore
-          ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
+          ? getRVVSelectedBodyMaskedStoreIntrinsic(routeProfile->config.sew,
+                                                   routeProfile->config.lmul)
           : routeProfile->config.storeIntrinsic;
   analysis.description.stridedStoreIntrinsic =
       (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
@@ -25943,7 +26190,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           ? (analysis.slice.memoryForm ==
                      RVVSelectedBodyMemoryForm::
                          ComputedMaskUnitLoadStridedStore
-                 ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
+                 ? getRVVSelectedBodyMaskedStridedStoreIntrinsic(
+                       routeProfile->config.sew, routeProfile->config.lmul)
                  : routeProfile->config.stridedStoreIntrinsic)
           : "";
   analysis.description.intrinsic = routeProfile->targetLeaves.intrinsic;
@@ -27669,13 +27917,14 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
         isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
                    : tcrv::rvv::getRVVLMULM1();
     llvm::StringRef expectedSourceVectorType =
-        isI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
-                   : "!tcrv_rvv.vector<i32, \"m1\">";
+        getRVVSelectedBodyVectorTypeName(expectedSourceSEW,
+                                         expectedSourceLMUL);
     llvm::StringRef expectedSourceVectorCType =
-        isI16ToI32 ? "vint16mf2_t" : "vint32m1_t";
+        getRVVSelectedBodySignedVectorCType(expectedSourceSEW,
+                                            expectedSourceLMUL);
     llvm::StringRef expectedSourceLoadIntrinsic =
-        isI16ToI32 ? "__riscv_vle16_v_i16mf2"
-                   : "__riscv_vle32_v_i32m1";
+        getRVVSelectedBodyVectorLoadIntrinsic(expectedSourceSEW,
+                                              expectedSourceLMUL);
     llvm::StringRef expectedConversionRelation =
         isI16ToI32 ? kRVVWidenI16ToI32ConversionRelation
                    : kRVVWideningConversionRelation;
@@ -27804,7 +28053,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       if (llvm::Error error = requireRouteDescriptionField(
               context, "indexed-store intrinsic",
               description.indexedStoreIntrinsic,
-              kRVVMaskedIndexedStoreIntrinsic))
+              getRVVSelectedBodyMaskedIndexedStoreIntrinsic(
+                  configProfile.sew, configProfile.lmul)))
         return error;
     } else {
       if (llvm::Error error = requireRouteDescriptionField(
@@ -27857,7 +28107,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked-load intrinsic",
-            description.maskedLoadIntrinsic, kRVVMaskedLoadIntrinsic))
+            description.maskedLoadIntrinsic,
+            getRVVSelectedBodyMaskedLoadIntrinsic(configProfile.sew,
+                                                  configProfile.lmul)))
       return error;
   } else if (operationProfile.operation ==
              RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore) {
@@ -27870,21 +28122,27 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked-load intrinsic",
-            description.maskedLoadIntrinsic, kRVVMaskedStridedLoadIntrinsic))
+            description.maskedLoadIntrinsic,
+            getRVVSelectedBodyMaskedStridedLoadIntrinsic(configProfile.sew,
+                                                         configProfile.lmul)))
       return error;
   } else if (operationProfile.operation ==
              RVVSelectedBodyOperationKind::
                  ComputedMaskIndexedGatherLoadUnitStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked-load intrinsic",
-            description.maskedLoadIntrinsic, kRVVMaskedIndexedLoadIntrinsic))
+            description.maskedLoadIntrinsic,
+            getRVVSelectedBodyMaskedIndexedLoadIntrinsic(configProfile.sew,
+                                                         configProfile.lmul)))
       return error;
   } else if (operationProfile.operation ==
              RVVSelectedBodyOperationKind::
                  ComputedMaskSegment2LoadUnitStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked-load intrinsic",
-            description.maskedLoadIntrinsic, kRVVMaskedSegment2LoadIntrinsic))
+            description.maskedLoadIntrinsic,
+            getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
+                configProfile.sew, configProfile.lmul, 2)))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -27902,7 +28160,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                 ? getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
                       configProfile)
             : isMaskedUnitStore
-                ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
+                ? getRVVSelectedBodyMaskedStoreIntrinsic(configProfile.sew,
+                                                         configProfile.lmul)
             : isStandaloneReductionRoute
                 ? getRVVStandaloneReductionScalarResultStoreIntrinsic(
                       description.sew, description.lmul)
@@ -27918,7 +28177,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
               description.stridedStoreIntrinsic,
               operationProfile.operation ==
                       RVVSelectedBodyOperationKind::ComputedMaskStridedStore
-                  ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
+                  ? getRVVSelectedBodyMaskedStridedStoreIntrinsic(
+                        configProfile.sew, configProfile.lmul)
                   : configProfile.stridedStoreIntrinsic))
         return error;
     } else {
@@ -29086,32 +29346,51 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           "memory");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "segment tuple C type", description.segmentTupleCType,
-            kRVVSegment2TupleCType))
+            getRVVSelectedBodySegmentTupleCType(
+                description.sew, description.lmul, description.segmentCount)))
       return error;
 	    if (llvm::Error error = requireRouteDescriptionField(
             context, "segment-load intrinsic",
             description.segmentLoadIntrinsic,
             isComputedMaskSegment2Load
-                ? kRVVMaskedSegment2LoadIntrinsic
+                ? getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
+                      description.sew, description.lmul,
+                      description.segmentCount)
             : isComputedMaskSegment2StoreLike
                 ? ""
-                : (isSegmentInterleave ? "" : kRVVSegment2LoadIntrinsic)))
+                : (isSegmentInterleave
+                       ? llvm::StringRef()
+                       : getRVVSelectedBodySegmentLoadIntrinsic(
+                             description.sew, description.lmul,
+                             description.segmentCount))))
 	      return error;
 	    if (llvm::Error error = requireRouteDescriptionField(
             context, "segment-store intrinsic",
             description.segmentStoreIntrinsic,
             isComputedMaskSegment2Load
-                ? kRVVSegment2TupleCreateIntrinsic
+                ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                      description.sew, description.lmul,
+                      description.segmentCount)
             : isComputedMaskSegment2StoreLike
-                ? kRVVMaskedSegment2StoreIntrinsic
-                : (isSegmentInterleave ? kRVVSegment2StoreIntrinsic : "")))
+                ? getRVVSelectedBodyMaskedSegmentStoreIntrinsic(
+                      description.sew, description.lmul,
+                      description.segmentCount)
+                : (isSegmentInterleave
+                       ? getRVVSelectedBodySegmentStoreIntrinsic(
+                             description.sew, description.lmul,
+                             description.segmentCount)
+                       : llvm::StringRef())))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "segment field extract intrinsic",
             description.segmentFieldExtractIntrinsic,
             (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? kRVVSegment2TupleCreateIntrinsic
-                : kRVVSegment2FieldExtractIntrinsic))
+                ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                      description.sew, description.lmul,
+                      description.segmentCount)
+                : getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                      description.sew, description.lmul,
+                      description.segmentCount)))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field0 role", description.field0Role,
