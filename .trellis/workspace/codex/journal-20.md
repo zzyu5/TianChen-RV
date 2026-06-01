@@ -407,3 +407,62 @@ counts `0,1,16,17,257`.
 ### Next Steps
 
 - None - task complete after archive, commit, and clean status verification
+
+
+## Session 372: Stage2 RVV computed-mask standalone-reduction artifact ABI boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV computed-mask standalone-reduction artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved `computed_mask_standalone_reduce_add` selected-body-to-generated-bundle
+scalar-result ABI with dry-run evidence, direct route-entry fail-closed
+regression, focused C++ tests, and real `ssh rvv` correctness for runtime
+counts `0,1,16,17,257` with seeds `-11` and `17`.
+
+### Main Changes
+
+- Created and archived task
+  `06-01-06-01-stage2-rvv-computed-mask-standalone-reduction-artifact-abi`
+  with PRD and context scoped to exactly one supported computed-mask
+  standalone reduction selected body.
+- Verified the existing production path carries
+  `computed_mask_standalone_reduce_add` through RVV selected-body realization,
+  provider route facts, common EmitC, RVV target artifact bundle export, and
+  external scalar-result ABI execution.
+- Added a `rvv_generated_bundle_abi_e2e.py --self-test` regression for the
+  retired direct pre-realized `computed_mask_standalone_reduce_add`
+  route-entry mode.
+- Recorded final dry-run, direct fail-closed, `ssh rvv`, focused binary,
+  old-authority scan, and `git diff --check` evidence in the archived PRD.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-01-06-01-stage2-rvv-computed-mask-standalone-reduction-artifact-abi`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_mask_standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-computed-mask-standalone-reduction-artifact-abi/final-dry-run`
+- [OK] Direct route-entry negative command exited 1 with the expected retired
+  direct route-entry diagnostic for `computed_mask_standalone_reduce_add`.
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_mask_standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-computed-mask-standalone-reduction-artifact-abi/final-ssh-rvv`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Bounded old-authority scan over touched script/task files and relevant
+  owner/provider/materializer/target/test files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification

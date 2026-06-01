@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and RVV-first authority chain for the bounded computed-mask standalone reduction artifact ABI task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, standalone reduction scalar-channel, and provider-owned route fact requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC materializer boundary and prohibition on common RVV semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, mask/tail, and ssh rvv evidence requirements for RVV runtime correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-standalone-reduction-artifact-abi/prd.md", "reason": "Previous unmasked standalone reduction artifact ABI evidence and commands to extend to computed-mask scalar-result ABI."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary/prd.md", "reason": "Previous standalone reduction selected-body realization boundary and direct route-entry fail-closed expectations."}

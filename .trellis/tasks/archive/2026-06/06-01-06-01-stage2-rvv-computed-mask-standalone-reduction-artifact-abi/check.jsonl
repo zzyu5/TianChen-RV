@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must verify the RVV-first authority chain remains intact."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify selected-body realization and standalone reduction scalar-channel constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify common EmitC/export remains neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify generated-bundle and ssh rvv evidence quality."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-standalone-reduction-artifact-abi/prd.md", "reason": "Compare completion evidence with the prior unmasked scalar-result ABI task."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary/prd.md", "reason": "Compare direct route-entry and selected-boundary realization checks with the prior realization task."}
