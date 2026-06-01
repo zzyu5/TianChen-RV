@@ -7096,6 +7096,16 @@ bool expectRVVTargetArtifactExporterShape(
            "exact operand binding summary"}))
     return false;
 
+  RVVRouteDescription staleWideningDotLHSRole = wideningDotDescription;
+  staleWideningDotLHSRole.runtimeABIParameters[0].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotLHSRole,
+          "widening-dot registry rejects stale lhs ABI role",
+          {"runtime ABI parameter 0", "lhs", "lhs-input-buffer"}))
+    return false;
+
   RVVRouteDescription staleWideningDotAccumulatorRole =
       wideningDotDescription;
   staleWideningDotAccumulatorRole.runtimeABIParameters[2].role =
@@ -7105,6 +7115,16 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningDotAccumulatorRole,
           "widening-dot registry rejects stale accumulator ABI role",
           {"runtime ABI parameter 2", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotOutputRole = wideningDotDescription;
+  staleWideningDotOutputRole.runtimeABIParameters[3].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotOutputRole,
+          "widening-dot registry rejects stale output ABI role",
+          {"runtime ABI parameter 3", "out", "output-buffer"}))
     return false;
 
   RVVRouteDescription staleWideningDotSourceDType = wideningDotDescription;

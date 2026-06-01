@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve the global authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin/contraction owner boundaries and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/materializer/export code remains semantically neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle, target artifact, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review locality and prevent RVV semantics from leaking into common/core code."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Compare final evidence shape with the preceding conversion ABI closeout."}

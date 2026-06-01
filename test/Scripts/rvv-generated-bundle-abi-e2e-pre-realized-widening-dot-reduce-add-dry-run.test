@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-dot-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=WDOT --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c
@@ -70,9 +70,21 @@
 # WDOT-DAG: "widening_dot_reduction_boundary":
 # WDOT-DAG: "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer"
 # WDOT-DAG: "provider_route_facts":
+# WDOT-DAG: "selected_source_abi":
+# WDOT-DAG: "lhs": "lhs-input-buffer"
+# WDOT-DAG: "rhs": "rhs-input-buffer"
+# WDOT-DAG: "acc": "accumulator-input-buffer"
+# WDOT-DAG: "out": "output-buffer"
+# WDOT-DAG: "n": "runtime-element-count"
+# WDOT-DAG: "statement_plan":
+# WDOT-DAG: "seed_source": "acc[0]"
+# WDOT-DAG: "loop_accumulator_source": "out[0]"
+# WDOT-DAG: "scalar_store_vl": "1"
 # WDOT-DAG: "target_validator_consumed_facts":
 # WDOT-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # WDOT-DAG: "direct_pre_realized_route_entry_supported": false
+# WDOT-DAG: "runtime_counts":
+# WDOT-DAG: 23
 # WDOT-DAG: "runtime_counts_are_execution_cases_not_widening_dot_authority": true
 # WDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
 # WDOT-DAG: "memory_form": "vector-rhs-load"
@@ -92,5 +104,5 @@
 # HARNESS: add_only_distinguishing
 # HARNESS: mul_only_distinguishing
 # HARNESS: signed_horizontal_dot seed_added scalar_output tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,17,257
-# HARNESS: PASS op=widening_dot_reduce_add counts=0,1,16,17,257
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,23,257
+# HARNESS: PASS op=widening_dot_reduce_add counts=0,1,16,23,257

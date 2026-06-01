@@ -24368,6 +24368,29 @@ def run_self_test() -> int:
                 "self-test direct route-entry diagnostic lost selected "
                 "widening-MAcc fail-closed detail"
             )
+        direct_widening_dot_error = expect_self_test_failure(
+            "unsupported direct pre-realized widening dot route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["widening_dot_reduce_add"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "widening_dot_reduce_add" not in direct_widening_dot_error
+            or "the direct route-entry shortcut is retired"
+            not in direct_widening_dot_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected "
+                "widening-dot fail-closed detail"
+            )
         direct_standalone_reduction_error = expect_self_test_failure(
             "unsupported direct pre-realized standalone reduction route entry",
             lambda: selected_expectations(
@@ -24573,6 +24596,30 @@ def run_self_test() -> int:
                     if expectation.is_strided_input_widening_dot_reduce_add
                     else WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 )
+                expected_binding_operands = (
+                    STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+                    if expectation.is_strided_input_widening_dot_reduce_add
+                    else WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
+                )
+                expected_source_load = (
+                    STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+                    if expectation.is_strided_input_widening_dot_reduce_add
+                    else "__riscv_vle16_v_i16mf2"
+                )
+                widening_dot_boundary = widening_dot_reduction_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 23, 257],
+                )
+                selected_source_abi = widening_dot_boundary.get(
+                    "selected_source_abi", {}
+                )
+                provider_facts = widening_dot_boundary.get(
+                    "provider_route_facts", {}
+                )
+                statement_plan = widening_dot_boundary.get("statement_plan", {})
                 if (
                     widening_dot_metadata.get("tcrv_rvv.widening_dot_relation")
                     != WIDENING_DOT_RELATION
@@ -24581,13 +24628,48 @@ def run_self_test() -> int:
                     )
                     != expected_binding_plan
                     or widening_dot_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != expected_binding_operands
+                    or widening_dot_metadata.get(
                         "tcrv_rvv.provider_supported_mirror"
                     )
                     != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
+                    or selected_source_abi.get("lhs") != "lhs-input-buffer"
+                    or selected_source_abi.get("rhs") != "rhs-input-buffer"
+                    or selected_source_abi.get("acc")
+                    != "accumulator-input-buffer"
+                    or selected_source_abi.get("out") != "output-buffer"
+                    or selected_source_abi.get("n") != "runtime-element-count"
+                    or provider_facts.get("runtime_abi_order")
+                    != expectation.runtime_abi_order
+                    or provider_facts.get("route_operand_binding_plan")
+                    != expected_binding_plan
+                    or provider_facts.get("route_operand_binding_operands")
+                    != expected_binding_operands
+                    or provider_facts.get("effective_source_load_intrinsic")
+                    != expected_source_load
+                    or provider_facts.get("widening_product_intrinsic")
+                    != "__riscv_vwmul_vv_i32m1"
+                    or provider_facts.get("scalar_seed_splat_intrinsic")
+                    != "__riscv_vmv_v_x_i32m1"
+                    or provider_facts.get("reduction_intrinsic")
+                    != "__riscv_vredsum_vs_i32m1_i32m1"
+                    or statement_plan.get("seed_source") != "acc[0]"
+                    or statement_plan.get("loop_accumulator_source")
+                    != "out[0]"
+                    or statement_plan.get("scalar_store_vl")
+                    != WIDENING_DOT_REDUCTION_STORE_VL
+                    or widening_dot_boundary.get(
+                        "direct_pre_realized_route_entry_supported"
+                    )
+                    is not False
+                    or widening_dot_boundary.get("runtime_counts")
+                    != [0, 1, 16, 23, 257]
                 ):
                     raise AssertionError(
                         "self-test fake bundle generation lost widening dot "
-                        "validator-backed metadata"
+                        "provider-backed ABI, statement, or validator facts"
                     )
             if (
                 expectation.is_computed_masked_widening_dot_reduce_add

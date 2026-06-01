@@ -408,6 +408,72 @@ counts `0,1,16,17,257`.
 
 - None - task complete after archive, commit, and clean status verification
 
+## Session 377: Stage2 RVV widening dot-reduction accumulator artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV widening dot-reduction accumulator artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded pre-realized `widening_dot_reduce_add` selected-body
+artifact/runtime ABI boundary by pinning target-validator source/result ABI
+role fail-closed coverage, strengthening generated-bundle boundary self-tests
+and FileCheck evidence, and proving real `ssh rvv` correctness for counts
+`0,1,16,23,257`.
+
+### Main Changes
+
+- Created Trellis task
+  `06-02-stage2-rvv-widening-dot-reduce-artifact-abi` from the Hermes brief.
+- Verified the existing production path carries `widening_dot_reduce_add`
+  through RVV selected-body realization, contraction route-family validation,
+  math operand-binding facts, direct contraction provider plan, common EmitC,
+  RVV target artifact bundle export, and external scalar-result ABI execution.
+- Added target artifact export negative coverage for stale plain widening-dot
+  `lhs` and `out` runtime ABI roles.
+- Strengthened `rvv_generated_bundle_abi_e2e.py --self-test` so the
+  widening-dot boundary summary must preserve selected source ABI roles,
+  provider route facts, statement-plan seed/carry/store facts, direct
+  route-entry unsupported status, and runtime counts.
+- Updated the focused pre-realized widening-dot dry-run FileCheck to use
+  `0,1,16,23,257` and pin `selected_source_abi` / `statement_plan` fields.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] selected-boundary generated-bundle dry-run for
+  `widening_dot_reduce_add`, counts `0,1,16,23,257`
+- [OK] direct pre-realized `widening_dot_reduce_add` route-entry failed closed
+  with the expected retired shortcut diagnostic.
+- [OK] FileCheck equivalent for focused `ROOT`, `WDOT`, and `HARNESS` prefixes
+  because `llvm-lit` is not installed in this environment.
+- [OK] `REALIZED`, `PLAN`, and `HEADER` FileCheck prefixes for
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir`
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] real `ssh rvv` generated-bundle correctness for
+  `widening_dot_reduce_add`, counts `0,1,16,23,257`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-stage2-rvv-widening-dot-reduce-artifact-abi`
+- [OK] `rtk git diff --check`
+- [OK] Bounded added-line old-authority scan; only provider-derived exact
+  intrinsic evidence strings were added.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification.
+
 
 ## Session 376: Stage2 RVV widening conversion artifact ABI boundary
 

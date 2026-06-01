@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage 1/2 boundary, and stack red lines for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for selected-body realization, contraction route provider, operand facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence and ssh rvv runtime correctness requirements for widening dot-reduction routes."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/config facts must constrain legality and realization without becoming route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure contraction-specific semantics remain RVV plugin-local and not common/core inference."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep widening dot-reduction as low-level RVV execution body rather than high-level compute IR."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Preceding completed ABI-boundary task pattern and evidence bar."}
