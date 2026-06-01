@@ -1,22 +1,20 @@
-# RVV Slice 模块化落点
+# `q8_0_q8_0` 模块化落点
 
-本文说明一个新 RVV 特性应该落在哪些模块，避免学生把 PR 写成全局重构、测试堆叠或 intrinsic wrapper。
+本文只服务本轮课堂主线：llama.cpp 风格 `q8_0_q8_0` RVV dot-product。不要把它扩展成任意 RVV 特性清单。
 
-## 一条 Slice 的模块边界
-
-推荐按下面顺序推进：
+## 目标模块图
 
 ```text
-1. typed IR surface
-2. verifier / legality
-3. selected-body realization, if pre-realized body exists
-4. provider route planning
-5. EmitC materialization through provider-built route
-6. target RVV C++ FileCheck
-7. optional QEMU proof
+q8 block ABI
+  -> i8 typed vector load
+  -> i8*i8 widening multiply to i16
+  -> i16 widening reduction to i32
+  -> scale/dequant to float output
+  -> generated RVV C/C++
+  -> harness oracle
 ```
 
-不要跳过 typed body 直接写 C intrinsic。不要让 common EmitC 选择 RVV intrinsic。
+学生可以承担其中一段，也可以完成完整路径。无论哪种，都要保证 contribution 落在 compiler 路径上，而不是手写 RVV C。
 
 ## 模块 1：Typed RVV IR Surface
 
@@ -28,17 +26,22 @@ lib/Dialect/RVV/IR/RVVDialect.cpp
 lib/Dialect/RVV/IR/RVVConfigContract.cpp
 ```
 
-何时修改：
+本轮需要关注：
 
-- 新 operation kind 无法由现有 `binary`、`compare`、`select`、`load`、`store`、`masked_*` 表达；
-- 新 operand form 需要显式表达，例如 VX scalar、VI immediate、slide offset、register gather index；
-- 新 dtype/config 需要 legality，例如 f32、narrowing relation、whole-register group count。
+- signed i8 source vector；
+- i16 intermediate product vector；
+- i32 reduction result；
+- SEW/LMUL/policy 关系；
+- unit-stride memory form；
+- widening dot/reduction relation。
 
 输出证据：
 
-- `test/Dialect/RVV/<feature>-dataflow.mlir`
-- 至少一个 positive parse/print；
-- 至少一个 negative verifier。
+```text
+test/Dialect/RVV/q8-*-dataflow.mlir
+```
+
+不要新增绑定算法名的 helper，例如 `tcrv_rvv.q8_0_dot`。如果需要 compact op，也必须能被 realization 展开成 typed vector-level body。
 
 ## 模块 2：Selected-Body Realization
 
@@ -49,20 +52,19 @@ include/TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h
 lib/Plugin/RVV/RVVSelectedBodyRealization.cpp
 ```
 
-何时修改：
+何时需要：
 
-- slice 从 compact `tcrv_rvv.typed_*_pre_realized_body` 开始；
-- 需要把 runtime ABI value 显式导入 selected `tcrv_rvv` body；
-- 需要把 hint/config 消耗成真实结构，例如 `setvl`、load、compare、mask composition、store。
-
-不需要修改的情况：
-
-- PR 直接添加显式 low-level body op，并且 route provider 已能消费该 body。
+- 你设计了 `typed_q8_dot_pre_realized_body` 或等价 compact selected-body；
+- 你需要把 `x/y/out/n` ABI 显式导入 `tcrv_rvv` body；
+- 你需要把 `setvl`、load、widening multiply、reduction、store/output boundary 结构化生成出来。
 
 输出证据：
 
-- `test/Dialect/RVV/<feature>-dataflow.mlir`
-- `test/Target/RVV/pre-realized-selected-body-artifact-<feature>.mlir`
+```text
+test/Target/RVV/pre-realized-selected-body-artifact-q8-dot.mlir
+```
+
+如果直接写显式 low-level `tcrv_rvv` body，可以不改 realization，但要解释 body 已经结构化表达了 route 所需 facts。
 
 ## 模块 3：Provider Route Planning
 
@@ -74,40 +76,24 @@ lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp
 lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp
 ```
 
-何时修改：
-
-- 新 operation kind 需要新 intrinsic family；
-- 新 memory form 需要不同 load/store intrinsic；
-- 新 operand form 需要不同 intrinsic suffix，例如 VV/VX/VI；
-- 新 type relation 需要不同 C vector type、mask type、tuple type 或 result type。
-
-provider 必须从 typed facts 派生：
+本轮 provider 至少要能派生：
 
 ```text
-op kind
-elem type
-SEW
-LMUL
-policy
-operand form
-memory form
-mask source
-runtime ABI role binding
-capability facts
+__riscv_vle8_v_i8m*
+__riscv_vwmul_vv_i16m*
+__riscv_vwredsum_vs_i16m*_i32m1
 ```
 
-禁止：
-
-- 用 route id 或 artifact name 推导 RVV 语义；
-- 在 common EmitC 中增加 RVV-specific if-chain；
-- 直接匹配 `__riscv_*` spelling 当作 legality。
+这些 intrinsic 必须来自 typed body/config/capability/runtime facts，不允许从 `q8_0_q8_0` 字符串、route id、artifact name 或 C 参数名猜出来。
 
 输出证据：
 
-- `test/Conversion/EmitC/rvv-<feature>-materialization.mlir`
-- `test/Target/RVV/pre-realized-selected-body-artifact-<feature>.mlir`
+```text
+test/Conversion/EmitC/rvv-q8-*-materialization.mlir
+test/Target/RVV/q8-*-artifact.mlir
+```
 
-## 模块 4：Runtime ABI Role
+## 模块 4：Runtime ABI
 
 主要文件：
 
@@ -118,67 +104,61 @@ include/TianChenRV/Support/RuntimeABIMemWindow.h
 include/TianChenRV/Support/RuntimeABIParam.h
 ```
 
-只有引入新 ABI 概念时才改这里，例如：
+推荐两种 ABI 方案。
 
-- scalar threshold；
-- immediate 不需要 ABI role；
-- shift amount scalar；
-- output scalar result；
-- compressed lane count；
-- updated VL / loaded count；
-- whole-register memory group descriptor。
-
-`c_name`、`c_type`、role 字符串只是 ABI/export spelling，不能定义 dtype 或 compute。
-
-## 模块 5：Tests And Proof
-
-本课堂分支保留三个主要测试目录：
+方案 A：block struct：
 
 ```text
-test/Dialect/RVV/
-test/Conversion/EmitC/
-test/Target/RVV/
+const block_q8_0 *x
+const block_q8_0 *y
+float *out
+size_t n
 ```
 
-最低测试组合：
+方案 B：拆分数组：
 
 ```text
-1 positive dialect/dataflow test
-1 negative verifier or provider fail-closed test
-1 EmitC/Target FileCheck showing expected intrinsic family
+const int8_t *x_qs
+const int8_t *y_qs
+const float *x_d
+const float *y_d
+float *out
+size_t n
 ```
 
-runtime correctness 声明需要额外提供：
+方案 B 更容易映射到简单 MLIR fixture；方案 A 更接近 llama.cpp 数据结构。二者都可以，但 PR 必须保持 MLIR ABI、generated signature、harness call 一致。
+
+`c_name` 和 `c_type` 只描述导出 ABI，不定义 dtype/compute。
+
+## 模块 5：Harness 和 Proof
+
+本轮统一参考：
 
 ```text
-generated RVV C++
-slice-specific harness
-QEMU or ssh rvv command
-actual output
+examples/qemu/llama_q8_0_q8_0.h
+examples/qemu/harness_llama_q8_0_q8_0.cpp
 ```
 
-## 推荐 PR 粒度
+学生可以复用这个 harness，也可以写等价 harness。必须保留：
 
-一个 PR 应该只做一个可 review 的 family：
+- q8 block 输入；
+- scalar oracle；
+- got/expected/diff；
+- mismatch 非零退出；
+- 成功输出 `proof ok`。
 
-- 好：参考已完成的 `binary {kind = xor}`，新增 `binary {kind = and}` 或同等小 slice + provider mapping + target FileCheck。
-- 好：`slide {direction = down}` + offset verifier + `vslidedown` FileCheck。
-- 好：`vcpop/vfirst` mask query + scalar ABI result。
-- 坏：一次性做所有 integer operation。
-- 坏：顺手重构 segment2 route-family。
-- 坏：改 common EmitC 让它识别 RVV intrinsic。
+如果 generated signature 不同，需要同步改 harness 并解释 ABI 差异。
 
 ## 当前不分配给学生的区域
 
-当前主线 loop 正在推进 segment2 provider route-family owner。课堂任务暂时不要进入：
+本轮不做：
 
-```text
-segment2 route-family planning owner
-segment2 route-entry registry
-segment3 / segment4 / segmentN generic route-family
-source-front-door / source-artifact
-Toy / Template / TensorExtLite
-remote supervisor / internal automation
-```
+- `q4_0_q8_0` unpack；
+- K-quant / q2_K / q3_K；
+- mxfp4 lookup/gather；
+- segment2/segmentN route-family 泛化；
+- source-front-door/source-artifact；
+- Toy/Template/TensorExtLite；
+- internal supervisor / Trellis / Codex automation。
 
-如果一个特性看起来需要先泛化 segment family，先换题，不要把它交给学生。
+这些不是没有价值，而是会让本轮统一比较目标失焦。先把 `q8_0_q8_0` 做成可生成、可运行、可 review 的完整路径。

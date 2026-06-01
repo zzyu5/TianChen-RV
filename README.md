@@ -1,59 +1,124 @@
-# TianChen-RV MLIR
+# TianChen-RV Classroom：LLM `q8_0_q8_0` RVV VDot
 
-TianChen-RV 是一个基于 MLIR 的 RISC-V 执行层项目。本分支面向学生和外部贡献者，目标是围绕 RVV 做一个个边界清晰的 slice 贡献。
+这是 TianChen-RV 的课堂贡献分支。本分支不再分配 25 个互不相同的 RVV 小题，而是让所有学生围绕同一个真实 LLM 算子推进：
 
-当前贡献主线是：
+```text
+llama.cpp q8_0_q8_0 quantized vector dot
+```
 
-- 低层、typed 的 `tcrv_rvv` IR；
-- RVV plugin 负责 legality、selected-body realization、route derivation；
-- common EmitC 只负责 materialization；
-- 最终生成 RVV intrinsic C/C++；
-- 如声明运行正确性，再用本地 RVV QEMU 或等价环境做证明。
+目标不是手写一个 RVV C 函数，而是为 TianChen-RV 补齐一条可 review 的 compiler slice：
 
-本分支已经移除内部自动化和 steering 文件，只保留学生写代码、写 MLIR、跑测试、生成 RVV C++ 所需的工程面。
+```text
+MLIR fixture
+  -> selected typed tcrv_rvv body
+  -> RVV plugin route
+  -> generated RVV C/C++
+  -> harness correctness proof
+```
+
+教师分支提供：
+
+- 一个参考的 llama.cpp 风格 RVV C baseline；
+- 一个可运行 harness，说明输入、输出和 scalar oracle；
+- 构建、QEMU/ssh-rvv 运行流程；
+- 学生 PR 的测试和验收格式。
+
+教师分支**不提前实现** TianChenRV 的 `q8_0_q8_0` MLIR 到 RVV C 路径；这正是学生要完成的贡献。
 
 ## 阅读顺序
 
-建议按下面顺序读文档。每份文档只负责一件事，先理解路径，再选题，再补测试和 runtime proof。
+按下面顺序读，不要从源码里随机找入口。
 
-1. [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)
-   先把项目编译起来，确认 LLVM/MLIR、`tcrv-opt`、`tcrv-translate`、lit/FileCheck 和可选 QEMU proof 路径。
-2. [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
-   理解一个 slice 从 typed `tcrv_rvv` body 到 RVV provider route、EmitC、RVV C++ 的完整贡献边界。
-3. [从零新增一个 RVV Slice：xor 示例](docs/add-rvv-xor-slice-workflow.md)
-   对照本分支已经完成的 `xor` slice，看一次真实代码改动、测试改动和 generated C++ 证据。
-4. [25 个 RVV Slice 任务](assignments/rvv-slices-25.md)
-   查看可分配题目。题目按随机分配准备，每个题都要求完整 compiler slice。
+1. [课程主线：llama.cpp `q8_0_q8_0` RVV VDot Slice](assignments/llama-q8-0-vdot.md)
+   明确本轮作业目标、数学语义、学生需要补的 compiler 能力和禁止路线。
+2. [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)
+   编译 TianChenRV，运行参考 RVV C baseline，并了解 QEMU/ssh-rvv proof 如何收集。
+3. [本地 RVV QEMU/ssh-rvv 示例](examples/qemu/README.md)
+   直接运行 `llama_q8_0_q8_0_rvv.cpp + harness_llama_q8_0_q8_0.cpp`，看真实 kernel 输入输出。
+4. [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
+   说明学生怎样把 baseline 变成 TianChenRV 的 MLIR/compiler slice。
 5. [RVV Slice 模块化落点](docs/rvv-slice-module-map.md)
-   开始动手前，用它判断应该改 IR surface、selected-body realization、provider route、ABI role 还是测试。
+   判断应该改 typed IR、verifier、selected-body realization、provider route、EmitC 还是测试。
 6. [测试用例收集格式](docs/testcase-submission-format.md)
-   提 PR 前按统一格式整理 MLIR、generated kernel evidence、harness 输入输出和 QEMU 输出。
-7. [本地 RVV QEMU 示例](examples/qemu/README.md)
-   需要 runtime proof 时，参考 add/xor 的 generated kernel + harness + Makefile 路径。
+   提 PR 前按统一格式提交 MLIR、generated kernel evidence、harness 输入输出和运行输出。
 
-## 当前 RVV 路径
+## 当前参考 Baseline
 
-一个合格的 RVV slice 应该沿着下面这条链路推进：
+参考 RVV C baseline 在：
 
 ```text
-tcrv.exec envelope
-  -> selected RVV variant
-  -> typed low-level tcrv_rvv body
-  -> RVV plugin legality / selected-body realization / route provider
-  -> TCRVEmitCLowerableRoute
-  -> common EmitC materializer
-  -> RVV intrinsic C/C++ 或等价后端表示
-  -> 可选本地 RVV QEMU proof
+examples/qemu/llama_q8_0_q8_0.h
+examples/qemu/llama_q8_0_q8_0_rvv.cpp
+examples/qemu/harness_llama_q8_0_q8_0.cpp
+examples/qemu/Makefile.rvv
 ```
 
-`tcrv.exec` 只负责 kernel 组织、variant、dispatch/fallback、capability scope、diagnostic 和 ABI role declaration。真正的 RVV 计算、dtype、SEW/LMUL/policy、load/store、mask、reduction、intrinsic 选择，都必须来自 typed `tcrv_rvv` body 和 RVV plugin。
+核心计算形状：
 
-不要新增这些旧路线：
+```c
+vint8m2_t x = __riscv_vle8_v_i8m2(...);
+vint8m2_t y = __riscv_vle8_v_i8m2(...);
+vint16m4_t prod = __riscv_vwmul_vv_i16m4(x, y, vl);
+vint32m1_t sum = __riscv_vwredsum_vs_i16m4_i32m1(prod, zero, vl);
+```
 
-- `tcrv_rvv.i32_*` 这种 dtype-prefixed helper；
-- `RVVI32M1*` / `rvv-i32m1` route-id 驱动的语义；
-- source-front-door / source-artifact 正向路径；
-- common EmitC 中硬编码 RVV dtype、SEW/LMUL、intrinsic 或 schedule。
+课堂版 block：
+
+```text
+block_q8_0:
+  d:  float scale
+  qs: int8[32]
+```
+
+真实 llama.cpp 使用 fp16 scale；课堂 baseline 使用 `float d`，先把重点放在 i8 load、i8 widening multiply、i16 widening reduction、scalar output 和 provider route 上。
+
+## 快速运行 Baseline
+
+在本地 QEMU 路径：
+
+```bash
+make -C examples/qemu \
+  -f Makefile.rvv \
+  run-rvv \
+  RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
+  RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
+  RVV_OUTPUT=llama_q8_0_q8_0_case \
+  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
+  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
+  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
+```
+
+在维护者真实 RVV 主机上可以复制同一组文件后编译运行：
+
+```bash
+scp examples/qemu/llama_q8_0_q8_0.* \
+    examples/qemu/harness_llama_q8_0_q8_0.cpp \
+    rvv:/tmp/tcrv-classroom-q8/
+
+ssh rvv 'cd /tmp/tcrv-classroom-q8 && \
+  clang++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
+    llama_q8_0_q8_0_rvv.cpp harness_llama_q8_0_q8_0.cpp \
+    -o llama_q8_0_q8_0_case && \
+  ./llama_q8_0_q8_0_case'
+```
+
+成功输出应包含：
+
+```text
+rvv classroom llama q8_0_q8_0 proof ok
+```
+
+## 学生交付边界
+
+学生最终 PR 应该让 TianChenRV 生成与 baseline 同语义的 RVV C/C++。最低交付包括：
+
+- `test/Target/RVV/` 下的 MLIR fixture；
+- `test/Dialect/RVV/` 或 `test/Conversion/EmitC/` 下的 verifier/route 测试；
+- generated RVV C/C++ evidence，能看到 `vle8`、`vwmul_vv_i16`、`vwredsum_vs_i16...i32` 相关路线；
+- runtime harness，使用同样的 q8 block 输入和 scalar oracle；
+- QEMU 或真实 RVV 运行输出。
+
+不要提交只手写 baseline C 的 PR。baseline C 只是目标形状和正确性对照。
 
 ## 仓库结构
 
@@ -62,84 +127,22 @@ include/TianChenRV/        Public headers 和 TableGen dialect/op 定义
 lib/                       编译器实现
 tools/tcrv-opt/            pass driver
 tools/tcrv-translate/      translation/export driver
-test/                      精简后的 RVV lit/FileCheck 测试
-docs/                      贡献说明
-assignments/               25 个 RVV slice 任务清单
-examples/qemu/             可选本地 QEMU proof Makefile 片段
+test/                      学生要补的 MLIR/FileCheck 测试位置
+docs/                      贡献说明和测试收集格式
+assignments/               本轮 q8_0_q8_0 主线说明
+examples/qemu/             baseline RVV C、harness、QEMU Makefile
 ```
 
-## 构建
+本分支不包含 `.trellis`、`.codex`、内部 supervisor loop 或远程自动化 steering 文件。
 
-配置 LLVM/MLIR：
+## 禁止路线
 
-```bash
-cmake -S . -B build -G Ninja \
-  -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm \
-  -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir
-```
+不要新增这些东西：
 
-编译：
+- `tcrv_rvv.i8_*`、`tcrv_rvv.i32_*` 这种 dtype-prefixed helper；
+- `RVVI32M1*` / `rvv-i32m1` route-id 驱动语义；
+- source-front-door / source-artifact 正向路径；
+- common EmitC 中硬编码 RVV dtype、SEW/LMUL、intrinsic 或 schedule；
+- 只为通过 harness 而绕过 typed `tcrv_rvv` body/provider 的实现。
 
-```bash
-cmake --build build
-```
-
-运行本分支精简后的 RVV classroom 测试：
-
-```bash
-cmake --build build --target check-tianchenrv
-```
-
-更多命令见 [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)。
-
-## 看一个真实 Kernel 运行
-
-lit/FileCheck 只能证明 compiler 输出形状正确；学生还需要理解 generated kernel 怎么被普通程序调用。本分支提供了一个本地 RVV QEMU 示例：
-
-- MLIR 输入：`test/Target/RVV/emitc-to-cpp-handoff.mlir` 或 `test/Target/RVV/emitc-to-cpp-xor.mlir`
-- compiler 输出：`generated.cpp`，里面只有 `extern "C"` RVV kernel，没有 `main`
-- runtime 输入/输出：`examples/qemu/harness_add.cpp` 或 `examples/qemu/harness_xor.cpp`
-- 编译运行：`examples/qemu/Makefile.rvv`
-
-快速路径：
-
-```bash
-mkdir -p /tmp/tcrv-rvv-qemu-xor
-
-build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-xor.mlir \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-rvv-qemu-xor/generated.cpp
-
-cp examples/qemu/harness_xor.cpp /tmp/tcrv-rvv-qemu-xor/harness.cpp
-
-make -C /tmp/tcrv-rvv-qemu-xor \
-  -f "$PWD/examples/qemu/Makefile.rvv" \
-  run-rvv
-```
-
-学生要改具体输入矩阵、数组、mask、index、`n` 或 oracle，改 harness。学生要改 kernel ABI 或 RVV 行为，先改 MLIR fixture 和 compiler/provider 路径，再同步 harness 里的 `extern "C"` 声明和调用参数。完整说明见 [本地 RVV QEMU 示例](examples/qemu/README.md)。
-
-## 贡献边界
-
-每个 PR 应该只负责一个 RVV slice。一个合格的 slice 通常包含：
-
-- typed `tcrv_rvv` IR 或对已有 generic op 的小范围扩展；
-- verifier / negative coverage；
-- RVV plugin 从 typed body/config/runtime/capability facts 推导 route；
-- EmitC / RVV C++ FileCheck；
-- 如声明 runtime correctness，则给出本地 RVV QEMU 命令和输出。
-
-保持改动窄而清楚。不要把 frontend、source-front-door、Toy/Template/TensorExtLite、远程测试基础设施或大 runtime 工程塞进一个 RVV slice。
-
-## 当前不建议学生触碰的区域
-
-主开发分支仍在持续推进 Stage2 RVV coverage。课堂任务暂时不要选择：
-
-- `segment2` route-family planning owner 或 route-entry registry；
-- `segment3` / `segment4` / `segmentN` 泛化；
-- source-front-door / source-artifact positive route；
-- common EmitC RVV semantic branch；
-- Toy / Template / TensorExtLite / Offload 相关工作。
-
-如果一个 PR 需要先重构这些区域，说明它不适合作为本轮课堂 slice。
+每个 PR 应该能解释：typed facts 在哪里、ABI/runtime value 如何绑定、RVV provider 如何从这些 facts 推导 route。

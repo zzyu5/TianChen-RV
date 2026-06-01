@@ -1,124 +1,145 @@
-# 本地 RVV QEMU 示例
+# llama.cpp `q8_0_q8_0` RVV Baseline
 
-这个目录不是 lit test 的替代品，而是给学生看的最小 runtime proof 模板。它展示一条真实路径：
+这个目录提供本轮课程的 runtime proof 基准。它不是 TianChenRV generated C，也不是学生最终答案，而是用于说明目标 kernel 的输入、输出、RVV intrinsic 形状和 scalar oracle。
+
+文件：
 
 ```text
-MLIR fixture
-  -> tcrv-opt / tcrv-translate
-  -> generated.cpp，里面只有 exported RVV kernel
-  -> harness.cpp，提供具体输入、输出 buffer、oracle 和 main
-  -> riscv64 executable
-  -> qemu-riscv64 运行
+llama_q8_0_q8_0.h
+llama_q8_0_q8_0_rvv.cpp
+harness_llama_q8_0_q8_0.cpp
+Makefile.rvv
 ```
 
-`generated.cpp` 来自 TianChenRV 编译器。`harness.cpp` 是学生为自己的 slice 写的运行证明。MLIR 输入一定是 `.mlir`，编译器输出一定是 RVV C/C++；具体输入数组、输出 buffer 和检查逻辑不在 generated kernel 里，而在 harness 里。
+## Baseline 语义
 
-## 环境
+每个 block：
 
-Ubuntu / WSL 上建议安装：
+```text
+tcrv_classroom_block_q8_0:
+  d:  float scale
+  qs: int8[32]
+```
+
+计算：
+
+```text
+out = sum over blocks:
+        sum_lanes(int32(x.qs[lane]) * int32(y.qs[lane])) * x.d * y.d
+```
+
+核心 RVV 形状：
+
+```c
+vint8m2_t vx = __riscv_vle8_v_i8m2(x[ib].qs, vl);
+vint8m2_t vy = __riscv_vle8_v_i8m2(y[ib].qs, vl);
+vint16m4_t prod = __riscv_vwmul_vv_i16m4(vx, vy, vl);
+vint32m1_t reduced = __riscv_vwredsum_vs_i16m4_i32m1(prod, zero, vl);
+```
+
+学生后续生成的 RVV C 不需要逐字符相同，但必须能解释自己的 vector type、LMUL、reduction boundary 和 ABI 为什么等价。
+
+## 本地 QEMU 运行
+
+安装：
 
 ```bash
 sudo apt update
 sudo apt install -y qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
 ```
 
-本目录的 Makefile 默认保持通用，不把某一台机器的 clang 路径或 libstdc++ 路径写死：
-
-```make
-RVV_CXX ?= clang++
-```
-
-如果你的 clang 或 sysroot 不在默认位置，运行 `make` 时覆盖变量即可。下面是一组在课堂同学机器上验证过的覆盖配置，适用于 LLVM 20 clang + Debian/Ubuntu riscv64 cross sysroot：
+通用命令：
 
 ```bash
-make -f /path/to/examples/qemu/Makefile.rvv print-rvv-config \
+make -C examples/qemu \
+  -f Makefile.rvv \
+  run-rvv \
+  RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
+  RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
+  RVV_OUTPUT=llama_q8_0_q8_0_case
+```
+
+如果需要显式指定 LLVM 20 clang 和 cross sysroot：
+
+```bash
+make -C examples/qemu \
+  -f Makefile.rvv \
+  run-rvv \
+  RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
+  RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
+  RVV_OUTPUT=llama_q8_0_q8_0_case \
   RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-  SYSROOT=/usr/riscv64-linux-gnu \
   RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
   RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
 ```
 
-## 运行 add 示例
+成功时会看到：
 
-从仓库根目录执行：
+```text
+llama q8_0_q8_0 classroom baseline
+n=160 blocks=5 qk=32
+block[0]: dot_i32=...
+got=... expected=... diff=...
+rvv classroom llama q8_0_q8_0 proof ok
+```
+
+本分支提交前在真实 `ssh rvv` 主机上用 `clang++ -O2 -march=rv64gcv -mabi=lp64d` 验证过，输出为：
+
+```text
+llama q8_0_q8_0 classroom baseline
+n=160 blocks=5 qk=32
+block[0]: dot_i32=-268 x.d=0.03515625 y.d=0.04882812
+block[1]: dot_i32=3134 x.d=0.03906250 y.d=0.05078125
+block[2]: dot_i32=457 x.d=0.04296875 y.d=0.05273438
+got=4.99381256 expected=4.99381256 diff=0.00000000
+rvv classroom llama q8_0_q8_0 proof ok
+```
+
+## 真实 `ssh rvv` 运行
+
+维护者可直接在真实 RVV 主机上运行：
 
 ```bash
-mkdir -p /tmp/tcrv-rvv-qemu-add
+ssh rvv 'mkdir -p /tmp/tcrv-classroom-q8'
+scp examples/qemu/llama_q8_0_q8_0.h \
+    examples/qemu/llama_q8_0_q8_0_rvv.cpp \
+    examples/qemu/harness_llama_q8_0_q8_0.cpp \
+    rvv:/tmp/tcrv-classroom-q8/
 
-build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
+ssh rvv 'cd /tmp/tcrv-classroom-q8 && \
+  clang++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
+    llama_q8_0_q8_0_rvv.cpp harness_llama_q8_0_q8_0.cpp \
+    -o llama_q8_0_q8_0_case && \
+  ./llama_q8_0_q8_0_case'
+```
+
+## 学生如何使用这个目录
+
+学生应该把这里当作三个东西：
+
+1. 目标 kernel 形状：`vle8`、`vwmul_vv_i16`、`vwredsum_vs_i16...i32`。
+2. 输入输出约定：q8 block、scale、`n`、float output。
+3. 正确性 oracle：`harness_llama_q8_0_q8_0.cpp` 中的 scalar reference。
+
+学生完成 compiler slice 后，应把自己的 generated C/C++ 放入临时目录，使用相同或等价 harness 运行：
+
+```bash
+mkdir -p /tmp/tcrv-student-q8
+build/bin/tcrv-opt test/Target/RVV/<student-q8-vdot>.mlir \
+  --tcrv-materialize-selected-lowering-boundaries \
   --tcrv-materialize-emission-plans \
 | build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-rvv-qemu-add/generated.cpp
+> /tmp/tcrv-student-q8/generated.cpp
 
-cp examples/qemu/harness_add.cpp /tmp/tcrv-rvv-qemu-add/harness.cpp
+cp examples/qemu/llama_q8_0_q8_0.h /tmp/tcrv-student-q8/
+cp examples/qemu/harness_llama_q8_0_q8_0.cpp /tmp/tcrv-student-q8/harness.cpp
 
-make -C /tmp/tcrv-rvv-qemu-add \
+make -C /tmp/tcrv-student-q8 \
   -f "$PWD/examples/qemu/Makefile.rvv" \
   run-rvv \
-  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
-  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
+  RVV_GENERATED=generated.cpp \
+  RVV_HARNESS=harness.cpp \
+  RVV_OUTPUT=student_q8_case
 ```
 
-你应该能看到类似输出：
-
-```text
-lane[0]: -17 + 41 = 24
-lane[1]: -14 + 39 = 25
-...
-rvv classroom proof ok: 37 lanes checked
-```
-
-这里的实际 kernel 是 `generated.cpp` 里的：
-
-```text
-tcrv_emitc_rvv_i32_add_kernel_rvv_i32_add(...)
-```
-
-`harness_add.cpp` 只负责构造 `lhs/rhs/out/n`，调用这个 kernel，然后用 scalar oracle 检查结果。
-
-## 运行 xor 示例
-
-`xor` 是本课堂分支已经完成的参考 slice。它使用不同的 MLIR fixture 和 harness：
-
-```bash
-mkdir -p /tmp/tcrv-rvv-qemu-xor
-
-build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-xor.mlir \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-rvv-qemu-xor/generated.cpp
-
-cp examples/qemu/harness_xor.cpp /tmp/tcrv-rvv-qemu-xor/harness.cpp
-
-make -C /tmp/tcrv-rvv-qemu-xor \
-  -f "$PWD/examples/qemu/Makefile.rvv" \
-  run-rvv \
-  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
-  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
-```
-
-你应该能在 `generated.cpp` 中看到：
-
-```text
-__riscv_vxor_vv_i32m1
-```
-
-运行输出会打印前几个 lane 的输入和结果，最后给出：
-
-```text
-rvv classroom xor proof ok: 41 lanes checked
-```
-
-## 学生需要自己写什么
-
-学生做一个新 slice 时通常需要自己写或修改三类东西：
-
-1. MLIR fixture：描述 `tcrv.exec` envelope、selected RVV variant、typed `tcrv_rvv` body、ABI/runtime value binding 和具体 op。
-2. compiler/provider 改动：让 RVV plugin 从 typed body/config/capability/runtime facts 推导 route、C vector type、header 和 intrinsic。
-3. harness：为 generated kernel 提供具体输入、输出 buffer、`n`、mask/index/segment 等 runtime 数据，并写 scalar oracle。
-
-如果只是想换一组输入数据，改 `harness_*.cpp` 里的 `make_lhs`、`make_rhs`、`TCRV_N` 和 oracle 即可。如果改变 kernel ABI，例如多一个 scalar、mask、index buffer、accumulator 或输出 buffer，那么 MLIR fixture 的 ABI role、generated function 的 C signature、harness 的 `extern "C"` 声明和调用参数都要同步修改。
-
-不要把 QEMU harness 写成新的 compiler pass，也不要让 common EmitC 因为某个 harness 需求去理解 RVV 语义。QEMU proof 只证明 generated kernel 在一组具体 runtime 输入上行为正确。
+如果学生生成的 function signature 与 baseline 不同，必须同步修改 harness 的 `extern "C"` 声明和 call site，并在 PR 中解释 ABI 差异。

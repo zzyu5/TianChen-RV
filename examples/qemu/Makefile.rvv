@@ -2,6 +2,9 @@
 #
 # 在包含 generated.cpp 和 harness.cpp 的目录中使用：
 #   make -f /path/to/examples/qemu/Makefile.rvv run-rvv
+#
+# 直接运行本目录的 llama q8_0_q8_0 baseline：
+#   make -C examples/qemu -f Makefile.rvv run-llama-q8-baseline
 
 RVV_CXX ?= clang++
 QEMU_RISCV64 ?= qemu-riscv64
@@ -22,7 +25,7 @@ RVV_GENERATED ?= generated.cpp
 RVV_HARNESS ?= harness.cpp
 RVV_RUN_ARGS ?=
 
-.PHONY: print-rvv-config build-rvv run-rvv clean-rvv
+.PHONY: print-rvv-config build-rvv run-rvv run-llama-q8-baseline clean-rvv
 
 print-rvv-config:
 	@printf 'RVV_CXX=%s\n' '$(RVV_CXX)'
@@ -36,6 +39,12 @@ build-rvv:
 
 run-rvv: build-rvv
 	$(QEMU_RISCV64) -L $(SYSROOT) ./$(RVV_OUTPUT) $(RVV_RUN_ARGS)
+
+run-llama-q8-baseline:
+	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) run-rvv \
+		RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
+		RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
+		RVV_OUTPUT=llama_q8_0_q8_0_case
 
 clean-rvv:
 	rm -f $(RVV_OUTPUT)

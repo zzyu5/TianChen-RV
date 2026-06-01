@@ -1,23 +1,28 @@
 # 构建与 RVV Proof 流程
 
-本文记录本分支的构建方式，以及一个最小 RVV proof 流程。QEMU 是学生 slice 的默认运行证据，不是 slice 本身，也不需要接入项目默认测试目标。维护者也可以用真实 `ssh rvv` 环境跑同一份 generated C++ 和 harness；在运行 RVV 程序之前，编译器生成路径是一致的。
+本文说明两件事：
+
+1. 如何编译 TianChenRV。
+2. 如何运行本分支提供的 llama.cpp 风格 `q8_0_q8_0` RVV C baseline。
+
+注意：baseline 是教师提供的正确性参照，不是学生的最终 compiler 贡献。学生最终应从 MLIR fixture 生成 RVV C/C++，再用同类 harness 验证。
 
 ## 构建 TianChenRV
 
-### 1. 安装基础工具
+### 1. 基础工具
 
-Ubuntu / WSL 上建议先装基础构建工具：
+Ubuntu / WSL 上建议安装：
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake ninja-build python3 git wget
 ```
 
-### 2. 安装 LLVM / MLIR
+### 2. LLVM / MLIR
 
-TianChenRV 是真实 MLIR compiler path，不是自己模拟 MLIR。学生需要安装 LLVM/MLIR 工具链和 CMake package。课堂分支已在 LLVM 20 上验证。
+TianChenRV 走真实 MLIR compiler path，不是模拟 MLIR。课堂分支在 LLVM 20 上验证。
 
-如果系统 apt 源已经提供 LLVM 20，可以直接尝试：
+如果系统源提供 LLVM 20：
 
 ```bash
 sudo apt install -y \
@@ -26,7 +31,7 @@ sudo apt install -y \
   libmlir-20-dev mlir-20-tools
 ```
 
-如果系统源没有 LLVM 20，使用官方 LLVM apt 仓库脚本。官方入口是 <https://apt.llvm.org/>：
+如果系统源没有 LLVM 20，可用官方 LLVM apt 仓库脚本：
 
 ```bash
 wget https://apt.llvm.org/llvm.sh
@@ -39,7 +44,7 @@ sudo apt install -y \
   libmlir-20-dev mlir-20-tools
 ```
 
-安装后确认路径存在：
+确认 CMake package 存在：
 
 ```bash
 ls /usr/lib/llvm-20/lib/cmake/llvm
@@ -47,186 +52,164 @@ ls /usr/lib/llvm-20/lib/cmake/mlir
 /usr/lib/llvm-20/bin/mlir-opt --version
 ```
 
-如果你使用的是源码编译 LLVM/MLIR，也可以，只要 `LLVM_DIR` 和 `MLIR_DIR` 指向对应的 CMake package 目录。
-
-### 3. 配置项目
-
-准备 LLVM/MLIR CMake package 后配置：
+### 3. 配置和编译项目
 
 ```bash
 cmake -S . -B build -G Ninja \
   -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm \
   -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir
-```
 
-编译：
-
-```bash
 cmake --build build
 ```
 
-运行本分支精简后的 RVV classroom 测试：
+运行现有测试：
 
 ```bash
 cmake --build build --target check-tianchenrv
 ```
 
-如果 LLVM 安装路径不同，请把 `LLVM_DIR` 和 `MLIR_DIR` 指到对应位置。本项目的核心编译器实现使用 C++ / MLIR / LLVM / TableGen / CMake；Python 只应作为辅助脚本或外部 proof 工具，不应替代 compiler core。
+学生完成 `q8_0_q8_0` compiler slice 后，应补充新的 MLIR/FileCheck 测试，并让这个目标通过。
 
-## 生成 RVV Intrinsic C++
+## 运行 q8_0_q8_0 RVV C Baseline
 
-最短的 compiler-path proof 是把一个已有 RVV fixture materialize 成 RVV intrinsic C++：
-
-```bash
-build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-rvv-add.cpp
-```
-
-`/tmp/tcrv-rvv-add.cpp` 里应该能看到：
+本分支提供手写 RVV C baseline：
 
 ```text
-#include <riscv_vector.h>
-__riscv_vsetvl_...
-__riscv_vle...
-__riscv_vadd...
-__riscv_vse...
+examples/qemu/llama_q8_0_q8_0.h
+examples/qemu/llama_q8_0_q8_0_rvv.cpp
+examples/qemu/harness_llama_q8_0_q8_0.cpp
+examples/qemu/Makefile.rvv
 ```
 
-对于 pre-realized selected-body fixture，需要先 materialize selected lowering boundary：
-
-```bash
-build/bin/tcrv-opt test/Target/RVV/pre-realized-selected-body-artifact-add.mlir \
-  --tcrv-materialize-selected-lowering-boundaries \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-rvv-pre-realized-add.cpp
-```
-
-## 可选 QEMU Proof
-
-学生可以用任意等价的 RISC-V RVV toolchain / QEMU 设置来证明自己的 slice。推荐 proof 形状：
+它验证的是 llama.cpp `q8_0_q8_0` 的核心 RVV 形状：
 
 ```text
-generated RVV C/C++
-  + 小型 slice-specific harness
-  -> riscv64 executable
-  -> qemu-riscv64 run
-  -> PR 中记录命令和输出
+vle8 i8
+vwmul i8*i8 -> i16
+vwredsum i16 -> i32
+float scale accumulation
 ```
 
-本仓库提供一个可选 Makefile 片段：
+### 本地 QEMU 环境
 
-```bash
-cp examples/qemu/Makefile.rvv /tmp/Makefile.rvv
-```
-
-QEMU proof 需要 RISC-V userspace emulator 和 cross sysroot。Ubuntu / WSL 上通常需要：
+安装 RISC-V userspace emulator 和 cross sysroot：
 
 ```bash
 sudo apt install -y qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
 ```
 
-本仓库也提供最小 add/xor harness 示例。add 示例：
+通用运行命令：
 
 ```bash
-build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/generated.cpp
-
-cp examples/qemu/harness_add.cpp /tmp/harness.cpp
+make -C examples/qemu \
+  -f Makefile.rvv \
+  run-rvv \
+  RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
+  RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
+  RVV_OUTPUT=llama_q8_0_q8_0_case
 ```
 
-在包含 `generated.cpp` 和 `harness.cpp` 的目录中可以这样运行：
+如果默认 `clang++` 找不到 RISC-V sysroot，可以覆盖变量。下面这组配置在课堂同学机器上验证过：
 
 ```bash
-make -f /tmp/Makefile.rvv run-rvv \
+make -C examples/qemu \
+  -f Makefile.rvv \
+  run-rvv \
+  RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
+  RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
+  RVV_OUTPUT=llama_q8_0_q8_0_case \
   RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-  QEMU_RISCV64=qemu-riscv64 \
-  SYSROOT=/usr/riscv64-linux-gnu
+  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
+  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
 ```
 
-`examples/qemu/Makefile.rvv` 默认保持通用，不把某台机器的 clang 或 libstdc++ 路径写死：
-
-```make
-RVV_CXX ?= clang++
-RVV_CXXFLAGS ?= --target=riscv64-linux-gnu \
-                -std=c++17 \
-                -O2 \
-                -march=rv64gcv \
-                -mabi=lp64d \
-                --sysroot=$(SYSROOT) \
-                $(RVV_EXTRA_CXXFLAGS)
-RVV_EXTRA_LDFLAGS ?=
-```
-
-下面是一组在课堂同学机器上验证过的覆盖配置，可以直接追加到 `make` 命令后面：
-
-```bash
-RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
-RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
-```
-
-如果本机工具链路径不同，可以替换 `RVV_CXX`、`QEMU_RISCV64`、`SYSROOT`，或者覆盖 `RVV_CXXFLAGS`。PR 只要声明 runtime correctness，就应该记录实际编译和 QEMU 运行命令。
-
-更完整的 add/xor 示例见 [本地 RVV QEMU 示例](../examples/qemu/README.md)。
-
-## 维护者 ssh rvv Proof
-
-如果你有项目维护者提供的 `ssh rvv` 环境，可以把 QEMU 的最后一步替换成真实 RISC-V 主机运行。流程仍然是：
+成功输出应包含：
 
 ```text
-本机 tcrv-opt / tcrv-translate 生成 RVV C++
-  -> 复制 generated.cpp 和 harness.cpp 到 rvv 主机
-  -> 在 rvv 主机用 clang++ 或 g++ 编译
-  -> 运行 executable
+llama q8_0_q8_0 classroom baseline
+rvv classroom llama q8_0_q8_0 proof ok
 ```
 
-示例：
+本分支提交前的真实 `ssh rvv` 运行输出：
+
+```text
+llama q8_0_q8_0 classroom baseline
+n=160 blocks=5 qk=32
+block[0]: dot_i32=-268 x.d=0.03515625 y.d=0.04882812
+block[1]: dot_i32=3134 x.d=0.03906250 y.d=0.05078125
+block[2]: dot_i32=457 x.d=0.04296875 y.d=0.05273438
+got=4.99381256 expected=4.99381256 diff=0.00000000
+rvv classroom llama q8_0_q8_0 proof ok
+```
+
+### 真实 `ssh rvv` 环境
+
+维护者可以在真实 RVV 主机上跑同一份 baseline：
 
 ```bash
-build/bin/tcrv-opt test/Target/RVV/emitc-to-cpp-handoff.mlir \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-rvv-generated.cpp
+ssh rvv 'mkdir -p /tmp/tcrv-classroom-q8'
+scp examples/qemu/llama_q8_0_q8_0.h \
+    examples/qemu/llama_q8_0_q8_0_rvv.cpp \
+    examples/qemu/harness_llama_q8_0_q8_0.cpp \
+    rvv:/tmp/tcrv-classroom-q8/
 
-scp /tmp/tcrv-rvv-generated.cpp rvv:/tmp/
-scp examples/qemu/harness_add.cpp rvv:/tmp/tcrv-rvv-harness.cpp
-
-ssh rvv 'clang++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
-  /tmp/tcrv-rvv-generated.cpp /tmp/tcrv-rvv-harness.cpp \
-  -o /tmp/tcrv-rvv-proof && /tmp/tcrv-rvv-proof'
+ssh rvv 'cd /tmp/tcrv-classroom-q8 && \
+  clang++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
+    llama_q8_0_q8_0_rvv.cpp harness_llama_q8_0_q8_0.cpp \
+    -o llama_q8_0_q8_0_case && \
+  ./llama_q8_0_q8_0_case'
 ```
 
-这个 proof 是维护者参考路径。学生提交 PR 时仍然优先使用本地 QEMU，除非课程明确提供真实 RVV 主机。
+如果 `rvv` 主机没有 `clang++`，可尝试 `g++`：
+
+```bash
+ssh rvv 'cd /tmp/tcrv-classroom-q8 && \
+  g++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
+    llama_q8_0_q8_0_rvv.cpp harness_llama_q8_0_q8_0.cpp \
+    -o llama_q8_0_q8_0_case && \
+  ./llama_q8_0_q8_0_case'
+```
+
+## 学生最终 Proof 形状
+
+学生 PR 最终应该把 baseline 中的手写 RVV C 替换为 TianChenRV 生成的 RVV C/C++：
+
+```text
+student MLIR fixture
+  -> tcrv-opt / tcrv-translate
+  -> generated.cpp
+  + harness_llama_q8_0_q8_0.cpp 或学生等价 harness
+  -> qemu-riscv64 或 ssh rvv 运行
+```
+
+生成命令形状应类似：
+
+```bash
+build/bin/tcrv-opt test/Target/RVV/<student-q8-vdot>.mlir \
+  --tcrv-materialize-selected-lowering-boundaries \
+  --tcrv-materialize-emission-plans \
+| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
+> /tmp/tcrv-q8/generated.cpp
+```
+
+如果学生的 fixture 不使用 pre-realized selected-body，可以省略 selected-boundary materialization pass，但必须说明原因。
 
 ## Harness 要求
 
-一个基本 harness 应该：
+无论是 baseline 还是学生 generated kernel，runtime harness 都要说明：
 
-- 分配输入/输出 buffer；
-- 对 output、tail lane、inactive lane 使用 sentinel 初始化；
-- 调用生成的 TianChenRV 函数；
-- 用 scalar oracle 对比结果；
-- mismatch 时返回非零状态。
+- block 数量和 `n`；
+- 每个 block 的 `d` 和 `qs[32]` 如何生成；
+- scalar oracle；
+- expected/got/diff；
+- QEMU 或 `ssh rvv` 实际输出。
 
-masked、tail、indexed、segment、widening slice 应该包含能区分正确 RVV 行为和弱实现的测试数据。
-
-## 最小 Harness 约定
-
-生成的 RVV C++ 通常只包含 exported kernel 函数，不包含 `main`。harness 负责提供输入和 oracle。建议每个 slice 的 harness 只验证一个行为：
+如果学生改变 kernel ABI，例如把 block struct 拆成 `int8_t *x_qs`、`int8_t *y_qs`、`float *x_d`、`float *y_d`，必须同步更新：
 
 ```text
-准备输入
-初始化 output sentinel
-调用 generated kernel
-用 scalar oracle 检查输出
-返回 0 或非 0
+MLIR runtime ABI value binding
+generated function signature
+harness extern "C" declaration
+harness call site
+PR 文档里的输入输出说明
 ```
-
-不要把 QEMU harness 做成新的项目框架；它应该只是 PR 里的运行证据。
-
-学生需要注意：generated RVV C++ 只包含 exported kernel 函数，不包含 `main`，也不会自己构造测试矩阵或数组。具体输入、输出、mask、index、segment 数据和 scalar oracle 都由 harness 提供。如果 slice 修改了 kernel ABI，MLIR fixture、generated function signature、harness 的 `extern "C"` 声明和调用参数必须一起更新。
