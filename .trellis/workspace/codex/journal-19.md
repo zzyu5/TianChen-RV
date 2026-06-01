@@ -64,6 +64,49 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 358: Stage1 typed RVV MAcc route-family derivation
+
+**Date**: 2026-06-01
+**Task**: Stage1 typed RVV MAcc route-family derivation
+**Branch**: `main`
+
+### Summary
+
+Moved plain MAcc, scalar-broadcast MAcc, and computed-mask MAcc route-family
+plans to typed config snapshot validation and typed SEW/LMUL-derived MAcc leaf
+planning. Synchronized target artifact and generated-bundle mirrors to typed
+MAcc profile/type labels.
+
+### Main Changes
+
+- Added typed config snapshot fields and verifier checks to active MAcc family
+  plans.
+- Derived MAcc, scalar-splat, compare, merge, setvl, load, and store leaves
+  from typed selected-body/config facts.
+- Added focused positive/negative RVV plugin tests for stale typed snapshots,
+  scalar splat, mask, MAcc, and merge leaves.
+- Updated MAcc target artifact/script/lit mirrors from old `e32m1` profile and
+  type-mapping strings to typed mirror strings.
+- Updated the RVV plugin spec with the executable MAcc snapshot/leaf contract.
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] Filtered lit for explicit/pre-realized plain and scalar-broadcast MAcc
+  artifact tests plus both generated-bundle MAcc dry-runs.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 358: Stage1 typed RVV elementwise intrinsic derivation
 
 **Date**: 2026-06-01

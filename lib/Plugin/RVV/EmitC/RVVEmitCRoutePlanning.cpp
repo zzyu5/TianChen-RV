@@ -3341,11 +3341,17 @@ llvm::StringRef getRVVSelectedBodyWideningConversionIntrinsic(
   return {};
 }
 
-llvm::StringRef
-getRVVSelectedBodyMAccIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmacc_vv_i32m2"
-             : "__riscv_vmacc_vv_i32m1";
+llvm::StringRef getRVVSelectedBodyMAccIntrinsic(std::int64_t sew,
+                                                llvm::StringRef lmul) {
+  static llvm::StringSet<> leafPool;
+  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      (lmul != tcrv::rvv::getRVVLMULM1() &&
+       lmul != tcrv::rvv::getRVVLMULM2()))
+    return {};
+  return leafPool
+      .insert((llvm::Twine("__riscv_vmacc_vv_i") + llvm::Twine(sew) + lmul)
+                  .str())
+      .first->getKey();
 }
 
 llvm::StringRef
@@ -7870,11 +7876,14 @@ deriveRVVSelectedBodyTargetLeafProfile(
     }
     if (isScalarBroadcastMAcc)
       return RVVSelectedBodyTargetLeafProfile{
-          getRVVSelectedBodyMAccIntrinsic(configProfile.lmul), "", "",
+          getRVVSelectedBodyMAccIntrinsic(configProfile.sew,
+                                          configProfile.lmul),
+          "", "",
           configProfile.rhsBroadcastIntrinsic};
     if (isComputedMaskedMAcc || isRuntimeScalarComputedMaskedMAcc) {
       llvm::StringRef intrinsic =
-          getRVVSelectedBodyMAccIntrinsic(configProfile.lmul);
+          getRVVSelectedBodyMAccIntrinsic(configProfile.sew,
+                                          configProfile.lmul);
       llvm::StringRef compareIntrinsic = getRVVSelectedBodyCompareIntrinsic(
           description.comparePredicateKind, configProfile.lmul);
       llvm::StringRef maskedMergeIntrinsic =
@@ -7889,7 +7898,8 @@ deriveRVVSelectedBodyTargetLeafProfile(
               : llvm::StringRef()};
     }
     return RVVSelectedBodyTargetLeafProfile{
-        getRVVSelectedBodyMAccIntrinsic(configProfile.lmul), "", "", ""};
+        getRVVSelectedBodyMAccIntrinsic(configProfile.sew, configProfile.lmul),
+        "", "", ""};
   }
 
   if (operationProfile.isMemoryMovement) {
@@ -19534,7 +19544,10 @@ getRVVSelectedBodyRouteMaterializationFacts(
           ? facts.standaloneReductionPlan->compareIntrinsic
           : description.compareIntrinsic;
   facts.maskedMergeLeaf =
-      facts.contractionPlan ? facts.contractionPlan->maskedMergeIntrinsic
+      facts.computedMaskAccumulationPlan &&
+              facts.computedMaskAccumulationPlan->usesVectorMAccSuffix
+          ? facts.computedMaskAccumulationPlan->maskedMergeIntrinsic
+      : facts.contractionPlan ? facts.contractionPlan->maskedMergeIntrinsic
       : facts.emitsComputedMaskStandaloneReduction
           ? facts.standaloneReductionPlan->maskedMergeIntrinsic
           : description.maskedMergeIntrinsic;
@@ -19617,8 +19630,13 @@ getRVVSelectedBodyRouteMaterializationFacts(
   const bool elementwiseSelectConsumer =
       isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
           description.operation);
+  const bool plainMAccConsumer =
+      isRVVSelectedBodyPlainMAccRouteFamilyConsumer(description.operation);
   const bool scalarBroadcastMAccConsumer =
       isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
+          description.operation);
+  const bool computedMaskMAccConsumer =
+      isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
           description.operation);
   const bool baseMemoryUsesTypedVectorLoad =
       facts.baseMemoryMovementPlan &&
@@ -19631,18 +19649,31 @@ getRVVSelectedBodyRouteMaterializationFacts(
       !facts.baseMemoryMovementPlan->usesIndexedScatter &&
       !facts.baseMemoryMovementPlan->usesStaticMaskStore;
 
-  if (elementwiseSelectConsumer || scalarBroadcastMAccConsumer ||
+  if (elementwiseSelectConsumer || plainMAccConsumer ||
+      scalarBroadcastMAccConsumer || computedMaskMAccConsumer ||
       baseMemoryUsesTypedVectorLoad)
     if (llvm::Error error = requireTypedEmissionMatch(
             "vector load intrinsic", facts.vectorLoadLeaf,
             typedConfigFacts.vectorLoadIntrinsic))
       return std::move(error);
-  if (elementwiseSelectConsumer || scalarBroadcastMAccConsumer ||
+  if (elementwiseSelectConsumer || plainMAccConsumer ||
+      scalarBroadcastMAccConsumer || computedMaskMAccConsumer ||
       baseMemoryUsesTypedStore)
     if (llvm::Error error = requireTypedEmissionMatch(
             "store intrinsic", facts.storeLeaf,
             typedConfigFacts.storeIntrinsic))
       return std::move(error);
+  if ((scalarBroadcastMAccConsumer ||
+       description.operation ==
+           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd) &&
+      facts.rhsScalarBroadcastLeaf != typedConfigFacts.scalarSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " typed config emission consumption scalar-splat intrinsic must come "
+        "from typed config facts value '" +
+        typedConfigFacts.scalarSplatIntrinsic +
+        "' but provider materialization facts carried '" +
+        facts.rhsScalarBroadcastLeaf + "'");
 
   return facts;
 }
@@ -26637,6 +26668,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       operationProfile.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
       isRuntimeScalarComputedMaskedMAcc;
+  const bool isMAccRouteFamilyRoute =
+      isRVVSelectedBodyMAccRouteFamilyConsumer(operationProfile.operation);
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
@@ -27911,7 +27944,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     }
   }
   if (!isContractionRoute && !isElementwiseArithmeticRoute &&
-      !isScalarBroadcastElementwiseRoute)
+      !isScalarBroadcastElementwiseRoute && !isMAccRouteFamilyRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "compute intrinsic", description.intrinsic,
             targetLeaves.intrinsic))
@@ -27984,7 +28017,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   }
   if (isContractionRoute || isElementwiseArithmeticRoute ||
-      isScalarBroadcastElementwiseRoute) {
+      isScalarBroadcastElementwiseRoute || isMAccRouteFamilyRoute) {
     // Owner-local route families verify masked-merge mirrors.
   } else if (operationProfile.isMaskedArithmetic ||
       operationProfile.isMaskedMemoryMovement ||

@@ -188,21 +188,21 @@ MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 PLAIN_MACC_ROUTE_FAMILY_PLAN = "rvv-plain-macc-route-family-plan.v1"
 PLAIN_MACC_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-plain-macc-add-leaf-profile.v1"
+    "rvv-v1-typed-plain-macc-add-leaf-profile.v1"
 )
 PLAIN_MACC_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-plain-macc-add-plan-validated"
 )
 PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
 PLAIN_MACC_C_TYPE_MAPPING = (
-    "vl:size_t,lhs/rhs/acc:signed-e32m1,result:signed-e32m1"
+    "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector"
 )
 SCALAR_BROADCAST_MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,acc,out,n"
 SCALAR_BROADCAST_MACC_ROUTE_FAMILY_PLAN = (
     "rvv-scalar-broadcast-macc-route-family-plan.v1"
 )
 SCALAR_BROADCAST_MACC_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-scalar-broadcast-macc-add-leaf-profile.v1"
+    "rvv-v1-typed-scalar-broadcast-macc-add-leaf-profile.v1"
 )
 SCALAR_BROADCAST_MACC_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-scalar-broadcast-macc-add-composition-plan-validated"
@@ -211,7 +211,7 @@ SCALAR_BROADCAST_MACC_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 SCALAR_BROADCAST_MACC_C_TYPE_MAPPING = (
-    "vl:size_t,lhs/acc:signed-e32m1,rhs_scalar:i32,result:signed-e32m1"
+    "vl:size_t,lhs/acc:typed-vector,rhs_scalar:typed-scalar,result:typed-vector"
 )
 COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
 COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT = (

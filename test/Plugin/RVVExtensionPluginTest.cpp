@@ -17032,6 +17032,51 @@ module {
           "plain MAcc analysis exposes provider-owned route-family plan, "
           "mirror, and materialization facts"))
     return result;
+  const auto &plainTypedFacts = analysis->typedConfigFacts;
+  const auto &plainPlan = *analysis->plainMAccRouteFamilyPlan;
+  if (int result = expect(
+          plainPlan.typedConfigFactsID == plainTypedFacts.factsID &&
+              plainPlan.elementTypeName == plainTypedFacts.elementTypeName &&
+              plainPlan.elementBitWidth ==
+                  plainTypedFacts.elementBitWidth &&
+              plainPlan.sew == plainTypedFacts.sew &&
+              plainPlan.lmul == plainTypedFacts.lmul &&
+              plainPlan.tailPolicy == plainTypedFacts.tailPolicy &&
+              plainPlan.maskPolicy == plainTypedFacts.maskPolicy &&
+              plainPlan.configContractID ==
+                  plainTypedFacts.configContractID &&
+              plainPlan.vlCType == plainTypedFacts.vlCType &&
+              plainPlan.vectorTypeName == plainTypedFacts.vectorTypeName &&
+              plainPlan.vectorCType == plainTypedFacts.vectorCType &&
+              plainPlan.setVLIntrinsic == plainTypedFacts.setVLIntrinsic &&
+              plainPlan.vectorLoadIntrinsic ==
+                  plainTypedFacts.vectorLoadIntrinsic &&
+              plainPlan.storeIntrinsic == plainTypedFacts.storeIntrinsic &&
+              plainPlan.maccIntrinsic == analysis->description.intrinsic,
+          "plain MAcc route-family plan mirrors typed config-derived type, "
+          "memory, runtime, and MAcc leaves"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainTypedConfig = *analysis;
+  stalePlainTypedConfig.plainMAccRouteFamilyPlan->vectorCType =
+      "metadata-selected-vector-type";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              stalePlainTypedConfig,
+              "plain MAcc stale typed config snapshot unit test"),
+          {"plain MAcc route-family typed config snapshot",
+           "selected typed RVV body/config facts"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainMAccLeaf = *analysis;
+  stalePlainMAccLeaf.plainMAccRouteFamilyPlan->maccIntrinsic =
+      "metadata-selected-macc-leaf";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              stalePlainMAccLeaf, "plain MAcc stale MAcc leaf unit test"),
+          {"MAcc compute leaf", "__riscv_vmacc_vv_i32m1",
+           "metadata-selected-macc-leaf"}))
+    return result;
 
   auto routeControlPlan = getRVVSelectedBodyRouteControlProviderPlan(
       *analysis, *materializationFacts,
@@ -17320,6 +17365,61 @@ module {
     if (!scalarBroadcastMathFacts)
       return fail("scalar-broadcast MAcc statement-plan math facts: " +
                   llvm::toString(scalarBroadcastMathFacts.takeError()));
+
+    const auto &scalarBroadcastTypedFacts =
+        scalarBroadcastAnalysis->typedConfigFacts;
+    const auto &scalarBroadcastPlan =
+        *scalarBroadcastAnalysis->scalarBroadcastMAccRouteFamilyPlan;
+    if (int result = expect(
+            scalarBroadcastPlan.typedConfigFactsID ==
+                    scalarBroadcastTypedFacts.factsID &&
+                scalarBroadcastPlan.elementTypeName ==
+                    scalarBroadcastTypedFacts.elementTypeName &&
+                scalarBroadcastPlan.sew == scalarBroadcastTypedFacts.sew &&
+                scalarBroadcastPlan.lmul == scalarBroadcastTypedFacts.lmul &&
+                scalarBroadcastPlan.vlCType ==
+                    scalarBroadcastTypedFacts.vlCType &&
+                scalarBroadcastPlan.vectorTypeName ==
+                    scalarBroadcastTypedFacts.vectorTypeName &&
+                scalarBroadcastPlan.vectorCType ==
+                    scalarBroadcastTypedFacts.vectorCType &&
+                scalarBroadcastPlan.setVLIntrinsic ==
+                    scalarBroadcastTypedFacts.setVLIntrinsic &&
+                scalarBroadcastPlan.vectorLoadIntrinsic ==
+                    scalarBroadcastTypedFacts.vectorLoadIntrinsic &&
+                scalarBroadcastPlan.rhsScalarSplatIntrinsic ==
+                    scalarBroadcastTypedFacts.scalarSplatIntrinsic &&
+                scalarBroadcastPlan.storeIntrinsic ==
+                    scalarBroadcastTypedFacts.storeIntrinsic &&
+                scalarBroadcastPlan.maccIntrinsic ==
+                    scalarBroadcastAnalysis->description.intrinsic,
+            "scalar-broadcast MAcc route-family plan mirrors typed "
+            "config-derived vector, scalar-splat, memory, and MAcc leaves"))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleScalarTypedConfig =
+        *scalarBroadcastAnalysis;
+    staleScalarTypedConfig.scalarBroadcastMAccRouteFamilyPlan
+        ->vectorLoadIntrinsic = "metadata-selected-vector-load";
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                staleScalarTypedConfig,
+                "scalar-broadcast MAcc stale typed config snapshot unit test"),
+            {"scalar-broadcast MAcc route-family typed config snapshot",
+             "selected typed RVV body/config facts"}))
+      return result;
+
+    RVVSelectedBodyRouteAnalysis staleScalarSplatLeaf =
+        *scalarBroadcastAnalysis;
+    staleScalarSplatLeaf.scalarBroadcastMAccRouteFamilyPlan
+        ->rhsScalarSplatIntrinsic = "metadata-selected-splat-leaf";
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                staleScalarSplatLeaf,
+                "scalar-broadcast MAcc stale scalar splat leaf unit test"),
+            {"RHS scalar splat leaf", "__riscv_vmv_v_x_i32m1",
+             "metadata-selected-splat-leaf"}))
+      return result;
 
     auto scalarBroadcastRouteControlPlan =
         getRVVSelectedBodyRouteControlProviderPlan(
@@ -20737,6 +20837,76 @@ module {
               "computed-mask MAcc provider unit test"),
           "valid computed-mask MAcc accumulation family provider plan"))
     return result;
+  const auto &computedMaskedTypedFacts =
+      computedMaskedMAccAnalysis->typedConfigFacts;
+  const auto &computedMaskedMAccPlan =
+      *computedMaskedMAccAnalysis->computedMaskAccumulationRouteFamilyPlan;
+  if (int result = expect(
+          computedMaskedMAccPlan.typedConfigFactsID ==
+                  computedMaskedTypedFacts.factsID &&
+              computedMaskedMAccPlan.elementTypeName ==
+                  computedMaskedTypedFacts.elementTypeName &&
+              computedMaskedMAccPlan.sew == computedMaskedTypedFacts.sew &&
+              computedMaskedMAccPlan.lmul == computedMaskedTypedFacts.lmul &&
+              computedMaskedMAccPlan.vlCType ==
+                  computedMaskedTypedFacts.vlCType &&
+              computedMaskedMAccPlan.vectorTypeName ==
+                  computedMaskedTypedFacts.vectorTypeName &&
+              computedMaskedMAccPlan.vectorCType ==
+                  computedMaskedTypedFacts.vectorCType &&
+              computedMaskedMAccPlan.maskTypeName ==
+                  computedMaskedTypedFacts.maskTypeName &&
+              computedMaskedMAccPlan.maskCType ==
+                  computedMaskedTypedFacts.maskCType &&
+              computedMaskedMAccPlan.setVLIntrinsic ==
+                  computedMaskedTypedFacts.setVLIntrinsic &&
+              computedMaskedMAccPlan.vectorLoadIntrinsic ==
+                  computedMaskedTypedFacts.vectorLoadIntrinsic &&
+              computedMaskedMAccPlan.storeIntrinsic ==
+                  computedMaskedTypedFacts.storeIntrinsic &&
+              computedMaskedMAccPlan.maccIntrinsic ==
+                  computedMaskedMAccAnalysis->description.intrinsic &&
+              computedMaskedMAccPlan.maskedMergeIntrinsic ==
+                  computedMaskedMAccAnalysis->description.maskedMergeIntrinsic,
+          "computed-mask MAcc route-family plan mirrors typed config-derived "
+          "vector, mask, memory, MAcc, and merge leaves"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedTypedMask =
+      *computedMaskedMAccAnalysis;
+  staleComputedTypedMask.computedMaskAccumulationRouteFamilyPlan->maskCType =
+      "metadata-selected-mask-type";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              staleComputedTypedMask,
+              "computed-mask MAcc stale typed mask snapshot unit test"),
+          {"computed-mask accumulation route-family typed mask snapshot",
+           "selected typed RVV body/config facts"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedMAccLeaf =
+      *computedMaskedMAccAnalysis;
+  staleComputedMAccLeaf.computedMaskAccumulationRouteFamilyPlan->maccIntrinsic =
+      "metadata-selected-macc-leaf";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              staleComputedMAccLeaf,
+              "computed-mask MAcc stale derived MAcc leaf unit test"),
+          {"MAcc leaf", "__riscv_vmacc_vv_i32m1",
+           "metadata-selected-macc-leaf"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedMergeLeaf =
+      *computedMaskedMAccAnalysis;
+  staleComputedMergeLeaf.computedMaskAccumulationRouteFamilyPlan
+      ->maskedMergeIntrinsic = "metadata-selected-merge-leaf";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              staleComputedMergeLeaf,
+              "computed-mask MAcc stale derived merge leaf unit test"),
+          {"masked merge leaf", "__riscv_vmerge_vvm_i32m1",
+           "metadata-selected-merge-leaf"}))
+    return result;
   if (int result = expectComputedMaskAccumulationStatementPlan(
           *computedMaskedMAccAnalysis, *computedMaskedMAccModule,
           "cm_macc_provider_kernel", "rvv_cm_macc", false,
@@ -21107,6 +21277,24 @@ module {
            "__riscv_vle32_v_i32m2", "__riscv_vle32_v_i32m2",
            "__riscv_vmsle_vv_i32m2_b16", "__riscv_vmacc_vv_i32m2",
            "__riscv_vmerge_vvm_i32m2", "__riscv_vse32_v_i32m2"}))
+    return result;
+  const auto &runtimeScalarMAccM2Plan =
+      *runtimeScalarMAccM2Analysis->computedMaskAccumulationRouteFamilyPlan;
+  if (int result = expect(
+          runtimeScalarMAccM2Plan.rhsScalarSplatIntrinsic ==
+                  runtimeScalarMAccM2Analysis->typedConfigFacts
+                      .scalarSplatIntrinsic &&
+              runtimeScalarMAccM2Plan.maccIntrinsic ==
+                  runtimeScalarMAccM2Analysis->description.intrinsic &&
+              runtimeScalarMAccM2Plan.maskedMergeIntrinsic ==
+                  runtimeScalarMAccM2Analysis->description
+                      .maskedMergeIntrinsic &&
+              runtimeScalarMAccM2Plan.maccIntrinsic ==
+                  "__riscv_vmacc_vv_i32m2" &&
+              runtimeScalarMAccM2Plan.maskedMergeIntrinsic ==
+                  "__riscv_vmerge_vvm_i32m2",
+          "runtime-scalar computed-mask MAcc LMUL m2 plan carries derived "
+          "typed scalar-splat, MAcc, and merge leaves"))
     return result;
 
   stale = *runtimeScalarMAccAnalysis;

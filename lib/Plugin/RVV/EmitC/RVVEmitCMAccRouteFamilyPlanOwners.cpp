@@ -4,10 +4,12 @@
 #include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -45,9 +47,9 @@ constexpr llvm::StringLiteral
     kRVVMAccResultLayout("store-multiply-accumulate-result-to-output-buffer");
 
 constexpr llvm::StringLiteral kRVVPlainMAccTargetLeafProfile(
-    "rvv-v1-e32m1-plain-macc-add-leaf-profile.v1");
+    "rvv-v1-typed-plain-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccTargetLeafProfile(
-    "rvv-v1-e32m1-scalar-broadcast-macc-add-leaf-profile.v1");
+    "rvv-v1-typed-scalar-broadcast-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccTargetLeafProfile(
     "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral
@@ -75,9 +77,10 @@ constexpr llvm::StringLiteral
         "stddef.h,stdint.h,riscv_vector.h");
 
 constexpr llvm::StringLiteral kRVVPlainMAccCTypeMappingSummary(
-    "vl:size_t,lhs/rhs/acc:signed-e32m1,result:signed-e32m1");
+    "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccCTypeMappingSummary(
-    "vl:size_t,lhs/acc:signed-e32m1,rhs_scalar:i32,result:signed-e32m1");
+    "vl:size_t,lhs/acc:typed-vector,rhs_scalar:typed-scalar,"
+    "result:typed-vector");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccCTypeMappingSummary(
     "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector");
 constexpr llvm::StringLiteral kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary(
@@ -215,6 +218,126 @@ llvm::Error requireMAccRouteDescriptionField(llvm::StringRef context,
       llvm::Twine(context) + " " + field +
       " must mirror selected MAcc owner fact '" + expected + "' but was '" +
       actual + "'");
+}
+
+llvm::Error requireMAccPlanDerivedField(llvm::StringRef planKind,
+                                        RVVSelectedBodyOperationKind operation,
+                                        llvm::StringRef field,
+                                        llvm::StringRef actual) {
+  if (!actual.trim().empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(planKind) + " route-family plan validation for operation '" +
+      stringifyRVVSelectedBodyOperationKind(operation) +
+      "' requires provider-derived " + field +
+      " from selected typed RVV body/config facts");
+}
+
+llvm::Error requireMAccTypedConfigLeaf(
+    const RVVSelectedBodyTypedConfigFacts &typedFacts, llvm::StringRef field,
+    llvm::StringRef leaf, RVVSelectedBodyOperationKind operation) {
+  if (!leaf.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("MAcc route-family typed config derivation for operation '") +
+      stringifyRVVSelectedBodyOperationKind(operation) +
+      "' requires provider-derived " + field + " from typed config facts '" +
+      typedFacts.factsID + "'");
+}
+
+llvm::StringRef internMAccDerivedLeaf(std::string leaf) {
+  static llvm::StringSet<> leafPool;
+  return leafPool.insert(std::move(leaf)).first->getKey();
+}
+
+template <typename PlanT>
+void applyMAccTypedConfigSnapshot(
+    PlanT &plan, const RVVSelectedBodyTypedConfigFacts &typedFacts) {
+  plan.typedConfigFactsID = typedFacts.factsID;
+  plan.elementTypeName = typedFacts.elementTypeName;
+  plan.elementBitWidth = typedFacts.elementBitWidth;
+  plan.sew = typedFacts.sew;
+  plan.lmul = typedFacts.lmul;
+  plan.tailPolicy = typedFacts.tailPolicy;
+  plan.maskPolicy = typedFacts.maskPolicy;
+  plan.configContractID = typedFacts.configContractID;
+}
+
+template <typename PlanT>
+llvm::Error requireMAccPlanTypedConfigSnapshot(llvm::StringRef planKind,
+                                               const PlanT &plan) {
+  if (plan.typedConfigFactsID.empty() || plan.elementTypeName.empty() ||
+      plan.elementBitWidth == 0 || plan.sew == 0 || plan.lmul.empty() ||
+      plan.tailPolicy.empty() || plan.maskPolicy.empty() ||
+      plan.configContractID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(planKind) +
+        " route-family plan requires provider-derived typed config facts for "
+        "element type, SEW, LMUL, policy, and config contract");
+  if (plan.elementBitWidth != plan.sew)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(planKind) +
+        " route-family plan requires element bit width to mirror "
+        "provider-derived SEW");
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul ||
+      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      plan.configContractID != plan.runtimeControlPlan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(planKind) +
+        " route-family plan typed config snapshot must mirror the RVV-owned "
+        "runtime AVL/VL control plan");
+  return llvm::Error::success();
+}
+
+template <typename PlanT>
+llvm::Error verifyMAccPlanTypedConfigSnapshot(
+    const RVVSelectedBodyTypedConfigFacts &typedFacts, const PlanT &plan,
+    llvm::StringRef context, llvm::StringRef planKind,
+    bool storeMustMatchTypedFacts) {
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + planKind +
+        " provider requires typed config facts before provider "
+        "materialization");
+
+  if (plan.typedConfigFactsID != typedFacts.factsID ||
+      plan.elementTypeName != typedFacts.elementTypeName ||
+      plan.elementBitWidth != typedFacts.elementBitWidth ||
+      plan.sew != typedFacts.sew || plan.lmul != typedFacts.lmul ||
+      plan.tailPolicy != typedFacts.tailPolicy ||
+      plan.maskPolicy != typedFacts.maskPolicy ||
+      plan.configContractID != typedFacts.configContractID ||
+      plan.vlCType != typedFacts.vlCType ||
+      plan.vectorTypeName != typedFacts.vectorTypeName ||
+      plan.vectorCType != typedFacts.vectorCType ||
+      plan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      plan.vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+      (storeMustMatchTypedFacts &&
+       plan.storeIntrinsic != typedFacts.storeIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + planKind +
+        " route-family typed config snapshot must mirror selected typed RVV "
+        "body/config facts before provider materialization");
+
+  return llvm::Error::success();
+}
+
+llvm::Error verifyMAccPlanMaskTypedConfigSnapshot(
+    const RVVSelectedBodyTypedConfigFacts &typedFacts,
+    const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan &plan,
+    llvm::StringRef context, bool maskMustMatchTypedFacts) {
+  if (!maskMustMatchTypedFacts)
+    return llvm::Error::success();
+  if (plan.maskTypeName != typedFacts.maskTypeName ||
+      plan.maskCType != typedFacts.maskCType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation route-family typed mask snapshot must "
+        "mirror selected typed RVV body/config facts before provider "
+        "materialization");
+  return llvm::Error::success();
 }
 
 llvm::Expected<tcrv::rvv::RuntimeABIValueOp> requirePreRealizedRuntimeABIValue(
@@ -715,81 +838,122 @@ bool isComputedMaskMAccConfig(std::int64_t sew, llvm::StringRef lmul) {
           lmul == tcrv::rvv::getRVVLMULM2());
 }
 
-llvm::StringRef getMAccIntrinsic(std::int64_t sew, llvm::StringRef lmul) {
-  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits())
-    return {};
-  if (lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vmacc_vv_i32m2";
-  if (lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmacc_vv_i32m1";
-  return {};
+bool isSupportedMAccVectorSuffixConfig(std::int64_t sew,
+                                       llvm::StringRef lmul) {
+  return (sew == tcrv::rvv::getRVVFirstSliceSEWBits() ||
+          sew == tcrv::rvv::getRVVSEW64Bits()) &&
+         (lmul == tcrv::rvv::getRVVLMULM1() ||
+          lmul == tcrv::rvv::getRVVLMULM2());
 }
 
-llvm::StringRef getSetVLIntrinsic(std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
-    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vsetvl_e64m2"
-                                             : "__riscv_vsetvl_e64m1";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
-    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vsetvl_e32m2"
-                                             : "__riscv_vsetvl_e32m1";
-  return {};
+std::optional<std::string>
+deriveMAccVectorIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
+  if (!isSupportedMAccVectorSuffixConfig(sew, lmul))
+    return std::nullopt;
+  return (llvm::Twine("i") + llvm::Twine(sew) + lmul).str();
 }
 
-llvm::StringRef getScalarSplatIntrinsic(std::int64_t sew,
-                                        llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+std::optional<std::string>
+deriveMAccMaskIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
+  std::optional<std::string> vectorSuffix =
+      deriveMAccVectorIntrinsicSuffix(sew, lmul);
+  if (!vectorSuffix)
+    return std::nullopt;
+
+  std::int64_t maskBits = 0;
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i64m1";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vmv_v_x_i32m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vmv_v_x_i32m1";
-  }
-  return {};
+    maskBits = 32;
+  else if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+           lmul == tcrv::rvv::getRVVLMULM2())
+    maskBits = 16;
+  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+           lmul == tcrv::rvv::getRVVLMULM1())
+    maskBits = 64;
+  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+           lmul == tcrv::rvv::getRVVLMULM2())
+    maskBits = 32;
+  if (maskBits == 0)
+    return std::nullopt;
+  return (llvm::Twine(*vectorSuffix) + "_b" + llvm::Twine(maskBits)).str();
 }
 
-llvm::StringRef getSignedLessThanCompareIntrinsic(std::int64_t sew,
-                                                  llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
-    return lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vmslt_vv_i64m2_b32"
-               : "__riscv_vmslt_vv_i64m1_b64";
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmslt_vv_i32m2_b16"
-             : "__riscv_vmslt_vv_i32m1_b32";
+std::optional<std::string> deriveMAccIntrinsic(std::int64_t sew,
+                                               llvm::StringRef lmul) {
+  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+    return std::nullopt;
+  std::optional<std::string> suffix =
+      deriveMAccVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vmacc_vv_") + *suffix).str();
 }
 
-llvm::StringRef getSignedLessEqualCompareIntrinsic(std::int64_t sew,
-                                                   llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits())
-    return lmul == tcrv::rvv::getRVVLMULM2()
-               ? "__riscv_vmsle_vv_i64m2_b32"
-               : "__riscv_vmsle_vv_i64m1_b64";
-  return lmul == tcrv::rvv::getRVVLMULM2()
-             ? "__riscv_vmsle_vv_i32m2_b16"
-             : "__riscv_vmsle_vv_i32m1_b32";
+std::optional<std::string> deriveMAccSetVLIntrinsic(std::int64_t sew,
+                                                    llvm::StringRef lmul) {
+  if (!isSupportedMAccVectorSuffixConfig(sew, lmul))
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vsetvl_e") + llvm::Twine(sew) + lmul).str();
 }
 
-llvm::StringRef getCompareIntrinsic(llvm::StringRef predicateKind,
-                                    std::int64_t sew, llvm::StringRef lmul) {
+std::optional<std::string> deriveMAccScalarSplatIntrinsic(std::int64_t sew,
+                                                          llvm::StringRef lmul) {
+  std::optional<std::string> suffix =
+      deriveMAccVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vmv_v_x_") + *suffix).str();
+}
+
+std::optional<std::string> deriveMAccCompareIntrinsic(
+    llvm::StringRef predicateKind, std::int64_t sew, llvm::StringRef lmul) {
+  llvm::StringRef stem;
   if (predicateKind == "slt")
-    return getSignedLessThanCompareIntrinsic(sew, lmul);
-  if (predicateKind == "sle")
-    return getSignedLessEqualCompareIntrinsic(sew, lmul);
-  return {};
+    stem = "vmslt";
+  else if (predicateKind == "sle")
+    stem = "vmsle";
+  else
+    return std::nullopt;
+  std::optional<std::string> suffix = deriveMAccMaskIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_") + stem + "_vv_" + *suffix).str();
 }
 
-llvm::StringRef getStandaloneReductionScalarResultStoreIntrinsic(
-    std::int64_t sew, llvm::StringRef lmul) {
+std::optional<std::string> deriveMAccMaskedMergeIntrinsic(std::int64_t sew,
+                                                          llvm::StringRef lmul) {
+  std::optional<std::string> suffix =
+      deriveMAccVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vmerge_vvm_") + *suffix).str();
+}
+
+std::optional<std::string> deriveMAccVectorStoreIntrinsic(std::int64_t sew,
+                                                          llvm::StringRef lmul) {
+  std::optional<std::string> suffix =
+      deriveMAccVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_" + *suffix)
+      .str();
+}
+
+std::optional<std::string>
+deriveStandaloneReductionScalarResultStoreIntrinsic(std::int64_t sew,
+                                                    llvm::StringRef lmul) {
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       (lmul == tcrv::rvv::getRVVLMULM1() ||
        lmul == tcrv::rvv::getRVVLMULM2()))
-    return "__riscv_vse32_v_i32m1";
+    return (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
+            llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+        .str();
   if (sew == tcrv::rvv::getRVVSEW64Bits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vse64_v_i64m1";
-  return {};
+    return (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
+            llvm::Twine(sew) + lmul)
+        .str();
+  return std::nullopt;
 }
 
 } // namespace
@@ -908,6 +1072,9 @@ llvm::Error validateRVVSelectedBodyPlainMAccRouteFamilyPlan(
           "plain MAcc", plan.operation, "C type mapping summary",
           plan.cTypeMappingSummary, kRVVPlainMAccCTypeMappingSummary))
     return error;
+  if (llvm::Error error =
+          requireMAccPlanTypedConfigSnapshot("plain MAcc", plan))
+    return error;
   if (plan.requiredHeaders.size() != 3 ||
       plan.requiredHeaders[0] != "stddef.h" ||
       plan.requiredHeaders[1] != "stdint.h" ||
@@ -918,29 +1085,32 @@ llvm::Error validateRVVSelectedBodyPlainMAccRouteFamilyPlan(
   if (llvm::Error error = requireMAccPlanField(
           "plain MAcc", plan.operation, "VL C type", plan.vlCType, "size_t"))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "plain MAcc", plan.operation, "vector type", plan.vectorTypeName,
-          "!tcrv_rvv.vector<i32, \"m1\">"))
+  if (llvm::Error error = requireMAccPlanDerivedField(
+          "plain MAcc", plan.operation, "vector type", plan.vectorTypeName))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "plain MAcc", plan.operation, "vector C type", plan.vectorCType,
-          "vint32m1_t"))
+  if (llvm::Error error = requireMAccPlanDerivedField(
+          "plain MAcc", plan.operation, "vector C type", plan.vectorCType))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "plain MAcc", plan.operation, "setvl leaf", plan.setVLIntrinsic,
-          "__riscv_vsetvl_e32m1"))
+  if (llvm::Error error = requireMAccPlanDerivedField(
+          "plain MAcc", plan.operation, "setvl leaf", plan.setVLIntrinsic))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "plain MAcc", plan.operation, "vector-load leaf",
-          plan.vectorLoadIntrinsic, "__riscv_vle32_v_i32m1"))
+  if (llvm::Error error =
+          requireMAccPlanDerivedField("plain MAcc", plan.operation,
+                                      "vector-load leaf",
+                                      plan.vectorLoadIntrinsic))
     return error;
+  std::optional<std::string> expectedMAccIntrinsic =
+      deriveMAccIntrinsic(plan.sew, plan.lmul);
+  if (!expectedMAccIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "plain MAcc route-family plan cannot derive MAcc compute leaf from "
+        "typed operation/SEW/LMUL facts");
   if (llvm::Error error = requireMAccPlanField(
           "plain MAcc", plan.operation, "MAcc compute leaf",
-          plan.maccIntrinsic, "__riscv_vmacc_vv_i32m1"))
+          plan.maccIntrinsic, *expectedMAccIntrinsic))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "plain MAcc", plan.operation, "store leaf", plan.storeIntrinsic,
-          "__riscv_vse32_v_i32m1"))
+  if (llvm::Error error = requireMAccPlanDerivedField(
+          "plain MAcc", plan.operation, "store leaf", plan.storeIntrinsic))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "plain MAcc", plan.operation, "result name", plan.resultName,
@@ -975,14 +1145,16 @@ deriveRVVSelectedBodyPlainMAccRouteFamilyPlan(
   if (!analysis.typedConfigFacts.hasFacts())
     return makeRVVEmitCRouteProviderError(
         "plain MAcc route-family plan requires typed RVV config facts");
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      analysis.typedConfigFacts;
   if (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsGenericLoad ||
       !analysis.slice.accumulatorLoadOperation || !analysis.slice.genericStore ||
       !analysis.slice.maccOp || !analysis.slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "plain MAcc route-family plan requires explicit lhs load, rhs load, "
         "accumulator load, macc compute, and store body structure");
-  if (analysis.typedConfigFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      analysis.typedConfigFacts.lmul != tcrv::rvv::getRVVLMULM1())
+  if (typedFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      typedFacts.lmul != tcrv::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "plain MAcc route-family plan currently requires SEW32 LMUL m1 "
         "typed config");
@@ -1019,10 +1191,30 @@ deriveRVVSelectedBodyPlainMAccRouteFamilyPlan(
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
+  for (auto [field, leaf] : {std::pair<llvm::StringRef, llvm::StringRef>(
+                                 "VL C type", typedFacts.vlCType),
+                             {"vector type", typedFacts.vectorTypeName},
+                             {"vector C type", typedFacts.vectorCType},
+                             {"setvl leaf", typedFacts.setVLIntrinsic},
+                             {"vector-load leaf",
+                              typedFacts.vectorLoadIntrinsic},
+                             {"store leaf", typedFacts.storeIntrinsic}}) {
+    if (llvm::Error error = requireMAccTypedConfigLeaf(
+            typedFacts, field, leaf, analysis.slice.arithmeticKind))
+      return std::move(error);
+  }
+  std::optional<std::string> maccIntrinsic =
+      deriveMAccIntrinsic(typedFacts.sew, typedFacts.lmul);
+  if (!maccIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "plain MAcc route-family plan cannot derive MAcc compute leaf from "
+        "typed operation/SEW/LMUL facts");
+
   RVVSelectedBodyPlainMAccRouteFamilyPlan plan;
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  applyMAccTypedConfigSnapshot(plan, typedFacts);
   plan.familyPlanID = kRVVPlainMAccRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVPlainMAccTargetLeafProfile;
@@ -1032,15 +1224,13 @@ deriveRVVSelectedBodyPlainMAccRouteFamilyPlan(
   plan.requiredHeaders.push_back("riscv_vector.h");
   plan.requiredHeaderDeclarations = kRVVPlainMAccRequiredHeaderDeclarations;
   plan.cTypeMappingSummary = kRVVPlainMAccCTypeMappingSummary;
-  plan.vlCType = analysis.typedConfigFacts.vlCType;
-  plan.vectorTypeName = analysis.typedConfigFacts.vectorTypeName;
-  plan.vectorCType = analysis.typedConfigFacts.vectorCType;
-  plan.setVLIntrinsic = analysis.typedConfigFacts.setVLIntrinsic;
-  plan.vectorLoadIntrinsic = analysis.typedConfigFacts.vectorLoadIntrinsic;
-  plan.maccIntrinsic =
-      getMAccIntrinsic(analysis.typedConfigFacts.sew,
-                       analysis.typedConfigFacts.lmul);
-  plan.storeIntrinsic = analysis.typedConfigFacts.storeIntrinsic;
+  plan.vlCType = typedFacts.vlCType;
+  plan.vectorTypeName = typedFacts.vectorTypeName;
+  plan.vectorCType = typedFacts.vectorCType;
+  plan.setVLIntrinsic = typedFacts.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = typedFacts.vectorLoadIntrinsic;
+  plan.maccIntrinsic = internMAccDerivedLeaf(std::move(*maccIntrinsic));
+  plan.storeIntrinsic = typedFacts.storeIntrinsic;
   plan.resultName = "macc_sum_vec";
   plan.accumulatorLayout = *analysis.slice.maccOp.getAccumulatorLayout();
   plan.resultLayout = *analysis.slice.maccOp.getResultLayout();
@@ -1126,6 +1316,9 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
           "scalar-broadcast MAcc", plan.operation, "C type mapping summary",
           plan.cTypeMappingSummary, kRVVScalarBroadcastMAccCTypeMappingSummary))
     return error;
+  if (llvm::Error error =
+          requireMAccPlanTypedConfigSnapshot("scalar-broadcast MAcc", plan))
+    return error;
   if (plan.requiredHeaders.size() != 3 ||
       plan.requiredHeaders[0] != "stddef.h" ||
       plan.requiredHeaders[1] != "stdint.h" ||
@@ -1137,33 +1330,46 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
           "scalar-broadcast MAcc", plan.operation, "VL C type", plan.vlCType,
           "size_t"))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "scalar-broadcast MAcc", plan.operation, "vector type",
-          plan.vectorTypeName, "!tcrv_rvv.vector<i32, \"m1\">"))
+  if (llvm::Error error =
+          requireMAccPlanDerivedField("scalar-broadcast MAcc", plan.operation,
+                                      "vector type", plan.vectorTypeName))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "scalar-broadcast MAcc", plan.operation, "vector C type",
-          plan.vectorCType, "vint32m1_t"))
+  if (llvm::Error error =
+          requireMAccPlanDerivedField("scalar-broadcast MAcc", plan.operation,
+                                      "vector C type", plan.vectorCType))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "scalar-broadcast MAcc", plan.operation, "setvl leaf",
-          plan.setVLIntrinsic, "__riscv_vsetvl_e32m1"))
+  if (llvm::Error error =
+          requireMAccPlanDerivedField("scalar-broadcast MAcc", plan.operation,
+                                      "setvl leaf", plan.setVLIntrinsic))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "scalar-broadcast MAcc", plan.operation, "vector-load leaf",
-          plan.vectorLoadIntrinsic, "__riscv_vle32_v_i32m1"))
+  if (llvm::Error error =
+          requireMAccPlanDerivedField("scalar-broadcast MAcc", plan.operation,
+                                      "vector-load leaf",
+                                      plan.vectorLoadIntrinsic))
     return error;
+  std::optional<std::string> expectedSplatIntrinsic =
+      deriveMAccScalarSplatIntrinsic(plan.sew, plan.lmul);
+  if (!expectedSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan cannot derive RHS scalar "
+        "splat leaf from typed SEW/LMUL facts");
   if (llvm::Error error = requireMAccPlanField(
           "scalar-broadcast MAcc", plan.operation, "RHS scalar splat leaf",
-          plan.rhsScalarSplatIntrinsic, "__riscv_vmv_v_x_i32m1"))
+          plan.rhsScalarSplatIntrinsic, *expectedSplatIntrinsic))
     return error;
+  std::optional<std::string> expectedMAccIntrinsic =
+      deriveMAccIntrinsic(plan.sew, plan.lmul);
+  if (!expectedMAccIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan cannot derive MAcc compute "
+        "leaf from typed operation/SEW/LMUL facts");
   if (llvm::Error error = requireMAccPlanField(
           "scalar-broadcast MAcc", plan.operation, "MAcc compute leaf",
-          plan.maccIntrinsic, "__riscv_vmacc_vv_i32m1"))
+          plan.maccIntrinsic, *expectedMAccIntrinsic))
     return error;
-  if (llvm::Error error = requireMAccPlanField(
-          "scalar-broadcast MAcc", plan.operation, "store leaf",
-          plan.storeIntrinsic, "__riscv_vse32_v_i32m1"))
+  if (llvm::Error error =
+          requireMAccPlanDerivedField("scalar-broadcast MAcc", plan.operation,
+                                      "store leaf", plan.storeIntrinsic))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "scalar-broadcast MAcc", plan.operation, "result name",
@@ -1201,6 +1407,8 @@ deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast MAcc route-family plan requires typed RVV config "
         "facts");
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      analysis.typedConfigFacts;
   if (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsScalarSplat ||
       !analysis.slice.accumulatorLoadOperation || !analysis.slice.genericStore ||
       !analysis.slice.maccOp || !analysis.slice.arithmeticOp)
@@ -1208,8 +1416,8 @@ deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
         "scalar-broadcast MAcc route-family plan requires explicit load, "
         "scalar splat, accumulator load, macc compute, and store body "
         "structure");
-  if (analysis.typedConfigFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      analysis.typedConfigFacts.lmul != tcrv::rvv::getRVVLMULM1())
+  if (typedFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      typedFacts.lmul != tcrv::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast MAcc route-family plan currently requires SEW32 "
         "LMUL m1 typed config");
@@ -1243,10 +1451,32 @@ deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
+  for (auto [field, leaf] : {std::pair<llvm::StringRef, llvm::StringRef>(
+                                 "VL C type", typedFacts.vlCType),
+                             {"vector type", typedFacts.vectorTypeName},
+                             {"vector C type", typedFacts.vectorCType},
+                             {"setvl leaf", typedFacts.setVLIntrinsic},
+                             {"vector-load leaf",
+                              typedFacts.vectorLoadIntrinsic},
+                             {"scalar-splat leaf",
+                              typedFacts.scalarSplatIntrinsic},
+                             {"store leaf", typedFacts.storeIntrinsic}}) {
+    if (llvm::Error error = requireMAccTypedConfigLeaf(
+            typedFacts, field, leaf, analysis.slice.arithmeticKind))
+      return std::move(error);
+  }
+  std::optional<std::string> maccIntrinsic =
+      deriveMAccIntrinsic(typedFacts.sew, typedFacts.lmul);
+  if (!maccIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast MAcc route-family plan cannot derive MAcc compute "
+        "leaf from typed operation/SEW/LMUL facts");
+
   RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan plan;
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  applyMAccTypedConfigSnapshot(plan, typedFacts);
   plan.familyPlanID = kRVVScalarBroadcastMAccRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVScalarBroadcastMAccTargetLeafProfile;
@@ -1257,18 +1487,14 @@ deriveRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(
   plan.requiredHeaderDeclarations =
       kRVVScalarBroadcastMAccRequiredHeaderDeclarations;
   plan.cTypeMappingSummary = kRVVScalarBroadcastMAccCTypeMappingSummary;
-  plan.vlCType = analysis.typedConfigFacts.vlCType;
-  plan.vectorTypeName = analysis.typedConfigFacts.vectorTypeName;
-  plan.vectorCType = analysis.typedConfigFacts.vectorCType;
-  plan.setVLIntrinsic = analysis.typedConfigFacts.setVLIntrinsic;
-  plan.vectorLoadIntrinsic = analysis.typedConfigFacts.vectorLoadIntrinsic;
-  plan.rhsScalarSplatIntrinsic =
-      getScalarSplatIntrinsic(analysis.typedConfigFacts.sew,
-                              analysis.typedConfigFacts.lmul);
-  plan.maccIntrinsic =
-      getMAccIntrinsic(analysis.typedConfigFacts.sew,
-                       analysis.typedConfigFacts.lmul);
-  plan.storeIntrinsic = analysis.typedConfigFacts.storeIntrinsic;
+  plan.vlCType = typedFacts.vlCType;
+  plan.vectorTypeName = typedFacts.vectorTypeName;
+  plan.vectorCType = typedFacts.vectorCType;
+  plan.setVLIntrinsic = typedFacts.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = typedFacts.vectorLoadIntrinsic;
+  plan.rhsScalarSplatIntrinsic = typedFacts.scalarSplatIntrinsic;
+  plan.maccIntrinsic = internMAccDerivedLeaf(std::move(*maccIntrinsic));
+  plan.storeIntrinsic = typedFacts.storeIntrinsic;
   plan.resultName = "macc_sum_vec";
   plan.accumulatorLayout = *analysis.slice.maccOp.getAccumulatorLayout();
   plan.resultLayout = *analysis.slice.maccOp.getResultLayout();
@@ -1427,29 +1653,53 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           : llvm::StringRef();
   llvm::StringRef expectedPredicate =
       isMAcc && !isRuntimeScalarProducer ? "slt" : "sle";
-  llvm::StringRef expectedRHSSplatLeaf =
+  std::optional<std::string> expectedSetVLLeaf =
+      deriveMAccSetVLIntrinsic(plan.runtimeControlPlan.sew,
+                               plan.runtimeControlPlan.lmul);
+  if (!expectedSetVLLeaf)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires a "
+        "provider-derived setvl leaf for the selected typed config");
+  std::optional<std::string> expectedRHSSplatLeaf =
       isRuntimeScalarProducer
-          ? getScalarSplatIntrinsic(plan.runtimeControlPlan.sew,
-                                    plan.runtimeControlPlan.lmul)
-          : llvm::StringRef();
-  llvm::StringRef expectedCompareLeaf =
-      getCompareIntrinsic(expectedPredicate, plan.runtimeControlPlan.sew,
-                          plan.runtimeControlPlan.lmul);
-  if (expectedCompareLeaf.empty())
+          ? deriveMAccScalarSplatIntrinsic(plan.runtimeControlPlan.sew,
+                                           plan.runtimeControlPlan.lmul)
+          : std::optional<std::string>(std::string());
+  if (isRuntimeScalarProducer && !expectedRHSSplatLeaf)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires a "
+        "provider-derived RHS scalar splat leaf for the selected typed "
+        "config");
+  std::optional<std::string> expectedCompareLeaf =
+      deriveMAccCompareIntrinsic(expectedPredicate, plan.runtimeControlPlan.sew,
+                                 plan.runtimeControlPlan.lmul);
+  if (!expectedCompareLeaf)
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan requires a "
         "provider-derived compare leaf for the selected typed config");
-  llvm::StringRef expectedStoreLeaf =
+  std::optional<std::string> expectedMAccLeaf =
+      isMAcc ? deriveMAccIntrinsic(plan.runtimeControlPlan.sew,
+                                   plan.runtimeControlPlan.lmul)
+             : std::optional<std::string>(std::string());
+  if (isMAcc && !expectedMAccLeaf)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires a "
+        "provider-derived MAcc leaf for the selected typed config");
+  std::optional<std::string> expectedMaskedMergeLeaf =
+      isMAcc ? deriveMAccMaskedMergeIntrinsic(plan.runtimeControlPlan.sew,
+                                              plan.runtimeControlPlan.lmul)
+             : std::optional<std::string>(std::string());
+  if (isMAcc && !expectedMaskedMergeLeaf)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires a "
+        "provider-derived masked merge leaf for the selected typed config");
+  std::optional<std::string> expectedStoreLeaf =
       isStandaloneReduction
-          ? getStandaloneReductionScalarResultStoreIntrinsic(
+          ? deriveStandaloneReductionScalarResultStoreIntrinsic(
                 plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul)
-          : plan.runtimeControlPlan.sew ==
-                    tcrv::rvv::getRVVFirstSliceSEWBits()
-                ? (plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM2()
-                       ? llvm::StringRef("__riscv_vse32_v_i32m2")
-                       : llvm::StringRef("__riscv_vse32_v_i32m1"))
-                : llvm::StringRef("__riscv_vse64_v_i64m1");
-  if (expectedStoreLeaf.empty())
+          : deriveMAccVectorStoreIntrinsic(plan.runtimeControlPlan.sew,
+                                           plan.runtimeControlPlan.lmul);
+  if (!expectedStoreLeaf)
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan requires a "
         "provider-derived store leaf for the selected scalar result channel");
@@ -1504,27 +1754,36 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           "C type mapping summary", plan.cTypeMappingSummary,
           expectedCTypeMappingSummary))
     return error;
+  if (llvm::Error error = requireMAccPlanTypedConfigSnapshot(
+          "computed-mask accumulation", plan))
+    return error;
   if (llvm::Error error = requireMAccPlanField(
           "computed-mask accumulation", plan.operation, "VL C type",
           plan.vlCType, "size_t"))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "computed-mask accumulation", plan.operation, "setvl leaf",
-          plan.setVLIntrinsic,
-          getSetVLIntrinsic(plan.runtimeControlPlan.sew,
-                            plan.runtimeControlPlan.lmul)))
+          plan.setVLIntrinsic, *expectedSetVLLeaf))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "computed-mask accumulation", plan.operation, "RHS scalar splat leaf",
-          plan.rhsScalarSplatIntrinsic, expectedRHSSplatLeaf))
+          plan.rhsScalarSplatIntrinsic, *expectedRHSSplatLeaf))
+    return error;
+  if (llvm::Error error = requireMAccPlanField(
+          "computed-mask accumulation", plan.operation, "MAcc leaf",
+          plan.maccIntrinsic, *expectedMAccLeaf))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "computed-mask accumulation", plan.operation, "compare leaf",
-          plan.compareIntrinsic, expectedCompareLeaf))
+          plan.compareIntrinsic, *expectedCompareLeaf))
+    return error;
+  if (llvm::Error error = requireMAccPlanField(
+          "computed-mask accumulation", plan.operation, "masked merge leaf",
+          plan.maskedMergeIntrinsic, *expectedMaskedMergeLeaf))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "computed-mask accumulation", plan.operation, "store leaf",
-          plan.storeIntrinsic, expectedStoreLeaf))
+          plan.storeIntrinsic, *expectedStoreLeaf))
     return error;
   if (llvm::Error error = requireMAccPlanField(
           "computed-mask accumulation", plan.operation, "mask role",
@@ -1622,6 +1881,8 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan requires typed RVV "
         "config facts");
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      analysis.typedConfigFacts;
   const bool isMAcc =
       operation == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
       operation ==
@@ -1664,7 +1925,7 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
         "accumulator/result body structure, and route-specific payload suffix");
   if (isRuntimeScalarProducer && isStandaloneReduction) {
     if (!isRuntimeScalarComputedMaskStandaloneReductionConfig(
-            analysis.typedConfigFacts.sew, analysis.typedConfigFacts.lmul))
+            typedFacts.sew, typedFacts.lmul))
       return makeRVVEmitCRouteProviderError(
           "computed-mask accumulation route-family plan requires runtime-"
           "scalar standalone reduction typed config to be SEW32 LMUL m1, "
@@ -1672,14 +1933,14 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           "reduction accumulator/result channel");
   } else if (isStandaloneReduction) {
     if (!isStandaloneReductionScalarChannelConfig(
-            analysis.typedConfigFacts.sew, analysis.typedConfigFacts.lmul))
+            typedFacts.sew, typedFacts.lmul))
       return makeRVVEmitCRouteProviderError(
           "computed-mask accumulation route-family plan requires "
           "non-runtime-scalar standalone reduction typed config to be SEW32 "
           "LMUL m1 or SEW32 LMUL m2 with a separate LMUL m1 scalar reduction "
           "accumulator/result channel");
-  } else if (isMAcc && !isComputedMaskMAccConfig(analysis.typedConfigFacts.sew,
-                                                analysis.typedConfigFacts.lmul)) {
+  } else if (isMAcc && !isComputedMaskMAccConfig(typedFacts.sew,
+                                                typedFacts.lmul)) {
     return makeRVVEmitCRouteProviderError(
         isRuntimeScalarProducer
             ? "computed-mask accumulation route-family plan requires runtime "
@@ -1729,6 +1990,58 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
+  for (auto [field, leaf] : {std::pair<llvm::StringRef, llvm::StringRef>(
+                                 "VL C type", typedFacts.vlCType),
+                             {"vector type", typedFacts.vectorTypeName},
+                             {"vector C type", typedFacts.vectorCType},
+                             {"mask type", typedFacts.maskTypeName},
+                             {"mask C type", typedFacts.maskCType},
+                             {"setvl leaf", typedFacts.setVLIntrinsic},
+                             {"vector-load leaf",
+                              typedFacts.vectorLoadIntrinsic},
+                             {"store leaf", typedFacts.storeIntrinsic}}) {
+    if (llvm::Error error =
+            requireMAccTypedConfigLeaf(typedFacts, field, leaf, operation))
+      return std::move(error);
+  }
+  if (isRuntimeScalarProducer)
+    if (llvm::Error error = requireMAccTypedConfigLeaf(
+            typedFacts, "scalar-splat leaf", typedFacts.scalarSplatIntrinsic,
+            operation))
+      return std::move(error);
+
+  std::optional<std::string> maccIntrinsic =
+      isMAcc ? deriveMAccIntrinsic(typedFacts.sew, typedFacts.lmul)
+             : std::optional<std::string>(std::string());
+  if (isMAcc && !maccIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan cannot derive MAcc "
+        "leaf from typed operation/SEW/LMUL facts");
+  std::optional<std::string> compareIntrinsic = deriveMAccCompareIntrinsic(
+      isMAcc && !isRuntimeScalarProducer ? "slt" : "sle", typedFacts.sew,
+      typedFacts.lmul);
+  if (!compareIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan cannot derive compare "
+        "leaf from typed predicate/SEW/LMUL facts");
+  std::optional<std::string> maskedMergeIntrinsic =
+      isMAcc ? deriveMAccMaskedMergeIntrinsic(typedFacts.sew, typedFacts.lmul)
+             : std::optional<std::string>(std::string());
+  if (isMAcc && !maskedMergeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan cannot derive masked "
+        "merge leaf from typed SEW/LMUL facts");
+  std::optional<std::string> standaloneStoreIntrinsic =
+      isStandaloneReduction
+          ? deriveStandaloneReductionScalarResultStoreIntrinsic(typedFacts.sew,
+                                                                typedFacts.lmul)
+          : std::optional<std::string>();
+  if (isStandaloneReduction && !standaloneStoreIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan cannot derive "
+        "standalone reduction scalar-result store leaf from typed SEW/LMUL "
+        "facts");
+
   RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan plan;
   plan.operation = operation;
   plan.memoryForm = analysis.slice.memoryForm;
@@ -1737,6 +2050,7 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   plan.usesRuntimeScalarProducer = isRuntimeScalarProducer;
   plan.usesVectorCompareProducer = !isRuntimeScalarProducer;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  applyMAccTypedConfigSnapshot(plan, typedFacts);
   plan.familyPlanID = kRVVComputedMaskAccumulationRouteFamilyPlanID;
   plan.computeSuffix =
       isMAcc ? kRVVComputedMaskAccumulationVectorMAccSuffix
@@ -1779,27 +2093,25 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           : (isRuntimeScalarProducer
                  ? kRVVRuntimeScalarComputedMaskStandaloneReductionCTypeMappingSummary
                  : kRVVComputedMaskStandaloneReductionCTypeMappingSummary);
-  plan.vlCType = analysis.typedConfigFacts.vlCType;
-  plan.vectorTypeName = analysis.typedConfigFacts.vectorTypeName;
-  plan.vectorCType = analysis.typedConfigFacts.vectorCType;
-  plan.maskTypeName = analysis.typedConfigFacts.maskTypeName;
-  plan.maskCType = analysis.typedConfigFacts.maskCType;
-  plan.setVLIntrinsic = analysis.typedConfigFacts.setVLIntrinsic;
-  plan.vectorLoadIntrinsic = analysis.typedConfigFacts.vectorLoadIntrinsic;
+  plan.vlCType = typedFacts.vlCType;
+  plan.vectorTypeName = typedFacts.vectorTypeName;
+  plan.vectorCType = typedFacts.vectorCType;
+  plan.maskTypeName = typedFacts.maskTypeName;
+  plan.maskCType = typedFacts.maskCType;
+  plan.setVLIntrinsic = typedFacts.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = typedFacts.vectorLoadIntrinsic;
   plan.rhsScalarSplatIntrinsic =
-      isRuntimeScalarProducer
-          ? getScalarSplatIntrinsic(analysis.typedConfigFacts.sew,
-                                    analysis.typedConfigFacts.lmul)
-          : "";
-  plan.compareIntrinsic =
-      getCompareIntrinsic(isMAcc && !isRuntimeScalarProducer ? "slt" : "sle",
-                          analysis.typedConfigFacts.sew,
-                          analysis.typedConfigFacts.lmul);
+      isRuntimeScalarProducer ? typedFacts.scalarSplatIntrinsic : "";
+  plan.maccIntrinsic = isMAcc ? internMAccDerivedLeaf(std::move(*maccIntrinsic))
+                              : llvm::StringRef();
+  plan.compareIntrinsic = internMAccDerivedLeaf(std::move(*compareIntrinsic));
+  plan.maskedMergeIntrinsic =
+      isMAcc ? internMAccDerivedLeaf(std::move(*maskedMergeIntrinsic))
+             : llvm::StringRef();
   plan.storeIntrinsic =
-      isStandaloneReduction
-          ? getStandaloneReductionScalarResultStoreIntrinsic(
-                analysis.typedConfigFacts.sew, analysis.typedConfigFacts.lmul)
-          : analysis.typedConfigFacts.storeIntrinsic;
+      isStandaloneReduction ? internMAccDerivedLeaf(
+                                  std::move(*standaloneStoreIntrinsic))
+                            : typedFacts.storeIntrinsic;
   plan.maskRole = kRVVMaskedPredicateMaskRole;
   plan.maskSource = kRVVMaskedCompareMaskSource;
   plan.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
@@ -1871,6 +2183,10 @@ void applyRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   description.setVLIntrinsic = plan.setVLIntrinsic;
   description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
   description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
+  if (plan.usesVectorMAccSuffix) {
+    description.intrinsic = plan.maccIntrinsic;
+    description.maskedMergeIntrinsic = plan.maskedMergeIntrinsic;
+  }
   description.compareIntrinsic = plan.compareIntrinsic;
   description.storeIntrinsic = plan.storeIntrinsic;
   description.maskRole = plan.maskRole;
@@ -2114,6 +2430,10 @@ llvm::Error verifyRVVSelectedBodyPlainMAccRouteFamilyProviderPlans(
       *analysis.plainMAccRouteFamilyPlan;
   if (llvm::Error error = validateRVVSelectedBodyPlainMAccRouteFamilyPlan(plan))
     return error;
+  if (llvm::Error error = verifyMAccPlanTypedConfigSnapshot(
+          analysis.typedConfigFacts, plan, context, "plain MAcc",
+          /*storeMustMatchTypedFacts=*/true))
+    return error;
   if (plan.operation != operation)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2224,6 +2544,17 @@ verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans(
   if (llvm::Error error =
           validateRVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan(plan))
     return error;
+  if (llvm::Error error = verifyMAccPlanTypedConfigSnapshot(
+          analysis.typedConfigFacts, plan, context, "scalar-broadcast MAcc",
+          /*storeMustMatchTypedFacts=*/true))
+    return error;
+  if (plan.rhsScalarSplatIntrinsic !=
+      analysis.typedConfigFacts.scalarSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast MAcc route-family scalar splat leaf must mirror "
+        "selected typed RVV body/config facts before provider "
+        "materialization");
   if (plan.operation != operation)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2340,6 +2671,23 @@ verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
   if (llvm::Error error =
           validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(plan))
     return error;
+  if (llvm::Error error = verifyMAccPlanTypedConfigSnapshot(
+          analysis.typedConfigFacts, plan, context,
+          "computed-mask accumulation",
+          /*storeMustMatchTypedFacts=*/isMAccConsumer))
+    return error;
+  if (llvm::Error error = verifyMAccPlanMaskTypedConfigSnapshot(
+          analysis.typedConfigFacts, plan, context,
+          /*maskMustMatchTypedFacts=*/isConsumer))
+    return error;
+  if (plan.usesRuntimeScalarProducer &&
+      plan.rhsScalarSplatIntrinsic !=
+          analysis.typedConfigFacts.scalarSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation route-family scalar splat leaf must "
+        "mirror selected typed RVV body/config facts before provider "
+        "materialization");
   if (plan.operation != operation)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2420,6 +2768,14 @@ verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
         " computed-mask accumulation route-family route, runtime, type, "
         "intrinsic, and mask mirrors must be populated from the validated "
         "family plan before provider materialization");
+  if (isMAccConsumer &&
+      (analysis.description.intrinsic != plan.maccIntrinsic ||
+       analysis.description.maskedMergeIntrinsic != plan.maskedMergeIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask MAcc route-family MAcc and merge leaves must be "
+        "populated from the validated family plan before provider "
+        "materialization");
   if (!support::runtimeABIParametersEqual(
           analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
     return makeRVVEmitCRouteProviderError(
@@ -2438,7 +2794,8 @@ verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
        analysis.description.maccResultLayout != plan.resultLayout))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " computed-mask MAcc route-family memory, layout, and inactive-lane mirrors "
+        " computed-mask MAcc route-family memory, layout, and inactive-lane "
+        "mirrors "
         "must be populated from the validated family plan before provider "
         "materialization");
   std::optional<llvm::StringRef> expectedBindingPlanID =

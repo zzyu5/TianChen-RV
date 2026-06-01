@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final guard against legacy i32 route-authority and descriptor/source-front-door drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check MAcc provider ownership, typed derivation, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Check common EmitC remains neutral and RVV semantics stay plugin-owned."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused tests, evidence, and no unsupported runtime claims."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check route ids and artifact/status mirrors are not accepted as authority."}

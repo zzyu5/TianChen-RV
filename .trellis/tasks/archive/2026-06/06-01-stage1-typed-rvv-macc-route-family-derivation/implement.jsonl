@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, route-authority, and RVV Stage 1 boundaries."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin classification and Stage 1/2 routing checklist."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Typed tcrv_rvv body authority, RVV provider ownership, and fail-closed route contract."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Common EmitC/export neutrality and plugin-built route boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/C++ test expectations and RVV evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and mirror-field authority boundaries for RVV Stage 1."}

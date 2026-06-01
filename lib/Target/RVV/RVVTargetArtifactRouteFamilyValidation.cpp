@@ -3706,9 +3706,9 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastMAccRouteFamilyPlanID(
 constexpr llvm::StringLiteral kRVVMAccComputedMaskAccumulationRouteFamilyPlanID(
     "rvv-computed-mask-accumulation-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVPlainMAccTargetLeafProfile(
-    "rvv-v1-e32m1-plain-macc-add-leaf-profile.v1");
+    "rvv-v1-typed-plain-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccTargetLeafProfile(
-    "rvv-v1-e32m1-scalar-broadcast-macc-add-leaf-profile.v1");
+    "rvv-v1-typed-scalar-broadcast-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccTargetLeafProfile(
     "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1");
 constexpr llvm::StringLiteral
@@ -3726,9 +3726,9 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVMAccRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVPlainMAccCTypeMappingSummary(
-    "vl:size_t,lhs/rhs/acc:signed-e32m1,result:signed-e32m1");
+    "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccCTypeMappingSummary(
-    "vl:size_t,lhs/acc:signed-e32m1,rhs_scalar:i32,result:signed-e32m1");
+    "vl:size_t,lhs/acc:typed-vector,rhs_scalar:typed-scalar,result:typed-vector");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccCTypeMappingSummary(
     "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector");
 constexpr llvm::StringLiteral

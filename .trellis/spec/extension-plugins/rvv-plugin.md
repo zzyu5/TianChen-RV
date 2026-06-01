@@ -3285,6 +3285,13 @@ owner and are reached through the standalone reduction/accumulation aggregate.
   runtime/control mirrors, type/intrinsic/header mirrors, route operand-binding
   plan, runtime ABI order, and MAcc/accumulation sub-family facts before route
   materialization is accepted.
+- Plain, scalar-broadcast, and computed-mask MAcc family plans must carry a
+  typed config snapshot from `RVVSelectedBodyTypedConfigFacts`: facts id,
+  element type, element bit width, SEW, LMUL, tail policy, mask policy, and
+  config contract id. Their vector type/C type, VL C type, setvl, load, store,
+  scalar-splat where applicable, mask type/C type where applicable, MAcc leaf,
+  compare leaf, and masked-merge leaf must mirror typed body/config facts or
+  be derived from typed element/SEW/LMUL plus operation/predicate facts.
 - The owner verifier may call shared typed/body/plan validators, but it must
   not infer support from route ids, artifact names, ABI strings, exact
   intrinsic spellings, descriptor residue, or emission-plan/status metadata.
@@ -3310,6 +3317,10 @@ owner and are reached through the standalone reduction/accumulation aggregate.
   runtime control, ABI order, type mapping, headers, intrinsic leaf, result
   name, MAcc layout, mask producer/source, inactive-lane contract, or
   computed-mask accumulation suffix -> fail closed.
+- A MAcc family plan has no typed config snapshot, carries a stale typed
+  vector/load/store/scalar-splat/mask leaf, or carries a MAcc/compare/merge
+  leaf that cannot be derived from typed element/SEW/LMUL and operation facts
+  -> fail closed before provider materialization.
 - The route operand-binding plan is absent, stale, or does not match the
   selected operation -> fail closed before materialization.
 - A MAcc operand-binding plan binds a logical operand to the wrong runtime ABI
@@ -3323,16 +3334,17 @@ owner and are reached through the standalone reduction/accumulation aggregate.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: typed plain `tcrv_rvv.macc` body -> route-family plan derivation ->
-  MAcc owner registry selects plain MAcc exactly once -> owner verifies mirrors
-  and operand bindings -> materialization facts -> MAcc statement-plan owner.
+- Good: typed plain `tcrv_rvv.macc` body -> typed config facts snapshot ->
+  route-family plan derivation -> MAcc owner registry selects plain MAcc
+  exactly once -> owner verifies typed leaf mirrors and operand bindings ->
+  materialization facts -> MAcc statement-plan owner.
 - Good: typed scalar-broadcast MAcc body -> scalar-broadcast MAcc owner
-  verifies RHS scalar broadcast plan and runtime ABI -> route-control provider
-  plan -> MAcc statement-plan owner.
+  verifies RHS scalar broadcast leaf from typed config facts and runtime ABI ->
+  route-control provider plan -> MAcc statement-plan owner.
 - Good: typed computed-mask MAcc body -> computed-mask MAcc owner verifies the
-  shared accumulation family plan as a vector-MAcc suffix with the correct mask
-  producer and inactive-lane contracts -> computed-mask accumulation statement
-  owner.
+  shared accumulation family plan as a vector-MAcc suffix with derived
+  compare/MAcc/merge leaves, the correct mask producer, and inactive-lane
+  contracts -> computed-mask accumulation statement owner.
 - Base: standalone reductions, direct contractions, memory, segment2, compare/
   select, residual runtime scalar splat-store, and conversion routes use their
   own owner boundaries and receive non-consumer behavior from the MAcc owner.
@@ -3349,6 +3361,10 @@ owner and are reached through the standalone reduction/accumulation aggregate.
 - Focused C++ fail-closed tests for missing family plans, stale non-consumer
   MAcc plans, mismatched mirrors, stale operand-binding plans, and
   computed-mask MAcc suffix/provenance mismatches.
+- Focused C++ positive/negative tests for typed config-derived MAcc leaves:
+  plan snapshot mirrors selected typed facts; stale vector type/load/store,
+  scalar splat, mask type, MAcc, compare, or masked-merge leaves fail closed
+  before provider route construction.
 - Aggregate math-cluster owner tests proving central orchestration reaches the
   MAcc owner through the owner API rather than local MAcc predicates.
 - Representative generated-bundle dry-runs for plain MAcc, scalar-broadcast
