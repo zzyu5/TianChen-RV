@@ -353,3 +353,57 @@ context placeholders, and preparing one coherent commit.
 ### Next Steps
 
 - None - task complete after commit and clean status verification
+
+
+## Session 371: Stage2 RVV standalone-reduction selected-body artifact ABI
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV standalone-reduction selected-body artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Proved the existing `standalone_reduce_add` selected-body-to-generated-bundle
+scalar-result ABI boundary with selected-boundary dry-run evidence, direct
+route-entry fail-closed regression, and real `ssh rvv` correctness for runtime
+counts `0,1,16,17,257`.
+
+### Main Changes
+
+- Created task `06-01-stage2-rvv-standalone-reduction-artifact-abi` with PRD
+  and context scoped to exactly one supported standalone reduction selected
+  body.
+- Verified the production path already carries `standalone_reduce_add` through
+  RVV selected-body realization, provider route facts, common EmitC, RVV target
+  artifact bundle export, and external scalar-result ABI execution.
+- Added a `rvv_generated_bundle_abi_e2e.py --self-test` regression for the
+  retired direct pre-realized `standalone_reduce_add` route-entry mode.
+- Recorded final dry-run, direct fail-closed, `ssh rvv`, focused binary,
+  old-authority scan, and `git diff --check` evidence in the PRD.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log after commit) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-06/06-01-stage2-rvv-standalone-reduction-artifact-abi`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-standalone-reduction-artifact-abi/final-dry-run`
+- [OK] Direct route-entry negative command exited 1 with the expected retired direct route-entry diagnostic.
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-standalone-reduction-artifact-abi/final-ssh-rvv`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Bounded old-authority scan over touched script/task files and relevant owner/provider/materializer/target/test files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification

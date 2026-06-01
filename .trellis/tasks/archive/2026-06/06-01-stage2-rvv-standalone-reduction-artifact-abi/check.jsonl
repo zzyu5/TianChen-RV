@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Final spec compliance check for global RVV Stage 2 authority and no descriptor/common inference drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that selected-body realization remains RVV plugin-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export consume provider-built route facts only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check that runtime and generated-bundle claims match evidence quality rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-standalone-reduction-artifact-abi/prd.md", "reason": "Verify implementation, evidence, and final task state against the accepted PRD."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Run self-test, dry-run, direct pre-realized negative mode, and ssh rvv standalone reduction evidence."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Run focused target artifact export binary after artifact/export changes."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Run focused RVV plugin binary after provider or realization changes."}
