@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-19.md`
-- **Total Sessions**: 360
+- **Total Sessions**: 362
 - **Last Active**: 2026-06-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-19.md` | ~1833 | Active |
+| `journal-19.md` | ~1920 | Active |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
 | `journal-16.md` | ~1976 | Archived |
@@ -47,6 +47,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 362 | 2026-06-01 | Stage2 RVV base memory-movement selected-body realization boundary | this commit | `main` |
+| 361 | 2026-06-01 | Stage2 RVV compare/select selected-body realization boundary | `ae78f435` | `main` |
 | 360 | 2026-06-01 | Stage2 RVV elementwise selected-body realization boundary | pending-final-commit | `main` |
 | 359 | 2026-06-01 | Stage1 typed RVV shared route-profile leaf derivation | this commit | `main` |
 | 358 | 2026-06-01 | Stage1 typed RVV contraction route derivation | this commit | `main` |

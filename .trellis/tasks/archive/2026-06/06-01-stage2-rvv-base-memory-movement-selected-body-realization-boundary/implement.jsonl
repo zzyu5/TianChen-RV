@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, RVV-first stage order, and typed RVV authority chain for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body owner registry, base memory movement realization ownership, memory operand-binding, and base memory statement-plan contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundaries and provider-built TCRVEmitCLowerableRoute requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization placement in the variant pipeline and metadata-as-mirror constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++ evidence for selected-body realization, route-provider behavior, generated-bundle dry-runs, and legacy Stage 1 negative paths."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checklist for selected-body realization and route provider ownership."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/dtype/config/runtime authority checklist for RVV realization work."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checklist for keeping memory execution ops in the RVV extension family and out of tcrv.exec/common EmitC semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-compare-select-selected-body-realization-boundary/prd.md", "reason": "Adjacent completed selected-body boundary task scope, evidence pattern, and constraints."}

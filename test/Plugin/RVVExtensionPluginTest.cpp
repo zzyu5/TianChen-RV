@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
@@ -1382,6 +1383,245 @@ module {
       badResult.takeError(),
       {"must not be mixed with already realized RVV route body op",
        "tcrv_rvv.setvl"});
+}
+
+int runBaseMemoryMovementRealizationBoundaryTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_base_memory_realization_boundary_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
+      tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_unit_load_strided_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %dst_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "dst_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "destination-byte-stride"} : index
+      tcrv_rvv.typed_strided_store_memory_pre_realized_body %src, %dst, %n, %dst_stride_bytes {lmul = "m1", memory_form = "unit-load-strided-store", op_kind = "unit_load_strided_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV base memory realization-boundary module");
+  KernelOp kernel =
+      findKernel(*module, "rvv_base_memory_realization_boundary_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for base memory realization-boundary test"))
+    return result;
+
+  auto realizeBaseMemoryVariant =
+      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          llvm::StringRef expectedStrideSource,
+          llvm::StringRef expectedDestinationStrideSource,
+          llvm::StringRef expectedSourceMemoryForm,
+          llvm::StringRef expectedDestinationMemoryForm) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found base memory pre-realized "
+                                        "body for @") +
+                                variantName))
+      return result;
+
+    llvm::Expected<const tianchenrv::plugin::rvv::
+                       RVVSelectedBodyRealizationOwner *>
+        owner = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyRealizationOwnerForBody(
+                preRealized, "base memory selected-body realization boundary "
+                             "unit test");
+    if (!owner)
+      return fail(llvm::Twine("base memory owner lookup failed for @") +
+                  variantName + ": " + llvm::toString(owner.takeError()));
+    if (int result = expect((*owner)->familyName == "base memory movement" &&
+                                (*owner)->realize != nullptr,
+                            llvm::Twine("base memory selected body @") +
+                                variantName +
+                                " is registry-owned before route planning"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        beforeRealization =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (beforeRealization)
+      return fail(llvm::Twine("base memory pre-realized @") + variantName +
+                  " unexpectedly reached route facts before realization");
+    if (int result = expectErrorContains(
+            beforeRealization.takeError(),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body",
+             "base memory movement"}))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+    llvm::Error directRouteError = registry.buildVariantEmitCLowerableRoute(
+        VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+        directRoute);
+    if (int result = expectErrorContains(
+            std::move(directRouteError),
+            {"pre-realized RVV selected body",
+             "owned by selected-body realization owner",
+             "base memory movement",
+             "before provider route construction"}))
+      return result;
+
+    if (auto stridedLoadBody =
+            llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                               TypedStridedMemoryPreRealizedBodyOp>(
+                preRealized)) {
+      mlir::OpBuilder validationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedStridedMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          validationBuilder),
+                      stridedLoadBody),
+              "base memory owner-local validation accepts the selected "
+              "strided-load/unit-store body"))
+        return result;
+    } else if (auto stridedStoreBody =
+                   llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                                      TypedStridedStoreMemoryPreRealizedBodyOp>(
+                       preRealized)) {
+      mlir::OpBuilder validationBuilder(module->getContext());
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedStridedStoreMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          validationBuilder),
+                      stridedStoreBody),
+              "base memory owner-local validation accepts the selected "
+              "unit-load/strided-store body"))
+        return result;
+    } else {
+      return fail(llvm::Twine("unexpected base memory pre-realized op @") +
+                  variantName);
+    }
+
+    mlir::OpBuilder producerBuilder(module->getContext());
+    VariantLoweringBoundaryResult boundaryResult;
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, producerBuilder),
+                boundaryResult),
+            llvm::Twine("public selected lowering-boundary producer consumes "
+                        "base memory pre-realized @") +
+                variantName))
+      return result;
+    if (int result = expect(boundaryResult.isMaterialized(),
+                            llvm::Twine("base memory selected-boundary "
+                                        "producer materializes @") +
+                                variantName))
+      return result;
+    if (int result =
+            expect(countNestedOps(variant, preRealizedOpName) == 0 &&
+                       countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.with_vl") == 1,
+                   llvm::Twine("base memory pre-realized @") + variantName +
+                       " is consumed into explicit setvl/with_vl structure"))
+      return result;
+
+    if (variantName == "rvv_pre_strided_load_unit_store") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.strided_load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.move") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.load") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.strided_store") == 0,
+              "base memory realization materializes strided_load/move/store "
+              "before route construction"))
+        return result;
+    } else {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.move") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.strided_store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.strided_load") == 0,
+              "base memory realization materializes load/move/strided_store "
+              "before route construction"))
+        return result;
+    }
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized base memory route for @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
+    if (int result = expect(
+            routeDescription->baseMemoryMovementRouteFamilyPlanID ==
+                "rvv-base-memory-movement-route-family-plan.v1",
+            llvm::Twine("realized base memory @") + variantName +
+                " records the RVV-owned base memory provider plan"))
+      return result;
+    if (int result = expect(
+            routeDescription->sourceStrideSource == expectedStrideSource &&
+                routeDescription->outStrideSource ==
+                    expectedDestinationStrideSource &&
+                routeDescription->sourceMemoryForm ==
+                    expectedSourceMemoryForm &&
+                routeDescription->destinationMemoryForm ==
+                    expectedDestinationMemoryForm,
+            llvm::Twine("realized base memory @") + variantName +
+                " preserves source/destination memory-form and stride facts"))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider consumes realized base memory body for @") +
+                variantName))
+      return result;
+    return expect(route.getForLoops().size() == 1,
+                  llvm::Twine("provider builds one base memory route loop "
+                              "after realization for @") +
+                      variantName);
+  };
+
+  if (int result = realizeBaseMemoryVariant(
+          "rvv_pre_strided_load_unit_store",
+          "tcrv_rvv.typed_strided_memory_pre_realized_body",
+          "runtime_abi:stride_bytes", "", "strided-load",
+          "unit-stride-store"))
+    return result;
+  return realizeBaseMemoryVariant(
+      "rvv_pre_unit_load_strided_store",
+      "tcrv_rvv.typed_strided_store_memory_pre_realized_body", "",
+      "runtime_abi:dst_stride_bytes", "unit-stride-load", "strided-store");
 }
 
 int runSelectedBodyRealizationOwnerRegistryTest() {
@@ -23957,6 +24197,9 @@ int main() {
     return result;
   if (int result =
           runElementwiseCompareSelectRealizationBoundaryTest(context))
+    return result;
+  if (int result =
+          runBaseMemoryMovementRealizationBoundaryTest(context))
     return result;
   if (int result = runSelectedBodyRealizationOwnerRegistryTest())
     return result;

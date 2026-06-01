@@ -1080,7 +1080,12 @@ Moved computed-mask segment2 load/store/update selected-body realization to the 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for unit-load-strided-store / strided-store-memory / strided-load-unit-store tests: 15/15 passed.
+- [OK] bounded old-authority scan over touched realization/provider/planning files, relevant tests, and specs found no new old-authority strings in this diff; remaining repository hits were classified as spec prohibitions, fail-closed negative tests, route-derived mirror checks, or explicit `emission_plan` mirrors.
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 465/465.
+- [OK] `rtk git diff --check`
 
 ### Status
 
@@ -1873,6 +1878,43 @@ materialized before provider route construction.
 - [OK] bounded old-authority scan classified remaining hits as spec text, fail-closed guards, negative/stale tests, provider-derived leaves, or mirror checks.
 - [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 464/464.
 - [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 362: Stage2 RVV base memory-movement selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV base memory-movement selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Proved the RVV base memory selected-body realization boundary for strided-load/unit-store and unit-load/strided-store, added direct pre-realized fail-closed evidence, and passed focused plus full checks.
+
+### Main Changes
+
+- Added focused C++ evidence that base memory pre-realized bodies are owned by the `base memory movement` selected-body realization owner and fail route facts/direct route construction before the public selected lowering-boundary producer runs.
+- Proved `strided_load_unit_store` realizes into `setvl` / `with_vl` / `strided_load` / `move` / `store`, while `unit_load_strided_store` realizes into `setvl` / `with_vl` / `load` / `move` / `strided_store` before provider route construction.
+- Added generated-bundle dry-run fail-closed coverage for direct pre-realized `unit_load_strided_store` route-entry use.
+- Checks: RVV plugin build, RVV plugin test, focused lit filter for unit/strided base memory tests, full `check-tianchenrv` 465/465, `rtk git diff --check`, and bounded old-authority scan.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
