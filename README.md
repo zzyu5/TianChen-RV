@@ -78,6 +78,8 @@ block_q8_0:
 
 `harness_add.cpp` 和 `harness_xor.cpp` 不是本轮主任务，它们是参考例子：学生可以从 add/xor 看一个普通 slice 如何组织 MLIR fixture、generated kernel ABI、harness 输入和 scalar oracle。
 
+完成 `q8_0_q8_0` 后，可以把 `q4_0_q8_0` 作为进阶拓展。它仍然围绕 LLM quantized dot，但会额外引入 packed q4 load、nibble unpack、zero-point subtract、两段 q8 dot 和 widening accumulate。这个拓展不替代基础任务，只有在基础 q8 path 可生成、可运行、可解释之后再做。
+
 ## 快速运行 Baseline
 
 在本地 QEMU 路径：

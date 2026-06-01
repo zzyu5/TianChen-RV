@@ -149,11 +149,25 @@ examples/qemu/harness_llama_q8_0_q8_0.cpp
 
 如果 generated signature 不同，需要同步改 harness 并解释 ABI 差异。
 
-## 当前不分配给学生的区域
+## 进阶边界
 
-本轮不做：
+基础目标是先把 `q8_0_q8_0` 做成可生成、可运行、可 review 的完整路径。完成后可以选择 `q4_0_q8_0` 作为进阶拓展，但它必须建立在已有 q8 dot path 上。
 
-- `q4_0_q8_0` unpack；
+`q4_0_q8_0` 额外需要：
+
+```text
+packed u8 load
+low/high nibble unpack
+u8 -> i8 reinterpret or conversion boundary
+zero-point subtract 8
+two q8 half-vector loads
+i8 widening multiply / widening accumulate
+i16 widening reduction to i32
+scale/dequant output
+```
+
+仍然不建议进入：
+
 - K-quant / q2_K / q3_K；
 - mxfp4 lookup/gather；
 - segment2/segmentN route-family 泛化；
@@ -161,4 +175,4 @@ examples/qemu/harness_llama_q8_0_q8_0.cpp
 - Toy/Template/TensorExtLite；
 - internal supervisor / Trellis / Codex automation。
 
-这些不是没有价值，而是会让本轮统一比较目标失焦。先把 `q8_0_q8_0` 做成可生成、可运行、可 review 的完整路径。
+这些不是没有价值，而是会让本轮统一比较目标失焦。`q4_0_q8_0` 是唯一推荐的近期拓展方向，因为它直接复用 q8 dot 的核心能力，并补充真实 LLM 4-bit weight unpack。

@@ -170,3 +170,18 @@ test/Target/RVV/<q8-feature>-artifact.mlir
 - 使用了哪个 harness，输入输出是什么。
 - QEMU 或 ssh-rvv 的实际输出。
 - 没有新增 dtype-prefixed helper、source-front-door positive path 或 common EmitC RVV semantic branch。
+
+## 进阶：q4 dot q8
+
+基础 `q8_0_q8_0` 完成后，学生可以选择 `q4_0_q8_0` 作为拓展。它不是新的主线，而是 q8 dot 的自然延伸：先把 packed q4 weights 解包成 signed i8，再复用 i8 widening dot/reduction 能力。
+
+新增点通常包括：
+
+- packed q4 byte load；
+- low/high nibble unpack；
+- u8 到 i8 的 reinterpret 或等价转换；
+- q4 zero-point subtract 8；
+- `vwmul` + `vwmacc` 组合；
+- q4/q8 block harness 和 scalar oracle。
+
+拓展实现仍然要走 typed `tcrv_rvv` body 和 RVV provider route，不能退化成手写 `q4_0_q8_0` intrinsic wrapper。
