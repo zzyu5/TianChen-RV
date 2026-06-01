@@ -101,3 +101,57 @@ Hardened the focused RVV ordinary reduction selected-body realization boundary e
 ### Next Steps
 
 - None - task complete
+
+
+## Session 367: Stage2 RVV standalone reduction selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV standalone reduction selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Added focused standalone reduction selected-body owner-boundary evidence: direct pre-realized route facts/build fail closed, owner-local negative validation, realization to setvl/with_vl/load/standalone_reduce/store, and provider facts/statement-plan/route checks.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary`.
+- Added `runStandaloneReductionSelectedBodyRealizationOwnerTest` to prove the
+  standalone reduction selected-body owner boundary before route construction.
+- Verified direct pre-realized route description and provider route
+  construction fail closed before selected lowering-boundary materialization.
+- Added owner-local negative coverage for unsupported op kind, unsupported
+  LMUL/config, non-agnostic policy, wrong runtime `n` role, wrong scalar output
+  role, wrong accumulator seed role/layout, and wrong scalar result layout.
+- Verified public selected-boundary materialization erases the pre-realized op
+  and creates explicit `setvl` / `with_vl` / `load` /
+  `standalone_reduce` / `store` structure.
+- Verified realized route description, route-family provider plans,
+  materialization facts, math operand-binding facts, route-control plan,
+  standalone statement plan, and provider-built route consume realized facts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Bounded old-authority scan classified remaining hits as spec text,
+  fail-closed legacy inventory, stale-negative tests, or provider-derived leaf
+  evidence.
+- [OK] `rtk git diff --check`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 465/465.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

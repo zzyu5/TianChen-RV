@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Validate the final change against global TianChen-RV and RVV Stage 2 authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization owner registry and standalone reduction fail-closed contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route and common EmitC responsibility boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test evidence and legacy-authority restrictions."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-local ownership and absence of common/core RVV semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute boundary and selected typed RVV body authority."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary/prd.md", "reason": "Check implementation against this task's acceptance criteria."}

@@ -23,10 +23,12 @@
 #include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
+#include "TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Attributes.h"
@@ -2831,6 +2833,571 @@ module {
                 expectedBodyCallees[index] + "'"))
       return result;
   }
+  return 0;
+}
+
+int runStandaloneReductionSelectedBodyRealizationOwnerTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_standalone_reduction_owner_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_standalone_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_standalone_reduce_pre_realized_body %lhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "unit-stride-standalone-reduction", op_kind = "standalone_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-standalone-reduction-lane0-to-output-scalar", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_bad_standalone_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_standalone_reduce_pre_realized_body %lhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "unit-stride-standalone-reduction", op_kind = "standalone_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-standalone-reduction-lane0-to-output-scalar", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_wrong_family_splat_for_standalone attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_scalar_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV standalone reduction owner module");
+  KernelOp kernel =
+      findKernel(*module, "rvv_standalone_reduction_owner_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for standalone reduction owner test"))
+    return result;
+
+  VariantOp standaloneVariant =
+      findVariant(kernel, "rvv_pre_standalone_reduce");
+  auto standaloneBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(
+      findFirstNestedOp(
+          standaloneVariant,
+          "tcrv_rvv.typed_standalone_reduce_pre_realized_body"));
+  if (int result = expect(
+          standaloneBody != nullptr,
+          "found standalone reduction pre-realized body for owner-local test"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isPreRealizedRVVStandaloneReductionClusterOp(
+                  standaloneBody.getOperation()),
+          "dedicated standalone reduction owner recognizes "
+          "TypedStandaloneReducePreRealizedBodyOp"))
+    return result;
+
+  llvm::Expected<const tianchenrv::plugin::rvv::
+                     RVVSelectedBodyRealizationOwner *>
+      owner = tianchenrv::plugin::rvv::
+          getRVVSelectedBodyRealizationOwnerForBody(
+              standaloneBody.getOperation(),
+              "standalone reduction selected-body realization owner registry "
+              "test");
+  if (!owner)
+    return fail("standalone reduction selected-body owner lookup: " +
+                llvm::toString(owner.takeError()));
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *standaloneOwner = *owner;
+  if (int result = expect(
+          standaloneOwner->familyName == "standalone reduction" &&
+              standaloneOwner->realize != nullptr,
+          "standalone reduction uses the dedicated selected-body owner"))
+    return result;
+
+  VariantOp wrongFamilyVariant =
+      findVariant(kernel, "rvv_wrong_family_splat_for_standalone");
+  mlir::Operation *wrongFamilyBody =
+      findFirstNestedOp(wrongFamilyVariant,
+                        "tcrv_rvv.typed_runtime_scalar_splat_store_"
+                        "pre_realized_body");
+  if (int result = expect(
+          wrongFamilyBody != nullptr &&
+              !tianchenrv::plugin::rvv::
+                  isPreRealizedRVVStandaloneReductionClusterOp(
+                      wrongFamilyBody),
+          "dedicated standalone reduction owner rejects runtime-scalar memory "
+          "bodies"))
+    return result;
+
+  {
+    mlir::OpBuilder nullBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> nullResult =
+        standaloneOwner->realize(
+            VariantLoweringBoundaryRequest(
+                standaloneVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, nullBuilder),
+            nullptr);
+    if (nullResult)
+      return fail("standalone reduction owner-local hook accepted a null body");
+    if (int result = expectErrorContains(
+            nullResult.takeError(),
+            {"standalone reduction selected-body realization owner received a "
+             "body outside its RVV-owned realization family"}))
+      return result;
+  }
+
+  {
+    mlir::OpBuilder wrongFamilyBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> wrongFamilyResult =
+        standaloneOwner->realize(
+            VariantLoweringBoundaryRequest(
+                wrongFamilyVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, wrongFamilyBuilder),
+            wrongFamilyBody);
+    if (wrongFamilyResult)
+      return fail("standalone reduction owner-local hook accepted a "
+                  "non-standalone body");
+    if (int result = expectErrorContains(
+            wrongFamilyResult.takeError(),
+            {"standalone reduction selected-body realization owner received a "
+             "body outside its RVV-owned realization family"}))
+      return result;
+  }
+
+  VariantOp badStandaloneVariant =
+      findVariant(kernel, "rvv_bad_standalone_reduce");
+  auto badStandaloneBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(
+      findFirstNestedOp(
+          badStandaloneVariant,
+          "tcrv_rvv.typed_standalone_reduce_pre_realized_body"));
+  if (int result =
+          expect(badStandaloneBody != nullptr,
+                 "found bad standalone reduction body for owner-local "
+                 "fail-closed tests"))
+    return result;
+
+  auto expectStandaloneOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        standaloneOwner->realize(
+            VariantLoweringBoundaryRequest(
+                badStandaloneVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            badStandaloneBody.getOperation());
+    if (invalid)
+      return fail("standalone reduction owner-local hook accepted invalid "
+                  "typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  mlir::Builder attrBuilder(module->getContext());
+  badStandaloneBody->setAttr("op_kind",
+                             attrBuilder.getStringAttr("metadata-route"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction body currently supports only op_kind",
+           "standalone_reduce_add"}))
+    return result;
+  badStandaloneBody->setAttr("op_kind",
+                             attrBuilder.getStringAttr("standalone_reduce_add"));
+
+  badStandaloneBody->setAttr("lmul", attrBuilder.getStringAttr("mf2"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction body requires SEW32 LMUL m1 or SEW32 LMUL "
+           "m2"}))
+    return result;
+  badStandaloneBody->setAttr("lmul", attrBuilder.getStringAttr("m1"));
+
+  mlir::Attribute originalPolicy = badStandaloneBody->getAttr("policy");
+  mlir::Attribute badPolicy = mlir::parseAttribute(
+      "#tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>",
+      module->getContext());
+  if (int result = expect(static_cast<bool>(badPolicy),
+                          "parsed non-agnostic standalone reduction policy"))
+    return result;
+  badStandaloneBody->setAttr("policy", badPolicy);
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction body requires tail agnostic, mask agnostic "
+           "policy"}))
+    return result;
+  badStandaloneBody->setAttr("policy", originalPolicy);
+
+  mlir::Operation *badRuntimeN = badStandaloneBody.getN().getDefiningOp();
+  mlir::Attribute originalRuntimeNRole = badRuntimeN->getAttr("role");
+  badRuntimeN->setAttr("role", attrBuilder.getStringAttr("output-buffer"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction runtime n/AVL operand",
+           "runtime-element-count"}))
+    return result;
+  badRuntimeN->setAttr("role", originalRuntimeNRole);
+
+  mlir::Operation *badOutput = badStandaloneBody.getOut().getDefiningOp();
+  mlir::Attribute originalOutputRole = badOutput->getAttr("role");
+  badOutput->setAttr("role", attrBuilder.getStringAttr("lhs-input-buffer"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction scalar output operand", "output-buffer"}))
+    return result;
+  badOutput->setAttr("role", originalOutputRole);
+
+  mlir::Operation *badAccumulator = badStandaloneBody.getAcc().getDefiningOp();
+  mlir::Attribute originalAccumulatorRole = badAccumulator->getAttr("role");
+  badAccumulator->setAttr("role",
+                          attrBuilder.getStringAttr("rhs-input-buffer"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction accumulator seed operand",
+           "accumulator-input-buffer"}))
+    return result;
+  badAccumulator->setAttr("role", originalAccumulatorRole);
+
+  badStandaloneBody->setAttr("accumulator_layout",
+                             attrBuilder.getStringAttr(
+                                 "metadata-accumulator-layout"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction body currently supports only "
+           "accumulator_layout",
+           "scalar-i32-seed-lane0-from-accumulator-input"}))
+    return result;
+  badStandaloneBody->setAttr(
+      "accumulator_layout",
+      attrBuilder.getStringAttr("scalar-i32-seed-lane0-from-accumulator-input"));
+
+  badStandaloneBody->setAttr("result_layout",
+                             attrBuilder.getStringAttr(
+                                 "metadata-result-layout"));
+  if (int result = expectStandaloneOwnerError(
+          {"standalone reduction body currently supports only result_layout",
+           "store-standalone-reduction-lane0-to-output-scalar"}))
+    return result;
+  badStandaloneBody->setAttr(
+      "result_layout",
+      attrBuilder.getStringAttr(
+          "store-standalone-reduction-lane0-to-output-scalar"));
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      beforeRealization =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(standaloneVariant, kernel,
+                                           capabilities,
+                                           VariantEmissionRole::DirectVariant));
+  if (beforeRealization)
+    return fail("standalone reduction pre-realized body unexpectedly reached "
+                "route facts before selected-body realization");
+  if (int result = expectErrorContains(
+          beforeRealization.takeError(),
+          {"selected-body realization boundary must run before route facts",
+           "pre-realized tcrv_rvv body", "standalone reduction"}))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+  llvm::Error directRouteError =
+      tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+          VariantEmitCLowerableRequest(standaloneVariant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+          directRoute);
+  if (int result = expectErrorContains(
+          std::move(directRouteError),
+          {"selected-body realization boundary must run before route facts",
+           "pre-realized tcrv_rvv body", "standalone reduction"}))
+    return result;
+
+  VariantLoweringBoundaryResult boundaryResult;
+  mlir::OpBuilder producerBuilder(module->getContext());
+  if (int result = expectSuccess(
+          registry.materializeSelectedLoweringBoundary(
+              VariantLoweringBoundaryRequest(
+                  standaloneVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant, producerBuilder),
+              boundaryResult),
+          "selected-body producer consumes standalone reduction pre-realized "
+          "body"))
+    return result;
+  if (int result = expect(
+          boundaryResult.isMaterialized() &&
+              countNestedOps(standaloneVariant,
+                             "tcrv_rvv.typed_standalone_reduce_"
+                             "pre_realized_body") == 0 &&
+              countNestedOps(standaloneVariant, "tcrv_rvv.setvl") == 1 &&
+              countNestedOps(standaloneVariant, "tcrv_rvv.with_vl") == 1 &&
+              countNestedOps(standaloneVariant, "tcrv_rvv.load") == 1 &&
+              countNestedOps(standaloneVariant,
+                             "tcrv_rvv.standalone_reduce") == 1 &&
+              countNestedOps(standaloneVariant, "tcrv_rvv.store") == 1,
+          "dedicated standalone reduction owner materializes "
+          "load/standalone_reduce/store typed facts"))
+    return result;
+
+  mlir::Operation *standaloneReduceOp =
+      findFirstNestedOp(standaloneVariant, "tcrv_rvv.standalone_reduce");
+  auto standaloneReduceKind =
+      standaloneReduceOp
+          ? standaloneReduceOp->getAttrOfType<mlir::StringAttr>("kind")
+          : mlir::StringAttr();
+  auto standaloneAccumulatorLayout =
+      standaloneReduceOp ? standaloneReduceOp->getAttrOfType<mlir::StringAttr>(
+                               "accumulator_layout")
+                         : mlir::StringAttr();
+  auto standaloneResultLayout =
+      standaloneReduceOp ? standaloneReduceOp->getAttrOfType<mlir::StringAttr>(
+                               "result_layout")
+                         : mlir::StringAttr();
+  if (int result = expect(
+          standaloneReduceKind && standaloneReduceKind.getValue() == "add" &&
+              standaloneAccumulatorLayout &&
+              standaloneAccumulatorLayout.getValue() ==
+                  "scalar-i32-seed-lane0-from-accumulator-input" &&
+              standaloneResultLayout &&
+              standaloneResultLayout.getValue() ==
+                  "store-standalone-reduction-lane0-to-output-scalar",
+          "dedicated standalone reduction owner preserves generic reduction "
+          "kind, scalar seed layout, and scalar result layout"))
+    return result;
+
+  constexpr llvm::StringLiteral kExpectedSetVLLeaf("__riscv_vsetvl_e32m1");
+  constexpr llvm::StringLiteral kExpectedLoadLeaf("__riscv_vle32_v_i32m1");
+  constexpr llvm::StringLiteral kExpectedScalarSeedLeaf(
+      "__riscv_vmv_v_x_i32m1");
+  constexpr llvm::StringLiteral kExpectedReduceLeaf(
+      "__riscv_vredsum_vs_i32m1_i32m1");
+  constexpr llvm::StringLiteral kExpectedStoreLeaf("__riscv_vse32_v_i32m1");
+
+  llvm::Expected<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(standaloneVariant, kernel,
+                                           capabilities,
+                                           VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail("describe realized standalone reduction route: " +
+                llvm::toString(routeDescription.takeError()));
+  if (int result = expect(
+          routeDescription->operation ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                      StandaloneReduceAdd &&
+              routeDescription->memoryForm ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                      UnitStrideStandaloneReduction &&
+              routeDescription->sew == 32 &&
+              routeDescription->lmul == "m1" &&
+              routeDescription->typedComputeOpName ==
+                  "tcrv_rvv.standalone_reduce" &&
+              routeDescription->runtimeABIOrder == "lhs,acc,out,n" &&
+              routeDescription->routeOperandBindingPlanID ==
+                  "rvv-route-operand-binding:standalone_reduce_add.v1" &&
+              routeDescription->standaloneReductionRouteFamilyPlanID ==
+                  "rvv-standalone-reduction-route-family-plan.v1" &&
+              routeDescription->standaloneReductionSourceVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">" &&
+              routeDescription
+                      ->standaloneReductionScalarResultVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">" &&
+              routeDescription->standaloneReductionScalarCType == "int32_t" &&
+              routeDescription->reductionAccumulatorLayout ==
+                  "scalar-i32-seed-lane0-from-accumulator-input" &&
+              routeDescription->reductionResultLayout ==
+                  "store-standalone-reduction-lane0-to-output-scalar" &&
+              routeDescription->standaloneReductionScalarResultRuntimeBoundary ==
+                  "scalar-result-out0-seeded-before-loop-and-carried-across-"
+                  "runtime-vl-chunks.v1" &&
+              routeDescription->reductionStoreVL == "1" &&
+              routeDescription->setVLIntrinsic == kExpectedSetVLLeaf &&
+              routeDescription->vectorLoadIntrinsic == kExpectedLoadLeaf &&
+              routeDescription->scalarSeedSplatIntrinsic ==
+                  kExpectedScalarSeedLeaf &&
+              routeDescription->intrinsic == kExpectedReduceLeaf &&
+              routeDescription->storeIntrinsic == kExpectedStoreLeaf,
+          "realized standalone reduction route records operation, ABI, "
+          "runtime VL, scalar seed/result layout, scalar-result boundary, "
+          "and RVV-owned leaves"))
+    return result;
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+      analysis = analyzeRouteInModule(
+          *module, "rvv_standalone_reduction_owner_kernel",
+          "rvv_pre_standalone_reduce");
+  if (!analysis)
+    return fail("analyze realized standalone reduction route: " +
+                llvm::toString(analysis.takeError()));
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                  *analysis,
+                  "standalone reduction realization-boundary unit test"),
+          "verify standalone reduction route-family/provider plans after "
+          "realization"))
+    return result;
+
+  auto materializationFacts =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts(
+          *analysis, "standalone reduction realization-boundary unit test");
+  if (!materializationFacts)
+    return fail("standalone reduction materialization facts after "
+                "realization: " +
+                llvm::toString(materializationFacts.takeError()));
+  if (int result = expect(
+          materializationFacts->setVLLeaf == kExpectedSetVLLeaf &&
+              materializationFacts->vectorLoadLeaf == kExpectedLoadLeaf &&
+              materializationFacts->sourceLoadLeaf == kExpectedLoadLeaf &&
+              materializationFacts->scalarSeedSplatLeaf ==
+                  kExpectedScalarSeedLeaf &&
+              materializationFacts->contractionComputeLeaf ==
+                  kExpectedReduceLeaf &&
+              materializationFacts->storeLeaf == kExpectedStoreLeaf &&
+              materializationFacts->standaloneReductionPlan ==
+                  &*analysis->standaloneReductionRouteFamilyPlan &&
+              materializationFacts->resultVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">" &&
+              materializationFacts->sourceVectorTypeName ==
+                  "!tcrv_rvv.vector<i32, \"m1\">",
+          "standalone reduction materialization facts derive RVV leaves and "
+          "source/scalar-result types from realized body"))
+    return result;
+
+  auto mathFacts =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *analysis, "standalone reduction realization-boundary unit test");
+  if (!mathFacts)
+    return fail("standalone reduction math operand-binding facts after "
+                "realization: " +
+                llvm::toString(mathFacts.takeError()));
+  if (int result = expect(
+          mathFacts->bindsMathCluster &&
+              mathFacts->bindsStandaloneReduction &&
+              !mathFacts->bindsComputedMaskStandaloneReduction &&
+              mathFacts->bindingPlan == &analysis->routeOperandBindingPlan &&
+              mathFacts->lhsABI && mathFacts->lhsABI->cName == "lhs" &&
+              mathFacts->accumulatorABI &&
+              mathFacts->accumulatorABI->cName == "acc" &&
+              mathFacts->outABI && mathFacts->outABI->cName == "out" &&
+              mathFacts->runtimeElementCountABI &&
+              mathFacts->runtimeElementCountABI->cName == "n",
+          "standalone reduction math facts bind source, scalar seed, scalar "
+          "output, and runtime AVL operands from realized body"))
+    return result;
+
+  auto routeControlPlan =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan(
+          *analysis, *materializationFacts,
+          "standalone reduction realization-boundary unit test");
+  if (!routeControlPlan)
+    return fail("standalone reduction route-control plan after realization: " +
+                llvm::toString(routeControlPlan.takeError()));
+  if (int result = expect(
+          routeControlPlan->plansRouteControl &&
+              routeControlPlan->controlsStandaloneReduction &&
+              routeControlPlan->runtimeControlPlan ==
+                  &analysis->standaloneReductionRouteFamilyPlan
+                       ->runtimeControlPlan &&
+              routeControlPlan->typedConfigFacts ==
+                  &analysis->typedConfigFacts &&
+              routeControlPlan->selectedTargetCapabilityFacts ==
+                  &analysis->selectedTargetCapabilityFacts,
+          "standalone reduction route-control provider plan consumes typed "
+          "config, target capability, and runtime AVL/VL facts"))
+    return result;
+
+  auto statementPlan =
+      tianchenrv::plugin::rvv::
+          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+              *analysis, *materializationFacts, *mathFacts,
+              "standalone reduction realization-boundary unit test");
+  if (!statementPlan)
+    return fail("standalone reduction statement plan after realization: " +
+                llvm::toString(statementPlan.takeError()));
+  const char *expectedPreLoopCallees[] = {
+      kExpectedSetVLLeaf.data(), kExpectedScalarSeedLeaf.data(),
+      kExpectedStoreLeaf.data()};
+  const char *expectedBodyCallees[] = {
+      kExpectedSetVLLeaf.data(), kExpectedLoadLeaf.data(),
+      kExpectedScalarSeedLeaf.data(), kExpectedReduceLeaf.data(),
+      kExpectedStoreLeaf.data()};
+  if (int result = expect(
+          statementPlan->plansStandaloneReductionRoute &&
+              statementPlan->plansPlainStandaloneReductionRoute &&
+              statementPlan->plansStandaloneReduceAdd &&
+              statementPlan->standaloneReductionPlan ==
+                  materializationFacts->standaloneReductionPlan &&
+              statementPlan->preLoopSteps.size() ==
+                  std::size(expectedPreLoopCallees) &&
+              statementPlan->loop.bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "standalone reduction statement plan consumes realized "
+          "setvl/load/standalone_reduce/store structure"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedPreLoopCallees);
+       ++index) {
+    if (int result = expect(
+            statementPlan->preLoopSteps[index].callee ==
+                expectedPreLoopCallees[index],
+            llvm::Twine("standalone reduction statement-plan pre-loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedPreLoopCallees[index] + "'"))
+      return result;
+  }
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            statementPlan->loop.bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("standalone reduction statement-plan loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+                  *analysis, *materializationFacts, *mathFacts, *statementPlan,
+                  "standalone reduction realization-boundary unit test"),
+          "verify provider facts for dedicated-owner realized standalone "
+          "reduction"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  standaloneVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "provider consumes dedicated-owner realized standalone reduction "
+          "facts"))
+    return result;
+  if (int result = expect(
+          route.getCallOpaqueSteps().size() ==
+              std::size(expectedPreLoopCallees) &&
+              route.getForLoops().size() == 1 &&
+              route.getForLoops().front().bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "provider route preserves standalone reduction pre-loop and loop "
+          "steps"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedPreLoopCallees);
+       ++index) {
+    if (int result = expect(
+            route.getCallOpaqueSteps()[index].callee ==
+                expectedPreLoopCallees[index],
+            llvm::Twine("provider route standalone reduction pre-loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedPreLoopCallees[index] + "'"))
+      return result;
+  }
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result = expect(
+            route.getForLoops().front().bodySteps[index].callee ==
+                expectedBodyCallees[index],
+            llvm::Twine("provider route standalone reduction loop step ") +
+                llvm::Twine(index) + " uses RVV-owned callee '" +
+                expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
   return 0;
 }
 
@@ -25403,6 +25970,9 @@ int main() {
     return result;
   if (int result =
           runReductionSelectedBodyRealizationOwnerTest(context))
+    return result;
+  if (int result =
+          runStandaloneReductionSelectedBodyRealizationOwnerTest(context))
     return result;
   if (int result =
           runWideningConversionSelectedBodyRealizationOwnerTest(context))

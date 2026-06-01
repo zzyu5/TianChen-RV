@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 RVV boundaries, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, standalone reduction owner family, and fail-closed provider boundary contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and provider-built TCRVEmitCLowerableRoute constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit evidence requirements and RVV legacy-authority testing restrictions."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure standalone reduction realization and route ownership stay RVV plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure no high-level compute or common EmitC semantic inference is introduced."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-reduction-accumulation-realization-boundary/prd.md", "reason": "Previous ordinary reduction realization-boundary evidence pattern to mirror for standalone reduction."}
