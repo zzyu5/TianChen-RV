@@ -116,6 +116,10 @@ for runtime ABI parameters exported through the generated header/prototype.
 
 - Good: provider summary binds all exported compare/source/stride/result ABI
   parameters and marks them as header/prototype participants.
+- Good: for `segment2_deinterleave_unit_store`, the provider summary binds
+  `src`, `out0`, `out1`, and `n` in that runtime ABI order, and every exported
+  entry carries both `abi` and `hdr`. Target artifact validation must reject
+  stale `runtime-abi-mirror` / `header` summaries before bundle acceptance.
 - Base: non-exported internal temporaries do not receive runtime ABI header
   markers.
 - Bad: a combined route omits header/prototype markers on compare, dot source,

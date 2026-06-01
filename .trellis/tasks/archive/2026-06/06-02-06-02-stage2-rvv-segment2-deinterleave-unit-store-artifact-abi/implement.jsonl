@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body realization, and provider boundary rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider operand-binding summary and common EmitC neutrality contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-indexed-scatter-store-unit-load-artifact-abi/prd.md", "reason": "Closest completed artifact ABI boundary pattern for provider hdr/abi markers and validation."}

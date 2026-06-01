@@ -8218,9 +8218,28 @@ bool expectRVVTargetArtifactExporterShape(
           wrongDeinterleaveRouteOperandBinding,
           "plain segment2 deinterleave validator rejects wrong route operand "
           "binding summary",
-          {"route operand binding summary",
-           "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
-           "metadata-derived-binding"}))
+          {"route operand binding summary", "must start",
+           "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1"}))
+    return false;
+
+  RVVRouteDescription staleDeinterleaveHeaderBinding =
+      segment2DeinterleaveDescription;
+  staleDeinterleaveHeaderBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;"
+      "src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|"
+      "header;"
+      "out0=segment-field0-output-buffer:out0:runtime-abi-mirror|"
+      "field0-store-base|field0-role|dst-mem|header;"
+      "out1=segment-field1-output-buffer:out1:runtime-abi-mirror|"
+      "field1-store-base|field1-role|dst-mem|header;"
+      "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|"
+      "header";
+  if (!expectPlainDeinterleaveProviderFailure(
+          staleDeinterleaveHeaderBinding,
+          "plain segment2 deinterleave validator rejects stale ABI/header "
+          "binding markers",
+          {"logical operand 'src'", "provider ABI marker 'abi'",
+           "header/prototype marker 'hdr'"}))
     return false;
 
   TargetArtifactCandidate wrongDeinterleaveProviderMirrorCandidate =

@@ -23924,7 +23924,7 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               "segment2_deinterleave_unit_store source memory mirror"))
         return std::move(error);
       if (llvm::Error error =
-              requireOperandUse("src", "header",
+              requireOperandUse("src", "hdr",
                                 "segment2_deinterleave_unit_store source "
                                 "header mirror"))
         return std::move(error);
@@ -23942,7 +23942,7 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
                                 "destination memory"))
         return std::move(error);
       if (llvm::Error error =
-              requireOperandUse("out0", "header",
+              requireOperandUse("out0", "hdr",
                                 "segment2_deinterleave_unit_store field0 "
                                 "header mirror"))
         return std::move(error);
@@ -23960,12 +23960,12 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
                                 "destination memory"))
         return std::move(error);
       if (llvm::Error error =
-              requireOperandUse("out1", "header",
+              requireOperandUse("out1", "hdr",
                                 "segment2_deinterleave_unit_store field1 "
                                 "header mirror"))
         return std::move(error);
       if (llvm::Error error = bindRuntimeCount(
-              "loop-control", "header", "segment2_deinterleave_unit_store"))
+              "loop-control", "hdr", "segment2_deinterleave_unit_store"))
         return std::move(error);
       return facts;
     }

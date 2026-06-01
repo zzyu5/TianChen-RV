@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-segment2-deinterleave-unit-store --overwrite --op-kind segment2_deinterleave_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-segment2-deinterleave-unit-store --overwrite --op-kind segment2_deinterleave_unit_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-segment2-deinterleave-unit-store/evidence.json
 # RUN: FileCheck %s --check-prefix=SEGMENT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-segment2-deinterleave-unit-store/segment2_deinterleave_unit_store/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-segment2-deinterleave-unit-store/segment2_deinterleave_unit_store/rvv_generated_bundle_abi_segment2_deinterleave_unit_store_harness.c
@@ -50,7 +50,7 @@
 # SEGMENT-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # SEGMENT-DAG: "value": "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1"
 # SEGMENT-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# SEGMENT-DAG: "value": "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"
+# SEGMENT-DAG: "value": "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:abi|seg-load-base|src-mem|hdr;out0=segment-field0-output-buffer:out0:abi|field0-store-base|field0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|field1-store-base|field1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # SEGMENT-DAG: "key": "tcrv_rvv.segment_memory_layout"
 # SEGMENT-DAG: "value": "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi"
 # SEGMENT-DAG: "key": "tcrv_rvv.segment_count"
@@ -69,15 +69,17 @@
 # SEGMENT-DAG: "value": "segment-field0-output-buffer"
 # SEGMENT-DAG: "key": "tcrv_rvv.field1_role"
 # SEGMENT-DAG: "value": "segment-field1-output-buffer"
-# SEGMENT-DAG: "field_order_contract": "multi-lane segment2_deinterleave_unit_store cases require even and odd interleaved source fields to be distinguishable"
+# SEGMENT-DAG: "field_order_contract": "two segment2_deinterleave_unit_store source patterns require even and odd interleaved source fields to be distinguishable for both field outputs"
 # SEGMENT-DAG: "tail_lane_contract": "field0 and field1 output tail lanes must preserve sentinel values past runtime n"
 # SEGMENT-DAG: "typed_compute_op": "tcrv_rvv.move"
 # SEGMENT-DAG: "memory_form": "segment2-load-unit-store"
 # SEGMENT-DAG: "status": "dry_run_success"
 
+# HARNESS: static int run_case(size_t n, int pattern)
 # HARNESS: tcrv_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store(src, out0, out1, n);
+# HARNESS: field_order_distinguishing_lanes
 # HARNESS: int32_t expected0 = src[2 * index];
 # HARNESS: int32_t expected1 = src[2 * index + 1];
-# HARNESS: field_order_distinguishing_lanes
 # HARNESS: tail_preserved
-# HARNESS: PASS op=segment2_deinterleave_unit_store counts=7,16,23
+# HARNESS: pattern < 2
+# HARNESS: PASS op=segment2_deinterleave_unit_store counts=0,1,16,17,257

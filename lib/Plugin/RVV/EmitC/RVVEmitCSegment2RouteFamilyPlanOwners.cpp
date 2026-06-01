@@ -621,18 +621,16 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
     context = "segment2_deinterleave_unit_store route";
     addSegment2RouteOperandBinding(
         plan, "src", analysis.slice.lhsABI,
-        {"runtime-abi-mirror", "seg-load-base", "src-mem", "header"});
+        {"abi", "seg-load-base", "src-mem", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "out0", analysis.slice.field0ABI,
-        {"runtime-abi-mirror", "field0-store-base", "field0-role",
-         "dst-mem", "header"});
+        {"abi", "field0-store-base", "field0-role", "dst-mem", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "out1", analysis.slice.field1ABI,
-        {"runtime-abi-mirror", "field1-store-base", "field1-role",
-         "dst-mem", "header"});
+        {"abi", "field1-store-base", "field1-role", "dst-mem", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "n", analysis.slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control", "header"});
+        {"abi", "setvl-avl", "loop-control", "hdr"});
     break;
   case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
     plan.planID = kRVVSegment2InterleaveOperandBindingPlanID.str();

@@ -1114,3 +1114,36 @@ Completed computed_masked_indexed_scatter_store_unit_load provider/header bindin
 ### Next Steps
 
 - None - task complete
+
+
+## Session 377: Stage2 RVV segment2 deinterleave artifact ABI
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV segment2 deinterleave artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Tightened segment2_deinterleave_unit_store provider ABI/header binding, target validation, focused tests, dry-run bundle evidence, and ssh rvv correctness over two source patterns.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `HEAD` | Final amended commit for this session |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

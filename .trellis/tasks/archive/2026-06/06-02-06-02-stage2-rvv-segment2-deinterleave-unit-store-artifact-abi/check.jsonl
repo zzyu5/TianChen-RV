@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes stay on the RVV Stage 2 typed-body route."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin owns realization/provider facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider operand-binding summary uses abi/hdr and common EmitC remains neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/script/runtime evidence is sufficient."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-indexed-scatter-store-unit-load-artifact-abi/prd.md", "reason": "Compare validation pattern against previous completed ABI boundary."}

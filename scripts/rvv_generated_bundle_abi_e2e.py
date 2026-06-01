@@ -537,10 +537,10 @@ SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;"
-    "src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;"
-    "out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;"
-    "out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"
+    "src=lhs-input-buffer:src:abi|seg-load-base|src-mem|hdr;"
+    "out0=segment-field0-output-buffer:out0:abi|field0-store-base|field0-role|dst-mem|hdr;"
+    "out1=segment-field1-output-buffer:out1:abi|field1-store-base|field1-role|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
 SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:segment2_interleave_unit_load.v1"
@@ -15118,7 +15118,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t src_alloc_n = alloc_n * 2 + 8;
@@ -15134,7 +15134,18 @@ static int run_case(size_t n) {{
     return 11;
   }}
   for (size_t index = 0; index < src_alloc_n; ++index)
-    src[index] = (int32_t)(1700 + (int32_t)(index * 23));
+    src[index] = {OUT_SENTINEL};
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (pattern == 0) {{
+      src[2 * index] = (int32_t)(1700 + (int32_t)(index * 23));
+      src[2 * index + 1] = (int32_t)(-3100 - (int32_t)(index * 17));
+    }} else {{
+      src[2 * index] =
+          (int32_t)(((index & 1) ? -5200 : 4300) + (int32_t)(index * 13));
+      src[2 * index + 1] =
+          (int32_t)(((index % 3) ? 2800 : -2700) - (int32_t)(index * 29));
+    }}
+  }}
   for (size_t index = 0; index < out_alloc_n; ++index) {{
     out0[index] = {OUT_SENTINEL};
     out1[index] = {OUT_SENTINEL};
@@ -15150,9 +15161,9 @@ static int run_case(size_t n) {{
       ++field_order_distinguishing_lanes;
     if (out0[index] != expected0 || out1[index] != expected1) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got0=%d expected0=%d got1=%d expected1=%d src_even=%d src_odd=%d\\n",
-              n, index, out0[index], expected0, out1[index], expected1,
-              src[2 * index], src[2 * index + 1]);
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got0=%d expected0=%d got1=%d expected1=%d src_even=%d src_odd=%d\\n",
+              n, pattern, index, out0[index], expected0, out1[index],
+              expected1, src[2 * index], src[2 * index + 1]);
       free(src);
       free(out0);
       free(out1);
@@ -15162,8 +15173,8 @@ static int run_case(size_t n) {{
   for (size_t index = n; index < out_alloc_n; ++index) {{
     if (out0[index] != {OUT_SENTINEL} || out1[index] != {OUT_SENTINEL}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got0=%d got1=%d sentinel=%d\\n",
-              n, index, out0[index], out1[index], {OUT_SENTINEL});
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got0=%d got1=%d sentinel=%d\\n",
+              n, pattern, index, out0[index], out1[index], {OUT_SENTINEL});
       free(src);
       free(out0);
       free(out1);
@@ -15172,14 +15183,15 @@ static int run_case(size_t n) {{
   }}
   if (n > 1 && field_order_distinguishing_lanes == 0) {{
     fprintf(stderr,
-            "{expectation.kind} field-order coverage missing n=%zu\\n", n);
+            "{expectation.kind} field-order coverage missing n=%zu pattern=%d\\n",
+            n, pattern);
     free(src);
     free(out0);
     free(out1);
     return 19;
   }}
-  printf("{expectation.kind} case n=%zu ok field_order_distinguishing_lanes=%zu tail_preserved\\n",
-         n, field_order_distinguishing_lanes);
+  printf("{expectation.kind} case n=%zu pattern=%d ok field_order_distinguishing_lanes=%zu tail_preserved\\n",
+         n, pattern, field_order_distinguishing_lanes);
   free(src);
   free(out0);
   free(out1);
@@ -15189,9 +15201,11 @@ static int run_case(size_t n) {{
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   for (size_t i = 0; i < sizeof(counts) / sizeof(counts[0]); ++i) {{
-    int rc = run_case(counts[i]);
-    if (rc != 0)
-      return rc;
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      int rc = run_case(counts[i], pattern);
+      if (rc != 0)
+        return rc;
+    }}
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
@@ -23925,8 +23939,9 @@ def run_one_op_e2e(
             )
         if expectation.is_segment2_deinterleave_unit_store:
             evidence["harness"]["field_order_contract"] = (
-                "multi-lane segment2_deinterleave_unit_store cases require "
-                "even and odd interleaved source fields to be distinguishable"
+                "two segment2_deinterleave_unit_store source patterns require "
+                "even and odd interleaved source fields to be distinguishable "
+                "for both field outputs"
             )
             evidence["harness"]["tail_lane_contract"] = (
                 "field0 and field1 output tail lanes must preserve sentinel "

@@ -61,7 +61,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "segment2-load-unit-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,out0,out1,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:abi|seg-load-base|src-mem|hdr;out0=segment-field0-output-buffer:out0:abi|field0-store-base|field0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|field1-store-base|field1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.segment2_memory_route_family_plan", value = "rvv-segment2-memory-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-segment2-deinterleave-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated"}
@@ -96,7 +96,7 @@ module {
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-segment2-deinterleave-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:segment2_deinterleave_unit_store.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:abi|seg-load-base|src-mem|hdr;out0=segment-field0-output-buffer:out0:abi|field0-store-base|field0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|field1-store-base|field1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr
 // HEADER: tianchenrv.rvv.segment2_memory_route_family_plan: rvv-segment2-memory-route-family-plan.v1
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,segment2:vint32m1x2,field-outputs:signed-e32m1
