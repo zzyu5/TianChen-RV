@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV Stage 1 authority and project invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, route provider, and intrinsic/type authority rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC and target artifact handoff consume provider-built route facts only"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ testing and Stage 1 legacy-authority rules"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that target/export does not acquire RVV provider semantics"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability and typed RVV facts remain structural and plugin-owned"}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage1-typed-rvv-shared-route-profile-leaf-derivation/prd.md", "reason": "Immediate predecessor task that moved shared provider leaves to typed derivation"}

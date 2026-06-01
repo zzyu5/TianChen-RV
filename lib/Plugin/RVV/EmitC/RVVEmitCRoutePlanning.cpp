@@ -7457,6 +7457,10 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
           plan, "source vector C type", plan.sourceVectorCType,
           expectedConfig->vectorCType))
     return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "scalar C type", plan.scalarCType,
+          expectedConfig->scalarCType))
+    return error;
   llvm::StringRef expectedScalarResultVectorType =
       getRVVStandaloneReductionScalarResultVectorTypeName(
           plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul);
@@ -7739,6 +7743,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.vectorCType = configProfile.vectorCType;
   plan.sourceVectorTypeName = configProfile.vectorTypeName;
   plan.sourceVectorCType = configProfile.vectorCType;
+  plan.scalarCType = configProfile.scalarCType;
   plan.scalarResultVectorTypeName =
       getRVVStandaloneReductionScalarResultVectorTypeName(configProfile.sew,
                                                           configProfile.lmul);
@@ -7814,12 +7819,14 @@ void applyRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   description.standaloneReductionSourceVectorTypeName =
       plan.sourceVectorTypeName;
   description.standaloneReductionSourceVectorCType = plan.sourceVectorCType;
+  description.standaloneReductionScalarCType = plan.scalarCType;
   description.standaloneReductionScalarResultVectorTypeName =
       plan.scalarResultVectorTypeName;
   description.standaloneReductionScalarResultVectorCType =
       plan.scalarResultVectorCType;
   description.setVLIntrinsic = plan.setVLIntrinsic;
   description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.sourceSplatIntrinsic = plan.sourceSplatIntrinsic;
   description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
   description.scalarSeedSplatIntrinsic = plan.scalarSeedSplatIntrinsic;
   description.intrinsic = plan.reductionIntrinsic;
@@ -19198,6 +19205,8 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
           plan.sourceVectorTypeName ||
       analysis.description.standaloneReductionSourceVectorCType !=
           plan.sourceVectorCType ||
+      analysis.description.standaloneReductionScalarCType !=
+          plan.scalarCType ||
       analysis.description.standaloneReductionScalarResultVectorTypeName !=
           plan.scalarResultVectorTypeName ||
       analysis.description.standaloneReductionScalarResultVectorCType !=
@@ -21052,6 +21061,7 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
           plan.sourceVectorTypeName ||
       description.standaloneReductionSourceVectorCType !=
           plan.sourceVectorCType ||
+      description.standaloneReductionScalarCType != plan.scalarCType ||
       description.standaloneReductionScalarResultVectorTypeName !=
           plan.scalarResultVectorTypeName ||
       description.standaloneReductionScalarResultVectorCType !=
@@ -28558,6 +28568,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     llvm::StringRef expectedScalarResultVectorCType =
         getRVVStandaloneReductionScalarResultVectorCType(description.sew,
                                                          description.lmul);
+    llvm::StringRef expectedScalarCType =
+        getRVVSelectedBodySignedScalarCType(description.sew);
     if (expectedAccumulatorLayout.empty())
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
@@ -28578,6 +28590,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "standalone reduction source vector C type",
             description.standaloneReductionSourceVectorCType,
             description.vectorCType))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar C type",
+            description.standaloneReductionScalarCType, expectedScalarCType))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction scalar result vector type",
@@ -28628,6 +28644,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction source vector C type",
             description.standaloneReductionSourceVectorCType, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction scalar C type",
+            description.standaloneReductionScalarCType, ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction scalar result vector type",
@@ -29697,6 +29717,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.standalone_reduction_source_vector_c_type",
          description.standaloneReductionSourceVectorCType});
+  if (!description.standaloneReductionScalarCType.empty())
+    metadata.push_back({"tcrv_rvv.standalone_reduction_scalar_c_type",
+                        description.standaloneReductionScalarCType});
   if (!description.standaloneReductionScalarResultVectorTypeName.empty())
     metadata.push_back(
         {"tcrv_rvv.standalone_reduction_scalar_result_vector_type",
@@ -29897,6 +29920,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (isRVVSelectedBodyStandaloneReductionRouteOperation(description.operation)) {
     metadata.push_back({"tcrv_rvv.vector_load_intrinsic",
                         description.vectorLoadIntrinsic});
+    if (!description.sourceSplatIntrinsic.empty())
+      metadata.push_back({"tcrv_rvv.source_splat_intrinsic",
+                          description.sourceSplatIntrinsic});
     metadata.push_back({"tcrv_rvv.scalar_seed_splat_intrinsic",
                         description.scalarSeedSplatIntrinsic});
     metadata.push_back(

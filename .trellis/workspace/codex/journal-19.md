@@ -64,6 +64,59 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 360: Stage1 RVV target artifact validation consume-only leaf facts
+
+**Date**: 2026-06-01
+**Task**: Stage1 RVV target artifact validation consume-only leaf facts
+**Branch**: `main`
+
+### Summary
+
+Converted RVV target artifact route-family validation for widening-dot and
+standalone/runtime-scalar standalone reduction paths into a consume-only
+boundary for provider-derived route/type/leaf facts. Target validation now
+requires provider facts to be present and coherent with rebuilt routes and
+candidate mirrors instead of deriving exact RVV leaves locally.
+
+### Main Changes
+
+- Removed target-local exact widening-dot and standalone reduction intrinsic /
+  vector-type helper authority from `RVVTargetArtifactRouteFamilyValidation`.
+- Added provider-carried standalone source splat and scalar C type description
+  facts, plus artifact metadata mirrors, so target statements consume provider
+  fields rather than deriving them from SEW/LMUL.
+- Updated focused target artifact tests to check missing provider facts,
+  route/candidate mirror mismatches, and provider-derived concrete leaves as
+  artifact output rather than target-local selection logic.
+- Updated the RVV plugin spec's standalone-reduction scalar-channel contract
+  with the provider-derived scalar C type and source splat fields.
+
+### Git Commits
+
+| Commit | Message |
+|--------|---------|
+| this commit | rvv: make target validation consume provider leaves |
+
+### Testing
+
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk git diff --check`
+- [OK] bounded legacy-authority scan: target validation and touched provider
+  interfaces retain no active exact i32 route-authority hits; remaining touched
+  provider hit is the fail-closed `tcrv_rvv.i32_` legacy rejection, tests/specs
+  contain only artifact-output expectations, negative fixtures, or spec text.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 358: Stage1 typed RVV MAcc route-family derivation
 
 **Date**: 2026-06-01

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global Stage 1 authority checks and project invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV intrinsic/type mapping remains provider-owned"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target artifact export consumes provider-built route facts and mirrors"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused test scope and Stage 1 legacy-authority classification"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality and common/target neutrality"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability and typed body authority placement"}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage1-typed-rvv-shared-route-profile-leaf-derivation/prd.md", "reason": "Check consistency with immediately preceding typed route-profile derivation"}

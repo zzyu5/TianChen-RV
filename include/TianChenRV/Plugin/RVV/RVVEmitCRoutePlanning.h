@@ -863,6 +863,7 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef vectorCType;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
+  llvm::StringRef scalarCType;
   llvm::StringRef scalarResultVectorTypeName;
   llvm::StringRef scalarResultVectorCType;
   llvm::StringRef setVLIntrinsic;

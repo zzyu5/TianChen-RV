@@ -984,8 +984,10 @@ distinct source and scalar-result fields, for example:
 ```c++
 sourceVectorTypeName
 sourceVectorCType
+scalarCType
 scalarResultVectorTypeName
 scalarResultVectorCType
+sourceSplatIntrinsic
 ```
 
 #### 3. Contracts
@@ -998,17 +1000,20 @@ source/work channel is `!tcrv_rvv.vector<i32, "m2">` and the scalar
 accumulator/result channel is `!tcrv_rvv.vector<i32, "m1">`.
 
 Provider construction must derive the reduction intrinsic, seed splat, result
-store, C type mapping, route operand binding closure, and target artifact
-mirrors from these typed family-plan facts. Common EmitC may only materialize
-the provider-built route. Header/object exporters may mirror the source and
-scalar-result C/vector types after rebuilding and validating the provider route.
+store, source-channel splat, scalar C type, C type mapping, route operand
+binding closure, and target artifact mirrors from these typed family-plan
+facts. Common EmitC may only materialize the provider-built route.
+Header/object exporters may mirror the source scalar C type and the source /
+scalar-result C/vector types after rebuilding and validating the provider
+route.
 
 For computed-mask standalone reductions, inactive-lane neutralization belongs
 to the source/work channel, not the scalar accumulator/result channel. The
 inactive neutral splat must therefore use the source/work vector type and C
 type, while scalar seed splats and scalar-result stores must use the
-scalar-result channel and lane-0 store VL. This remains true when the source
-LMUL is m2 and the scalar-result LMUL is m1.
+provider-derived `sourceSplatIntrinsic`; scalar seed splats and scalar-result
+stores must use the scalar-result channel and lane-0 store VL. This remains
+true when the source LMUL is m2 and the scalar-result LMUL is m1.
 
 #### 4. Validation & Error Matrix
 
@@ -1028,6 +1033,9 @@ LMUL is m2 and the scalar-result LMUL is m1.
   validated source/work channel and mask facts -> fail closed.
 - Header/artifact metadata claims source or scalar-result types not present in
   the validated family plan -> fail closed as stale mirror metadata.
+- Header/artifact metadata omits or changes the scalar C type or source splat
+  leaf carried by the provider description -> fail closed as stale or missing
+  mirror metadata.
 
 #### 5. Good/Base/Bad Cases
 
