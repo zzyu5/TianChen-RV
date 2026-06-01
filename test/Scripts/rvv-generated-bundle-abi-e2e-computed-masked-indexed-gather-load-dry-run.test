@@ -32,6 +32,8 @@
 # CMIDX-DAG: "value": "cmp_lhs,cmp_rhs,src,index,dst,n"
 # CMIDX-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # CMIDX-DAG: "value": "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"
+# CMIDX-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# CMIDX-DAG: "value": "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # CMIDX-DAG: "key": "tcrv_rvv.masked_memory_layout"
 # CMIDX-DAG: "value": "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi"
 # CMIDX-DAG: "key": "tcrv_rvv.indexed_memory_layout"
@@ -51,5 +53,7 @@
 # HARNESS: int32_t expected = (cmp_lhs[index] < cmp_rhs[index] ? src[indices[index]] : old_dst[index]);
 # HARNESS: inactive lane did not preserve old destination
 # HARNESS: noncontiguous_index_lanes
+# HARNESS: pattern=%zu ok computed_mask indexed_gather
 # HARNESS: source_preserved tail_preserved
-# HARNESS: PASS op=computed_masked_indexed_gather_load_unit_store counts=7,16,23
+# HARNESS: const size_t patterns[] = {0, 1};
+# HARNESS: PASS op=computed_masked_indexed_gather_load_unit_store counts=7,16,23 patterns=0,1

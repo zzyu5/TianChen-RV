@@ -1322,6 +1322,51 @@ llvm::Error validateIndexedBaseMemoryHeaderBindingSummary(
   return llvm::Error::success();
 }
 
+llvm::Error validateComputedMaskIndexedGatherHeaderBindingSummary(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
+  if (description.operation !=
+      OperationKind::ComputedMaskIndexedGatherLoadUnitStore)
+    return llvm::Error::success();
+
+  constexpr llvm::StringLiteral kExpectedPlan(
+      "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1");
+  const llvm::StringRef operationMnemonic =
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
+  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires provider plan '" +
+        kExpectedPlan + "' before artifact export");
+  if (description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary is required before artifact export");
+  if (!llvm::StringRef(description.routeOperandBindingSummary)
+           .starts_with(kExpectedPlan))
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must start with provider plan '" +
+        kExpectedPlan + "' before artifact export");
+
+  constexpr llvm::StringLiteral logicalOperands[] = {
+      "cmp_lhs", "cmp_rhs", "src", "index", "dst", "n"};
+  constexpr std::size_t logicalOperandCount =
+      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
+  if (description.runtimeABIParameters.size() != logicalOperandCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires the provider runtime ABI "
+        "order for cmp_lhs/cmp_rhs/src/index/dst/n before artifact export");
+
+  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
+            description, operationMnemonic, logicalOperands[index],
+            description.runtimeABIParameters[index]))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVBaseMemoryMovementRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -7782,6 +7827,9 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "provider-derived runtime AVL/VL facts before artifact export");
   if (llvm::Error error =
           validateRVVCompareSelectMaskRuntimeABIFacts(description))
+    return error;
+  if (llvm::Error error =
+          validateComputedMaskIndexedGatherHeaderBindingSummary(description))
     return error;
   if (description.comparePredicateKind.empty() ||
       description.compareIntrinsic.empty() ||

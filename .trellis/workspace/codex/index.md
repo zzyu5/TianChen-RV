@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-20.md`
-- **Total Sessions**: 374
+- **Total Sessions**: 375
 - **Last Active**: 2026-06-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-20.md` | ~942 | Active |
+| `journal-20.md` | ~1085 | Active |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
@@ -48,6 +48,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 375 | 2026-06-02 | Stage2 RVV computed-mask indexed gather artifact ABI | pending-final-commit | `main` |
 | 374 | 2026-06-02 | Stage2 RVV strided-input widening dot-reduction artifact ABI boundary | this commit | `main` |
 | 373 | 2026-06-02 | Stage2 RVV computed-masked widening dot-reduction artifact ABI boundary | this commit | `main` |
 | 372 | 2026-06-01 | Stage2 RVV computed-mask standalone-reduction artifact ABI boundary | this commit | `main` |

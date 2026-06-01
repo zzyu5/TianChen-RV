@@ -993,6 +993,13 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
         return "hdr";
       return use;
     }
+    if (plan.planID == kRVVComputedMaskIndexedGatherOperandBindingPlanID) {
+      if (use == "runtime-abi-mirror" || use == "abi-mirror")
+        return "abi";
+      if (use == "header-mirror" || use == "hdr-mirror")
+        return "hdr";
+      return use;
+    }
     const bool usesCompactSummary =
         plan.planID == kRVVRuntimeScalarCompareSelectOperandBindingPlanID ||
         plan.planID ==
@@ -11293,13 +11300,13 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "computed_masked_indexed_gather_load_unit_store route";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
+        {"abi", "cmp-rhs-load", "rhs-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
-        {"abi", "midx-base", "midx-load-call"});
+        {"abi", "midx-base", "midx-load-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "index", slice.indexABI,
         {"abi", "materialized-index-load-base", "index-offset-scale",

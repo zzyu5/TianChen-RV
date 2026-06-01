@@ -1043,3 +1043,43 @@ Pinned strided_input_widening_dot_reduce_add generated-bundle ABI evidence, focu
 ### Next Steps
 
 - None - task complete
+
+
+## Session 375: Stage2 RVV computed-mask indexed gather artifact ABI
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-mask indexed gather artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Tightened computed-mask indexed gather route operand binding through provider, target artifact validation, focused dry-run tests, and ssh rvv evidence.
+
+### Main Changes
+
+- Created and archived Trellis task `06-02-stage2-rvv-computed-masked-indexed-gather-load-unit-store-artifact-abi`.
+- Tightened computed-mask indexed gather operand-binding summaries so `cmp_lhs`, `cmp_rhs`, `src`, `index`, `dst`, and `n` carry provider `abi` and header/prototype `hdr` markers.
+- Added target artifact fail-closed validation for wrong plan id, missing/stale binding summaries, and stale candidate mirror metadata.
+- Updated generated-bundle harness to run counts `0,1,16,17,257` across two mask/index/data patterns and preserve inactive lanes, source sentinels, and tail sentinels.
+- Added direct pre-realized route-entry fail-closed script coverage.
+- Added testing spec guidance that generated-bundle dry-run HARNESS checks inspect generated C source, not remote runtime stdout.
+- Checks: py_compile, script self-test, focused build, target artifact export test, focused lit filter `computed-masked-indexed-gather-load`, explicit/pre-realized dry-runs, and real `ssh rvv` run all passed.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

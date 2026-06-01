@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV/RVV stage authority and source-of-truth boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, computed-mask memory statement-plan, provider-owned route facts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and route operand binding summary contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and ssh rvv evidence requirements"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV-specific semantics inside plugin/provider boundaries"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure selected tcrv.exec plus typed tcrv_rvv body remains the compute boundary"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability/config facts constrain rather than define RVV route authority"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-indexed-gather-unit-store-artifact-abi/prd.md", "reason": "Closest prior provider/header operand-binding marker and ssh rvv evidence pattern"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-indexed-scatter-unit-load-artifact-abi/prd.md", "reason": "Most recent indexed memory ABI validation and fail-closed pattern"}

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no Stage1/Stage2 authority drift or source-front-door/descriptor route authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask memory realization, statement plan, and provider facts remain RVV-owned"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/target artifact only carry provider-built route and exact binding mirrors"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/script/build and ssh rvv evidence match the claimed behavior"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality and absence of common/core semantic inference"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review selected-body compute boundary and typed tcrv_rvv authority"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/config facts are constraints and not route authority"}

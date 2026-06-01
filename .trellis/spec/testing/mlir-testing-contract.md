@@ -58,6 +58,13 @@ that derived identifier is outside the bounded C/EmitC identifier contract.
 Do not treat a shortened fixture symbol as route authority; it is only a
 packaging constraint around an already provider-built route.
 
+For generated-bundle dry-run tests, a `HARNESS` FileCheck prefix normally reads
+the generated C harness source, not remote/runtime stdout. Assert source-level
+facts such as function calls, expected expressions, pattern arrays, prototype
+arguments, and `printf` format strings. Assert concrete runtime lines such as
+`pattern=1 ok ...` only against remote output or evidence JSON fields that
+actually contain stdout.
+
 ### C++ Tests
 
 Use for:

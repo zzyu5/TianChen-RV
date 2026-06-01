@@ -2624,8 +2624,16 @@ RVVManualRouteDescription makeRVVManualIndexedGatherDescription() {
   description.targetLeafProfile =
       "rvv-v1-e32m1-computed-mask-indexed-gather-load-leaf-profile.v1";
   description.routeOperandBindingPlanID =
-      "rvv-computed-mask-indexed-gather-operand-binding-plan.v1";
-  description.routeOperandBindingSummary = "cmp_lhs,cmp_rhs,src,index,dst,n";
+      "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1";
+  description.routeOperandBindingSummary =
+      "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;"
+      "index=index-input-buffer:index:abi|materialized-index-load-base|"
+      "index-offset-scale|index-source-mirror|hdr;"
+      "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
   description.runtimeControlPlanID =
       "rvv-runtime-avl-vl-control-plan.v1";
   description.runtimeABIOrder = "cmp_lhs,cmp_rhs,src,index,dst,n";
@@ -10347,6 +10355,36 @@ bool expectRVVTargetArtifactExporterShape(
           {"index source", "runtime_abi:index", "metadata-derived-index"}))
     return false;
 
+  RVVRouteDescription wrongIndexedBindingPlan = manualIndexedDescription;
+  wrongIndexedBindingPlan.routeOperandBindingPlanID =
+      "metadata-derived-computed-mask-indexed-gather-binding-plan";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute, wrongIndexedBindingPlan,
+          "compare/select mask registry rejects wrong computed-mask indexed "
+          "gather binding plan",
+          {"route operand binding summary requires provider plan",
+           "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"}))
+    return false;
+
+  RVVRouteDescription staleIndexedBindingSummary = manualIndexedDescription;
+  staleIndexedBindingSummary.routeOperandBindingSummary =
+      "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;"
+      "index=index-input-buffer:index:abi|materialized-index-load-base|"
+      "index-offset-scale|index-source-mirror|hdr;"
+      "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute,
+          staleIndexedBindingSummary,
+          "compare/select mask registry rejects computed-mask indexed gather "
+          "binding summary without header marker",
+          {"logical operand 'cmp_lhs'", "provider ABI marker 'abi'",
+           "header/prototype marker 'hdr'"}))
+    return false;
+
   RVVRouteDescription staleIndexedGatherUniqueness =
       manualIndexedDescription;
   staleIndexedGatherUniqueness.indexUniqueness = "unique";
@@ -10516,6 +10554,30 @@ bool expectRVVTargetArtifactExporterShape(
           {"masked_memory_layout",
            "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi",
            "metadata-derived-indexed-layout"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedBindingCandidate =
+      manualIndexedCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedBindingCandidate,
+          "tcrv_rvv.route_operand_binding_operands",
+          "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;"
+          "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+          "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+          "src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;"
+          "index=index-input-buffer:index:abi|materialized-index-load-base|"
+          "index-offset-scale|index-source-mirror|hdr;"
+          "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;"
+          "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedBindingCandidate, manualIndexedRoute,
+          manualIndexedDescription,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "gather binding metadata",
+          {"route_operand_binding_operands",
+           "selected typed RVV compare/select mask binding summary",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedSourceCandidate = manualIndexedCandidate;
