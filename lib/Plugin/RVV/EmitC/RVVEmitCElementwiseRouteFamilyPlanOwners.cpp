@@ -163,6 +163,19 @@ llvm::Error requireScalarBroadcastPlanField(
       field + " '" + expected + "' but found '" + actual + "'");
 }
 
+llvm::Error requireScalarBroadcastPlanDerivedField(
+    const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual) {
+  if (!actual.trim().empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("scalar-broadcast elementwise route-family plan validation "
+                  "for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) +
+      "' requires provider-derived " + field +
+      " from selected typed RVV body/config facts");
+}
+
 llvm::Error requireRouteDescriptionField(llvm::StringRef context,
                                          llvm::StringRef field,
                                          llvm::StringRef actual,
@@ -388,46 +401,6 @@ llvm::StringRef getScalarBroadcastSplatIntrinsic(std::int64_t sew,
   if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       lmul == tcrv::rvv::getRVVLMULM1())
     return "__riscv_vmv_v_x_i32m1";
-  return {};
-}
-
-llvm::StringRef getElementwiseExpectedVectorType(std::int64_t sew,
-                                                 llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "!tcrv_rvv.vector<i32, \"m1\">";
-  return {};
-}
-
-llvm::StringRef getElementwiseExpectedVectorCType(std::int64_t sew,
-                                                  llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "vint32m1_t";
-  return {};
-}
-
-llvm::StringRef getElementwiseExpectedSetVLIntrinsic(std::int64_t sew,
-                                                     llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vsetvl_e32m1";
-  return {};
-}
-
-llvm::StringRef getElementwiseExpectedVectorLoadIntrinsic(std::int64_t sew,
-                                                          llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vle32_v_i32m1";
-  return {};
-}
-
-llvm::StringRef getElementwiseExpectedStoreIntrinsic(std::int64_t sew,
-                                                     llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vse32_v_i32m1";
   return {};
 }
 
@@ -1031,25 +1004,17 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
           requireScalarBroadcastPlanField(plan, "VL C type", plan.vlCType,
                                           "size_t"))
     return error;
-  if (llvm::Error error = requireScalarBroadcastPlanField(
-          plan, "vector type", plan.vectorTypeName,
-          getElementwiseExpectedVectorType(plan.runtimeControlPlan.sew,
-                                           plan.runtimeControlPlan.lmul)))
+  if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
+          plan, "vector type", plan.vectorTypeName))
     return error;
-  if (llvm::Error error = requireScalarBroadcastPlanField(
-          plan, "vector C type", plan.vectorCType,
-          getElementwiseExpectedVectorCType(plan.runtimeControlPlan.sew,
-                                            plan.runtimeControlPlan.lmul)))
+  if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
+          plan, "vector C type", plan.vectorCType))
     return error;
-  if (llvm::Error error = requireScalarBroadcastPlanField(
-          plan, "setvl leaf", plan.setVLIntrinsic,
-          getElementwiseExpectedSetVLIntrinsic(plan.runtimeControlPlan.sew,
-                                               plan.runtimeControlPlan.lmul)))
+  if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
+          plan, "setvl leaf", plan.setVLIntrinsic))
     return error;
-  if (llvm::Error error = requireScalarBroadcastPlanField(
-          plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-          getElementwiseExpectedVectorLoadIntrinsic(
-              plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul)))
+  if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
+          plan, "vector-load leaf", plan.vectorLoadIntrinsic))
     return error;
   if (llvm::Error error = requireScalarBroadcastPlanField(
           plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic,
@@ -1062,10 +1027,8 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
                                             plan.runtimeControlPlan.sew,
                                             plan.runtimeControlPlan.lmul)))
     return error;
-  if (llvm::Error error = requireScalarBroadcastPlanField(
-          plan, "store leaf", plan.storeIntrinsic,
-          getElementwiseExpectedStoreIntrinsic(plan.runtimeControlPlan.sew,
-                                               plan.runtimeControlPlan.lmul)))
+  if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
+          plan, "store leaf", plan.storeIntrinsic))
     return error;
   if (llvm::Error error = requireScalarBroadcastPlanField(
           plan, "result name", plan.resultName,

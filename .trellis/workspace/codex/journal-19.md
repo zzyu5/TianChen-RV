@@ -1535,3 +1535,36 @@ Closed standalone reduction provider-route preflight, mirror validation evidence
 ### Next Steps
 
 - None - task complete
+
+
+## Session 357: Stage1 typed RVV base-memory derivation
+
+**Date**: 2026-06-01
+**Task**: Stage1 typed RVV base-memory derivation
+**Branch**: `main`
+
+### Summary
+
+Derived base-memory route-family memory leaves from typed RVV config facts, tied scalar-broadcast vector/load/store validation to typed facts, added focused RVV plugin tests and evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

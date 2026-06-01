@@ -124,28 +124,6 @@ constexpr llvm::StringLiteral kRVVMaskedStorePassthroughLayout(
 constexpr llvm::StringLiteral kRVVMaskedStoreDestinationMemoryForm(
     "masked-unit-store");
 
-constexpr llvm::StringLiteral kRVVSetVLIntrinsic("__riscv_vsetvl_e32m1");
-constexpr llvm::StringLiteral kRVVVectorLoadIntrinsic(
-    "__riscv_vle32_v_i32m1");
-constexpr llvm::StringLiteral kRVVVectorStoreIntrinsic(
-    "__riscv_vse32_v_i32m1");
-constexpr llvm::StringLiteral kRVVStridedLoadIntrinsic(
-    "__riscv_vlse32_v_i32m1");
-constexpr llvm::StringLiteral kRVVStridedStoreIntrinsic(
-    "__riscv_vsse32_v_i32m1");
-constexpr llvm::StringLiteral kRVVIndexLoadIntrinsic(
-    "__riscv_vle32_v_u32m1");
-constexpr llvm::StringLiteral kRVVIndexScaleIntrinsic(
-    "__riscv_vmul_vx_u32m1");
-constexpr llvm::StringLiteral kRVVIndexedLoadIntrinsic(
-    "__riscv_vloxei32_v_i32m1");
-constexpr llvm::StringLiteral kRVVIndexedStoreIntrinsic(
-    "__riscv_vsoxei32_v_i32m1");
-constexpr llvm::StringLiteral kRVVMaskedLoadIntrinsic(
-    "__riscv_vle32_v_i32m1_tumu");
-constexpr llvm::StringLiteral kRVVMaskedStoreIntrinsic(
-    "__riscv_vse32_v_i32m1_m");
-
 bool isPreRealizedStridedMemoryMovementOpKind(llvm::StringRef opKind) {
   return opKind == "strided_load_unit_store";
 }
@@ -336,6 +314,29 @@ llvm::Error requireBaseMemoryPlanField(
       field + " '" + expected + "' but found '" + actual + "'");
 }
 
+llvm::Error requireBaseMemoryPlanDerivedField(
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, bool required) {
+  if (required) {
+    if (!actual.trim().empty())
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("base memory movement route-family plan validation for "
+                    "operation '") +
+        stringifyRVVSelectedBodyOperationKind(plan.operation) +
+        "' requires provider-derived " + field +
+        " for the active typed memory route");
+  }
+  if (actual.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("base memory movement route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) +
+      "' requires inactive " + field + " to be empty but found '" + actual +
+      "'");
+}
+
 llvm::Error requireBaseMemoryRouteDescriptionField(
     llvm::StringRef context, llvm::StringRef field, llvm::StringRef actual,
     llvm::StringRef expected) {
@@ -345,6 +346,131 @@ llvm::Error requireBaseMemoryRouteDescriptionField(
       llvm::Twine(context) + " " + field +
       " must mirror selected base memory movement owner fact '" + expected +
       "' but was '" + actual + "'");
+}
+
+llvm::Error requireBaseMemoryRouteDescriptionDerivedField(
+    llvm::StringRef context, llvm::StringRef field, llvm::StringRef actual,
+    bool required) {
+  if (required) {
+    if (!actual.trim().empty())
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + field +
+        " must mirror a provider-derived selected base memory movement owner "
+        "fact for the active typed memory route");
+  }
+  if (actual.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " " + field +
+      " must be empty for inactive base memory movement route facts but was '" +
+      actual + "'");
+}
+
+llvm::Error requireBaseMemoryTypedConfigLeaf(
+    const RVVSelectedBodyTypedConfigFacts &typedFacts, llvm::StringRef field,
+    llvm::StringRef value, RVVSelectedBodyOperationKind operation) {
+  if (!value.trim().empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("base memory movement route-family plan requires "
+                  "typed config-derived ") +
+      field + " before deriving memory route facts for operation '" +
+      stringifyRVVSelectedBodyOperationKind(operation) +
+      "' from typed config facts '" + typedFacts.factsID + "'");
+}
+
+llvm::Error requireBaseMemoryTypedConfigLeaves(
+    const RVVSelectedBodyTypedConfigFacts &typedFacts,
+    RVVSelectedBodyOperationKind operation, bool isIndexed,
+    bool isIndexedGather, bool isIndexedScatter, bool isStridedLoad,
+    bool isStridedStore, bool isStaticMaskLoad, bool isStaticMaskStore) {
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+          typedFacts, "VL C type", typedFacts.vlCType, operation))
+    return error;
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+          typedFacts, "vector type", typedFacts.vectorTypeName, operation))
+    return error;
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+          typedFacts, "vector C type", typedFacts.vectorCType, operation))
+    return error;
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+          typedFacts, "setvl leaf", typedFacts.setVLIntrinsic, operation))
+    return error;
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+          typedFacts, "vector-load leaf", typedFacts.vectorLoadIntrinsic,
+          operation))
+    return error;
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+          typedFacts, "store leaf", typedFacts.storeIntrinsic, operation))
+    return error;
+  if (isIndexed) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "index vector type", typedFacts.indexVectorTypeName,
+            operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "index vector C type", typedFacts.indexVectorCType,
+            operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "index-load leaf", typedFacts.indexLoadIntrinsic,
+            operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "index-scale leaf", typedFacts.indexScaleIntrinsic,
+            operation))
+      return error;
+  }
+  if (isIndexedGather) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "indexed-load leaf", typedFacts.indexedLoadIntrinsic,
+            operation))
+      return error;
+  }
+  if (isIndexedScatter) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "indexed-store leaf", typedFacts.indexedStoreIntrinsic,
+            operation))
+      return error;
+  }
+  if (isStridedLoad) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "strided-load leaf", typedFacts.stridedLoadIntrinsic,
+            operation))
+      return error;
+  }
+  if (isStridedStore) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "strided-store leaf", typedFacts.stridedStoreIntrinsic,
+            operation))
+      return error;
+  }
+  if (isStaticMaskLoad) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "mask type", typedFacts.maskTypeName, operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "mask C type", typedFacts.maskCType, operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "masked-load leaf", typedFacts.maskedLoadIntrinsic,
+            operation))
+      return error;
+  }
+  if (isStaticMaskStore) {
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "mask type", typedFacts.maskTypeName, operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "mask C type", typedFacts.maskCType, operation))
+      return error;
+    if (llvm::Error error = requireBaseMemoryTypedConfigLeaf(
+            typedFacts, "masked-store leaf", typedFacts.maskedStoreIntrinsic,
+            operation))
+      return error;
+  }
+  return llvm::Error::success();
 }
 
 RVVSelectedBodyMemoryForm
@@ -794,80 +920,86 @@ llvm::Error validateRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "base memory movement route-family plan requires provider-owned "
         "header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (plan.typedConfigFactsID.empty() || plan.elementTypeName.empty() ||
+      plan.elementBitWidth == 0 || plan.sew == 0 || plan.lmul.empty() ||
+      plan.tailPolicy.empty() || plan.maskPolicy.empty() ||
+      plan.configContractID.empty())
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires provider-derived "
+        "typed config facts for element type, SEW, LMUL, policy, and config "
+        "contract");
+  if (plan.elementBitWidth != plan.sew)
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires element bit width "
+        "to mirror provider-derived SEW");
+  if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      plan.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan currently supports only "
+        "typed SEW32 LMUL m1 data config");
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul ||
+      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      plan.configContractID != plan.runtimeControlPlan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires typed config "
+        "SEW/LMUL/policy/contract facts to mirror runtime AVL/VL control "
+        "facts");
   if (llvm::Error error =
           requireBaseMemoryPlanField(plan, "VL C type", plan.vlCType, "size_t"))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "vector type", plan.vectorTypeName,
-          "!tcrv_rvv.vector<i32, \"m1\">"))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "vector type", plan.vectorTypeName, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "vector C type", plan.vectorCType, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "index vector type", plan.indexVectorTypeName,
-          isIndexed ? llvm::StringRef("!tcrv_rvv.index_vector<i32, \"m1\">")
-                    : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "index vector type", plan.indexVectorTypeName, isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "index vector C type", plan.indexVectorCType,
-          isIndexed ? llvm::StringRef("vuint32m1_t") : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "index vector C type", plan.indexVectorCType, isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "mask type", plan.maskTypeName,
-          isMasked ? llvm::StringRef("!tcrv_rvv.mask<i32, \"m1\">")
-                   : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "mask type", plan.maskTypeName, isMasked))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "mask C type", plan.maskCType,
-          isMasked ? llvm::StringRef("vbool32_t") : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "mask C type", plan.maskCType, isMasked))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "setvl leaf", plan.setVLIntrinsic, kRVVSetVLIntrinsic))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "setvl leaf", plan.setVLIntrinsic, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-          kRVVVectorLoadIntrinsic))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "vector-load leaf", plan.vectorLoadIntrinsic, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "index-load leaf", plan.indexLoadIntrinsic,
-          isIndexed ? llvm::StringRef(kRVVIndexLoadIntrinsic)
-                    : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "index-load leaf", plan.indexLoadIntrinsic, isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "index-scale leaf", plan.indexScaleIntrinsic,
-          isIndexed ? llvm::StringRef(kRVVIndexScaleIntrinsic)
-                    : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "index-scale leaf", plan.indexScaleIntrinsic, isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
           plan, "indexed-load leaf", plan.indexedLoadIntrinsic,
-          isIndexedGather ? llvm::StringRef(kRVVIndexedLoadIntrinsic)
-                          : llvm::StringRef()))
+          isIndexedGather))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
           plan, "indexed-store leaf", plan.indexedStoreIntrinsic,
-          isIndexedScatter ? llvm::StringRef(kRVVIndexedStoreIntrinsic)
-                           : llvm::StringRef()))
+          isIndexedScatter))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "strided-load leaf", plan.stridedLoadIntrinsic,
-          isStridedLoad ? llvm::StringRef(kRVVStridedLoadIntrinsic)
-                        : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "strided-load leaf", plan.stridedLoadIntrinsic, isStridedLoad))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
           plan, "masked-load leaf", plan.maskedLoadIntrinsic,
-          isStaticMaskLoad ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
-                           : llvm::StringRef()))
+          isStaticMaskLoad))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
-          plan, "store leaf", plan.storeIntrinsic,
-          isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
-                            : llvm::StringRef(kRVVVectorStoreIntrinsic)))
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
+          plan, "store leaf", plan.storeIntrinsic, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryPlanField(
+  if (llvm::Error error = requireBaseMemoryPlanDerivedField(
           plan, "strided-store leaf", plan.stridedStoreIntrinsic,
-          isStridedStore ? llvm::StringRef(kRVVStridedStoreIntrinsic)
-                         : llvm::StringRef()))
+          isStridedStore))
     return error;
   if (llvm::Error error = requireBaseMemoryPlanField(
           plan, "result name", plan.resultName,
@@ -1006,8 +1138,13 @@ deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
   if (typedFacts.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
       typedFacts.lmul != tcrv::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
-        "base memory movement route-family plan requires typed e32m1 vector "
-        "configuration facts");
+        "base memory movement route-family plan currently supports only "
+        "typed SEW32 LMUL m1 vector configuration facts");
+  if (llvm::Error error = requireBaseMemoryTypedConfigLeaves(
+          typedFacts, operation, isIndexed, isIndexedGather, isIndexedScatter,
+          isStridedLoad, isStridedStore, isStaticMaskLoad,
+          isStaticMaskStore))
+    return std::move(error);
   if (isStridedLoad &&
       (!analysis.slice.lhsStridedLoad || !analysis.slice.genericStore ||
        !analysis.slice.moveOp ||
@@ -1123,6 +1260,14 @@ deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
   plan.requiredHeaderDeclarations =
       kRVVBaseMemoryMovementRequiredHeaderDeclarations;
   plan.cTypeMappingSummary = getBaseMemoryMovementCTypeMappingSummary(operation);
+  plan.typedConfigFactsID = typedFacts.factsID;
+  plan.elementTypeName = typedFacts.elementTypeName;
+  plan.elementBitWidth = typedFacts.elementBitWidth;
+  plan.sew = typedFacts.sew;
+  plan.lmul = typedFacts.lmul;
+  plan.tailPolicy = typedFacts.tailPolicy;
+  plan.maskPolicy = typedFacts.maskPolicy;
+  plan.configContractID = typedFacts.configContractID;
   plan.vlCType = typedFacts.vlCType;
   plan.vectorTypeName = typedFacts.vectorTypeName;
   plan.vectorCType = typedFacts.vectorCType;
@@ -1132,19 +1277,21 @@ deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
   plan.maskCType = isMasked ? typedFacts.maskCType : "";
   plan.setVLIntrinsic = typedFacts.setVLIntrinsic;
   plan.vectorLoadIntrinsic = typedFacts.vectorLoadIntrinsic;
-  plan.indexLoadIntrinsic = isIndexed ? kRVVIndexLoadIntrinsic : "";
-  plan.indexScaleIntrinsic = isIndexed ? kRVVIndexScaleIntrinsic : "";
-  plan.indexedLoadIntrinsic = isIndexedGather ? kRVVIndexedLoadIntrinsic : "";
+  plan.indexLoadIntrinsic = isIndexed ? typedFacts.indexLoadIntrinsic : "";
+  plan.indexScaleIntrinsic = isIndexed ? typedFacts.indexScaleIntrinsic : "";
+  plan.indexedLoadIntrinsic =
+      isIndexedGather ? typedFacts.indexedLoadIntrinsic : "";
   plan.indexedStoreIntrinsic =
-      isIndexedScatter ? kRVVIndexedStoreIntrinsic : "";
-  plan.stridedLoadIntrinsic = isStridedLoad ? kRVVStridedLoadIntrinsic : "";
-  plan.maskedLoadIntrinsic = isStaticMaskLoad ? kRVVMaskedLoadIntrinsic : "";
+      isIndexedScatter ? typedFacts.indexedStoreIntrinsic : "";
+  plan.stridedLoadIntrinsic =
+      isStridedLoad ? typedFacts.stridedLoadIntrinsic : "";
+  plan.maskedLoadIntrinsic =
+      isStaticMaskLoad ? typedFacts.maskedLoadIntrinsic : "";
   plan.storeIntrinsic =
-      isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
+      isStaticMaskStore ? typedFacts.maskedStoreIntrinsic
                         : typedFacts.storeIntrinsic;
   plan.stridedStoreIntrinsic =
-      isStridedStore ? llvm::StringRef(kRVVStridedStoreIntrinsic)
-                     : llvm::StringRef();
+      isStridedStore ? typedFacts.stridedStoreIntrinsic : llvm::StringRef();
   plan.resultName = getBaseMemoryMovementResultName(operation);
   plan.maskName = getBaseMemoryMovementMaskName(operation);
   plan.maskRole = isMasked ? kRVVMaskRole : "";
@@ -1224,6 +1371,12 @@ void applyRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyBaseMemoryRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
                                                       description);
+  description.elementTypeName = plan.elementTypeName;
+  description.sew = plan.sew;
+  description.lmul = plan.lmul;
+  description.tailPolicy = plan.tailPolicy;
+  description.maskPolicy = plan.maskPolicy;
+  description.configContractID = plan.configContractID;
   description.baseMemoryMovementRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
@@ -1334,78 +1487,65 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
           context, "C type mapping summary", description.cTypeMappingSummary,
           getBaseMemoryMovementCTypeMappingSummary(description.operation)))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "vector type", description.vectorTypeName,
-          "!tcrv_rvv.vector<i32, \"m1\">"))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "element type", description.elementTypeName, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "vector C type", description.vectorCType, "vint32m1_t"))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "vector type", description.vectorTypeName, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "vector C type", description.vectorCType, true))
+    return error;
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "index vector type", description.indexVectorTypeName,
-          isIndexed ? llvm::StringRef("!tcrv_rvv.index_vector<i32, \"m1\">")
-                    : llvm::StringRef()))
+          isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "index vector C type", description.indexVectorCType,
-          isIndexed ? llvm::StringRef("vuint32m1_t") : llvm::StringRef()))
+          isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "mask type", description.maskTypeName,
-          isMasked ? llvm::StringRef("!tcrv_rvv.mask<i32, \"m1\">")
-                   : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "mask type", description.maskTypeName, isMasked))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "mask C type", description.maskCType,
-          isMasked ? llvm::StringRef("vbool32_t") : llvm::StringRef()))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "mask C type", description.maskCType, isMasked))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "setvl leaf", description.setVLIntrinsic,
-          kRVVSetVLIntrinsic))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "setvl leaf", description.setVLIntrinsic, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "vector-load leaf", description.vectorLoadIntrinsic,
-          kRVVVectorLoadIntrinsic))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "vector-load leaf", description.vectorLoadIntrinsic, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "index-load leaf", description.indexLoadIntrinsic,
-          isIndexed ? llvm::StringRef(kRVVIndexLoadIntrinsic)
-                    : llvm::StringRef()))
+          isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "index-scale leaf", description.indexScaleIntrinsic,
-          isIndexed ? llvm::StringRef(kRVVIndexScaleIntrinsic)
-                    : llvm::StringRef()))
+          isIndexed))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "indexed-load leaf", description.indexedLoadIntrinsic,
-          isIndexedGather ? llvm::StringRef(kRVVIndexedLoadIntrinsic)
-                          : llvm::StringRef()))
+          isIndexedGather))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "indexed-store leaf", description.indexedStoreIntrinsic,
-          isIndexedScatter ? llvm::StringRef(kRVVIndexedStoreIntrinsic)
-                           : llvm::StringRef()))
+          isIndexedScatter))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "strided-load leaf", description.stridedLoadIntrinsic,
-          isStridedLoad ? llvm::StringRef(kRVVStridedLoadIntrinsic)
-                        : llvm::StringRef()))
+          isStridedLoad))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "masked-load leaf", description.maskedLoadIntrinsic,
-          isStaticMaskLoad ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
-                           : llvm::StringRef()))
+          isStaticMaskLoad))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
-          context, "store leaf", description.storeIntrinsic,
-          isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
-                            : llvm::StringRef(kRVVVectorStoreIntrinsic)))
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
+          context, "store leaf", description.storeIntrinsic, true))
     return error;
-  if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
+  if (llvm::Error error = requireBaseMemoryRouteDescriptionDerivedField(
           context, "strided-store leaf", description.stridedStoreIntrinsic,
-          isStridedStore ? llvm::StringRef(kRVVStridedStoreIntrinsic)
-                         : llvm::StringRef()))
+          isStridedStore))
     return error;
   if (llvm::Error error = requireBaseMemoryRouteDescriptionField(
           context, "result name", description.resultName,
@@ -1619,6 +1759,81 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
   if (llvm::Error error =
           validateRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(plan))
     return error;
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      analysis.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider requires typed config facts before "
+        "provider materialization");
+  const bool isStridedLoad =
+      operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  const bool isStridedStore =
+      operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore;
+  const bool isIndexedGather =
+      operation == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+  const bool isIndexedScatter =
+      operation == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isStaticMaskLoad =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
+  const bool isStaticMaskStore =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
+  const llvm::StringRef expectedIndexVectorType =
+      isIndexed ? typedFacts.indexVectorTypeName : llvm::StringRef();
+  const llvm::StringRef expectedIndexVectorCType =
+      isIndexed ? typedFacts.indexVectorCType : llvm::StringRef();
+  const llvm::StringRef expectedMaskType =
+      isMasked ? typedFacts.maskTypeName : llvm::StringRef();
+  const llvm::StringRef expectedMaskCType =
+      isMasked ? typedFacts.maskCType : llvm::StringRef();
+  const llvm::StringRef expectedIndexLoadIntrinsic =
+      isIndexed ? typedFacts.indexLoadIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedIndexScaleIntrinsic =
+      isIndexed ? typedFacts.indexScaleIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedIndexedLoadIntrinsic =
+      isIndexedGather ? typedFacts.indexedLoadIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedIndexedStoreIntrinsic =
+      isIndexedScatter ? typedFacts.indexedStoreIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedStridedLoadIntrinsic =
+      isStridedLoad ? typedFacts.stridedLoadIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedMaskedLoadIntrinsic =
+      isStaticMaskLoad ? typedFacts.maskedLoadIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedStoreIntrinsic =
+      isStaticMaskStore ? typedFacts.maskedStoreIntrinsic
+                        : typedFacts.storeIntrinsic;
+  const llvm::StringRef expectedStridedStoreIntrinsic =
+      isStridedStore ? typedFacts.stridedStoreIntrinsic : llvm::StringRef();
+  if (plan.typedConfigFactsID != typedFacts.factsID ||
+      plan.elementTypeName != typedFacts.elementTypeName ||
+      plan.elementBitWidth != typedFacts.elementBitWidth ||
+      plan.sew != typedFacts.sew || plan.lmul != typedFacts.lmul ||
+      plan.tailPolicy != typedFacts.tailPolicy ||
+      plan.maskPolicy != typedFacts.maskPolicy ||
+      plan.configContractID != typedFacts.configContractID ||
+      plan.vlCType != typedFacts.vlCType ||
+      plan.vectorTypeName != typedFacts.vectorTypeName ||
+      plan.vectorCType != typedFacts.vectorCType ||
+      plan.indexVectorTypeName != expectedIndexVectorType ||
+      plan.indexVectorCType != expectedIndexVectorCType ||
+      plan.maskTypeName != expectedMaskType ||
+      plan.maskCType != expectedMaskCType ||
+      plan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      plan.vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+      plan.indexLoadIntrinsic != expectedIndexLoadIntrinsic ||
+      plan.indexScaleIntrinsic != expectedIndexScaleIntrinsic ||
+      plan.indexedLoadIntrinsic != expectedIndexedLoadIntrinsic ||
+      plan.indexedStoreIntrinsic != expectedIndexedStoreIntrinsic ||
+      plan.stridedLoadIntrinsic != expectedStridedLoadIntrinsic ||
+      plan.maskedLoadIntrinsic != expectedMaskedLoadIntrinsic ||
+      plan.storeIntrinsic != expectedStoreIntrinsic ||
+      plan.stridedStoreIntrinsic != expectedStridedStoreIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement route-family typed config snapshot must "
+        "mirror selected typed RVV body/config facts before provider "
+        "materialization");
   if (plan.operation != operation)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -1631,6 +1846,12 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
         " base memory movement route-family plan mirror must match the "
         "validated family plan");
   if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.elementTypeName != plan.elementTypeName ||
+      analysis.description.sew != plan.sew ||
+      analysis.description.lmul != plan.lmul ||
+      analysis.description.tailPolicy != plan.tailPolicy ||
+      analysis.description.maskPolicy != plan.maskPolicy ||
+      analysis.description.configContractID != plan.configContractID ||
       analysis.description.sew != plan.runtimeControlPlan.sew ||
       analysis.description.lmul != plan.runtimeControlPlan.lmul ||
       analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||

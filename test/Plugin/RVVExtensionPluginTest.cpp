@@ -6188,6 +6188,21 @@ module {
                       ->configContractID ==
                   addAnalysis->typedConfigFacts.configContractID &&
               addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->vectorTypeName ==
+                  addAnalysis->typedConfigFacts.vectorTypeName &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->vectorCType ==
+                  addAnalysis->typedConfigFacts.vectorCType &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->setVLIntrinsic ==
+                  addAnalysis->typedConfigFacts.setVLIntrinsic &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->vectorLoadIntrinsic ==
+                  addAnalysis->typedConfigFacts.vectorLoadIntrinsic &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->storeIntrinsic ==
+                  addAnalysis->typedConfigFacts.storeIntrinsic &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
                       ->rhsScalarSplatIntrinsic == "__riscv_vmv_v_x_i32m1" &&
               addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
                       ->arithmeticIntrinsic == "__riscv_vadd_vv_i32m1" &&
@@ -9830,6 +9845,8 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan;
   using tianchenrv::plugin::rvv::
+      deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteControlProviderPlan;
@@ -10226,6 +10243,70 @@ module {
     return 0;
   };
 
+  auto expectBaseMemoryPlanMirrorsTypedConfig =
+      [](const RVVSelectedBodyRouteAnalysis &analysis, bool indexed,
+         bool indexedGather, bool indexedScatter, bool stridedLoad,
+         bool stridedStore, bool staticMaskLoad, bool staticMaskStore,
+         llvm::StringRef context) -> int {
+    const auto *plan = analysis.baseMemoryMovementRouteFamilyPlan
+                           ? &*analysis.baseMemoryMovementRouteFamilyPlan
+                           : nullptr;
+    const auto &facts = analysis.typedConfigFacts;
+    const bool masked = staticMaskLoad || staticMaskStore;
+    const llvm::StringRef expectedIndexVectorType =
+        indexed ? facts.indexVectorTypeName : llvm::StringRef();
+    const llvm::StringRef expectedIndexVectorCType =
+        indexed ? facts.indexVectorCType : llvm::StringRef();
+    const llvm::StringRef expectedMaskType =
+        masked ? facts.maskTypeName : llvm::StringRef();
+    const llvm::StringRef expectedMaskCType =
+        masked ? facts.maskCType : llvm::StringRef();
+    const llvm::StringRef expectedIndexLoad =
+        indexed ? facts.indexLoadIntrinsic : llvm::StringRef();
+    const llvm::StringRef expectedIndexScale =
+        indexed ? facts.indexScaleIntrinsic : llvm::StringRef();
+    const llvm::StringRef expectedIndexedLoad =
+        indexedGather ? facts.indexedLoadIntrinsic : llvm::StringRef();
+    const llvm::StringRef expectedIndexedStore =
+        indexedScatter ? facts.indexedStoreIntrinsic : llvm::StringRef();
+    const llvm::StringRef expectedStridedLoad =
+        stridedLoad ? facts.stridedLoadIntrinsic : llvm::StringRef();
+    const llvm::StringRef expectedMaskedLoad =
+        staticMaskLoad ? facts.maskedLoadIntrinsic : llvm::StringRef();
+    const llvm::StringRef expectedStore =
+        staticMaskStore ? facts.maskedStoreIntrinsic : facts.storeIntrinsic;
+    const llvm::StringRef expectedStridedStore =
+        stridedStore ? facts.stridedStoreIntrinsic : llvm::StringRef();
+    return expect(
+        plan && plan->typedConfigFactsID == facts.factsID &&
+            plan->elementTypeName == facts.elementTypeName &&
+            plan->elementBitWidth == facts.elementBitWidth &&
+            plan->sew == facts.sew && plan->lmul == facts.lmul &&
+            plan->tailPolicy == facts.tailPolicy &&
+            plan->maskPolicy == facts.maskPolicy &&
+            plan->configContractID == facts.configContractID &&
+            plan->vlCType == facts.vlCType &&
+            plan->vectorTypeName == facts.vectorTypeName &&
+            plan->vectorCType == facts.vectorCType &&
+            plan->indexVectorTypeName == expectedIndexVectorType &&
+            plan->indexVectorCType == expectedIndexVectorCType &&
+            plan->maskTypeName == expectedMaskType &&
+            plan->maskCType == expectedMaskCType &&
+            plan->setVLIntrinsic == facts.setVLIntrinsic &&
+            plan->vectorLoadIntrinsic == facts.vectorLoadIntrinsic &&
+            plan->indexLoadIntrinsic == expectedIndexLoad &&
+            plan->indexScaleIntrinsic == expectedIndexScale &&
+            plan->indexedLoadIntrinsic == expectedIndexedLoad &&
+            plan->indexedStoreIntrinsic == expectedIndexedStore &&
+            plan->stridedLoadIntrinsic == expectedStridedLoad &&
+            plan->maskedLoadIntrinsic == expectedMaskedLoad &&
+            plan->storeIntrinsic == expectedStore &&
+            plan->stridedStoreIntrinsic == expectedStridedStore,
+        llvm::Twine(context) +
+            " base memory route-family plan mirrors selected typed "
+            "body/config facts before intrinsic materialization");
+  };
+
   llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedLoadAnalysis =
       analyzeRouteInModule(*module, "strided_load_unit_store_provider_kernel",
                            "rvv_strided_load_unit_store");
@@ -10239,10 +10320,30 @@ module {
           "__riscv_vse32_v_i32m1",
           "strided_load_unit_store typed config facts"))
     return result;
+  RVVSelectedBodyRouteAnalysis unsupportedBaseConfig = *stridedLoadAnalysis;
+  unsupportedBaseConfig.typedConfigFacts.lmul = "m2";
+  llvm::Expected<
+      tianchenrv::plugin::rvv::
+          RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
+      unsupportedBasePlan =
+          deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
+              unsupportedBaseConfig);
+  if (unsupportedBasePlan)
+    return fail(
+        "base memory owner accepted unsupported typed config facts");
+  if (int result = expectErrorContains(
+          unsupportedBasePlan.takeError(),
+          {"base memory movement route-family plan currently supports only "
+           "typed SEW32 LMUL m1 vector configuration facts"}))
+    return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
               *stridedLoadAnalysis, "base memory provider unit test"),
           "valid strided_load_unit_store base memory family provider plan"))
+    return result;
+  if (int result = expectBaseMemoryPlanMirrorsTypedConfig(
+          *stridedLoadAnalysis, false, false, false, true, false, false,
+          false, "strided_load_unit_store"))
     return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors(
@@ -10464,6 +10565,17 @@ module {
            "vint32m1_t", "metadata_i32_vec"}))
     return result;
 
+  RVVSelectedBodyRouteAnalysis staleTypedConfigSnapshot =
+      *stridedLoadAnalysis;
+  staleTypedConfigSnapshot.baseMemoryMovementRouteFamilyPlan
+      ->typedConfigFactsID = "metadata-derived-typed-config";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              staleTypedConfigSnapshot, "base memory provider unit test"),
+          {"base memory movement route-family typed config snapshot",
+           "selected typed RVV body/config facts"}))
+    return result;
+
   RVVSelectedBodyRouteAnalysis stale = *stridedLoadAnalysis;
   stale.description.runtimeAVLASource = "metadata-selected-avl";
   if (int result = expectErrorContains(
@@ -10521,6 +10633,10 @@ module {
               *stridedStoreAnalysis, "base memory provider unit test"),
           "valid unit_load_strided_store base memory family provider plan"))
     return result;
+  if (int result = expectBaseMemoryPlanMirrorsTypedConfig(
+          *stridedStoreAnalysis, false, false, false, false, true, false,
+          false, "unit_load_strided_store"))
+    return result;
   if (int result = expect(
           stridedStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
               stridedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
@@ -10550,6 +10666,10 @@ module {
           verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
               *indexedGatherAnalysis, "base memory provider unit test"),
           "valid indexed_gather_unit_store base memory family provider plan"))
+    return result;
+  if (int result = expectBaseMemoryPlanMirrorsTypedConfig(
+          *indexedGatherAnalysis, true, true, false, false, false, false,
+          false, "indexed_gather_unit_store"))
     return result;
   if (int result = expect(
           indexedGatherAnalysis->baseMemoryMovementRouteFamilyPlan &&
@@ -10619,6 +10739,10 @@ module {
               *indexedScatterAnalysis, "base memory provider unit test"),
           "valid indexed_scatter_unit_load base memory family provider plan"))
     return result;
+  if (int result = expectBaseMemoryPlanMirrorsTypedConfig(
+          *indexedScatterAnalysis, true, false, true, false, false, false,
+          false, "indexed_scatter_unit_load"))
+    return result;
   if (int result = expect(
           indexedScatterAnalysis->baseMemoryMovementRouteFamilyPlan &&
               indexedScatterAnalysis->baseMemoryMovementRouteFamilyPlan
@@ -10651,6 +10775,10 @@ module {
           verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
               *maskedLoadStoreAnalysis, "base memory provider unit test"),
           "valid masked_unit_load_store base memory family provider plan"))
+    return result;
+  if (int result = expectBaseMemoryPlanMirrorsTypedConfig(
+          *maskedLoadStoreAnalysis, false, false, false, false, false, true,
+          false, "masked_unit_load_store"))
     return result;
   if (int result = expect(
           maskedLoadStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
@@ -10721,6 +10849,10 @@ module {
               *maskedStoreAnalysis, "base memory provider unit test"),
           "valid masked_unit_store base memory family provider plan"))
     return result;
+  if (int result = expectBaseMemoryPlanMirrorsTypedConfig(
+          *maskedStoreAnalysis, false, false, false, false, false, false,
+          true, "masked_unit_store"))
+    return result;
   if (int result = expect(
       maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
           maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
@@ -10771,7 +10903,8 @@ module {
                       ->maskMemoryForm == "unit-stride-mask-load" &&
               maskedStoreMaterializationFacts->baseMemoryMovementPlan
                       ->storeIntrinsic ==
-                  "__riscv_vse32_v_i32m1_m" &&
+                  maskedStoreMaterializationFacts->typedConfigFacts
+                      .maskedStoreIntrinsic &&
               maskedStoreMaterializationFacts->compareLeaf ==
                   "__riscv_vmsne_vx_i32m1_b32",
           "masked_unit_store materialization facts consume typed "

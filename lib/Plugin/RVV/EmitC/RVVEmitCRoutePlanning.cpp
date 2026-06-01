@@ -8233,7 +8233,17 @@ deriveRVVSelectedBodyTypedConfigFacts(
   facts.vlCType = configProfile.vlCType;
   facts.setVLIntrinsic = configProfile.setVLIntrinsic;
   facts.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  facts.indexLoadIntrinsic = configProfile.indexLoadIntrinsic;
+  facts.indexScaleIntrinsic = configProfile.indexScaleIntrinsic;
+  facts.indexedLoadIntrinsic = configProfile.indexedLoadIntrinsic;
+  facts.indexedStoreIntrinsic = configProfile.indexedStoreIntrinsic;
+  facts.stridedLoadIntrinsic = configProfile.stridedLoadIntrinsic;
+  facts.maskedLoadIntrinsic =
+      getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(configProfile);
   facts.storeIntrinsic = configProfile.storeIntrinsic;
+  facts.maskedStoreIntrinsic =
+      getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(configProfile);
+  facts.stridedStoreIntrinsic = configProfile.stridedStoreIntrinsic;
   return facts;
 }
 

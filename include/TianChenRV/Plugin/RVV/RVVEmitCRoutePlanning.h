@@ -213,7 +213,15 @@ struct RVVSelectedBodyTypedConfigFacts {
   llvm::StringRef vlCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef indexLoadIntrinsic;
+  llvm::StringRef indexScaleIntrinsic;
+  llvm::StringRef indexedLoadIntrinsic;
+  llvm::StringRef indexedStoreIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
+  llvm::StringRef maskedStoreIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
 
   bool hasFacts() const { return !factsID.empty(); }
 };
@@ -533,6 +541,14 @@ struct RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan {
   bool usesStaticMaskLoad = false;
   bool usesStaticMaskStore = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;

@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV check contract"}
+{"file": ".trellis/tasks/06-01-06-01-stage1-typed-rvv-base-memory-elementwise-intrinsic-derivation/prd.md", "reason": "task acceptance criteria"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp", "reason": "base-memory implementation under check"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp", "reason": "elementwise proof point implementation under check"}
