@@ -1,0 +1,8 @@
+{"file":".trellis/spec/index.md","reason":"Verify final changes preserve global authority chain and Stage 2 scope."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify selected-body realization owner registry, MAcc owner-family boundary, and provider fail-closed behavior."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Verify common EmitC remains neutral and routes are provider-built."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Verify runtime ABI facts and mirror-only metadata rules are preserved."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Verify tests attach to production compiler behavior and no runtime claim is made without ssh rvv evidence."}
+{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"Verify MAcc changes stay plugin-local and do not add core semantic branches."}
+{"file":".trellis/spec/guides/compute-boundary-review-guide.md","reason":"Verify no high-level/core compute boundary drift was introduced."}
+{"file":".trellis/tasks/06-01-stage2-rvv-macc-realization-boundary/prd.md","reason":"Verify implementation satisfies the task acceptance criteria and out-of-scope limits."}

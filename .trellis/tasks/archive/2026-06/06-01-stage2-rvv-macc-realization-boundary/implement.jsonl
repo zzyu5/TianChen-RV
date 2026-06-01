@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"Global RVV-first authority chain, Stage 2 selected-body realization boundary, and forbidden legacy/source/metadata authority."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-local selected-body realization owner registry, MAcc owner-family expectations, and route-provider fail-closed rules."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute boundary."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Emission authority chain, runtime ABI boundary, and mirror-only diagnostics/artifact rules."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Selected variant requirements, Stage 2 realization semantics, and metadata non-authority."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Required MLIR/C++ evidence types and RVV runtime evidence limits."}
+{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"Checks that MAcc realization and provider mapping remain RVV plugin-local."}
+{"file":".trellis/spec/guides/compute-boundary-review-guide.md","reason":"Checks that MAcc remains low-level RVV execution structure, not core/high-level compute IR."}
+{"file":".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary/prd.md","reason":"Previous completed realization-boundary task pattern for focused owner evidence and completion notes."}
