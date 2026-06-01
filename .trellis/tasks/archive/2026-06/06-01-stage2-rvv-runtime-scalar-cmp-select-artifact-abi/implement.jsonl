@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV-first authority chain and Stage 2 selected-body realization boundary for runtime_scalar_cmp_select."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV elementwise/compare-select selected-body realization, provider facts, operand-binding, statement-plan, and fail-closed direct route-entry requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC materializer boundary and prohibition on common RVV semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle compare/select predicate evidence, pre-realized selected-boundary evidence, and ssh rvv correctness requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-runtime-scalar-masked-memory-artifact-abi/prd.md", "reason": "Previous runtime-scalar artifact ABI evidence pattern and direct route-entry fail-closed regression pattern."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "E2E generated-bundle evidence and self-test guard for runtime_scalar_cmp_select."}

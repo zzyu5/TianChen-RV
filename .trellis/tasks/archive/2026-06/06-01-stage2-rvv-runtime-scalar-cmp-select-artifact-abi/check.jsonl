@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must verify the RVV-first authority chain remains intact."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify selected-body realization, runtime-scalar compare/select roles, provider facts, and statement-plan ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify common EmitC/export remains neutral and consumes provider-built route payloads only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify generated-bundle evidence, compare/select predicate boundary, and ssh rvv evidence quality."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-runtime-scalar-masked-memory-artifact-abi/prd.md", "reason": "Compare completion evidence with the previous runtime-scalar masked memory artifact ABI task and direct route-entry fail-closed regression pattern."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Final check must verify the focused self-test guard and runtime_scalar_cmp_select evidence behavior."}

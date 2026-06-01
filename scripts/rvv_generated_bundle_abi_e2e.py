@@ -19561,7 +19561,16 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n, {expectation.element_c_type} rhs_scalar) {{
+struct runtime_scalar_cmp_select_coverage {{
+  size_t true_lanes;
+  size_t false_lanes;
+  size_t mixed_cases;
+  size_t all_true_cases;
+  size_t all_false_cases;
+}};
+
+static int run_case(size_t n, {expectation.element_c_type} rhs_scalar,
+                    struct runtime_scalar_cmp_select_coverage *coverage) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t out_alloc_n = alloc_n + 8;
@@ -19630,15 +19639,15 @@ static int run_case(size_t n, {expectation.element_c_type} rhs_scalar) {{
     }}
   }}
 
-  if (n > 1 && (true_lanes == 0 || false_lanes == 0)) {{
-    fprintf(stderr,
-            "{expectation.kind} select coverage missing n=%zu rhs_scalar={value_printf_format} true_lanes=%zu false_lanes=%zu\\n",
-            n, {value_printf_cast}rhs_scalar, true_lanes, false_lanes);
-    free(lhs);
-    free(true_value);
-    free(false_value);
-    free(out);
-    return 14;
+  if (n > 1) {{
+    coverage->true_lanes += true_lanes;
+    coverage->false_lanes += false_lanes;
+    if (true_lanes != 0 && false_lanes != 0)
+      ++coverage->mixed_cases;
+    else if (true_lanes != 0)
+      ++coverage->all_true_cases;
+    else if (false_lanes != 0)
+      ++coverage->all_false_cases;
   }}
 
   free(lhs);
@@ -19655,15 +19664,29 @@ int main(void) {{
   const {expectation.element_c_type} rhs_scalar_values[] = {{{scalar_values_literal}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  struct runtime_scalar_cmp_select_coverage coverage = {{0, 0, 0, 0, 0}};
   for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
     for (size_t index = 0; index < count_count; ++index) {{
-      int status = run_case(counts[index], rhs_scalar_values[scalar_index]);
+      int status = run_case(counts[index], rhs_scalar_values[scalar_index],
+                            &coverage);
       if (status != 0)
         return status;
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  if (coverage.true_lanes == 0 || coverage.false_lanes == 0 ||
+      coverage.mixed_cases == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} aggregate runtime scalar select coverage missing true_lanes=%zu false_lanes=%zu mixed_cases=%zu all_true_cases=%zu all_false_cases=%zu\\n",
+            coverage.true_lanes, coverage.false_lanes, coverage.mixed_cases,
+            coverage.all_true_cases, coverage.all_false_cases);
+    return 14;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} mixed_cases=%zu all_true_cases=%zu all_false_cases=%zu\\n",
+         coverage.mixed_cases, coverage.all_true_cases,
+         coverage.all_false_cases);
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} true_lanes=%zu false_lanes=%zu mixed_cases=%zu all_true_cases=%zu all_false_cases=%zu\\n",
+         coverage.true_lanes, coverage.false_lanes, coverage.mixed_cases,
+         coverage.all_true_cases, coverage.all_false_cases);
   return 0;
 }}
 """.lstrip()
@@ -24120,6 +24143,31 @@ def run_self_test() -> int:
                 [-37],
             ),
         )
+        direct_runtime_scalar_compare_select_error = expect_self_test_failure(
+            "unsupported direct pre-realized runtime-scalar compare/select "
+            "route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["runtime_scalar_cmp_select"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "runtime_scalar_cmp_select"
+            not in direct_runtime_scalar_compare_select_error
+            or "public selected lowering-boundary producer"
+            not in direct_runtime_scalar_compare_select_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected "
+                "runtime-scalar compare/select fail-closed detail"
+            )
         validate_strided_load_byte_strides([4, 8, 12])
         expect_self_test_failure(
             "zero byte stride", lambda: validate_strided_load_byte_strides([0])
@@ -24539,6 +24587,15 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost runtime scalar "
                     "runtime scalar coverage"
+                )
+            if expectation.is_runtime_scalar_compare_select and (
+                "aggregate runtime scalar select coverage" not in harness
+                or "mixed_cases" not in harness
+                or "all_false_cases" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost runtime scalar "
+                    "compare/select aggregate threshold coverage"
                 )
             if expectation.is_strided_load_unit_store and (
                 "stride_bytes_values" not in harness

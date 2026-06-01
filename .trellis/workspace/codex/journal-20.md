@@ -409,6 +409,63 @@ counts `0,1,16,17,257`.
 - None - task complete after archive, commit, and clean status verification
 
 
+## Session 374: Stage2 RVV runtime-scalar compare-select artifact ABI boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV runtime-scalar compare-select artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved `runtime_scalar_cmp_select` selected-body-to-generated-bundle ABI with
+pre-realized selected-boundary dry-run evidence, direct route-entry
+fail-closed regression, focused C++ and FileCheck coverage, and real `ssh rvv`
+correctness for runtime counts `0,1,16,17,257` with RHS scalar thresholds
+`-500,-37,91`.
+
+### Main Changes
+
+- Created task `06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi` with
+  PRD and context scoped to exactly one runtime-scalar compare/select selected
+  body.
+- Verified the existing production C++ path carries
+  `runtime_scalar_cmp_select` through RVV selected-body realization, provider
+  route facts, compare/select statement planning, common EmitC, RVV target
+  artifact bundle export, and external ABI execution.
+- Added a `rvv_generated_bundle_abi_e2e.py --self-test` regression for the
+  retired direct pre-realized `runtime_scalar_cmp_select` route-entry mode.
+- Repaired the generated runtime-scalar compare/select harness so all-false
+  threshold cases are accepted as valid evidence while aggregate coverage still
+  requires true lanes, false lanes, and at least one mixed case.
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind runtime_scalar_cmp_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -500 --rhs-scalar -37 --rhs-scalar 91 --artifact-root artifacts/tmp/06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi/final-dry-run-v2`
+- [OK] Direct route-entry negative command exited 1 with the expected retired
+  direct route-entry diagnostic for `runtime_scalar_cmp_select`.
+- [OK] Initial real `ssh rvv` run exposed the all-false threshold harness
+  overconstraint and was self-repaired.
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind runtime_scalar_cmp_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -500 --rhs-scalar -37 --rhs-scalar 91 --artifact-root artifacts/tmp/06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi/final-ssh-rvv-v2`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused REALIZED/PLAN/HEADER FileCheck checks for
+  `test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-select.mlir`.
+- [OK] Bounded old-authority scan over touched script/task files and relevant
+  owner/provider/materializer/target/test files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification
+
+
 ## Session 373: Stage2 RVV runtime-scalar masked memory artifact ABI boundary
 
 **Date**: 2026-06-01
