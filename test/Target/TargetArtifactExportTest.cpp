@@ -7164,6 +7164,69 @@ bool expectRVVTargetArtifactExporterShape(
            "source/result memory form"}))
     return false;
 
+  RVVRouteDescription staleStridedDotBinding =
+      stridedWideningDotDescription;
+  staleStridedDotBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:strided_widening_dot_reduce.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;"
+      "rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+      "out=output-buffer:out:abi|store|i32|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+      "lhs_stride=metadata-derived-stride:lhs_stride:abi|str|addr|hdr;"
+      "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr";
+  if (!expectWideningDotProviderFailure(
+          stridedWideningDotFixture.candidate, stridedWideningDotRoute,
+          staleStridedDotBinding,
+          "strided widening-dot registry rejects stale stride binding facts",
+          {"provider route operand binding plan",
+           "exact operand binding summary"}))
+    return false;
+
+  RVVRouteDescription staleStridedDotAccumulatorRole =
+      stridedWideningDotDescription;
+  staleStridedDotAccumulatorRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          stridedWideningDotFixture.candidate, stridedWideningDotRoute,
+          staleStridedDotAccumulatorRole,
+          "strided widening-dot registry rejects stale accumulator ABI role",
+          {"runtime ABI parameter 2", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleStridedDotOutputRole =
+      stridedWideningDotDescription;
+  staleStridedDotOutputRole.runtimeABIParameters[3].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          stridedWideningDotFixture.candidate, stridedWideningDotRoute,
+          staleStridedDotOutputRole,
+          "strided widening-dot registry rejects stale output ABI role",
+          {"runtime ABI parameter 3", "out", "output-buffer"}))
+    return false;
+
+  RVVRouteDescription staleStridedDotLHSStrideRole =
+      stridedWideningDotDescription;
+  staleStridedDotLHSStrideRole.runtimeABIParameters[5].role =
+      RuntimeABIParameterRole::RuntimeElementCount;
+  if (!expectWideningDotProviderFailure(
+          stridedWideningDotFixture.candidate, stridedWideningDotRoute,
+          staleStridedDotLHSStrideRole,
+          "strided widening-dot registry rejects stale lhs stride ABI role",
+          {"runtime ABI parameter 5", "lhs_stride", "lhs-input-stride"}))
+    return false;
+
+  RVVRouteDescription staleStridedDotRHSStrideRole =
+      stridedWideningDotDescription;
+  staleStridedDotRHSStrideRole.runtimeABIParameters[6].role =
+      RuntimeABIParameterRole::RuntimeElementCount;
+  if (!expectWideningDotProviderFailure(
+          stridedWideningDotFixture.candidate, stridedWideningDotRoute,
+          staleStridedDotRHSStrideRole,
+          "strided widening-dot registry rejects stale rhs stride ABI role",
+          {"runtime ABI parameter 6", "rhs_stride", "rhs-input-stride"}))
+    return false;
+
   RVVRouteDescription staleWideningDotNonFamily = wideningDotDescription;
   staleWideningDotNonFamily.plainMAccRouteFamilyPlanID =
       "metadata-derived-plain-macc";

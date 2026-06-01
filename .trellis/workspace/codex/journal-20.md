@@ -907,3 +907,36 @@ Proved the bounded `computed_masked_widening_dot_reduce_add` selected-body-to-ge
 ### Next Steps
 
 - None - task complete
+
+
+## Session 374: Stage2 RVV strided-input widening dot-reduction artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV strided-input widening dot-reduction artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Pinned strided_input_widening_dot_reduce_add generated-bundle ABI evidence, focused strided ABI fail-closed target validation, and ssh rvv correctness for two stride/data patterns.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

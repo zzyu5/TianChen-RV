@@ -72,17 +72,24 @@
 # SDOT-DAG: "direct_pre_realized_route_entry_supported": false
 # SDOT-DAG: "runtime_counts_are_execution_cases_not_widening_dot_authority": true
 # SDOT-DAG: "strided_input_facts":
+# SDOT-DAG: "runtime_strided_input_cases":
+# SDOT-DAG: "lhs_stride": 2
+# SDOT-DAG: "rhs_stride": 3
+# SDOT-DAG: "lhs_stride": 3
+# SDOT-DAG: "rhs_stride": 2
 # SDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
 # SDOT-DAG: "memory_form": "strided-input-widening-dot-reduce"
 # SDOT-DAG: "status": "dry_run_success"
 
-# HARNESS: const size_t lhs_stride = 2;
-# HARNESS: const size_t rhs_stride = 3;
-# HARNESS: tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot(lhs, rhs, acc, out, n, lhs_stride, rhs_stride);
-# HARNESS: size_t lhs_index = index * lhs_stride;
-# HARNESS: size_t rhs_index = index * rhs_stride;
-# HARNESS: int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
-# HARNESS: widening_products
-# HARNESS: strided_signed_horizontal_dot seed_added widening_products=
-# HARNESS: tcrv_rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_ok counts=0,1,16,17,257 lhs_stride=2 rhs_stride=3
-# HARNESS: PASS op=strided_input_widening_dot_reduce_add counts=0,1,16,17,257 lhs_stride=2 rhs_stride=3
+# HARNESS-DAG: static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
+# HARNESS-DAG: {2, 3, 0}
+# HARNESS-DAG: {3, 2, 1}
+# HARNESS-DAG: tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot(lhs, rhs, acc, out, n, lhs_stride, rhs_stride);
+# HARNESS-DAG: size_t lhs_index = index * lhs_stride;
+# HARNESS-DAG: size_t rhs_index = index * rhs_stride;
+# HARNESS-DAG: int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
+# HARNESS-DAG: widening_products
+# HARNESS-DAG: strided_signed_horizontal_dot seed_added widening_products={{.*}} source_strides=
+# HARNESS-DAG: data_pattern=
+# HARNESS-DAG: tcrv_rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_ok counts=0,1,16,17,257 stride_pairs=2:3,3:2 data_patterns=2
+# HARNESS-DAG: PASS op=strided_input_widening_dot_reduce_add counts=0,1,16,17,257 stride_pairs=2:3,3:2 data_patterns=2

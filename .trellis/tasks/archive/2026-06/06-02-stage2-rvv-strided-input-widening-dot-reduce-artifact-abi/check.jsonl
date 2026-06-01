@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused MLIR/generated-bundle/runtime evidence contract"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "dry-run FileCheck evidence for strided widening dot"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir", "reason": "selected-body realization and artifact header FileCheck evidence"}

@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "global stage and authority invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization and contraction provider boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC neutrality and route handoff contract"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "generated bundle evidence and runtime harness"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "target artifact validator focused fail-closed tests"}

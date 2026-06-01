@@ -18460,10 +18460,9 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
+                    int pattern) {{
   /* expected: {expectation.expected_expression} */
-  const size_t lhs_stride = 2;
-  const size_t rhs_stride = 3;
   size_t lhs_alloc = n * lhs_stride + 8;
   size_t rhs_alloc = n * rhs_stride + 8;
   size_t out_alloc = n + 5;
@@ -18483,18 +18482,26 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < lhs_alloc; ++index)
-    lhs[index] = (int16_t)(((index % 2) == 0) ? 17 : -19);
+    lhs[index] = (int16_t)((pattern == 0)
+                               ? (((index % 2) == 0) ? 17 : -19)
+                               : (((index % 3) == 0) ? -31 : 37));
   for (size_t index = 0; index < rhs_alloc; ++index)
-    rhs[index] = (int16_t)(((index % 3) == 0) ? -23 : 29);
+    rhs[index] = (int16_t)((pattern == 0)
+                               ? (((index % 3) == 0) ? -23 : 29)
+                               : (((index % 4) == 0) ? 41 : -43));
   for (size_t index = 0; index < out_alloc; ++index) {{
-    acc[index] = {expectation.source_initializer};
+    acc[index] = (int32_t)({expectation.source_initializer} + pattern * 7);
     out[index] = {expectation.out_initializer};
   }}
   for (size_t index = 0; index < n; ++index) {{
     lhs[index * lhs_stride] =
-        (int16_t)(((index % 4) < 2) ? 200 : -210);
+        (int16_t)((pattern == 0)
+                      ? (((index % 4) < 2) ? 200 : -210)
+                      : (((index % 6) < 3) ? -220 : 230));
     rhs[index * rhs_stride] =
-        (int16_t)(((index % 5) == 0) ? -190 : 180);
+        (int16_t)((pattern == 0)
+                      ? (((index % 5) == 0) ? -190 : 180)
+                      : (((index % 5) < 2) ? 170 : -185));
   }}
 
   {expectation.function_name}(lhs, rhs, acc, out, n, lhs_stride, rhs_stride);
@@ -18526,10 +18533,10 @@ static int run_case(size_t n) {{
 
   if (out[0] != expected) {{
     fprintf(stderr,
-            "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d lhs_stride=%zu rhs_stride=%zu positive_products=%zu negative_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu\\n",
+            "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d lhs_stride=%zu rhs_stride=%zu pattern=%d positive_products=%zu negative_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu\\n",
             n, out[0], expected, acc[0], lhs_stride, rhs_stride,
-            positive_products, negative_products, lhs_skipped_nonzero,
-            rhs_skipped_nonzero);
+            pattern, positive_products, negative_products,
+            lhs_skipped_nonzero, rhs_skipped_nonzero);
     free(lhs);
     free(rhs);
     free(acc);
@@ -18554,9 +18561,10 @@ static int run_case(size_t n) {{
                 widening_products == 0 || lhs_skipped_nonzero == 0 ||
                 rhs_skipped_nonzero == 0 || acc[0] == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu widening_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
-            n, positive_products, negative_products, widening_products,
-            lhs_skipped_nonzero, rhs_skipped_nonzero, acc[0]);
+            "{expectation.kind} coverage missing n=%zu lhs_stride=%zu rhs_stride=%zu pattern=%d positive_products=%zu negative_products=%zu widening_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
+            n, lhs_stride, rhs_stride, pattern, positive_products,
+            negative_products, widening_products, lhs_skipped_nonzero,
+            rhs_skipped_nonzero, acc[0]);
     free(lhs);
     free(rhs);
     free(acc);
@@ -18568,21 +18576,34 @@ static int run_case(size_t n) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok strided_signed_horizontal_dot seed_added widening_products=%zu source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved\\n",
-         n, widening_products);
+  printf("{expectation.kind} case n=%zu ok strided_signed_horizontal_dot seed_added widening_products=%zu source_strides=%zu,%zu data_pattern=%d skipped_source_elements_ignored scalar_output tail_preserved\\n",
+         n, widening_products, lhs_stride, rhs_stride, pattern);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
+  const struct {{
+    size_t lhs_stride;
+    size_t rhs_stride;
+    int pattern;
+  }} cases[] = {{
+      {{2, 3, 0}},
+      {{3, 2, 1}},
+  }};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t case_count = sizeof(cases) / sizeof(cases[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t case_index = 0; case_index < case_count; ++case_index) {{
+      int status = run_case(counts[index], cases[case_index].lhs_stride,
+                            cases[case_index].rhs_stride,
+                            cases[case_index].pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} lhs_stride=2 rhs_stride=3\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} lhs_stride=2 rhs_stride=3\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 data_patterns=2\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 data_patterns=2\\n");
   return 0;
 }}
 """.lstrip()
@@ -22660,6 +22681,18 @@ def widening_dot_reduction_boundary_summary(
                 STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
             ),
         }
+        provider_route_facts["runtime_strided_input_cases"] = [
+            {
+                "lhs_stride": 2,
+                "rhs_stride": 3,
+                "data_pattern": "alternating signed large i16 products",
+            },
+            {
+                "lhs_stride": 3,
+                "rhs_stride": 2,
+                "data_pattern": "swapped stride signed large i16 products",
+            },
+        ]
     else:
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
@@ -24619,6 +24652,9 @@ def run_self_test() -> int:
                 provider_facts = widening_dot_boundary.get(
                     "provider_route_facts", {}
                 )
+                strided_input_cases = provider_facts.get(
+                    "runtime_strided_input_cases", []
+                )
                 statement_plan = widening_dot_boundary.get("statement_plan", {})
                 if (
                     widening_dot_metadata.get("tcrv_rvv.widening_dot_relation")
@@ -24649,6 +24685,26 @@ def run_self_test() -> int:
                     != expected_binding_operands
                     or provider_facts.get("effective_source_load_intrinsic")
                     != expected_source_load
+                    or (
+                        expectation.is_strided_input_widening_dot_reduce_add
+                        and strided_input_cases
+                        != [
+                            {
+                                "lhs_stride": 2,
+                                "rhs_stride": 3,
+                                "data_pattern": (
+                                    "alternating signed large i16 products"
+                                ),
+                            },
+                            {
+                                "lhs_stride": 3,
+                                "rhs_stride": 2,
+                                "data_pattern": (
+                                    "swapped stride signed large i16 products"
+                                ),
+                            },
+                        ]
+                    )
                     or provider_facts.get("widening_product_intrinsic")
                     != "__riscv_vwmul_vv_i32m1"
                     or provider_facts.get("scalar_seed_splat_intrinsic")
@@ -25115,7 +25171,8 @@ def run_self_test() -> int:
                 or "widening_products" not in harness
                 or "lhs_skipped_nonzero" not in harness
                 or "rhs_skipped_nonzero" not in harness
-                or "lhs_stride=2 rhs_stride=3" not in harness
+                or "stride_pairs=2:3,3:2" not in harness
+                or "data_patterns=2" not in harness
             ):
                 raise AssertionError(
                     "self-test harness generation lost strided widening "
