@@ -9434,6 +9434,30 @@ bool expectRVVTargetArtifactExporterShape(
            "hdr"}))
     return false;
 
+  RVVRouteDescription staleIndexedScatterBindingSummary =
+      baseIndexedScatterDescription;
+  std::string staleIndexedScatterSummary =
+      staleIndexedScatterBindingSummary.routeOperandBindingSummary;
+  const std::string::size_type firstScatterHeaderMarker =
+      staleIndexedScatterSummary.find("|hdr");
+  if (firstScatterHeaderMarker == std::string::npos) {
+    llvm::errs() << "indexed-scatter test fixture did not contain header "
+                    "binding marker\n";
+    return false;
+  }
+  staleIndexedScatterSummary.replace(firstScatterHeaderMarker,
+                                     std::string("|hdr").size(),
+                                     "|header-mirror");
+  staleIndexedScatterBindingSummary.routeOperandBindingSummary =
+      staleIndexedScatterSummary;
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedScatterFixture.candidate, baseIndexedScatterRoute,
+          staleIndexedScatterBindingSummary,
+          "base-memory registry rejects stale indexed scatter binding summary",
+          {"indexed_scatter_unit_load", "logical operand 'src'", "abi",
+           "hdr"}))
+    return false;
+
   RVVRouteDescription wrongBaseMaskBinding = baseMaskedDescription;
   wrongBaseMaskBinding.maskSource = "metadata-derived-mask";
   if (!expectBaseMemoryProviderFailure(
@@ -9869,6 +9893,25 @@ bool expectRVVTargetArtifactExporterShape(
           {"route_operand_binding_operands",
            "selected typed RVV base-memory binding summary",
            "metadata-derived-indexed-gather-binding"}))
+    return false;
+
+  TargetArtifactCandidate staleIndexedScatterBindingMirror =
+      baseIndexedScatterFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleIndexedScatterBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          "metadata-derived-indexed-scatter-binding")) {
+    llvm::errs() << "base-memory scatter test fixture did not contain route "
+                    "operand binding metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          staleIndexedScatterBindingMirror, baseIndexedScatterRoute,
+          baseIndexedScatterDescription,
+          "base-memory registry rejects stale indexed scatter binding mirror",
+          {"route_operand_binding_operands",
+           "selected typed RVV base-memory binding summary",
+           "metadata-derived-indexed-scatter-binding"}))
     return false;
 
   TargetArtifactCandidate wrongBaseMaskMirror = baseMaskedFixture.candidate;

@@ -984,7 +984,9 @@ std::string
 stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
   auto stringifyUseForSummary = [&](llvm::StringRef use) -> llvm::StringRef {
     if (plan.planID ==
-        "rvv-route-operand-binding:indexed_gather_unit_store.v1") {
+            "rvv-route-operand-binding:indexed_gather_unit_store.v1" ||
+        plan.planID ==
+            "rvv-route-operand-binding:indexed_scatter_unit_load.v1") {
       if (use == "runtime-abi-mirror")
         return "abi";
       if (use == "header-mirror")

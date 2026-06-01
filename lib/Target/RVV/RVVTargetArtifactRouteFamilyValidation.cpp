@@ -1238,8 +1238,9 @@ bool bindingSummaryUseListContains(llvm::StringRef useList,
   return false;
 }
 
-llvm::Error requireIndexedGatherHeaderBindingSummaryEntry(
+llvm::Error requireIndexedBaseMemoryHeaderBindingSummaryEntry(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef operationMnemonic,
     llvm::StringRef logicalOperand,
     const support::RuntimeABIParameter &parameter) {
   llvm::SmallVector<llvm::StringRef, 8> entries;
@@ -1255,8 +1256,8 @@ llvm::Error requireIndexedGatherHeaderBindingSummaryEntry(
     rest.split(fields, ':', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
     if (fields.size() != 3)
       return makeRVVTargetRouteError(
-          llvm::Twine("indexed_gather_unit_store route operand binding "
-                      "summary requires logical operand '") +
+          llvm::Twine(operationMnemonic) +
+          " route operand binding summary requires logical operand '" +
           logicalOperand + "' to record role, C name, and materialized uses "
                            "before artifact export");
 
@@ -1264,16 +1265,16 @@ llvm::Error requireIndexedGatherHeaderBindingSummaryEntry(
         support::stringifyRuntimeABIParameterRole(parameter.role);
     if (fields[0] != expectedRole || fields[1] != parameter.cName)
       return makeRVVTargetRouteError(
-          llvm::Twine("indexed_gather_unit_store route operand binding "
-                      "summary requires logical operand '") +
+          llvm::Twine(operationMnemonic) +
+          " route operand binding summary requires logical operand '" +
           logicalOperand + "' to bind runtime ABI role '" + expectedRole +
           "' and C name '" + parameter.cName + "' before artifact export");
 
     if (!bindingSummaryUseListContains(fields[2], "abi") ||
         !bindingSummaryUseListContains(fields[2], "hdr"))
       return makeRVVTargetRouteError(
-          llvm::Twine("indexed_gather_unit_store route operand binding "
-                      "summary requires logical operand '") +
+          llvm::Twine(operationMnemonic) +
+          " route operand binding summary requires logical operand '" +
           logicalOperand +
           "' to carry provider ABI marker 'abi' and header/prototype marker "
           "'hdr' before artifact export");
@@ -1281,31 +1282,41 @@ llvm::Error requireIndexedGatherHeaderBindingSummaryEntry(
   }
 
   return makeRVVTargetRouteError(
-      llvm::Twine("indexed_gather_unit_store route operand binding summary "
-                  "requires logical operand '") +
+      llvm::Twine(operationMnemonic) +
+      " route operand binding summary requires logical operand '" +
       logicalOperand + "' before artifact export");
 }
 
-llvm::Error validateIndexedGatherHeaderBindingSummary(
+llvm::Error validateIndexedBaseMemoryHeaderBindingSummary(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.operation !=
-      plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore)
+  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
+  if (description.operation != OperationKind::IndexedGatherUnitStore &&
+      description.operation != OperationKind::IndexedScatterUnitLoad)
     return llvm::Error::success();
+  const llvm::StringRef operationMnemonic =
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
-        "indexed_gather_unit_store route operand binding summary is required "
-        "before artifact export");
-  constexpr llvm::StringLiteral logicalOperands[] = {"data", "index", "out",
-                                                     "n"};
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary is required before artifact export");
+  constexpr llvm::StringLiteral gatherLogicalOperands[] = {"data", "index",
+                                                           "out", "n"};
+  constexpr llvm::StringLiteral scatterLogicalOperands[] = {"src", "index",
+                                                            "dst", "n"};
+  llvm::ArrayRef<llvm::StringLiteral> logicalOperands =
+      description.operation == OperationKind::IndexedGatherUnitStore
+          ? llvm::ArrayRef<llvm::StringLiteral>(gatherLogicalOperands)
+          : llvm::ArrayRef<llvm::StringLiteral>(scatterLogicalOperands);
   constexpr std::size_t logicalOperandCount =
-      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
+      sizeof(gatherLogicalOperands) / sizeof(gatherLogicalOperands[0]);
   if (description.runtimeABIParameters.size() != logicalOperandCount)
     return makeRVVTargetRouteError(
-        "indexed_gather_unit_store route operand binding summary requires the "
-        "data,index,out,n runtime ABI order before artifact export");
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires the provider runtime ABI "
+        "order before artifact export");
   for (std::size_t index = 0; index < logicalOperandCount; ++index)
-    if (llvm::Error error = requireIndexedGatherHeaderBindingSummaryEntry(
-            description, logicalOperands[index],
+    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
+            description, operationMnemonic, logicalOperands[index],
             description.runtimeABIParameters[index]))
       return error;
   return llvm::Error::success();
@@ -1534,7 +1545,7 @@ llvm::Error validateRVVBaseMemoryMovementRuntimeABIFacts(
           " before validating route statements");
   }
 
-  return validateIndexedGatherHeaderBindingSummary(description);
+  return validateIndexedBaseMemoryHeaderBindingSummary(description);
 }
 
 llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(

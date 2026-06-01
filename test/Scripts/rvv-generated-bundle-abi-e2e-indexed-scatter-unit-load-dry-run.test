@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id indexed-scatter-unit-load --overwrite --op-kind indexed_scatter_unit_load --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id indexed-scatter-unit-load --overwrite --op-kind indexed_scatter_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/indexed-scatter-unit-load/evidence.json
 # RUN: FileCheck %s --check-prefix=SCATTER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/indexed-scatter-unit-load/indexed_scatter_unit_load/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/indexed-scatter-unit-load/indexed_scatter_unit_load/rvv_generated_bundle_abi_indexed_scatter_unit_load_harness.c
@@ -37,7 +37,7 @@
 # SCATTER-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # SCATTER-DAG: "value": "rvv-route-operand-binding:indexed_scatter_unit_load.v1"
 # SCATTER-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# SCATTER-DAG: "value": "rvv-route-operand-binding:indexed_scatter_unit_load.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;dst=output-buffer:dst:runtime-abi-mirror|materialized-indexed-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# SCATTER-DAG: "value": "rvv-route-operand-binding:indexed_scatter_unit_load.v1;src=lhs-input-buffer:src:abi|materialized-load-base|move-source|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|materialized-indexed-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # SCATTER-DAG: "typed_compute_op": "tcrv_rvv.move"
 # SCATTER-DAG: "memory_form": "unit-load-indexed-store"
 # SCATTER-DAG: "status": "dry_run_success"
@@ -46,4 +46,6 @@
 # HARNESS: uint32_t dst_index = indices[logical_index];
 # HARNESS: int32_t expected = src[logical_index];
 # HARNESS: unique_non_monotonic_indexed_scatter
-# HARNESS: PASS op=indexed_scatter_unit_load counts=7,16,23
+# HARNESS: output_order_distinguishing_lanes
+# HARNESS: source_preserved tail_preserved
+# HARNESS: PASS op=indexed_scatter_unit_load counts=0,1,16,17,257 index_patterns=2

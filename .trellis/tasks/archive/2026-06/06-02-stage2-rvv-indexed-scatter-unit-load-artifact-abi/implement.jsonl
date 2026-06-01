@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 selected-body route boundary."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin classification, Stage 2 priority, and plugin locality checklist."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, base memory movement statement-plan boundary, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "EmitC route and target artifact handoff checklist."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, provider operand-binding summary, and Common EmitC neutrality contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/FileCheck, C++ API, and ssh rvv evidence checklist."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Pre-realized selected-body generated-bundle evidence, runtime tail preservation, and direct route-entry fail-closed contract."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first dtype/config/route authority guardrails."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV plugin-owned route provider, selected-body realization, and common/core locality guardrails."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep indexed scatter at low-level tcrv_rvv execution level and out of core/high-level compute IR."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-indexed-gather-unit-store-artifact-abi/prd.md", "reason": "Closest completed indexed memory artifact ABI boundary pattern, evidence format, direct route-entry negative coverage, and old-authority scan style."}
