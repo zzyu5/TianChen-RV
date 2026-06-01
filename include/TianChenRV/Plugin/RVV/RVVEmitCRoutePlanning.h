@@ -263,6 +263,14 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   bool usesScalarSeed = false;
   bool usesVectorAccumulator = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -276,6 +284,8 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
+  llvm::StringRef sourceElementTypeName;
+  std::int64_t sourceElementBitWidth = 0;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
   llvm::StringRef sourceVectorTypeName;

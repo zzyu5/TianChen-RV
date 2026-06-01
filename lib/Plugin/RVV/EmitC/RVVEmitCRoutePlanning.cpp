@@ -27641,35 +27641,20 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "index vector C type", description.indexVectorCType, ""))
       return error;
   }
-  if (operationProfile.operation ==
-          RVVSelectedBodyOperationKind::WideningMAccAdd ||
-      operationProfile.operation ==
-          RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
-      isStridedInputWideningDotReduce ||
-      isComputedMaskWideningDotReduce ||
-      isComputedMaskStridedInputWideningDotReduce) {
-    if (description.sourceSEW != tcrv::rvv::getRVVSEW16Bits())
+  if (isContractionRoute) {
+    if (description.sourceSEW <= 0)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " source SEW must be provider-derived from typed source vectors "
-          "for widening mixed-width RVV routes");
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "source LMUL", description.sourceLMUL,
-            tcrv::rvv::getRVVLMULMF2()))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "source vector type", description.sourceVectorTypeName,
-            "!tcrv_rvv.vector<i16, \"mf2\">"))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "source vector C type", description.sourceVectorCType,
-            "vint16mf2_t"))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "source vector-load intrinsic",
-            description.sourceVectorLoadIntrinsic,
-            "__riscv_vle16_v_i16mf2"))
-      return error;
+          "for widening mixed-width RVV contraction routes");
+    if (description.sourceLMUL.empty() ||
+        description.sourceVectorTypeName.empty() ||
+        description.sourceVectorCType.empty() ||
+        description.sourceVectorLoadIntrinsic.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " source LMUL/type/load leaves must be provider-derived from typed "
+          "source vectors for widening mixed-width RVV contraction routes");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "conversion relation", description.conversionRelation,
             ""))

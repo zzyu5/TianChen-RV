@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide Stage 1 RVV authority reset invariants and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin typed body authority, direct contraction provider, and Stage 1 route-authority rules."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Common EmitC route boundary and mirror-vs-authority constraints."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++ evidence and RVV Stage 1 testing requirements."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected-body route authority and variant metadata mirror constraints."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage1-typed-rvv-macc-route-family-derivation/prd.md", "reason": "Completed typed-fact derivation pattern for neighboring MAcc family."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage1-typed-rvv-macc-route-family-derivation/evidence-summary.md", "reason": "Prior focused checks, scan style, and accepted evidence pattern."}

@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -30,25 +31,17 @@ constexpr llvm::StringLiteral kRVVWideningMAccAccumulatorLayout(
     "separate-i32-vector-accumulator-input");
 constexpr llvm::StringLiteral kRVVWideningMAccResultLayout(
     "store-widening-multiply-accumulate-result-to-output-buffer");
-constexpr llvm::StringLiteral kRVVWideningMAccRelation(
-    "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1");
 constexpr llvm::StringLiteral kRVVWideningDotProductAccumulatorLayout(
     "scalar-i32-seed-lane0-from-accumulator-input");
 constexpr llvm::StringLiteral kRVVWideningDotProductResultLayout(
     "store-dot-reduction-lane0-to-output-scalar");
-constexpr llvm::StringLiteral kRVVWideningDotProductRelation(
-    "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32");
 constexpr llvm::StringLiteral kRVVWideningDotProductStoreVL("1");
 constexpr llvm::StringLiteral kRVVContractionRouteFamilyPlanID(
     "rvv-contraction-route-family-plan.v1");
-constexpr llvm::StringLiteral kRVVContractionTargetLeafProfile(
-    "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVContractionProviderSupportedMirror(
     "provider_supported_mirror:rvv-contraction-family-plan-validated");
 constexpr llvm::StringLiteral kRVVContractionRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
-constexpr llvm::StringLiteral kRVVContractionCTypeMappingSummary(
-    "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32");
 constexpr llvm::StringLiteral
     kRVVContractionMaskedInactiveLaneZeroingRequirement(
         "masked-widening-products-zero-inactive-lanes-before-reduction");
@@ -125,19 +118,261 @@ bool isPreRealizedComputedMaskWideningDotReduceOpKind(
   return opKind == kRVVPreRealizedComputedMaskWideningDotReduceOpKind;
 }
 
+struct RVVContractionVectorFacts {
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+};
+
+llvm::StringRef internContractionDerivedText(std::string text) {
+  static llvm::StringSet<> textPool;
+  return textPool.insert(std::move(text)).first->getKey();
+}
+
+std::string stringifyContractionMLIRType(mlir::Type type) {
+  std::string storage;
+  llvm::raw_string_ostream os(storage);
+  type.print(os);
+  return storage;
+}
+
+llvm::StringRef getContractionIntegerElementTypeName(std::int64_t sew) {
+  if (sew <= 0)
+    return {};
+  return internContractionDerivedText((llvm::Twine("i") + llvm::Twine(sew)).str());
+}
+
+llvm::StringRef getContractionSignedVectorCType(std::int64_t sew,
+                                                llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("vint") + llvm::Twine(sew) + lmul + "_t").str());
+}
+
+llvm::StringRef getContractionVectorTypeName(std::int64_t sew,
+                                             llvm::StringRef lmul) {
+  llvm::StringRef elementTypeName = getContractionIntegerElementTypeName(sew);
+  if (elementTypeName.empty() || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("!tcrv_rvv.vector<") + elementTypeName + ", \"" + lmul +
+       "\">")
+          .str());
+}
+
+llvm::StringRef getContractionVectorLoadIntrinsic(std::int64_t sew,
+                                                  llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vle") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getContractionStridedLoadIntrinsic(std::int64_t sew,
+                                                   llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vlse") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getContractionSetVLIntrinsic(std::int64_t sew,
+                                             llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vsetvl_e") + llvm::Twine(sew) + lmul).str());
+}
+
+llvm::StringRef getContractionStoreIntrinsic(std::int64_t sew,
+                                             llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+std::optional<std::int64_t> getContractionMaskBitWidth(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  if (sew <= 0)
+    return std::nullopt;
+  if (lmul == tcrv::rvv::getRVVLMULM1())
+    return sew;
+  if (lmul == tcrv::rvv::getRVVLMULM2())
+    return sew / 2;
+  if (lmul == tcrv::rvv::getRVVLMULMF2())
+    return sew * 2;
+  return std::nullopt;
+}
+
+llvm::StringRef getContractionMaskCType(std::int64_t sew,
+                                        llvm::StringRef lmul) {
+  std::optional<std::int64_t> maskBits =
+      getContractionMaskBitWidth(sew, lmul);
+  if (!maskBits)
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("vbool") + llvm::Twine(*maskBits) + "_t").str());
+}
+
+llvm::StringRef getContractionMaskSummary(std::int64_t sew,
+                                          llvm::StringRef lmul) {
+  std::optional<std::int64_t> maskBits =
+      getContractionMaskBitWidth(sew, lmul);
+  if (!maskBits)
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("b") + llvm::Twine(*maskBits)).str());
+}
+
+bool isSupportedContractionSourceResultConfig(std::int64_t sourceSEW,
+                                              llvm::StringRef sourceLMUL,
+                                              std::int64_t resultSEW,
+                                              llvm::StringRef resultLMUL) {
+  return sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
+         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         resultLMUL == tcrv::rvv::getRVVLMULM1();
+}
+
+llvm::StringRef getContractionTargetLeafProfile(std::int64_t sourceSEW,
+                                                llvm::StringRef sourceLMUL,
+                                                std::int64_t resultSEW,
+                                                llvm::StringRef resultLMUL) {
+  llvm::StringRef sourceElement =
+      getContractionIntegerElementTypeName(sourceSEW);
+  llvm::StringRef resultElement =
+      getContractionIntegerElementTypeName(resultSEW);
+  if (sourceElement.empty() || resultElement.empty() || sourceLMUL.empty() ||
+      resultLMUL.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("rvv-v1-") + sourceElement + sourceLMUL + "-" +
+       resultElement + resultLMUL + "-contraction-leaf-profile.v1")
+          .str());
+}
+
+llvm::StringRef getContractionCTypeMappingSummary(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+  llvm::StringRef maskSummary =
+      getContractionMaskSummary(resultSEW, resultLMUL);
+  if (sourceSEW <= 0 || sourceLMUL.empty() || resultSEW <= 0 ||
+      resultLMUL.empty() || maskSummary.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("vl:size_t,source:signed-e") + llvm::Twine(sourceSEW) +
+       sourceLMUL + ",result:signed-e" + llvm::Twine(resultSEW) + resultLMUL +
+       ",mask:" + maskSummary)
+          .str());
+}
+
+llvm::StringRef getContractionWideningMAccRelation(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+  if (!isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL,
+                                                resultSEW, resultLMUL))
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("signed-i") + llvm::Twine(sourceSEW) + sourceLMUL + "xi" +
+       llvm::Twine(sourceSEW) + sourceLMUL + "-plus-i" +
+       llvm::Twine(resultSEW) + resultLMUL + "-to-i" +
+       llvm::Twine(resultSEW) + resultLMUL)
+          .str());
+}
+
+llvm::StringRef getContractionWideningDotProductRelation(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+  if (!isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL,
+                                                resultSEW, resultLMUL))
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("signed-i") + llvm::Twine(sourceSEW) + sourceLMUL + "xi" +
+       llvm::Twine(sourceSEW) + sourceLMUL + "-reduce-plus-i" +
+       llvm::Twine(resultSEW) + "-scalar-to-i" + llvm::Twine(resultSEW))
+          .str());
+}
+
+llvm::Expected<RVVContractionVectorFacts> deriveContractionVectorFacts(
+    mlir::Value value, llvm::StringRef role, llvm::StringRef context) {
+  if (!value)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires " + role +
+        " typed vector value before deriving contraction source facts");
+  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(value.getType());
+  if (!vectorType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires " + role +
+        " to be a generic !tcrv_rvv.vector before contraction route planning");
+  auto integerElementType =
+      llvm::dyn_cast<mlir::IntegerType>(vectorType.getElementType());
+  if (!integerElementType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " requires " + role +
+        " element type to be an integer before contraction route planning");
+
+  RVVContractionVectorFacts facts;
+  facts.elementBitWidth = integerElementType.getWidth();
+  facts.elementTypeName =
+      getContractionIntegerElementTypeName(facts.elementBitWidth);
+  facts.sew = facts.elementBitWidth;
+  facts.lmul = vectorType.getLmul();
+  facts.vectorTypeName =
+      internContractionDerivedText(stringifyContractionMLIRType(value.getType()));
+  facts.vectorCType = getContractionSignedVectorCType(facts.sew, facts.lmul);
+  facts.vectorLoadIntrinsic =
+      getContractionVectorLoadIntrinsic(facts.sew, facts.lmul);
+  facts.stridedLoadIntrinsic =
+      getContractionStridedLoadIntrinsic(facts.sew, facts.lmul);
+
+  if (facts.elementTypeName.empty() || facts.lmul.empty() ||
+      facts.vectorTypeName.empty() || facts.vectorCType.empty() ||
+      facts.vectorLoadIntrinsic.empty() || facts.stridedLoadIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " could not derive complete contraction " +
+        role + " source vector facts from selected typed RVV body");
+  return facts;
+}
+
+llvm::Error requireMatchingContractionSourceFacts(
+    const RVVContractionVectorFacts &lhs,
+    const RVVContractionVectorFacts &rhs, llvm::StringRef context) {
+  if (lhs.elementTypeName == rhs.elementTypeName &&
+      lhs.elementBitWidth == rhs.elementBitWidth && lhs.sew == rhs.sew &&
+      lhs.lmul == rhs.lmul && lhs.vectorTypeName == rhs.vectorTypeName &&
+      lhs.vectorCType == rhs.vectorCType &&
+      lhs.vectorLoadIntrinsic == rhs.vectorLoadIntrinsic &&
+      lhs.stridedLoadIntrinsic == rhs.stridedLoadIntrinsic)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " requires lhs/rhs contraction source operands to carry the same typed "
+      "element, SEW, LMUL, vector type, C type, and source load leaves");
+}
+
 bool isPreRealizedWideningMAccSignature(
     llvm::StringRef opKind, std::int64_t sourceSEW,
     llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
     llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
     llvm::StringRef resultLMUL, llvm::StringRef relation) {
+  llvm::StringRef expectedRelation = getContractionWideningMAccRelation(
+      sourceSEW, sourceLMUL, resultSEW, resultLMUL);
   return opKind == kRVVPreRealizedWideningMAccOpKind &&
-         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
-         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
-         relation == kRVVWideningMAccRelation;
+         !expectedRelation.empty() && accumulatorSEW == resultSEW &&
+         accumulatorLMUL == resultLMUL && relation == expectedRelation;
 }
 
 bool isPreRealizedWideningDotReduceSignature(
@@ -145,14 +380,11 @@ bool isPreRealizedWideningDotReduceSignature(
     llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
     llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
     llvm::StringRef resultLMUL, llvm::StringRef relation) {
+  llvm::StringRef expectedRelation = getContractionWideningDotProductRelation(
+      sourceSEW, sourceLMUL, resultSEW, resultLMUL);
   return opKind == kRVVPreRealizedWideningDotReduceOpKind &&
-         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
-         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
-         relation == kRVVWideningDotProductRelation;
+         !expectedRelation.empty() && accumulatorSEW == resultSEW &&
+         accumulatorLMUL == resultLMUL && relation == expectedRelation;
 }
 
 bool isPreRealizedComputedMaskWideningDotReduceSignature(
@@ -160,14 +392,11 @@ bool isPreRealizedComputedMaskWideningDotReduceSignature(
     llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
     llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
     llvm::StringRef resultLMUL, llvm::StringRef relation) {
+  llvm::StringRef expectedRelation = getContractionWideningDotProductRelation(
+      sourceSEW, sourceLMUL, resultSEW, resultLMUL);
   return opKind == kRVVPreRealizedComputedMaskWideningDotReduceOpKind &&
-         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
-         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
-         relation == kRVVWideningDotProductRelation;
+         !expectedRelation.empty() && accumulatorSEW == resultSEW &&
+         accumulatorLMUL == resultLMUL && relation == expectedRelation;
 }
 
 llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
@@ -268,62 +497,72 @@ void addContractionRouteOperandBinding(
 llvm::StringRef getContractionWideningMAccIntrinsic(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL, std::int64_t sew,
     llvm::StringRef lmul, llvm::StringRef relation) {
-  if (sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1() &&
-      relation == kRVVWideningMAccRelation)
-    return "__riscv_vwmacc_vv_i32m1";
-  return {};
+  llvm::StringRef expectedRelation =
+      getContractionWideningMAccRelation(sourceSEW, sourceLMUL, sew, lmul);
+  if (expectedRelation.empty() || relation != expectedRelation)
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vwmacc_vv_i") + llvm::Twine(sew) + lmul).str());
 }
 
 llvm::StringRef getContractionWideningProductIntrinsic(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL, std::int64_t sew,
     llvm::StringRef lmul, llvm::StringRef relation) {
-  if (sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1() &&
-      relation == kRVVWideningDotProductRelation)
-    return "__riscv_vwmul_vv_i32m1";
-  return {};
+  llvm::StringRef expectedRelation = getContractionWideningDotProductRelation(
+      sourceSEW, sourceLMUL, sew, lmul);
+  if (expectedRelation.empty() || relation != expectedRelation)
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vwmul_vv_i") + llvm::Twine(sew) + lmul).str());
 }
 
 llvm::StringRef getContractionMaskedWideningProductIntrinsic(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL, std::int64_t sew,
     llvm::StringRef lmul, llvm::StringRef relation) {
-  if (sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
-      sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1() &&
-      relation == kRVVWideningDotProductRelation)
-    return "__riscv_vwmul_vv_i32m1_m";
-  return {};
+  llvm::StringRef expectedRelation = getContractionWideningDotProductRelation(
+      sourceSEW, sourceLMUL, sew, lmul);
+  if (expectedRelation.empty() || relation != expectedRelation)
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vwmul_vv_i") + llvm::Twine(sew) + lmul + "_m")
+          .str());
 }
 
-llvm::StringRef getContractionReductionIntrinsic(llvm::StringRef lmul) {
-  if (lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vredsum_vs_i32m1_i32m1";
-  return {};
+llvm::StringRef getContractionReductionIntrinsic(std::int64_t sew,
+                                                 llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vredsum_vs_i") + llvm::Twine(sew) + lmul + "_i" +
+       llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+          .str());
 }
 
 llvm::StringRef getContractionSignedLessThanCompareIntrinsic(
-    llvm::StringRef lmul) {
-  if (lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmslt_vv_i32m1_b32";
-  return {};
+    std::int64_t sew, llvm::StringRef lmul) {
+  llvm::StringRef maskSummary = getContractionMaskSummary(sew, lmul);
+  if (sew <= 0 || lmul.empty() || maskSummary.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vmslt_vv_i") + llvm::Twine(sew) + lmul + "_" +
+       maskSummary)
+          .str());
 }
 
-llvm::StringRef getContractionSelectIntrinsic(llvm::StringRef lmul) {
-  if (lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmerge_vvm_i32m1";
-  return {};
+llvm::StringRef getContractionSelectIntrinsic(std::int64_t sew,
+                                              llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vmerge_vvm_i") + llvm::Twine(sew) + lmul).str());
 }
 
-llvm::StringRef getContractionScalarSeedSplatIntrinsic(llvm::StringRef lmul) {
-  if (lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i32m1";
-  return {};
+llvm::StringRef getContractionScalarSeedSplatIntrinsic(std::int64_t sew,
+                                                       llvm::StringRef lmul) {
+  if (sew <= 0 || lmul.empty())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vmv_v_x_i") + llvm::Twine(sew) + lmul).str());
 }
 
 llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
@@ -597,7 +836,9 @@ getRVVSelectedBodyContractionExpectedWideningMAccResultLayout() {
 
 llvm::StringRef
 getRVVSelectedBodyContractionExpectedWideningMAccRelation() {
-  return kRVVWideningMAccRelation;
+  return getContractionWideningMAccRelation(
+      tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
 }
 
 llvm::StringRef
@@ -612,7 +853,9 @@ getRVVSelectedBodyContractionExpectedWideningDotProductResultLayout() {
 
 llvm::StringRef
 getRVVSelectedBodyContractionExpectedWideningDotProductRelation() {
-  return kRVVWideningDotProductRelation;
+  return getContractionWideningDotProductRelation(
+      tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1());
 }
 
 llvm::StringRef
@@ -657,11 +900,15 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
         "pre-realized RVV selected widening macc body currently supports "
         "only result_layout "
         "'store-widening-multiply-accumulate-result-to-output-buffer'");
-  if (body.getMaccRelation() != kRVVWideningMAccRelation)
+  llvm::StringRef expectedMAccRelation = getContractionWideningMAccRelation(
+      static_cast<std::int64_t>(body.getSourceSew()), body.getSourceLmul(),
+      static_cast<std::int64_t>(body.getResultSew()), body.getResultLmul());
+  if (expectedMAccRelation.empty() ||
+      body.getMaccRelation() != expectedMAccRelation)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening macc body currently supports "
-        "only macc_relation "
-        "'signed-i16mf2xi16mf2-plus-i32m1-to-i32m1'");
+        "only provider-derived signed widening macc_relation matching "
+        "source/result typed config facts");
   if (!isPreRealizedWideningMAccSignature(
           body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
           body.getSourceLmul(),
@@ -671,9 +918,8 @@ llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
           body.getResultLmul(), body.getMaccRelation()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening macc config/relation must match "
-        "op_kind 'signed_widening_macc_add' with source SEW16 LMUL mf2, "
-        "accumulator/result SEW32 LMUL m1, and relation "
-        "'signed-i16mf2xi16mf2-plus-i32m1-to-i32m1'");
+        "op_kind 'signed_widening_macc_add' with supported source, "
+        "accumulator/result, and provider-derived relation facts");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening macc body requires tail "
@@ -770,11 +1016,18 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
         "pre-realized RVV selected widening dot-product reduction body "
         "currently supports only result_layout "
         "'store-dot-reduction-lane0-to-output-scalar'");
-  if (body.getDotProductRelation() != kRVVWideningDotProductRelation)
+  llvm::StringRef expectedDotRelation =
+      getContractionWideningDotProductRelation(
+          static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(),
+          static_cast<std::int64_t>(body.getResultSew()),
+          body.getResultLmul());
+  if (expectedDotRelation.empty() ||
+      body.getDotProductRelation() != expectedDotRelation)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening dot-product reduction body "
-        "currently supports only dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "currently supports only provider-derived dot_product_relation "
+        "matching source/result typed config facts");
   if (!isPreRealizedWideningDotReduceSignature(
           body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
           body.getSourceLmul(),
@@ -785,9 +1038,8 @@ llvm::Error validatePreRealizedRVVSelectedWideningDotReduceBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening dot-product reduction "
         "config/relation must match op_kind "
-        "'signed_widening_dot_reduce_add' with source SEW16 LMUL mf2, "
-        "accumulator/result SEW32 LMUL m1, and relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "'signed_widening_dot_reduce_add' with supported source, "
+        "accumulator/result, and provider-derived relation facts");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening dot-product reduction body "
@@ -896,11 +1148,18 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
         "pre-realized RVV selected strided-input widening dot-product reduction "
         "body currently supports only result_layout "
         "'store-dot-reduction-lane0-to-output-scalar'");
-  if (body.getDotProductRelation() != kRVVWideningDotProductRelation)
+  llvm::StringRef expectedDotRelation =
+      getContractionWideningDotProductRelation(
+          static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(),
+          static_cast<std::int64_t>(body.getResultSew()),
+          body.getResultLmul());
+  if (expectedDotRelation.empty() ||
+      body.getDotProductRelation() != expectedDotRelation)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-input widening dot-product reduction "
-        "body currently supports only dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "body currently supports only provider-derived dot_product_relation "
+        "matching source/result typed config facts");
   if (!isPreRealizedWideningDotReduceSignature(
           body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
           body.getSourceLmul(),
@@ -911,8 +1170,8 @@ llvm::Error validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-input widening dot-product reduction "
         "config/relation must match op_kind 'signed_widening_dot_reduce_add' "
-        "with source SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
-        "relation 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "with supported source, accumulator/result, and provider-derived "
+        "relation facts");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected strided-input widening dot-product reduction "
@@ -1056,11 +1315,18 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
         "pre-realized RVV selected computed-mask widening dot-product "
         "reduction body currently supports only result_layout "
         "'store-dot-reduction-lane0-to-output-scalar'");
-  if (body.getDotProductRelation() != kRVVWideningDotProductRelation)
+  llvm::StringRef expectedDotRelation =
+      getContractionWideningDotProductRelation(
+          static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(),
+          static_cast<std::int64_t>(body.getResultSew()),
+          body.getResultLmul());
+  if (expectedDotRelation.empty() ||
+      body.getDotProductRelation() != expectedDotRelation)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask widening dot-product "
-        "reduction body currently supports only dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "reduction body currently supports only provider-derived "
+        "dot_product_relation matching source/result typed config facts");
   if (!isPreRealizedComputedMaskWideningDotReduceSignature(
           body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
           body.getSourceLmul(),
@@ -1071,9 +1337,8 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask widening dot-product "
         "reduction config/relation must match op_kind "
-        "'signed_masked_widening_dot_reduce_add' with compare SEW32 LMUL m1, "
-        "dot source SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
-        "relation 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "'signed_masked_widening_dot_reduce_add' with supported compare, "
+        "dot source, accumulator/result, and provider-derived relation facts");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask widening dot-product "
@@ -1232,12 +1497,19 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
         "pre-realized RVV selected computed-mask strided-input widening "
         "dot-product reduction body currently supports only result_layout "
         "'store-dot-reduction-lane0-to-output-scalar'");
-  if (body.getDotProductRelation() != kRVVWideningDotProductRelation)
+  llvm::StringRef expectedDotRelation =
+      getContractionWideningDotProductRelation(
+          static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(),
+          static_cast<std::int64_t>(body.getResultSew()),
+          body.getResultLmul());
+  if (expectedDotRelation.empty() ||
+      body.getDotProductRelation() != expectedDotRelation)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-input widening "
         "dot-product reduction body currently supports only "
-        "dot_product_relation "
-        "'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "provider-derived dot_product_relation matching source/result typed "
+        "config facts");
   if (!isPreRealizedComputedMaskWideningDotReduceSignature(
           body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
           body.getSourceLmul(),
@@ -1248,9 +1520,8 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-input widening "
         "dot-product reduction config/relation must match op_kind "
-        "'signed_masked_widening_dot_reduce_add' with compare SEW32 LMUL m1, "
-        "dot source SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
-        "relation 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32'");
+        "'signed_masked_widening_dot_reduce_add' with supported compare, dot "
+        "source, accumulator/result, and provider-derived relation facts");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected computed-mask strided-input widening "
@@ -1367,6 +1638,20 @@ llvm::Error requireRVVSelectedBodyContractionPlanField(
       field + " '" + expected + "' but found '" + actual + "'");
 }
 
+llvm::Error requireRVVSelectedBodyContractionDerivedLeaf(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual,
+    llvm::StringRef derivationInput) {
+  if (!actual.trim().empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("contraction route-family target-leaf/profile validation "
+                  "for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) +
+      "' requires provider-derived " + field +
+      " from selected typed RVV body/config facts '" + derivationInput + "'");
+}
+
 llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
@@ -1413,6 +1698,42 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
         "contraction route-family plan requires the operation-specific memory "
         "form");
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "typed config facts", plan.typedConfigFactsID,
+          "rvv-selected-body-typed-config-facts.v1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "element type", plan.elementTypeName,
+          getContractionIntegerElementTypeName(plan.sew)))
+    return error;
+  if (plan.elementBitWidth != plan.sew)
+    return makeRVVEmitCRouteProviderError(
+        "contraction route-family typed config snapshot requires element bit "
+        "width to match result SEW");
+  if (plan.sew != plan.runtimeControlPlan.sew ||
+      plan.lmul != plan.runtimeControlPlan.lmul ||
+      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      plan.configContractID != plan.runtimeControlPlan.configContractID)
+    return makeRVVEmitCRouteProviderError(
+        "contraction route-family typed config snapshot must mirror runtime "
+        "AVL/VL control plan result SEW/LMUL/policy/config facts");
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "source element type", plan.sourceElementTypeName,
+          getContractionIntegerElementTypeName(plan.sourceSEW)))
+    return error;
+  if (plan.sourceElementBitWidth != plan.sourceSEW)
+    return makeRVVEmitCRouteProviderError(
+        "contraction route-family source typed snapshot requires source "
+        "element bit width to match source SEW");
+  if (!isSupportedContractionSourceResultConfig(
+          plan.sourceSEW, plan.sourceLMUL, plan.sew, plan.lmul))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("contraction route-family plan does not support source "
+                    "SEW/LMUL '") +
+        llvm::Twine(plan.sourceSEW) + "/" + plan.sourceLMUL +
+        "' with result SEW/LMUL '" + llvm::Twine(plan.sew) + "/" + plan.lmul +
+        "'");
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "runtime control plan",
           plan.runtimeControlPlan.controlPlanID,
           getRVVRuntimeAVLVLControlPlanID()))
@@ -1427,7 +1748,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "target leaf profile", plan.targetLeafProfile,
-          kRVVContractionTargetLeafProfile))
+          getContractionTargetLeafProfile(plan.sourceSEW, plan.sourceLMUL,
+                                          plan.sew, plan.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "provider_supported_mirror", plan.providerSupportedMirror,
@@ -1439,7 +1761,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "C type mapping summary", plan.cTypeMappingSummary,
-          kRVVContractionCTypeMappingSummary))
+          getContractionCTypeMappingSummary(plan.sourceSEW, plan.sourceLMUL,
+                                            plan.sew, plan.lmul)))
     return error;
   if (plan.requiredHeaders.size() != 3 ||
       plan.requiredHeaders[0] != "stddef.h" ||
@@ -1456,29 +1779,30 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "result vector type", plan.resultVectorTypeName,
-          "!tcrv_rvv.vector<i32, \"m1\">"))
+          getContractionVectorTypeName(plan.sew, plan.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "result vector C type", plan.resultVectorCType,
-          "vint32m1_t"))
+          getContractionSignedVectorCType(plan.sew, plan.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "setvl leaf", plan.setVLIntrinsic,
-          "__riscv_vsetvl_e32m1"))
+          getContractionSetVLIntrinsic(plan.sew, plan.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "source vector-load leaf", plan.sourceVectorLoadIntrinsic,
-          "__riscv_vle16_v_i16mf2"))
+          getContractionVectorLoadIntrinsic(plan.sourceSEW, plan.sourceLMUL)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "store leaf", plan.storeIntrinsic,
-          "__riscv_vse32_v_i32m1"))
+          getContractionStoreIntrinsic(plan.sew, plan.lmul)))
     return error;
 
   if (plan.usesStridedInputs) {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "strided source-load leaf", plan.stridedLoadIntrinsic,
-            "__riscv_vlse16_v_i16mf2"))
+            getContractionStridedLoadIntrinsic(plan.sourceSEW,
+                                               plan.sourceLMUL)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "strided memory layout", plan.stridedMemoryLayout,
@@ -1536,11 +1860,12 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening macc relation", plan.relation,
-            kRVVWideningMAccRelation))
+            getContractionWideningMAccRelation(
+                plan.sourceSEW, plan.sourceLMUL, plan.sew, plan.lmul)))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "widening macc leaf", plan.contractionComputeIntrinsic,
-            "__riscv_vwmacc_vv_i32m1"))
+            plan.typedConfigFactsID))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening product leaf", plan.wideningProductIntrinsic, ""))
@@ -1566,19 +1891,20 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening dot relation", plan.relation,
-            kRVVWideningDotProductRelation))
+            getContractionWideningDotProductRelation(
+                plan.sourceSEW, plan.sourceLMUL, plan.sew, plan.lmul)))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "widening product leaf", plan.wideningProductIntrinsic,
-            "__riscv_vwmul_vv_i32m1"))
+            plan.typedConfigFactsID))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "reduction leaf", plan.contractionComputeIntrinsic,
-            "__riscv_vredsum_vs_i32m1_i32m1"))
+            plan.typedConfigFactsID))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
-            "__riscv_vmv_v_x_i32m1"))
+            plan.typedConfigFactsID))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "reduction store VL", plan.reductionStoreVL,
@@ -1589,23 +1915,26 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
   if (plan.usesComputedMask) {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "mask type", plan.maskTypeName,
-            "!tcrv_rvv.mask<i32, \"m1\">"))
+            internContractionDerivedText(
+                (llvm::Twine("!tcrv_rvv.mask<") + plan.elementTypeName +
+                 ", \"" + plan.lmul + "\">")
+                    .str())))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
-            plan, "mask C type", plan.maskCType, "vbool32_t"))
+            plan, "mask C type", plan.maskCType,
+            getContractionMaskCType(plan.sew, plan.lmul)))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "compare leaf", plan.compareIntrinsic,
-            "__riscv_vmslt_vv_i32m1_b32"))
+            plan.typedConfigFactsID))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "masked merge leaf", plan.maskedMergeIntrinsic,
-            "__riscv_vmerge_vvm_i32m1"))
+            plan.typedConfigFactsID))
       return error;
-    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
             plan, "masked widening product leaf",
-            plan.maskedWideningProductIntrinsic,
-            "__riscv_vwmul_vv_i32m1_m"))
+            plan.maskedWideningProductIntrinsic, plan.typedConfigFactsID))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "inactive-lane zeroing requirement",
@@ -1704,6 +2033,19 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 
   const RVVSelectedBodyTypedConfigFacts &typedConfig =
       analysis.typedConfigFacts;
+  llvm::Expected<RVVContractionVectorFacts> lhsSourceFacts =
+      deriveContractionVectorFacts(
+          analysis.slice.arithmeticLhs, "lhs", "contraction route-family plan");
+  if (!lhsSourceFacts)
+    return lhsSourceFacts.takeError();
+  llvm::Expected<RVVContractionVectorFacts> rhsSourceFacts =
+      deriveContractionVectorFacts(
+          analysis.slice.arithmeticRhs, "rhs", "contraction route-family plan");
+  if (!rhsSourceFacts)
+    return rhsSourceFacts.takeError();
+  if (llvm::Error error = requireMatchingContractionSourceFacts(
+          *lhsSourceFacts, *rhsSourceFacts, "contraction route-family plan"))
+    return std::move(error);
 
   RVVSelectedBodyContractionRouteFamilyPlan plan;
   plan.operation = operation;
@@ -1719,28 +2061,42 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.usesScalarSeed = plan.usesDotReduction;
   plan.usesVectorAccumulator = plan.usesWideningMAcc;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.typedConfigFactsID = typedConfig.factsID;
+  plan.elementTypeName = typedConfig.elementTypeName;
+  plan.elementBitWidth = typedConfig.elementBitWidth;
+  plan.sew = typedConfig.sew;
+  plan.lmul = typedConfig.lmul;
+  plan.tailPolicy = typedConfig.tailPolicy;
+  plan.maskPolicy = typedConfig.maskPolicy;
+  plan.configContractID = typedConfig.configContractID;
   plan.familyPlanID = kRVVContractionRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
-  plan.targetLeafProfile = kRVVContractionTargetLeafProfile;
+  plan.targetLeafProfile = getContractionTargetLeafProfile(
+      lhsSourceFacts->sew, lhsSourceFacts->lmul, typedConfig.sew,
+      typedConfig.lmul);
   plan.providerSupportedMirror = kRVVContractionProviderSupportedMirror;
   plan.requiredHeaders.push_back("stddef.h");
   plan.requiredHeaders.push_back("stdint.h");
   plan.requiredHeaders.push_back("riscv_vector.h");
   plan.requiredHeaderDeclarations = kRVVContractionRequiredHeaderDeclarations;
-  plan.cTypeMappingSummary = kRVVContractionCTypeMappingSummary;
+  plan.cTypeMappingSummary = getContractionCTypeMappingSummary(
+      lhsSourceFacts->sew, lhsSourceFacts->lmul, typedConfig.sew,
+      typedConfig.lmul);
   plan.vlCType = typedConfig.vlCType;
   plan.resultVectorTypeName = typedConfig.vectorTypeName;
   plan.resultVectorCType = typedConfig.vectorCType;
   plan.maskTypeName = plan.usesComputedMask ? typedConfig.maskTypeName : "";
   plan.maskCType = plan.usesComputedMask ? typedConfig.maskCType : "";
   plan.setVLIntrinsic = typedConfig.setVLIntrinsic;
-  plan.sourceSEW = tcrv::rvv::getRVVSEW16Bits();
-  plan.sourceLMUL = tcrv::rvv::getRVVLMULMF2();
-  plan.sourceVectorTypeName = "!tcrv_rvv.vector<i16, \"mf2\">";
-  plan.sourceVectorCType = "vint16mf2_t";
-  plan.sourceVectorLoadIntrinsic = "__riscv_vle16_v_i16mf2";
+  plan.sourceElementTypeName = lhsSourceFacts->elementTypeName;
+  plan.sourceElementBitWidth = lhsSourceFacts->elementBitWidth;
+  plan.sourceSEW = lhsSourceFacts->sew;
+  plan.sourceLMUL = lhsSourceFacts->lmul;
+  plan.sourceVectorTypeName = lhsSourceFacts->vectorTypeName;
+  plan.sourceVectorCType = lhsSourceFacts->vectorCType;
+  plan.sourceVectorLoadIntrinsic = lhsSourceFacts->vectorLoadIntrinsic;
   if (plan.usesStridedInputs)
-    plan.stridedLoadIntrinsic = "__riscv_vlse16_v_i16mf2";
+    plan.stridedLoadIntrinsic = lhsSourceFacts->stridedLoadIntrinsic;
   plan.storeIntrinsic = typedConfig.storeIntrinsic;
 
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
@@ -1781,9 +2137,10 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       plan.maskMemoryForm =
           analysis.slice.maskedWideningDotReduceOp.getMaskMemoryForm();
       plan.compareIntrinsic =
-          getContractionSignedLessThanCompareIntrinsic(typedConfig.lmul);
+          getContractionSignedLessThanCompareIntrinsic(typedConfig.sew,
+                                                       typedConfig.lmul);
       plan.maskedMergeIntrinsic =
-          getContractionSelectIntrinsic(typedConfig.lmul);
+          getContractionSelectIntrinsic(typedConfig.sew, typedConfig.lmul);
       plan.maskedWideningProductIntrinsic =
           getContractionMaskedWideningProductIntrinsic(
               plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
@@ -1799,13 +2156,23 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
     }
 
     plan.contractionComputeIntrinsic =
-        getContractionReductionIntrinsic(typedConfig.lmul);
+        plan.relation == getContractionWideningDotProductRelation(
+                             plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
+                             typedConfig.lmul)
+            ? getContractionReductionIntrinsic(typedConfig.sew,
+                                               typedConfig.lmul)
+            : llvm::StringRef();
     plan.wideningProductIntrinsic =
         getContractionWideningProductIntrinsic(
             plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
             typedConfig.lmul, plan.relation);
     plan.scalarSeedSplatIntrinsic =
-        getContractionScalarSeedSplatIntrinsic(typedConfig.lmul);
+        plan.relation == getContractionWideningDotProductRelation(
+                             plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
+                             typedConfig.lmul)
+            ? getContractionScalarSeedSplatIntrinsic(typedConfig.sew,
+                                                     typedConfig.lmul)
+            : llvm::StringRef();
     plan.reductionStoreVL = kRVVWideningDotProductStoreVL;
     if (plan.usesStridedInputs) {
       plan.stridedMemoryLayout =
@@ -1924,9 +2291,19 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           context, "runtime ABI order", description.runtimeABIOrder,
           getRVVSelectedBodyContractionRuntimeABIOrder(description.operation)))
     return error;
+  if (!isSupportedContractionSourceResultConfig(
+          description.sourceSEW, description.sourceLMUL, description.sew,
+          description.lmul))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route description requires supported provider-derived "
+        "source/result SEW/LMUL facts");
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "target leaf profile", description.targetLeafProfile,
-          kRVVContractionTargetLeafProfile))
+          getContractionTargetLeafProfile(description.sourceSEW,
+                                          description.sourceLMUL,
+                                          description.sew,
+                                          description.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "provider_supported_mirror",
@@ -1940,24 +2317,26 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "C type mapping summary", description.cTypeMappingSummary,
-          kRVVContractionCTypeMappingSummary))
+          getContractionCTypeMappingSummary(description.sourceSEW,
+                                            description.sourceLMUL,
+                                            description.sew,
+                                            description.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "source vector type", description.sourceVectorTypeName,
-          "!tcrv_rvv.vector<i16, \"mf2\">"))
+          getContractionVectorTypeName(description.sourceSEW,
+                                       description.sourceLMUL)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "source vector C type", description.sourceVectorCType,
-          "vint16mf2_t"))
+          getContractionSignedVectorCType(description.sourceSEW,
+                                          description.sourceLMUL)))
     return error;
-  if (description.sourceSEW != tcrv::rvv::getRVVSEW16Bits() ||
-      description.sourceLMUL != tcrv::rvv::getRVVLMULMF2())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " contraction route description requires source SEW16 LMUL mf2");
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "source vector-load intrinsic",
-          description.sourceVectorLoadIntrinsic, "__riscv_vle16_v_i16mf2"))
+          description.sourceVectorLoadIntrinsic,
+          getContractionVectorLoadIntrinsic(description.sourceSEW,
+                                            description.sourceLMUL)))
     return error;
 
   if (usesWideningMAcc) {
@@ -1973,11 +2352,18 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening multiply-accumulate relation",
-            description.wideningMAccRelation, kRVVWideningMAccRelation))
+            description.wideningMAccRelation,
+            getContractionWideningMAccRelation(
+                description.sourceSEW, description.sourceLMUL,
+                description.sew, description.lmul)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening multiply-accumulate intrinsic",
-            description.intrinsic, "__riscv_vwmacc_vv_i32m1"))
+            description.intrinsic,
+            getContractionWideningMAccIntrinsic(
+                description.sourceSEW, description.sourceLMUL,
+                description.sew, description.lmul,
+                description.wideningMAccRelation)))
       return error;
   }
 
@@ -1995,20 +2381,28 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening dot-product relation",
             description.wideningDotProductRelation,
-            kRVVWideningDotProductRelation))
+            getContractionWideningDotProductRelation(
+                description.sourceSEW, description.sourceLMUL,
+                description.sew, description.lmul)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product intrinsic",
             description.wideningProductIntrinsic,
-            "__riscv_vwmul_vv_i32m1"))
+            getContractionWideningProductIntrinsic(
+                description.sourceSEW, description.sourceLMUL,
+                description.sew, description.lmul,
+                description.wideningDotProductRelation)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "reduction intrinsic", description.intrinsic,
-            "__riscv_vredsum_vs_i32m1_i32m1"))
+            getContractionReductionIntrinsic(description.sew,
+                                             description.lmul)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "scalar seed splat intrinsic",
-            description.scalarSeedSplatIntrinsic, "__riscv_vmv_v_x_i32m1"))
+            description.scalarSeedSplatIntrinsic,
+            getContractionScalarSeedSplatIntrinsic(description.sew,
+                                                   description.lmul)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening dot-product reduction store VL",
@@ -2019,16 +2413,21 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
   if (usesComputedMask) {
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "compare intrinsic", description.compareIntrinsic,
-            "__riscv_vmslt_vv_i32m1_b32"))
+            getContractionSignedLessThanCompareIntrinsic(description.sew,
+                                                         description.lmul)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "masked merge intrinsic",
-            description.maskedMergeIntrinsic, "__riscv_vmerge_vvm_i32m1"))
+            description.maskedMergeIntrinsic,
+            getContractionSelectIntrinsic(description.sew, description.lmul)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "masked widening product intrinsic",
             description.maskedWideningProductIntrinsic,
-            "__riscv_vwmul_vv_i32m1_m"))
+            getContractionMaskedWideningProductIntrinsic(
+                description.sourceSEW, description.sourceLMUL,
+                description.sew, description.lmul,
+                description.wideningDotProductRelation)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "inactive-lane zeroing requirement",
@@ -2052,7 +2451,9 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
   if (usesStridedInputs) {
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "strided-load intrinsic",
-            description.stridedLoadIntrinsic, "__riscv_vlse16_v_i16mf2"))
+            description.stridedLoadIntrinsic,
+            getContractionStridedLoadIntrinsic(description.sourceSEW,
+                                               description.sourceLMUL)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "strided memory layout",

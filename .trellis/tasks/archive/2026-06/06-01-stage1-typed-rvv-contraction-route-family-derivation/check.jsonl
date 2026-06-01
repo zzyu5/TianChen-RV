@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global Stage 1 RVV authority reset compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify contraction route-family provider ownership and typed-fact derivation boundaries."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Verify no common EmitC/export semantic branch or descriptor-driven route was introduced."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused tests and evidence satisfy RVV plugin testing rules."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Verify selected route metadata remains a mirror only."}
+{"file": ".trellis/tasks/06-01-stage1-typed-rvv-contraction-route-family-derivation/prd.md", "reason": "Verify implementation against this task's acceptance criteria."}

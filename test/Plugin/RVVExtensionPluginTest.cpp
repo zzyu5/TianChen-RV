@@ -5490,8 +5490,9 @@ module {
   negativeBody->setAttr("source_lmul", attrBuilder.getStringAttr("m1"));
   if (int result = expectContractionOwnerError(
           {"computed-mask strided-input widening dot-product reduction "
-           "config/relation must match op_kind",
-           "dot source SEW16 LMUL mf2"}))
+           "body currently supports only provider-derived "
+           "dot_product_relation",
+           "matching source/result typed config facts"}))
     return result;
   negativeBody->setAttr("source_lmul", attrBuilder.getStringAttr("mf2"));
 
@@ -19087,6 +19088,24 @@ module {
                   "stddef.h,stdint.h,riscv_vector.h" &&
               routeDescription->cTypeMappingSummary ==
                   "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32" &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                      ->typedConfigFactsID ==
+                  "rvv-selected-body-typed-config-facts.v1" &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                      ->elementTypeName == "i32" &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                      ->elementBitWidth == 32 &&
+              computedStridedAnalysis->contractionRouteFamilyPlan->sew == 32 &&
+              computedStridedAnalysis->contractionRouteFamilyPlan->lmul ==
+                  "m1" &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                      ->sourceElementTypeName == "i16" &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                      ->sourceElementBitWidth == 16 &&
+              computedStridedAnalysis->contractionRouteFamilyPlan->sourceSEW ==
+                  16 &&
+              computedStridedAnalysis->contractionRouteFamilyPlan->sourceLMUL ==
+                  "mf2" &&
               routeDescription->sourceVectorLoadIntrinsic ==
                   "__riscv_vle16_v_i16mf2" &&
               routeDescription->stridedLoadIntrinsic ==

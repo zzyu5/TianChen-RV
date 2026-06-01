@@ -1657,3 +1657,47 @@ Derived base-memory route-family memory leaves from typed RVV config facts, tied
 ### Next Steps
 
 - None - task complete
+
+
+## Session 358: Stage1 typed RVV contraction route derivation
+
+**Date**: 2026-06-01
+**Task**: Stage1 typed RVV contraction route derivation
+**Branch**: `main`
+
+### Summary
+
+Derived contraction route-family leaves from selected typed RVV source/result/config facts, removed contraction fixed i32m1 owner authority, and passed focused RVV plugin checks.
+
+### Main Changes
+
+- Added contraction route-family typed result/config and source snapshots.
+- Replaced owner-local complete i32m1 contraction leaf constants with derived
+  target/profile, C type, setvl/load/store, compare/select, widening product,
+  reduction, scalar seed, and relation helpers.
+- Removed an unreachable fixed-source contraction branch from common route
+  description verification.
+- Updated focused RVV plugin tests for typed snapshot assertions and
+  provider-derived unsupported source/result diagnostics.
+
+### Git Commits
+
+| Commit | Message |
+|--------|---------|
+| this commit | rvv: derive contraction leaves from typed facts |
+
+### Testing
+
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter: 28 selected RVV contraction/widening tests passed.
+- [OK] `rtk git diff --check`
+- [OK] contraction/MAcc/header legacy pattern scan: no exact old-authority hits.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
