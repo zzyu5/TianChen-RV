@@ -249,3 +249,107 @@ Added focused contraction owner negative evidence, archived the Trellis task, an
 ### Next Steps
 
 - None - task complete
+
+
+## Session 369: Stage2 RVV selected-body artifact runtime ABI boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV selected-body artifact runtime ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the widening_macc_add pre-realized selected-body to generated bundle runtime ABI boundary with selected-boundary dry-run evidence, direct route-entry fail-closed regression, ssh rvv correctness for counts 0,1,16,17,257, and check-tianchenrv 465/465.
+
+### Main Changes
+
+- Added a `widening_macc_add` self-test regression proving
+  `--direct-pre-realized-route-entry` remains retired/fail-closed for the
+  selected pre-realized contraction body.
+- Updated the testing contract so the current positive pre-realized generated
+  bundle path is selected-boundary materialization before provider route facts;
+  direct pre-realized route-entry is documented as a negative mode.
+- Archived the completed runtime ABI evidence task with the final dry-run,
+  direct fail-closed, `ssh rvv`, focused binary, `git diff --check`, and
+  `check-tianchenrv` evidence recorded.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `none` | No commit created in this session; committed by Session 370 closeout. |
+
+### Testing
+
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Selected-boundary `widening_macc_add` generated-bundle dry-run
+- [OK] Direct route-entry negative check exited 1 with the retired shortcut diagnostic
+- [OK] Real `ssh rvv` runtime ABI correctness for counts `0,1,16,17,257`
+- [OK] Bounded old-authority scan
+- [OK] `rtk git diff --check`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 465/465.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 370: Stage2 RVV selected-body artifact ABI closeout
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV selected-body artifact ABI closeout
+**Branch**: `main`
+
+### Summary
+
+Closed the dirty repository state from Session 369 by reviewing the
+uncommitted runtime ABI boundary diff, preserving and rerunning focused
+`widening_macc_add` selected-body-to-artifact evidence, cleaning archived task
+context placeholders, and preparing one coherent commit.
+
+### Main Changes
+
+- Created closeout task `06-01-stage2-rvv-selected-body-artifact-abi-closeout`
+  with PRD/context scoped to repository coherence, validation, archive, commit,
+  and clean status.
+- Removed stale `_example` context rows from the archived Session 369 task's
+  `implement.jsonl` and `check.jsonl`.
+- Revalidated the previous runtime ABI task and reran focused closeout checks:
+  script self-test, selected-boundary dry-run, direct route-entry fail-closed
+  negative check, real `ssh rvv` runtime ABI correctness, focused build target,
+  focused test binaries, bounded old-authority scan, task validation, and
+  `git diff --check`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log after commit) |
+
+### Testing
+
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind widening_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-selected-body-artifact-abi-closeout/final-dry-run`
+- [OK] Direct route-entry negative command exited 1 with the expected retired direct route-entry diagnostic.
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind widening_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-selected-body-artifact-abi-closeout/final-ssh-rvv`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Bounded old-authority scan over touched tracked diff and task directories.
+- [OK] `rtk git diff --check`
+- [OK] Trellis context validation for both the closeout task and the previous archived runtime ABI task.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after commit and clean status verification

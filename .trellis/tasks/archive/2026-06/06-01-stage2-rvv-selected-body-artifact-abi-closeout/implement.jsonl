@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 2 selected-body realization scope, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, provider route facts, direct route-entry retirement, and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC/export neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle/runtime ABI evidence policy and selected-boundary versus direct route-entry test contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-selected-body-artifact-runtime-abi-boundary/prd.md", "reason": "Previous completed runtime ABI boundary task, evidence paths, checks, and remaining uncommitted closeout context."}

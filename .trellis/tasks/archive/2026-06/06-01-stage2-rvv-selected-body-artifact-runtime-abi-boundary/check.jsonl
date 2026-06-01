@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body/provider/target artifact ownership and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check evidence claims, generated bundle checks, and ssh rvv policy."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-contraction-realization-boundary/prd.md", "reason": "Check continuity with the prior contraction realization task."}

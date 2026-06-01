@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 selected-body-to-artifact boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, contraction provider facts, target artifact validator boundary, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "RVV generated-bundle/runtime ABI evidence policy and ssh rvv correctness requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-contraction-realization-boundary/prd.md", "reason": "Prior completed contraction selected-body realization boundary and direct route-entry fail-closed evidence."}

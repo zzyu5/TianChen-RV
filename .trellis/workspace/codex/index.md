@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-20.md`
-- **Total Sessions**: 368
+- **Total Sessions**: 370
 - **Last Active**: 2026-06-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-20.md` | ~251 | Active |
+| `journal-20.md` | ~355 | Active |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
@@ -48,6 +48,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 370 | 2026-06-01 | Stage2 RVV selected-body artifact ABI closeout | this commit | `main` |
+| 369 | 2026-06-01 | Stage2 RVV selected-body artifact runtime ABI boundary | none | `main` |
 | 368 | 2026-06-01 | Stage2 RVV contraction selected-body realization boundary | this commit | `main` |
 | 367 | 2026-06-01 | Stage2 RVV standalone reduction selected-body realization boundary | this commit | `main` |
 | 366 | 2026-06-01 | Stage2 RVV reduction-accumulation selected-body realization boundary | this commit | `main` |

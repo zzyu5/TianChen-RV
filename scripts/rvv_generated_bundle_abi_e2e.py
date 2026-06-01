@@ -24133,6 +24133,29 @@ def run_self_test() -> int:
                 "self-test direct route-entry diagnostic lost op-specific "
                 "widening conversion selected-boundary detail"
             )
+        direct_widening_macc_error = expect_self_test_failure(
+            "unsupported direct pre-realized widening MAcc route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["widening_macc_add"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "widening_macc_add" not in direct_widening_macc_error
+            or "the direct route-entry shortcut is retired"
+            not in direct_widening_macc_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected "
+                "widening-MAcc fail-closed detail"
+            )
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())

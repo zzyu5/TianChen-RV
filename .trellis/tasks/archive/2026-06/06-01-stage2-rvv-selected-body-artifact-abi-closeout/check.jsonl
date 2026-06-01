@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final diff still respects the global RVV-first authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-body realization remains plugin-owned and direct pre-realized route entry remains retired/fail-closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remain neutral consumers of provider-built routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify evidence claims and testing contract wording match the current generated-bundle behavior."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-selected-body-artifact-runtime-abi-boundary/prd.md", "reason": "Verify previous evidence paths and task status remain truthfully preserved by this closeout."}
