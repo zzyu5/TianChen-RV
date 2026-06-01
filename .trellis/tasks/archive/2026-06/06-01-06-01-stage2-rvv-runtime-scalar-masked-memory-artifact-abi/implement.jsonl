@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and RVV-first authority chain for the bounded runtime-scalar masked memory artifact ABI task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, runtime-scalar computed-mask memory owner, provider-owned route fact, and statement-plan requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC materializer boundary and prohibition on common RVV semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, mask/tail, memory sentinel, and ssh rvv evidence requirements for RVV runtime correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-computed-mask-standalone-reduction-artifact-abi/prd.md", "reason": "Previous selected-body to generated-artifact ABI evidence pattern and commands to adapt from scalar-result reduction to masked memory movement."}

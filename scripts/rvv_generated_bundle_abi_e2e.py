@@ -16255,6 +16255,11 @@ int main(void) {{
 
 #include "{header_file_name}"
 
+static size_t aggregate_mixed_mask_cases = 0;
+static size_t aggregate_all_inactive_cases = 0;
+static size_t aggregate_active_cases = 0;
+static size_t aggregate_payload_distinguishing_lanes = 0;
+
 static int run_case(size_t n, {expectation.element_c_type} rhs_scalar) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
@@ -16363,17 +16368,6 @@ static int run_case(size_t n, {expectation.element_c_type} rhs_scalar) {{
     }}
   }}
 
-  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
-    fprintf(stderr,
-            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar={value_printf_format} active_lanes=%zu inactive_lanes=%zu\\n",
-            n, {value_printf_cast}rhs_scalar, active_lanes, inactive_lanes);
-    free(lhs);
-    free(src);
-    free(src_before);
-    free(dst);
-    free(old_dst);
-    return 16;
-  }}
   if (inactive_lanes != inactive_preserved_lanes) {{
     fprintf(stderr,
             "{expectation.kind} inactive preservation coverage mismatch n=%zu rhs_scalar={value_printf_format} inactive_lanes=%zu preserved_lanes=%zu\\n",
@@ -16396,6 +16390,13 @@ static int run_case(size_t n, {expectation.element_c_type} rhs_scalar) {{
     free(old_dst);
     return 18;
   }}
+  if (n > 1 && active_lanes != 0 && inactive_lanes != 0)
+    ++aggregate_mixed_mask_cases;
+  if (n > 1 && active_lanes == 0 && inactive_lanes != 0)
+    ++aggregate_all_inactive_cases;
+  if (n > 1 && active_lanes != 0)
+    ++aggregate_active_cases;
+  aggregate_payload_distinguishing_lanes += payload_distinguishing_lanes;
 
   free(lhs);
   free(src);
@@ -16420,8 +16421,20 @@ int main(void) {{
         return status;
     }}
   }}
+  if (aggregate_mixed_mask_cases == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} aggregate runtime scalar mask coverage missing mixed active/inactive threshold case\\n");
+    return 19;
+  }}
+  if (aggregate_active_cases != 0 && aggregate_payload_distinguishing_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} aggregate payload-distinguishing coverage missing\\n");
+    return 20;
+  }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} mixed_mask_cases=%zu all_inactive_cases=%zu payload_distinguishing_lanes=%zu\\n",
+         aggregate_mixed_mask_cases, aggregate_all_inactive_cases,
+         aggregate_payload_distinguishing_lanes);
   return 0;
 }}
 """.lstrip()
@@ -20409,12 +20422,15 @@ def validate_runtime_scalar_compare_select_rhs_coverage(
     if any(
         expectation.is_runtime_scalar_compare_select
         or expectation.is_runtime_scalar_dual_compare_mask_and_select
+        or expectation.is_runtime_scalar_computed_mask_store
+        or expectation.is_runtime_scalar_computed_mask_load_store
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         for expectation in expectations
     ) and len(rhs_scalar_values) < 2:
         raise EvidenceError(
-            "runtime scalar compare/select or standalone reduction evidence requires at least two "
-            "distinct RHS scalar values to cover runtime threshold behavior: "
+            "runtime scalar compare/select, computed-mask memory, or standalone "
+            "reduction evidence requires at least two distinct RHS scalar "
+            "values to cover runtime threshold behavior: "
             f"{rhs_scalar_values}"
         )
 
@@ -24206,6 +24222,42 @@ def run_self_test() -> int:
                 "self-test direct route-entry diagnostic lost selected "
                 "computed-mask standalone reduction fail-closed detail"
             )
+        direct_runtime_scalar_masked_memory_error = expect_self_test_failure(
+            "unsupported direct pre-realized runtime-scalar masked memory "
+            "route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["runtime_scalar_cmp_masked_load_store"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "runtime_scalar_cmp_masked_load_store"
+            not in direct_runtime_scalar_masked_memory_error
+            or "public selected lowering-boundary producer"
+            not in direct_runtime_scalar_masked_memory_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected "
+                "runtime-scalar masked memory fail-closed detail"
+            )
+        expect_self_test_failure(
+            "single runtime scalar masked memory RHS value",
+            lambda: validate_runtime_scalar_compare_select_rhs_coverage(
+                [
+                    EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+                        "runtime_scalar_cmp_masked_load_store"
+                    ]
+                ],
+                [-37],
+            ),
+        )
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
