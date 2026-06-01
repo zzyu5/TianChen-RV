@@ -24711,6 +24711,36 @@ def run_self_test() -> int:
                         "self-test fake bundle generation lost computed-mask "
                         "widening dot validator-backed metadata"
                     )
+                boundary = computed_masked_widening_dot_reduce_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 17, 257],
+                )
+                selected_source_abi = boundary.get("selected_source_abi", {})
+                statement_plan = boundary.get("statement_plan", {})
+                accumulator_policy = boundary.get("accumulator_type_policy", {})
+                result_policy = boundary.get("result_type_policy", {})
+                if (
+                    selected_source_abi.get("acc") != "accumulator-input-buffer"
+                    or selected_source_abi.get("out") != "output-buffer"
+                    or accumulator_policy.get("seed_source") != "acc[0]"
+                    or accumulator_policy.get("loop_carry_source") != "out[0]"
+                    or result_policy.get("scalar_store_vl")
+                    != WIDENING_DOT_REDUCTION_STORE_VL
+                    or statement_plan.get("seed_source") != "acc[0]"
+                    or statement_plan.get("loop_accumulator_source") != "out[0]"
+                    or statement_plan.get("scalar_store_vl")
+                    != WIDENING_DOT_REDUCTION_STORE_VL
+                    or boundary.get("direct_pre_realized_route_entry_supported")
+                    is not False
+                    or boundary.get("runtime_counts") != [0, 1, 16, 17, 257]
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost computed-mask "
+                        "widening dot accumulator/result ABI boundary facts"
+                    )
                 if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
                     if (
                         computed_masked_widening_dot_metadata.get(

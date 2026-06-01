@@ -848,3 +848,62 @@ counts `0,1,16,17,257` with seeds `-11` and `17`.
 ### Next Steps
 
 - None - task complete after archive, commit, and clean status verification
+
+
+## Session 373: Stage2 RVV computed-masked widening dot-reduction artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked widening dot-reduction artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Pinned computed_masked_widening_dot_reduce_add accumulator/result ABI guards, generated-bundle boundary evidence, and ssh rvv correctness.
+
+### Main Changes
+
+### Summary
+
+Proved the bounded `computed_masked_widening_dot_reduce_add` selected-body-to-generated-bundle ABI boundary. The production path already carried the body through RVV selected-body realization, contraction route-family facts, provider-built route operands, common EmitC, and RVV target artifact validation; this round added focused accumulator/result ABI guard evidence and strengthened generated-bundle self-test assertions.
+
+### Main Changes
+
+- Added computed-mask widening-dot target validator regressions that mutate `acc` and `out` runtime ABI roles and require fail-closed target artifact validation.
+- Extended `rvv_generated_bundle_abi_e2e.py --self-test` so computed-mask widening-dot evidence must preserve `acc`/`out` ABI roles, seed `acc[0]`, loop carry `out[0]`, scalar store VL `1`, retired direct route-entry status, and runtime counts `0,1,16,17,257`.
+- Created and archived task `06-02-stage2-rvv-computed-masked-widening-dot-reduce-artifact-abi` with PRD, focused checks, direct route-entry negative evidence, old-authority scan, and `ssh rvv` evidence.
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk git diff --check`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused dry-run for `computed_masked_widening_dot_reduce_add` counts `0,1,16,17,257`
+- [OK] Direct route-entry negative command failed with the expected retired shortcut diagnostic
+- [OK] Focused FileCheck checks for REALIZED, PLAN, HEADER, ROOT, MDOT, and HARNESS prefixes
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Real `ssh rvv` generated bundle correctness for counts `0,1,16,17,257`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-stage2-rvv-computed-masked-widening-dot-reduce-artifact-abi`
+
+### Status
+
+[OK] Completed, archived, and ready for the single task commit.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

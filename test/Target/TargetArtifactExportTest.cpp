@@ -7206,6 +7206,29 @@ bool expectRVVTargetArtifactExporterShape(
           {"runtime ABI parameter 2", "lhs", "dot-lhs-input-buffer"}))
     return false;
 
+  RVVRouteDescription staleComputedMaskDotAccumulatorRole =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotAccumulatorRole.runtimeABIParameters[4].role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotAccumulatorRole,
+          "computed-mask widening-dot registry rejects stale accumulator ABI "
+          "role",
+          {"runtime ABI parameter 4", "acc", "accumulator-input-buffer"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskDotOutputRole =
+      computedMaskWideningDotDescription;
+  staleComputedMaskDotOutputRole.runtimeABIParameters[5].role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (!expectWideningDotProviderFailure(
+          computedMaskWideningDotFixture.candidate,
+          computedMaskWideningDotRoute, staleComputedMaskDotOutputRole,
+          "computed-mask widening-dot registry rejects stale output ABI role",
+          {"runtime ABI parameter 5", "out", "output-buffer"}))
+    return false;
+
   RVVRouteDescription staleComputedMaskDotSource =
       computedMaskWideningDotDescription;
   staleComputedMaskDotSource.maskSource = "metadata-derived-mask-source";

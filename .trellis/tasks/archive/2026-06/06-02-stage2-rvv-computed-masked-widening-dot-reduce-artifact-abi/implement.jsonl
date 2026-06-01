@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage 2 boundary for selected typed RVV bodies."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, route provider authority, and mask/tail/dtype ownership rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck, generated-bundle, fail-closed, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-widening-dot-reduce-artifact-abi/prd.md", "reason": "Previous plain widening-dot artifact ABI boundary and evidence pattern to extend only for computed-mask facts."}
