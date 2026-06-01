@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants: typed RVV authority, no descriptor/source-front-door authority, and no runtime claims without ssh rvv evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check widening conversion selected-body realization owner, provider preflight, fail-closed direct pre-realized route, and stale authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built TCRVEmitCLowerableRoute only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit evidence and conversion/SEW policy expectations."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV-specific changes stay plugin-local and do not add core semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level or core compute boundary drift was introduced."}

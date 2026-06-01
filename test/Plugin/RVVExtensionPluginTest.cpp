@@ -2607,6 +2607,12 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i16mf2-to-i32m1", dest_lmul = "m1", dest_sew = 32 : i64, memory_form = "unit-stride-conversion", op_kind = "sign_extend_widen_vf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_widen_i32_to_i64 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i32m1-to-i64m2", dest_lmul = "m2", dest_sew = 64 : i64, memory_form = "unit-stride-conversion", op_kind = "widen_i32_to_i64", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m1", source_sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_bad_widen_i32_to_i64 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -2749,46 +2755,304 @@ module {
            "must match either op_kind 'widen_i32_to_i64'"}))
     return result;
 
-  VariantLoweringBoundaryResult boundaryResult;
-  mlir::OpBuilder producerBuilder(module->getContext());
-  if (int result = expectSuccess(
-          registry.materializeSelectedLoweringBoundary(
-              VariantLoweringBoundaryRequest(
-                  widenVariant, kernel, capabilities,
-                  VariantEmissionRole::DirectVariant, producerBuilder),
-              boundaryResult),
-          "selected-body producer consumes widening conversion pre-realized "
-          "body"))
-    return result;
-  if (int result = expect(
-          boundaryResult.isMaterialized() &&
-              countNestedOps(
-                  widenVariant,
-                  "tcrv_rvv.typed_widening_conversion_pre_realized_body") ==
-                  0 &&
-              countNestedOps(widenVariant, "tcrv_rvv.setvl") == 1 &&
-              countNestedOps(widenVariant, "tcrv_rvv.with_vl") == 1 &&
-              countNestedOps(widenVariant, "tcrv_rvv.load") == 1 &&
-              countNestedOps(widenVariant, "tcrv_rvv.widening_convert") == 1 &&
-              countNestedOps(widenVariant, "tcrv_rvv.store") == 1,
-          "dedicated widening conversion owner materializes "
-          "load/widening_convert/store typed facts"))
+  auto realizeWideningConversionVariant =
+      [&](llvm::StringRef variantName,
+          tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind
+              expectedOperation,
+          std::int64_t expectedSourceSEW, llvm::StringRef expectedSourceLMUL,
+          std::int64_t expectedDestSEW, llvm::StringRef expectedDestLMUL,
+          llvm::StringRef expectedSourceVectorType,
+          llvm::StringRef expectedResultVectorType,
+          llvm::StringRef expectedConversionKind,
+          llvm::StringRef expectedRelation, llvm::StringRef expectedSetVLLeaf,
+          llvm::StringRef expectedLoadLeaf, llvm::StringRef expectedConvertLeaf,
+          llvm::StringRef expectedStoreLeaf,
+          llvm::StringRef expectedProviderMirror) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *preRealized = findFirstNestedOp(
+        variant, "tcrv_rvv.typed_widening_conversion_pre_realized_body");
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found widening conversion "
+                                        "pre-realized body for @") +
+                                variantName))
+      return result;
+
+    llvm::Expected<const tianchenrv::plugin::rvv::
+                       RVVSelectedBodyRealizationOwner *>
+        owner = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyRealizationOwnerForBody(
+                preRealized,
+                "widening conversion selected-body realization boundary "
+                "unit test");
+    if (!owner)
+      return fail(llvm::Twine("widening conversion owner lookup failed for @") +
+                  variantName + ": " + llvm::toString(owner.takeError()));
+    if (int result = expect((*owner)->familyName == "widening conversion" &&
+                                (*owner)->realize != nullptr,
+                            llvm::Twine("widening conversion selected body @") +
+                                variantName +
+                                " is registry-owned before route planning"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        beforeRealization =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (beforeRealization)
+      return fail(llvm::Twine("widening conversion pre-realized @") +
+                  variantName +
+                  " unexpectedly reached route facts before realization");
+    if (int result = expectErrorContains(
+            beforeRealization.takeError(),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body", "widening conversion"}))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+    llvm::Error directRouteError = registry.buildVariantEmitCLowerableRoute(
+        VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+        directRoute);
+    if (int result = expectErrorContains(
+            std::move(directRouteError),
+            {"pre-realized RVV selected body",
+             "owned by selected-body realization owner",
+             "widening conversion", "before provider route construction"}))
+      return result;
+
+    VariantLoweringBoundaryResult boundaryResult;
+    mlir::OpBuilder producerBuilder(module->getContext());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, producerBuilder),
+                boundaryResult),
+            llvm::Twine("public selected lowering-boundary producer consumes "
+                        "widening conversion pre-realized @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            boundaryResult.isMaterialized() &&
+                countNestedOps(
+                    variant,
+                    "tcrv_rvv.typed_widening_conversion_pre_realized_body") ==
+                    0 &&
+                countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.load") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.widening_convert") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.store") == 1,
+            llvm::Twine("widening conversion pre-realized @") +
+                variantName +
+                " is consumed into explicit setvl/with_vl/load/convert/store "
+                "structure"))
+      return result;
+
+    auto convertOp =
+        findFirstNestedOp(variant, "tcrv_rvv.widening_convert");
+    auto convertKind =
+        convertOp ? convertOp->getAttrOfType<mlir::StringAttr>("kind")
+                  : mlir::StringAttr();
+    if (int result = expect(
+            convertKind && convertKind.getValue() == expectedConversionKind,
+            llvm::Twine("widening conversion realized @") + variantName +
+                " preserves conversion operation kind"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized widening conversion route "
+                              "for @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
+    if (int result = expect(
+            routeDescription->operation == expectedOperation &&
+                routeDescription->memoryForm ==
+                    tianchenrv::plugin::rvv::
+                        RVVSelectedBodyMemoryForm::UnitStrideConversion &&
+                routeDescription->sourceSEW == expectedSourceSEW &&
+                routeDescription->sourceLMUL == expectedSourceLMUL &&
+                routeDescription->sew == expectedDestSEW &&
+                routeDescription->lmul == expectedDestLMUL &&
+                routeDescription->sourceVectorTypeName ==
+                    expectedSourceVectorType &&
+                routeDescription->vectorTypeName ==
+                    expectedResultVectorType &&
+                routeDescription->conversionRelation == expectedRelation &&
+                routeDescription->typedComputeOpName ==
+                    "tcrv_rvv.widening_convert" &&
+                routeDescription->runtimeABIOrder == "lhs,out,n" &&
+                routeDescription->wideningConversionRouteFamilyPlanID ==
+                    "rvv-widening-conversion-route-family-plan.v1" &&
+                routeDescription->providerSupportedMirror ==
+                    expectedProviderMirror,
+            llvm::Twine("realized widening conversion @") + variantName +
+                " records source/result dtype, SEW/LMUL, conversion, ABI, "
+                "and provider route-family facts"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+        analysis = analyzeRouteInModule(
+            *module, "rvv_widening_conversion_owner_kernel", variantName);
+    if (!analysis)
+      return fail(llvm::Twine("analyze realized widening conversion route "
+                              "for @") +
+                  variantName + ": " + llvm::toString(analysis.takeError()));
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::
+                verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                    *analysis,
+                    "widening conversion realization-boundary unit test"),
+            "verify widening conversion route-family plan after realization"))
+      return result;
+
+    auto materializationFacts =
+        tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts(
+            *analysis, "widening conversion realization-boundary unit test");
+    if (!materializationFacts)
+      return fail("widening conversion materialization facts after "
+                  "realization: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto mathFacts =
+        tianchenrv::plugin::rvv::
+            getRVVSelectedBodyMathRouteOperandBindingFacts(
+                *analysis,
+                "widening conversion realization-boundary unit test");
+    if (!mathFacts)
+      return fail("widening conversion math operand-binding facts after "
+                  "realization: " +
+                  llvm::toString(mathFacts.takeError()));
+    auto routeControlPlan =
+        tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan(
+            *analysis, *materializationFacts,
+            "widening conversion realization-boundary unit test");
+    if (!routeControlPlan)
+      return fail("widening conversion route-control facts after "
+                  "realization: " +
+                  llvm::toString(routeControlPlan.takeError()));
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsWideningConversion &&
+                routeControlPlan->runtimeControlPlan ==
+                    &materializationFacts->wideningConversionPlan
+                         ->runtimeControlPlan,
+            llvm::Twine("widening conversion route-control plan @") +
+                variantName +
+                " consumes realized typed config, target capability, and AVL/"
+                "VL facts"))
+      return result;
+
+    auto statementPlan =
+        tianchenrv::plugin::rvv::
+            getRVVSelectedBodyWideningConversionRouteStatementPlan(
+                *analysis, *materializationFacts, *mathFacts,
+                "widening conversion realization-boundary unit test");
+    if (!statementPlan)
+      return fail("widening conversion statement plan after realization: " +
+                  llvm::toString(statementPlan.takeError()));
+    llvm::StringRef expectedBodyCallees[4] = {
+        expectedSetVLLeaf, expectedLoadLeaf, expectedConvertLeaf,
+        expectedStoreLeaf};
+    if (int result = expect(
+            statementPlan->plansWideningConversionRoute &&
+                statementPlan->wideningConversionPlan ==
+                    materializationFacts->wideningConversionPlan &&
+                statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    expectedSetVLLeaf &&
+                statementPlan->loop.bodySteps.size() ==
+                    std::size(expectedBodyCallees),
+            llvm::Twine("widening conversion statement plan @") +
+                variantName +
+                " consumes realized setvl/load/convert/store structure"))
+      return result;
+    for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+         ++index) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee ==
+                  expectedBodyCallees[index],
+              llvm::Twine("widening conversion statement-plan @") +
+                  variantName + " loop step " + llvm::Twine(index) +
+                  " uses RVV-owned callee '" + expectedBodyCallees[index] +
+                  "'"))
+        return result;
+    }
+
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::
+                verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+                    *analysis, *materializationFacts, *mathFacts,
+                    *statementPlan,
+                    "widening conversion realization-boundary unit test"),
+            "widening conversion provider preflight accepts realized typed "
+            "body facts before route construction"))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider consumes realized widening conversion "
+                        "body for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    expectedSetVLLeaf &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    std::size(expectedBodyCallees),
+            llvm::Twine("provider route @") + variantName +
+                " attaches the RVV-owned widening conversion statement plan"))
+      return result;
+    for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+         ++index) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee ==
+                  expectedBodyCallees[index],
+              llvm::Twine("provider route widening conversion @") +
+                  variantName + " loop step " + llvm::Twine(index) +
+                  " uses RVV-owned callee '" + expectedBodyCallees[index] +
+                  "'"))
+        return result;
+    }
+    return 0;
+  };
+
+  if (int result = realizeWideningConversionVariant(
+          "rvv_pre_widen_i16_to_i32",
+          tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32,
+          16, "mf2", 32, "m1", "!tcrv_rvv.vector<i16, \"mf2\">",
+          "!tcrv_rvv.vector<i32, \"m1\">", "sign_extend_widen_vf2",
+          "signed-i16mf2-to-i32m1", "__riscv_vsetvl_e32m1",
+          "__riscv_vle16_v_i16mf2", "__riscv_vwcvt_x_x_v_i32m1",
+          "__riscv_vse32_v_i32m1",
+          "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated"))
     return result;
 
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
-              VariantEmitCLowerableRequest(
-                  widenVariant, kernel, capabilities,
-                  VariantEmissionRole::DirectVariant),
-              route),
-          "provider consumes dedicated-owner realized widening conversion "
-          "facts"))
-    return result;
-  return expect(route.getForLoops().size() == 1 &&
-                    route.getForLoops().front().bodySteps.size() == 4,
-                "provider route preserves widening conversion statement-plan "
-                "steps");
+  return realizeWideningConversionVariant(
+      "rvv_pre_widen_i32_to_i64",
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64,
+      32, "m1", 64, "m2", "!tcrv_rvv.vector<i32, \"m1\">",
+      "!tcrv_rvv.vector<i64, \"m2\">", "widen_i32_to_i64",
+      "signed-i32m1-to-i64m2", "__riscv_vsetvl_e64m2",
+      "__riscv_vle32_v_i32m1", "__riscv_vwcvt_x_x_v_i64m2",
+      "__riscv_vse64_v_i64m2",
+      "provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated");
 }
 
 int runPreRealizedSelectedBodyProductionRoutePathTest(

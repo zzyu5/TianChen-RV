@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for typed RVV body authority, Stage 2 selected-body realization, and common EmitC boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected-body owner registry, widening conversion provider preflight, route-control, and no stale route authority contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract requiring provider-built routes and no common EmitC RVV semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/C++ evidence requirements and conversion/SEW policy generated-bundle evidence contract."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checklist for RVV owner/provider boundaries."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checklist to keep widening conversion in tcrv_rvv rather than tcrv.exec or common code."}
