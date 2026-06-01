@@ -55,6 +55,10 @@
 # CMS-DAG: "__riscv_vmslt_vv_i32m1_b32"
 # CMS-DAG: "__riscv_vmerge_vvm_i32m1"
 # CMS-DAG: "select_coverage_contract": "multi-lane computed_mask_select cases require compare-produced true and false select lanes"
+# CMS-DAG: "computed_mask_select_compare_data_patterns": [
+# CMS-DAG: "fixture-selected-mixed-vector-compare"
+# CMS-DAG: "alternate-signed-mixed-vector-compare"
+# CMS-DAG: "compare_data_patterns_required_minimum": 2
 # CMS-DAG: "tail_lane_contract": "runtime n must be honored and tail sentinel lanes must be preserved"
 # CMS-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # CMS-DAG: "status": "dry_run_success"
@@ -96,6 +100,10 @@
 # SLE-DAG: "__riscv_vmsle_vv_i32m1_b32"
 # SLE-DAG: "__riscv_vmerge_vvm_i32m1"
 # SLE-DAG: "select_coverage_contract": "multi-lane computed_mask_select cases require compare-produced true and false select lanes"
+# SLE-DAG: "computed_mask_select_compare_data_patterns": [
+# SLE-DAG: "fixture-selected-mixed-vector-compare"
+# SLE-DAG: "alternate-signed-mixed-vector-compare"
+# SLE-DAG: "compare_data_patterns_required_minimum": 2
 # SLE-DAG: "tail_lane_contract": "runtime n must be honored and tail sentinel lanes must be preserved"
 # SLE-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # SLE-DAG: "status": "dry_run_success"
@@ -107,6 +115,8 @@
 # HARNESS: select_true_lanes
 # HARNESS: select_false_lanes
 # HARNESS: const size_t counts[] = {0, 1, 7, 16, 23, 257};
+# HARNESS: compare_pattern_count
+# HARNESS: compare_data_patterns=%zu
 
 # HARNESS-SLE: tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
 # HARNESS-SLE: (cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])
@@ -115,3 +125,5 @@
 # HARNESS-SLE: select_true_lanes
 # HARNESS-SLE: select_false_lanes
 # HARNESS-SLE: const size_t counts[] = {0, 1, 7, 16, 23, 257};
+# HARNESS-SLE: compare_pattern_count
+# HARNESS-SLE: compare_data_patterns=%zu

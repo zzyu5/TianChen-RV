@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must verify the RVV-first authority chain remains intact."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify selected-body realization, computed-mask select route facts, operand-binding, statement-plan ownership, and fail-closed direct route-entry behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify common EmitC/export remains neutral and consumes provider-built route payloads only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify generated-bundle compare/select evidence and ssh rvv evidence quality."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-computed-mask-cmp-select-artifact-abi/prd.md", "reason": "Final acceptance criteria and completion notes for this task."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Final check must verify focused generated-bundle dry-run/self-test/ssh rvv behavior for computed_mask_select."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select.mlir", "reason": "Final check must verify focused pre-realized computed_mask_select selected-body artifact lit coverage."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-mask-select-dry-run.test", "reason": "Final check must verify generated-bundle dry-run coverage for pre-realized computed_mask_select."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-mask-select-unsupported.test", "reason": "Final check must verify direct pre-realized computed_mask_select fails closed."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Final check must verify provider/statement-plan/preflight C++ tests if touched or relevant."}

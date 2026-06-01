@@ -19705,7 +19705,23 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static {expectation.element_c_type} init_cmp_lhs(size_t index, int compare_pattern) {{
+  if (compare_pattern == 0)
+    return {expectation.lhs_initializer};
+  return ({expectation.element_c_type})(((index % 4) == 0 || (index % 4) == 3)
+           ? (-50 + ({expectation.element_c_type})index)
+           : (80 + ({expectation.element_c_type})index));
+}}
+
+static {expectation.element_c_type} init_cmp_rhs(size_t index, int compare_pattern) {{
+  if (compare_pattern == 0)
+    return {expectation.rhs_initializer};
+  return ({expectation.element_c_type})(((index % 4) == 0 || (index % 4) == 3)
+           ? (-10 + ({expectation.element_c_type})index)
+           : (20 + ({expectation.element_c_type})index));
+}}
+
+static int run_case(size_t n, int compare_pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t out_alloc_n = alloc_n + 8;
@@ -19725,8 +19741,8 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    cmp_lhs[index] = {expectation.lhs_initializer};
-    cmp_rhs[index] = {expectation.rhs_initializer};
+    cmp_lhs[index] = init_cmp_lhs(index, compare_pattern);
+    cmp_rhs[index] = init_cmp_rhs(index, compare_pattern);
     true_value[index] = {expectation.true_value_initializer};
     false_value[index] = {expectation.false_value_initializer};
     out[index] = {expectation.out_initializer};
@@ -19748,8 +19764,8 @@ static int run_case(size_t n) {{
     {expectation.element_c_type} expected = {expectation.expected_expression};
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got={value_printf_format} expected={value_printf_format} cmp_lhs={value_printf_format} cmp_rhs={value_printf_format} true={value_printf_format} false={value_printf_format} predicate=%d\\n",
-              n, index, {value_printf_cast}out[index],
+              "{expectation.kind} mismatch n=%zu compare_pattern=%d index=%zu got={value_printf_format} expected={value_printf_format} cmp_lhs={value_printf_format} cmp_rhs={value_printf_format} true={value_printf_format} false={value_printf_format} predicate=%d\\n",
+              n, compare_pattern, index, {value_printf_cast}out[index],
               {value_printf_cast}expected, {value_printf_cast}cmp_lhs[index],
               {value_printf_cast}cmp_rhs[index],
               {value_printf_cast}true_value[index],
@@ -19766,8 +19782,8 @@ static int run_case(size_t n) {{
   for (size_t index = n; index < out_alloc_n; ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got={value_printf_format} sentinel={value_printf_format}\\n",
-              n, index, {value_printf_cast}out[index],
+              "{expectation.kind} touched tail sentinel n=%zu compare_pattern=%d raw_index=%zu got={value_printf_format} sentinel={value_printf_format}\\n",
+              n, compare_pattern, index, {value_printf_cast}out[index],
               {value_printf_cast}{expectation.out_initializer});
       free(cmp_lhs);
       free(cmp_rhs);
@@ -19780,8 +19796,8 @@ static int run_case(size_t n) {{
 
   if (n > 1 && (true_lanes == 0 || false_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} select coverage missing n=%zu true_lanes=%zu false_lanes=%zu\\n",
-            n, true_lanes, false_lanes);
+            "{expectation.kind} select coverage missing n=%zu compare_pattern=%d true_lanes=%zu false_lanes=%zu\\n",
+            n, compare_pattern, true_lanes, false_lanes);
     free(cmp_lhs);
     free(cmp_rhs);
     free(true_value);
@@ -19795,21 +19811,27 @@ static int run_case(size_t n) {{
   free(true_value);
   free(false_value);
   free(out);
-  printf("{expectation.kind} case n=%zu ok select_true_lanes=%zu select_false_lanes=%zu tail_preserved\\n",
-         n, true_lanes, false_lanes);
+  printf("{expectation.kind} case n=%zu compare_pattern=%d ok select_true_lanes=%zu select_false_lanes=%zu tail_preserved\\n",
+         n, compare_pattern, true_lanes, false_lanes);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
+  const int compare_patterns[] = {{0, 1}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t compare_pattern_count = sizeof(compare_patterns) / sizeof(compare_patterns[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t pattern_index = 0; pattern_index < compare_pattern_count; ++pattern_index) {{
+      int status = run_case(counts[index], compare_patterns[pattern_index]);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} compare_data_patterns=%zu\\n",
+         compare_pattern_count);
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} compare_data_patterns=%zu\\n",
+         compare_pattern_count);
   return 0;
 }}
 """.lstrip()
@@ -21428,6 +21450,16 @@ def compare_select_predicate_boundary_summary(
                 ),
                 "mask_composition": "and",
                 "mask_composition_op": "tcrv_rvv.mask_and",
+            }
+        )
+    if expectation.is_computed_mask_select:
+        summary.update(
+            {
+                "computed_mask_select_compare_data_patterns": [
+                    "fixture-selected-mixed-vector-compare",
+                    "alternate-signed-mixed-vector-compare",
+                ],
+                "compare_data_patterns_required_minimum": 2,
             }
         )
     return summary
@@ -24168,6 +24200,29 @@ def run_self_test() -> int:
                 "self-test direct route-entry diagnostic lost selected "
                 "runtime-scalar compare/select fail-closed detail"
             )
+        direct_computed_mask_select_error = expect_self_test_failure(
+            "unsupported direct pre-realized computed-mask select route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["computed_mask_select"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "computed_mask_select" not in direct_computed_mask_select_error
+            or "public selected lowering-boundary producer"
+            not in direct_computed_mask_select_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected "
+                "computed-mask select fail-closed detail"
+            )
         validate_strided_load_byte_strides([4, 8, 12])
         expect_self_test_failure(
             "zero byte stride", lambda: validate_strided_load_byte_strides([0])
@@ -24751,6 +24806,18 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask "
                     "standalone reduction seed and mask coverage"
+                )
+            if expectation.is_computed_mask_select and (
+                "compare_pattern_count" not in harness
+                or "compare_data_patterns=%zu" not in harness
+                or "init_cmp_lhs" not in harness
+                or "init_cmp_rhs" not in harness
+                or "run_case(counts[index], compare_patterns[pattern_index])"
+                not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost computed-mask select "
+                    "multi-pattern compare-data coverage"
                 )
             if expectation.is_standalone_reduce and (
                 "acc[0] != seed" not in harness

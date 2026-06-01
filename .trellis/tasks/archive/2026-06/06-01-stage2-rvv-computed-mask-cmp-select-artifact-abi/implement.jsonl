@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 selected-body realization boundary for computed_mask_select."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV elementwise/compare-select selected-body realization, computed-mask select provider facts, operand-binding, statement-plan, and fail-closed direct route-entry requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC materializer boundary and prohibition on common RVV semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle compare/select predicate evidence and ssh rvv correctness requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi/prd.md", "reason": "Adjacent completed compare/select artifact ABI evidence pattern and direct route-entry fail-closed regression pattern."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Typed computed_mask_select pre-realized and realized RVV op surface."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h", "reason": "Public selected-body realization owner API for elementwise/compare-select bodies."}
+{"file": "lib/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.cpp", "reason": "Production selected-body realization owner implementation for computed_mask_select."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "RVV-owned compare/select statement-plan boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Computed-mask select route family plans, materialization facts, and operand-binding facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Provider-built TCRVEmitCLowerableRoute and computed-mask compare/select preflight consumption."}
+{"file": "lib/Conversion/EmitC/TCRVEmitCLowerableMaterializer.cpp", "reason": "Common EmitC materialization must remain neutral and consume provider payloads only."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact route-family validation for provider-owned compare/select facts."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Generated bundle mirror metadata and required route facts for computed-mask select."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run, self-test, ssh rvv harness, and evidence JSON for computed_mask_select."}

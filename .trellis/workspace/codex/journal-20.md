@@ -409,6 +409,72 @@ counts `0,1,16,17,257`.
 - None - task complete after archive, commit, and clean status verification
 
 
+## Session 373: Stage2 RVV computed-mask compare-select artifact ABI boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV computed-mask compare-select artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved `computed_mask_select` selected-body-to-generated-bundle artifact ABI
+with provider-derived compare/mask/select evidence, two generated compare-data
+runtime patterns, direct route-entry fail-closed regression, focused C++ and
+FileCheck verification, and real `ssh rvv` correctness for runtime counts
+`0,1,16,17,257`.
+
+### Main Changes
+
+- Created and archived task
+  `06-01-stage2-rvv-computed-mask-cmp-select-artifact-abi` with PRD and
+  context scoped to exactly one computed-mask compare/select selected body.
+- Verified the existing production C++ path carries `computed_mask_select`
+  through RVV selected-body realization, computed-mask select route facts,
+  operand-binding facts, compare/select statement-plan facts, provider
+  preflight, common EmitC, and RVV target artifact bundle export.
+- Tightened `scripts/rvv_generated_bundle_abi_e2e.py` so generated
+  `computed_mask_select` harnesses execute two compare-data patterns per
+  runtime count and expose that requirement in
+  `compare_select_predicate_boundary`.
+- Added a script `--self-test` regression for the retired direct pre-realized
+  `computed_mask_select` route-entry mode.
+- Updated the focused generated-bundle dry-run test to check the new
+  compare-data pattern evidence and harness fields.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-01-stage2-rvv-computed-mask-cmp-select-artifact-abi`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_mask_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-computed-mask-cmp-select-artifact-abi/final-dry-run-v3 --overwrite`
+- [OK] Direct route-entry negative command exited 1 with the expected retired
+  direct route-entry diagnostic for `computed_mask_select`.
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_mask_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --artifact-root artifacts/tmp/06-01-stage2-rvv-computed-mask-cmp-select-artifact-abi/final-ssh-rvv-v1 --overwrite`
+- [OK] Manual FileCheck equivalents for the focused generated-bundle dry-run
+  and direct pre-realized fail-closed script tests.
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused REALIZED/PLAN/HEADER FileCheck commands for
+  `pre-realized-selected-body-artifact-computed-mask-select.mlir`.
+- [OK] Bounded old-authority scan over added lines in touched script/test/task
+  files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification
+
+
 ## Session 374: Stage2 RVV runtime-scalar compare-select artifact ABI boundary
 
 **Date**: 2026-06-01
