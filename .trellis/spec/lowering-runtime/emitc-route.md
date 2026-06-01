@@ -120,6 +120,10 @@ for runtime ABI parameters exported through the generated header/prototype.
   `src`, `out0`, `out1`, and `n` in that runtime ABI order, and every exported
   entry carries both `abi` and `hdr`. Target artifact validation must reject
   stale `runtime-abi-mirror` / `header` summaries before bundle acceptance.
+- Good: for `segment2_interleave_unit_load`, the provider summary binds
+  `src0`, `src1`, `dst`, and `n` in that runtime ABI order, and every exported
+  entry carries both `abi` and `hdr`. Target artifact validation must reject
+  stale `runtime-abi-mirror` / `header` summaries before bundle acceptance.
 - Base: non-exported internal temporaries do not receive runtime ABI header
   markers.
 - Bad: a combined route omits header/prototype markers on compare, dot source,

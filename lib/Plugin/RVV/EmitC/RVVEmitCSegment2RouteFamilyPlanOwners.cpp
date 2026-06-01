@@ -638,18 +638,18 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
     context = "segment2_interleave_unit_load route";
     addSegment2RouteOperandBinding(
         plan, "src0", analysis.slice.field0ABI,
-        {"runtime-abi-mirror", "field0-load-base", "field0-role",
-         "src0-mem", "tuple-field0", "header"});
+        {"abi", "field0-load-base", "field0-role", "src0-mem",
+         "tuple-field0", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "src1", analysis.slice.field1ABI,
-        {"runtime-abi-mirror", "field1-load-base", "field1-role",
-         "src1-mem", "tuple-field1", "header"});
+        {"abi", "field1-load-base", "field1-role", "src1-mem",
+         "tuple-field1", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "dst", analysis.slice.outABI,
-        {"runtime-abi-mirror", "seg-store-base", "dst-mem", "header"});
+        {"abi", "seg-store-base", "dst-mem", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "n", analysis.slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control", "header"});
+        {"abi", "setvl-avl", "loop-control", "hdr"});
     break;
   default:
     return plan;

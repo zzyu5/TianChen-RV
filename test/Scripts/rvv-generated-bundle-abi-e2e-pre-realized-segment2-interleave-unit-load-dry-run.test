@@ -50,7 +50,7 @@
 # SEGMENT-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # SEGMENT-DAG: "value": "rvv-route-operand-binding:segment2_interleave_unit_load.v1"
 # SEGMENT-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# SEGMENT-DAG: "value": "rvv-route-operand-binding:segment2_interleave_unit_load.v1;src0=segment-field0-input-buffer:src0:runtime-abi-mirror|field0-load-base|field0-role|src0-mem|tuple-field0|header;src1=segment-field1-input-buffer:src1:runtime-abi-mirror|field1-load-base|field1-role|src1-mem|tuple-field1|header;dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|seg-store-base|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"
+# SEGMENT-DAG: "value": "rvv-route-operand-binding:segment2_interleave_unit_load.v1;src0=segment-field0-input-buffer:src0:abi|field0-load-base|field0-role|src0-mem|tuple-field0|hdr;src1=segment-field1-input-buffer:src1:abi|field1-load-base|field1-role|src1-mem|tuple-field1|hdr;dst=segment-interleaved-output-buffer:dst:abi|seg-store-base|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # SEGMENT-DAG: "key": "tcrv_rvv.segment_memory_layout"
 # SEGMENT-DAG: "value": "dual-unit-stride-source-segment2-interleaved-destination-runtime-abi"
 # SEGMENT-DAG: "key": "tcrv_rvv.segment_count"
@@ -80,4 +80,5 @@
 # HARNESS: int32_t expected1 = src1[index];
 # HARNESS: field_order_distinguishing_lanes
 # HARNESS: tail_preserved
+# HARNESS: for (int pattern = 0; pattern < 2; ++pattern)
 # HARNESS: PASS op=segment2_interleave_unit_load counts=7,16,23

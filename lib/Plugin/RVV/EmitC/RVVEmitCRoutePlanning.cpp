@@ -23987,7 +23987,7 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
                               "segment2_interleave_unit_load tuple field0"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("src0", "header",
+            requireOperandUse("src0", "hdr",
                               "segment2_interleave_unit_load field0 header"))
       return std::move(error);
     if (llvm::Error error =
@@ -24007,7 +24007,7 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
                               "segment2_interleave_unit_load tuple field1"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("src1", "header",
+            requireOperandUse("src1", "hdr",
                               "segment2_interleave_unit_load field1 header"))
       return std::move(error);
     if (llvm::Error error =
@@ -24020,12 +24020,12 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
                               "memory mirror"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("dst", "header",
+            requireOperandUse("dst", "hdr",
                               "segment2_interleave_unit_load destination "
                               "header mirror"))
       return std::move(error);
     if (llvm::Error error =
-            bindRuntimeCount("loop-control", "header",
+            bindRuntimeCount("loop-control", "hdr",
                              "segment2_interleave_unit_load"))
       return std::move(error);
     return facts;

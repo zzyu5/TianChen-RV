@@ -8484,9 +8484,28 @@ bool expectRVVTargetArtifactExporterShape(
           wrongInterleaveRouteOperandBinding,
           "plain segment2 interleave validator rejects wrong route operand "
           "binding summary",
-          {"route operand binding summary",
-           "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
-           "metadata-derived-binding"}))
+          {"route operand binding summary", "must start",
+           "rvv-route-operand-binding:segment2_interleave_unit_load.v1"}))
+    return false;
+
+  RVVRouteDescription staleInterleaveHeaderBinding =
+      segment2InterleaveDescription;
+  staleInterleaveHeaderBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:segment2_interleave_unit_load.v1;"
+      "src0=segment-field0-input-buffer:src0:runtime-abi-mirror|"
+      "field0-load-base|field0-role|src0-mem|tuple-field0|header;"
+      "src1=segment-field1-input-buffer:src1:runtime-abi-mirror|"
+      "field1-load-base|field1-role|src1-mem|tuple-field1|header;"
+      "dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|"
+      "seg-store-base|dst-mem|header;"
+      "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|"
+      "header";
+  if (!expectPlainInterleaveProviderFailure(
+          staleInterleaveHeaderBinding,
+          "plain segment2 interleave validator rejects stale ABI/header "
+          "binding markers",
+          {"logical operand 'src0'", "provider ABI marker 'abi'",
+           "header/prototype marker 'hdr'"}))
     return false;
 
   TargetArtifactCandidate wrongInterleaveProviderMirrorCandidate =

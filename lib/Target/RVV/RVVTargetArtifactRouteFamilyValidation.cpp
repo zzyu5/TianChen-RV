@@ -1456,6 +1456,50 @@ llvm::Error validatePlainSegment2DeinterleaveHeaderBindingSummary(
   return llvm::Error::success();
 }
 
+llvm::Error validatePlainSegment2InterleaveHeaderBindingSummary(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
+  if (description.operation != OperationKind::Segment2InterleaveUnitLoad)
+    return llvm::Error::success();
+
+  constexpr llvm::StringLiteral kExpectedPlan(
+      "rvv-route-operand-binding:segment2_interleave_unit_load.v1");
+  const llvm::StringRef operationMnemonic =
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
+  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires provider plan '" +
+        kExpectedPlan + "' before artifact export");
+  if (description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary is required before artifact export");
+  if (!llvm::StringRef(description.routeOperandBindingSummary)
+           .starts_with(kExpectedPlan))
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must start with provider plan '" +
+        kExpectedPlan + "' before artifact export");
+
+  constexpr llvm::StringLiteral logicalOperands[] = {"src0", "src1", "dst",
+                                                     "n"};
+  constexpr std::size_t logicalOperandCount =
+      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
+  if (description.runtimeABIParameters.size() != logicalOperandCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires the provider runtime ABI "
+        "order for src0/src1/dst/n before artifact export");
+
+  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
+            description, operationMnemonic, logicalOperands[index],
+            description.runtimeABIParameters[index]))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVBaseMemoryMovementRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -9190,10 +9234,10 @@ constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRouteOperandSummary(
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
 constexpr llvm::StringLiteral kRVVSegment2InterleaveRouteOperandSummary(
     "rvv-route-operand-binding:segment2_interleave_unit_load.v1;"
-    "src0=segment-field0-input-buffer:src0:runtime-abi-mirror|field0-load-base|field0-role|src0-mem|tuple-field0|header;"
-    "src1=segment-field1-input-buffer:src1:runtime-abi-mirror|field1-load-base|field1-role|src1-mem|tuple-field1|header;"
-    "dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|seg-store-base|dst-mem|header;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header");
+    "src0=segment-field0-input-buffer:src0:abi|field0-load-base|field0-role|src0-mem|tuple-field0|hdr;"
+    "src1=segment-field1-input-buffer:src1:abi|field1-load-base|field1-role|src1-mem|tuple-field1|hdr;"
+    "dst=segment-interleaved-output-buffer:dst:abi|seg-store-base|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
 constexpr llvm::StringLiteral kRVVSegment2DeinterleaveTargetLeafProfile(
     "rvv-v1-e32m1-segment2-deinterleave-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVSegment2InterleaveTargetLeafProfile(
@@ -10624,6 +10668,9 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
           "export");
     if (llvm::Error error =
             validatePlainSegment2DeinterleaveHeaderBindingSummary(description))
+      return error;
+    if (llvm::Error error =
+            validatePlainSegment2InterleaveHeaderBindingSummary(description))
       return error;
     if (llvm::Error error =
             validateRVVPlainSegment2MemoryProviderFacts(description))

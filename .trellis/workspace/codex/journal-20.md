@@ -1147,3 +1147,47 @@ Tightened segment2_deinterleave_unit_store provider ABI/header binding, target v
 ### Next Steps
 
 - None - task complete
+
+
+## Session 378: Stage2 RVV segment2 interleave artifact ABI
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV segment2 interleave unit-load artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed segment2_interleave_unit_load provider ABI/header binding validation,
+focused target/script/FileCheck coverage, two-pattern generated-bundle harness
+evidence, and ssh rvv correctness for counts 0,1,16,17,257.
+
+### Main Changes
+
+- Created and completed Trellis task `06-02-stage2-rvv-segment2-interleave-unit-load-artifact-abi`.
+- Tightened `rvv-route-operand-binding:segment2_interleave_unit_load.v1` so
+  `src0`, `src1`, `dst`, and `n` carry provider `abi` and header `hdr`.
+- Added target artifact fail-closed validation for stale interleave
+  `runtime-abi-mirror` / `header` binding summaries.
+- Updated explicit and pre-realized segment2 interleave artifact fixtures and
+  script dry-run expectations.
+- Strengthened the generated-bundle harness to run two field input patterns
+  and check interleaved destination tail sentinels.
+- Added lowering-runtime spec text for the segment2 interleave `abi`/`hdr`
+  contract.
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit filter `segment2-interleave-unit-load`
+- [OK] Pre-realized dry-run counts `0,1,16,17,257`
+- [OK] Direct pre-realized route-entry fail-closed dry-run
+- [OK] Real `ssh rvv` generated-bundle correctness counts `0,1,16,17,257` with two field input patterns
+- [OK] `rtk git diff --check`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-stage2-rvv-segment2-interleave-unit-load-artifact-abi`
+
+### Status
+
+[OK] Completed, archived, and ready for the single task commit.

@@ -547,10 +547,10 @@ SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:segment2_interleave_unit_load.v1;"
-    "src0=segment-field0-input-buffer:src0:runtime-abi-mirror|field0-load-base|field0-role|src0-mem|tuple-field0|header;"
-    "src1=segment-field1-input-buffer:src1:runtime-abi-mirror|field1-load-base|field1-role|src1-mem|tuple-field1|header;"
-    "dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|seg-store-base|dst-mem|header;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"
+    "src0=segment-field0-input-buffer:src0:abi|field0-load-base|field0-role|src0-mem|tuple-field0|hdr;"
+    "src1=segment-field1-input-buffer:src1:abi|field1-load-base|field1-role|src1-mem|tuple-field1|hdr;"
+    "dst=segment-interleaved-output-buffer:dst:abi|seg-store-base|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
 SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:scalar_broadcast_add.v1"
@@ -14806,7 +14806,7 @@ def harness_source(
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t src_alloc_n = alloc_n * 2 + 8;
@@ -14968,7 +14968,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t dst_alloc_n = alloc_n * 2 + 8;
@@ -15221,7 +15221,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t dst_alloc_n = alloc_n * 2 + 8;
@@ -15236,8 +15236,15 @@ static int run_case(size_t n) {{
     return 11;
   }}
   for (size_t index = 0; index < alloc_n; ++index) {{
-    src0[index] = (int32_t)(1900 + (int32_t)(index * 29));
-    src1[index] = (int32_t)(-2300 - (int32_t)(index * 31));
+    if (pattern == 0) {{
+      src0[index] = (int32_t)(1900 + (int32_t)(index * 29));
+      src1[index] = (int32_t)(-2300 - (int32_t)(index * 31));
+    }} else {{
+      src0[index] =
+          (int32_t)(((index & 1) ? -4100 : 3600) + (int32_t)(index * 17));
+      src1[index] =
+          (int32_t)(((index % 3) ? 5200 : -4900) - (int32_t)(index * 23));
+    }}
   }}
   for (size_t index = 0; index < dst_alloc_n; ++index)
     dst[index] = {OUT_SENTINEL};
@@ -15252,8 +15259,8 @@ static int run_case(size_t n) {{
       ++field_order_distinguishing_lanes;
     if (dst[2 * index] != expected0 || dst[2 * index + 1] != expected1) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got_even=%d expected_even=%d got_odd=%d expected_odd=%d src0=%d src1=%d\\n",
-              n, index, dst[2 * index], expected0,
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got_even=%d expected_even=%d got_odd=%d expected_odd=%d src0=%d src1=%d\\n",
+              n, pattern, index, dst[2 * index], expected0,
               dst[2 * index + 1], expected1, src0[index], src1[index]);
       free(src0);
       free(src1);
@@ -15264,8 +15271,8 @@ static int run_case(size_t n) {{
   for (size_t index = n * 2; index < dst_alloc_n; ++index) {{
     if (dst[index] != {OUT_SENTINEL}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, dst[index], {OUT_SENTINEL});
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, pattern, index, dst[index], {OUT_SENTINEL});
       free(src0);
       free(src1);
       free(dst);
@@ -15274,14 +15281,15 @@ static int run_case(size_t n) {{
   }}
   if (n > 1 && field_order_distinguishing_lanes == 0) {{
     fprintf(stderr,
-            "{expectation.kind} field-order coverage missing n=%zu\\n", n);
+            "{expectation.kind} field-order coverage missing n=%zu pattern=%d\\n",
+            n, pattern);
     free(src0);
     free(src1);
     free(dst);
     return 19;
   }}
-  printf("{expectation.kind} case n=%zu ok field_order_distinguishing_lanes=%zu tail_preserved\\n",
-         n, field_order_distinguishing_lanes);
+  printf("{expectation.kind} case n=%zu pattern=%d ok field_order_distinguishing_lanes=%zu tail_preserved\\n",
+         n, pattern, field_order_distinguishing_lanes);
   free(src0);
   free(src1);
   free(dst);
@@ -15291,9 +15299,11 @@ static int run_case(size_t n) {{
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   for (size_t i = 0; i < sizeof(counts) / sizeof(counts[0]); ++i) {{
-    int rc = run_case(counts[i]);
-    if (rc != 0)
-      return rc;
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      int rc = run_case(counts[i], pattern);
+      if (rc != 0)
+        return rc;
+    }}
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
@@ -25331,6 +25341,18 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask segment2 "
                     "update mask, arithmetic, no-write, or field-order coverage"
+                )
+            if expectation.is_segment2_interleave_unit_load and (
+                "for (int pattern = 0; pattern < 2; ++pattern)" not in harness
+                or "pattern=%d ok field_order_distinguishing_lanes" not in harness
+                or "dst[2 * index]" not in harness
+                or "dst[2 * index + 1]" not in harness
+                or "field-order coverage missing" not in harness
+                or "touched tail sentinel" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost plain segment2 "
+                    "interleave two-pattern field-order or tail coverage"
                 )
             if expectation.is_computed_masked_macc_add and (
                 "computed_mask macc" not in harness
