@@ -687,13 +687,13 @@ COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
-    "src=source-input-buffer:src:abi|src-load|mistore-src-call;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;"
     "index=index-input-buffer:index:abi|materialized-index-load-base|"
-    "index-offset-scale|index-source-mirror|hdr-mirror;"
-    "dst=output-buffer:dst:abi|mistore-base|hdr-mirror;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror"
+    "index-offset-scale|index-source-mirror|hdr;"
+    "dst=output-buffer:dst:abi|mistore-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
 COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1"
@@ -15888,16 +15888,20 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static uint32_t make_index(size_t logical_index, size_t n) {{
+static uint32_t make_index(size_t logical_index, size_t n, size_t pattern) {{
   if (n == 0)
     return 0;
+  if ((pattern % 2) == 1) {{
+    size_t stride = (n % 2) == 0 ? (n - 1) : 2;
+    return (uint32_t)((logical_index * stride + 1) % n);
+  }}
   size_t mixed = (n - 1) - (logical_index % n);
   if (n > 3)
     mixed = (mixed + 3) % n;
   return (uint32_t)mixed;
 }}
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, size_t pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   size_t src_alloc_n = alloc_n + 8;
@@ -15910,7 +15914,7 @@ static int run_case(size_t n) {{
   int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
   int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
   if (!cmp_lhs || !cmp_rhs || !src || !src_before || !indices || !dst || !old_dst) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    fprintf(stderr, "allocation failed for n=%zu pattern=%zu\\n", n, pattern);
     free(cmp_lhs);
     free(cmp_rhs);
     free(src);
@@ -15925,11 +15929,22 @@ static int run_case(size_t n) {{
     cmp_lhs[index] = {expectation.lhs_initializer};
     cmp_rhs[index] = {expectation.rhs_initializer};
     src[index] = {expectation.source_initializer};
+    if ((pattern % 2) == 1) {{
+      cmp_lhs[index] = ((index % 5) == 1 || (index % 5) == 4)
+                           ? (int32_t)(30 + (int32_t)index)
+                           : (int32_t)(190 + (int32_t)index);
+      cmp_rhs[index] = ((index % 5) == 1 || (index % 5) == 4)
+                           ? (int32_t)(90 + (int32_t)index)
+                           : (int32_t)(40 + (int32_t)index);
+      src[index] = (int32_t)(src[index] + 7000 + (int32_t)(index * 11));
+    }}
     src_before[index] = src[index];
-    indices[index] = make_index(index, alloc_n);
+    indices[index] = make_index(index, alloc_n, pattern);
   }}
   for (size_t index = alloc_n; index < src_alloc_n; ++index) {{
     src[index] = {expectation.source_initializer};
+    if ((pattern % 2) == 1)
+      src[index] = (int32_t)(src[index] + 7000 + (int32_t)(index * 11));
     src_before[index] = src[index];
   }}
   for (size_t index = 0; index < dst_alloc_n; ++index) {{
@@ -16094,8 +16109,8 @@ static int run_case(size_t n) {{
   free(indices);
   free(dst);
   free(old_dst);
-  printf("{expectation.kind} case n=%zu ok computed_mask indexed_scatter active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu noncontiguous_index_lanes=%zu source_preserved tail_preserved\\n",
-         n, active_lanes, inactive_lanes, inactive_preserved_lanes,
+  printf("{expectation.kind} case n=%zu pattern=%zu ok computed_mask indexed_scatter active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu noncontiguous_index_lanes=%zu source_preserved tail_preserved\\n",
+         n, pattern, active_lanes, inactive_lanes, inactive_preserved_lanes,
          noncontiguous_index_lanes);
   return 0;
 }}
@@ -16103,13 +16118,17 @@ static int run_case(size_t n) {{
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t patterns[] = {{0, 1}};
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t pattern_index = 0; pattern_index < pattern_count; ++pattern_index) {{
+      int status = run_case(counts[index], patterns[pattern_index]);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -25250,6 +25269,8 @@ def run_self_test() -> int:
                 "computed_mask indexed_scatter" not in harness
                 or "dst[dst_index]" not in harness
                 or "src[index]" not in harness
+                or "const size_t patterns[] = {0, 1}" not in harness
+                or "pattern=%zu ok computed_mask indexed_scatter" not in harness
                 or "inactive lane did not preserve destination" not in harness
                 or "source buffer mutated" not in harness
                 or "noncontiguous_index_lanes" not in harness

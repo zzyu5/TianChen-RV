@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global architecture and RVV Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask memory provider/statement-plan/target artifact family contracts remain plugin-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify operand-binding summary is provider-derived and carries required ABI/header markers."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused dry-run, negative, and real ssh rvv evidence match testing policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no common/core RVV semantic inference was introduced."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level/core compute semantics or descriptor authority were introduced."}

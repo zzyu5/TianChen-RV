@@ -2781,7 +2781,14 @@ RVVManualRouteDescription makeRVVManualIndexedScatterDescription() {
   description.routeOperandBindingPlanID =
       "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1";
   description.routeOperandBindingSummary =
-      "cmp_lhs,cmp_rhs,src,index,dst,n";
+      "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;"
+      "index=index-input-buffer:index:abi|materialized-index-load-base|"
+      "index-offset-scale|index-source-mirror|hdr;"
+      "dst=output-buffer:dst:abi|mistore-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
   description.runtimeControlPlanID =
       "rvv-runtime-avl-vl-control-plan.v1";
   description.runtimeABIOrder = "cmp_lhs,cmp_rhs,src,index,dst,n";
@@ -10385,6 +10392,39 @@ bool expectRVVTargetArtifactExporterShape(
            "header/prototype marker 'hdr'"}))
     return false;
 
+  RVVRouteDescription wrongIndexedScatterBindingPlan =
+      manualIndexedScatterDescription;
+  wrongIndexedScatterBindingPlan.routeOperandBindingPlanID =
+      "metadata-derived-computed-mask-indexed-scatter-binding-plan";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          wrongIndexedScatterBindingPlan,
+          "compare/select mask registry rejects wrong computed-mask indexed "
+          "scatter binding plan",
+          {"route operand binding summary requires provider plan",
+           "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskIndexedScatterBindingSummary =
+      manualIndexedScatterDescription;
+  staleComputedMaskIndexedScatterBindingSummary.routeOperandBindingSummary =
+      "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;"
+      "index=index-input-buffer:index:abi|materialized-index-load-base|"
+      "index-offset-scale|index-source-mirror|hdr;"
+      "dst=output-buffer:dst:abi|mistore-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleComputedMaskIndexedScatterBindingSummary,
+          "compare/select mask registry rejects computed-mask indexed scatter "
+          "binding summary without header marker",
+          {"logical operand 'cmp_lhs'", "provider ABI marker 'abi'",
+           "header/prototype marker 'hdr'"}))
+    return false;
+
   RVVRouteDescription staleIndexedGatherUniqueness =
       manualIndexedDescription;
   staleIndexedGatherUniqueness.indexUniqueness = "unique";
@@ -10618,6 +10658,30 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale indexed scatter "
           "uniqueness metadata",
           {"index_uniqueness", "unique", "metadata-derived-uniqueness"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterBindingCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterBindingCandidate,
+          "tcrv_rvv.route_operand_binding_operands",
+          "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1;"
+          "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+          "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+          "src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;"
+          "index=index-input-buffer:index:abi|materialized-index-load-base|"
+          "index-offset-scale|index-source-mirror|hdr;"
+          "dst=output-buffer:dst:abi|mistore-base|hdr;"
+          "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterBindingCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "scatter binding metadata",
+          {"route_operand_binding_operands",
+           "selected typed RVV compare/select mask binding summary",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
   TargetArtifactCandidate wrongStridedLayoutCandidate =

@@ -993,7 +993,8 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
         return "hdr";
       return use;
     }
-    if (plan.planID == kRVVComputedMaskIndexedGatherOperandBindingPlanID) {
+    if (plan.planID == kRVVComputedMaskIndexedGatherOperandBindingPlanID ||
+        plan.planID == kRVVComputedMaskIndexedScatterOperandBindingPlanID) {
       if (use == "runtime-abi-mirror" || use == "abi-mirror")
         return "abi";
       if (use == "header-mirror" || use == "hdr-mirror")
@@ -11326,13 +11327,13 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "computed_masked_indexed_scatter_store_unit_load route";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
+        {"abi", "cmp-rhs-load", "rhs-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
-        {"abi", "src-load", "mistore-src-call"});
+        {"abi", "src-load", "mistore-src-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "index", slice.indexABI,
         {"abi", "materialized-index-load-base", "index-offset-scale",
@@ -23661,6 +23662,14 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               "cmp-lhs-load", "cmp-rhs-load", "lhs-call", "rhs-call",
               "computed_masked_indexed_scatter_store_unit_load"))
         return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "hdr-mirror",
+              "computed_masked_indexed_scatter compare lhs header"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "hdr-mirror",
+              "computed_masked_indexed_scatter compare rhs header"))
+        return std::move(error);
       if (llvm::Error error =
               bindOperand(facts.sourceABI, "src", "src-load",
                           "computed_masked_indexed_scatter source"))
@@ -23668,6 +23677,10 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
       if (llvm::Error error =
               requireOperandUse("src", "mistore-src-call",
                                 "computed_masked_indexed_scatter payload"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "hdr-mirror",
+                                "computed_masked_indexed_scatter source header"))
         return std::move(error);
       if (llvm::Error error =
               bindOperand(facts.indexABI, "index",

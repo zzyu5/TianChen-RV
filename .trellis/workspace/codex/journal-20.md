@@ -1083,3 +1083,34 @@ Tightened computed-mask indexed gather route operand binding through provider, t
 ### Next Steps
 
 - None - task complete
+
+
+## Session 376: Stage2 RVV computed-masked indexed scatter store ABI
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked indexed scatter store ABI
+**Branch**: `main`
+
+### Summary
+
+Completed computed_masked_indexed_scatter_store_unit_load provider/header binding validation, focused dry-run/fail-closed tests, and ssh rvv correctness evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
