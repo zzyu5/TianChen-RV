@@ -16,6 +16,7 @@
 # ROOT-DAG: "rhs_scalar_b_values": [
 # ROOT-DAG: -37
 # ROOT-DAG: 91
+# ROOT-DAG: "rhs_scalar_threshold_pairs_required_minimum": 2
 # ROOT-DAG: "pre_realized_selected_body": true
 # ROOT-DAG: "ssh_evidence": false
 # ROOT-DAG: "status": "dry_run_success"
@@ -55,6 +56,7 @@
 # RSD-DAG: "rhs_scalar_b"
 # RSD-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
 # RSD-DAG: "runtime_scalar_values_required_minimum": 2
+# RSD-DAG: "runtime_scalar_threshold_pairs_required_minimum": 2
 # RSD-DAG: "select_layout": "select-true-value-when-mask-else-false-value"
 # RSD-DAG: "selected_value_operands": {
 # RSD-DAG: "compare_lhs_a": "cmp_lhs_a"
@@ -92,6 +94,7 @@
 # RSD-DAG: "tcrv_rvv.mask_composition": "and"
 # RSD-DAG: "tcrv_rvv.mask_source": "mask-and-of-two-runtime-scalar-compare-produced-masks"
 # RSD-DAG: "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated"
+# RSD-DAG: "rhs_scalar_threshold_pairs_required_minimum": 2
 # RSD-DAG: "rhs_scalar_threshold_pairs": [
 # RSD-DAG: "rhs_scalar_a": -37
 # RSD-DAG: "rhs_scalar_b": 91

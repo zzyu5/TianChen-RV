@@ -409,6 +409,72 @@ counts `0,1,16,17,257`.
 - None - task complete after archive, commit, and clean status verification
 
 
+## Session 375: Stage2 RVV dual runtime-scalar mask-and-select artifact ABI boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV dual runtime-scalar mask-and-select artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved the base `runtime_scalar_dual_cmp_mask_and_select` selected-body to
+generated-bundle ABI path with stricter threshold-pair evidence, focused
+fail-closed/direct-route self-test coverage, and real `ssh rvv` correctness for
+counts `0,1,16,23,257` across four runtime scalar threshold pairs.
+
+### Main Changes
+
+- Created and archived task
+  `06-01-06-01-stage2-rvv-dual-runtime-scalar-mask-select-artifact-abi` with a
+  PRD scoped to exactly one base dual runtime-scalar selected body.
+- Verified the existing production C++ path carries the selected body through
+  RVV selected-body realization, computed-mask select route facts,
+  operand-binding facts, statement-plan facts, provider preflight, common EmitC,
+  and RVV target artifact bundle export.
+- Added explicit `*_threshold_pairs_required_minimum = 2` evidence fields for
+  the dual runtime-scalar compare/select path.
+- Added `--self-test` coverage for the dual runtime-scalar RHS threshold
+  minimum, retired direct pre-realized route-entry diagnostic, and generated
+  harness aggregate mask/mask-and/select-payload checks.
+- Recorded final dry-run, direct fail-closed, `ssh rvv`, focused FileCheck,
+  C++ target/plugin, old-authority scan, and `git diff --check` evidence in the
+  task PRD.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-01-06-01-stage2-rvv-dual-runtime-scalar-mask-select-artifact-abi`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind runtime_scalar_dual_cmp_mask_and_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --artifact-root artifacts/tmp/06-01-stage2-rvv-dual-runtime-scalar-mask-select-artifact-abi/focused-dry-run-v1 --overwrite`
+- [OK] Manual FileCheck equivalents for
+  `rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-dual-cmp-mask-and-select-dry-run.test`
+  prefixes `ROOT`, `RSD`, and `HARNESS`.
+- [OK] Direct route-entry negative FileCheck for
+  `rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-dual-cmp-mask-and-select-fail-closed.test`.
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind runtime_scalar_dual_cmp_mask_and_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --artifact-root artifacts/tmp/06-01-stage2-rvv-dual-runtime-scalar-mask-select-artifact-abi/final-ssh-rvv-v1 --overwrite`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused `REALIZED`, `PLAN`, and `HEADER` FileCheck commands for
+  `pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir`.
+- [OK] Bounded old-authority scan over added tracked diff lines and touched task
+  PRD/script/test files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete after archive, commit, and clean status verification
+
+
 ## Session 373: Stage2 RVV computed-mask compare-select artifact ABI boundary
 
 **Date**: 2026-06-01

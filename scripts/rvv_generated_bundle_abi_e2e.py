@@ -21445,6 +21445,7 @@ def compare_select_predicate_boundary_summary(
                 ],
                 "runtime_scalar_realization_op": "tcrv_rvv.splat",
                 "runtime_scalar_values_required_minimum": 2,
+                "runtime_scalar_threshold_pairs_required_minimum": 2,
                 "secondary_compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
@@ -23006,6 +23007,7 @@ def run_one_op_e2e(
             )
             evidence["rhs_scalar_a_values"] = rhs_scalar_values
             evidence["rhs_scalar_b_values"] = secondary_values
+            evidence["rhs_scalar_threshold_pairs_required_minimum"] = 2
             evidence["rhs_scalar_threshold_pairs"] = [
                 {"rhs_scalar_a": lhs, "rhs_scalar_b": rhs}
                 for lhs in rhs_scalar_values
@@ -23342,6 +23344,7 @@ def run_one_op_e2e(
             )
             evidence["harness"]["rhs_scalar_a_values"] = rhs_scalar_values
             evidence["harness"]["rhs_scalar_b_values"] = secondary_values
+            evidence["harness"]["rhs_scalar_threshold_pairs_required_minimum"] = 2
             evidence["harness"]["rhs_scalar_threshold_pairs"] = [
                 {"rhs_scalar_a": lhs, "rhs_scalar_b": rhs}
                 for lhs in rhs_scalar_values
@@ -23946,6 +23949,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 )
                 evidence["rhs_scalar_a_values"] = rhs_scalar_values
                 evidence["rhs_scalar_b_values"] = secondary_values
+                evidence["rhs_scalar_threshold_pairs_required_minimum"] = 2
                 evidence["rhs_scalar_threshold_pairs"] = [
                     {"rhs_scalar_a": lhs, "rhs_scalar_b": rhs}
                     for lhs in rhs_scalar_values
@@ -24164,12 +24168,31 @@ def run_self_test() -> int:
             [EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_select"]],
             [-37, 91],
         )
+        validate_runtime_scalar_compare_select_rhs_coverage(
+            [
+                EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+                    "runtime_scalar_dual_cmp_mask_and_select"
+                ]
+            ],
+            [-37, 91],
+        )
         expect_self_test_failure(
             "single runtime scalar compare/select RHS value",
             lambda: validate_runtime_scalar_compare_select_rhs_coverage(
                 [
                     EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
                         "runtime_scalar_cmp_select"
+                    ]
+                ],
+                [-37],
+            ),
+        )
+        expect_self_test_failure(
+            "single dual runtime scalar compare/select RHS value",
+            lambda: validate_runtime_scalar_compare_select_rhs_coverage(
+                [
+                    EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+                        "runtime_scalar_dual_cmp_mask_and_select"
                     ]
                 ],
                 [-37],
@@ -24198,6 +24221,31 @@ def run_self_test() -> int:
         ):
             raise AssertionError(
                 "self-test direct route-entry diagnostic lost selected "
+                "runtime-scalar compare/select fail-closed detail"
+            )
+        direct_runtime_scalar_dual_compare_select_error = expect_self_test_failure(
+            "unsupported direct pre-realized dual runtime-scalar compare/select "
+            "route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["runtime_scalar_dual_cmp_mask_and_select"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "runtime_scalar_dual_cmp_mask_and_select"
+            not in direct_runtime_scalar_dual_compare_select_error
+            or "public selected lowering-boundary producer"
+            not in direct_runtime_scalar_dual_compare_select_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected dual "
                 "runtime-scalar compare/select fail-closed detail"
             )
         direct_computed_mask_select_error = expect_self_test_failure(
@@ -24651,6 +24699,17 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost runtime scalar "
                     "compare/select aggregate threshold coverage"
+                )
+            if expectation.is_runtime_scalar_dual_compare_mask_and_select and (
+                "rhs_scalar_b_values" not in harness
+                or "single_mask_only" not in harness
+                or "aggregate mask coverage missing" not in harness
+                or "aggregate mask-and distinction missing" not in harness
+                or "aggregate select payload coverage missing" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost dual runtime scalar "
+                    "mask-and/select threshold-pair aggregate coverage"
                 )
             if expectation.is_strided_load_unit_store and (
                 "stride_bytes_values" not in harness

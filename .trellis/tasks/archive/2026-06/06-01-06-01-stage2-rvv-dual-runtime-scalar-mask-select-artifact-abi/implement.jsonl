@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 selected-body realization boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV elementwise/compare-select selected-body realization, dual runtime-scalar provider facts, statement-plan ownership, and direct route-entry fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC materializer boundary and prohibition on common RVV semantic inference."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle compare/select predicate evidence, pre-realized selected-body evidence, and ssh rvv correctness requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-computed-mask-cmp-select-artifact-abi/prd.md", "reason": "Adjacent completed compare/select artifact ABI evidence pattern and runtime evidence standard."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Typed runtime_scalar_dual_cmp_mask_and_select pre-realized and realized RVV op surface."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h", "reason": "Public selected-body realization owner API for elementwise/compare-select bodies."}
+{"file": "lib/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.cpp", "reason": "Production selected-body realization owner implementation for dual runtime-scalar mask-and-select."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "RVV-owned compare/select statement-plan boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Dual runtime-scalar compare/select route family plans, materialization facts, and operand-binding facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Provider-built TCRVEmitCLowerableRoute and compare/select preflight consumption."}
+{"file": "lib/Conversion/EmitC/TCRVEmitCLowerableMaterializer.cpp", "reason": "Common EmitC materialization must remain neutral and consume provider payloads only."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact route-family validation for provider-owned dual runtime-scalar compare/select facts."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Generated bundle mirror metadata and required route facts for dual runtime-scalar mask-and-select."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run, self-test, ssh rvv harness, and evidence JSON for runtime_scalar_dual_cmp_mask_and_select."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir", "reason": "Focused pre-realized selected-body artifact fixture for the exact body under test."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-dual-cmp-mask-and-select-dry-run.test", "reason": "Focused generated-bundle dry-run evidence for the exact body under test."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-dual-cmp-mask-and-select-fail-closed.test", "reason": "Focused direct route-entry fail-closed evidence for the exact body under test."}
