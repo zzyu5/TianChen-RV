@@ -1787,3 +1787,47 @@ Derived shared RVV route/profile leaf names from typed selected-body facts, incl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 360: Stage2 RVV elementwise selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV elementwise selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the RVV plugin-local selected-body realization boundary so pre-realized generic typed elementwise bodies must materialize through setvl/with_vl/load/binary/store before route construction.
+
+### Main Changes
+
+- Added a provider-visible helper that returns the first pre-realized selected-body match with its owning RVV selected-body realization family.
+- Updated the RVV extension plugin and route planning diagnostics to name the bypassed pre-realized op and owner family when route construction sees an unrealized body.
+- Added focused C++ assertions that the generic typed elementwise binary realization materializes load/load/binary/store before route construction, while compare/select keeps its own realized shape.
+- Updated the direct pre-realized EmitC route materialization negative test to check the owner-qualified fail-closed diagnostic.
+- Bounded Stage 1 scan classified remaining old-authority strings as spec prohibitions, fail-closed guards, negative/stale tests, or provider-derived output mirrors; no production/default RVV route authority was reintroduced.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] manual FileCheck for direct pre-realized EmitC route materialization fail-closed diagnostic.
+- [OK] manual verify-diagnostics for selected-boundary pre-realized negatives.
+- [OK] manual FileCheck for realized target artifact add route, emission plan, and exported header.
+- [OK] bounded Stage 1 old-authority scan classified remaining hits as spec text, fail-closed guards, negative/stale tests, or provider-derived mirrors.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -151,25 +151,29 @@ getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
   return getUniqueRVVSelectedBodyRealizationOwner(bodyOp, context);
 }
 
-bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
+std::optional<RVVPreRealizedSelectedBodyMatch>
+findFirstPreRealizedRVVSelectedBodyMatch(tcrv::exec::VariantOp variant) {
   if (!variant || variant.getBody().empty())
-    return false;
+    return std::nullopt;
 
-  bool found = false;
+  std::optional<RVVPreRealizedSelectedBodyMatch> match;
   variant.getBody().walk([&](mlir::Operation *op) {
-    if (found)
+    if (match)
       return;
     for (const RVVSelectedBodyRealizationOwner &owner :
          getRVVSelectedBodyRealizationOwnerRegistry()) {
       if (owner.isConsumer && owner.isConsumer(op)) {
-        found = true;
+        match = RVVPreRealizedSelectedBodyMatch{op, owner.familyName};
         return;
       }
     }
   });
-  return found;
+  return match;
 }
 
+bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
+  return findFirstPreRealizedRVVSelectedBodyMatch(variant).has_value();
+}
 
 llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request) {

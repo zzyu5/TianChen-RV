@@ -23,6 +23,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <optional>
 #include <string>
 
 namespace tianchenrv::plugin {
@@ -125,22 +126,32 @@ requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
     const VariantLoweringBoundaryRequest &request) {
   llvm::Expected<tcrv::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
+  std::optional<rvv::RVVPreRealizedSelectedBodyMatch> preRealizedBody =
+      rvv::findFirstPreRealizedRVVSelectedBodyMatch(request.getVariant());
   if (boundary) {
-    if (rvv::variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+    if (preRealizedBody)
       return makeRVVPluginError(
-          "pre-realized RVV selected body must not be mixed with an already "
-          "realized setvl/with_vl body before route construction");
+          llvm::Twine("pre-realized RVV selected body '") +
+          preRealizedBody->bodyOp->getName().getStringRef() +
+          "' owned by selected-body realization owner '" +
+          preRealizedBody->familyName +
+          "' must not be mixed with an already realized setvl/with_vl body "
+          "before route construction");
     return *boundary;
   }
 
   llvm::Error boundaryError = boundary.takeError();
-  if (!rvv::variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+  if (!preRealizedBody)
     return std::move(boundaryError);
   llvm::consumeError(std::move(boundaryError));
 
   return makeRVVPluginError(
-      "pre-realized RVV selected body must use public selected "
-      "lowering-boundary materialization before provider route construction");
+      llvm::Twine("pre-realized RVV selected body '") +
+      preRealizedBody->bodyOp->getName().getStringRef() +
+      "' owned by selected-body realization owner '" +
+      preRealizedBody->familyName +
+      "' must use public selected lowering-boundary materialization before "
+      "provider route construction");
 }
 
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(

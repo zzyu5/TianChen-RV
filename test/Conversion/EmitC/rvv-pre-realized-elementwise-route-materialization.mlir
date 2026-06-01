@@ -17,5 +17,7 @@ module {
   }
 }
 
-// CHECK: pre-realized RVV selected body must use public selected lowering-boundary materialization before provider route construction
+// CHECK: pre-realized RVV selected body 'tcrv_rvv.typed_binary_pre_realized_body'
+// CHECK-SAME: owned by selected-body realization owner 'elementwise/compare-select'
+// CHECK-SAME: must use public selected lowering-boundary materialization before provider route construction
 // CHECK-NOT: emitc.func

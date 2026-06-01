@@ -1178,6 +1178,28 @@ module {
                                "structure for @") +
                        variantName))
       return result;
+    if (variantName == "rvv_pre_add") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 0,
+              "generic typed elementwise binary realization materializes "
+              "load/load/binary/store before route construction"))
+        return result;
+    }
+    if (variantName == "rvv_pre_cmp_select") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 0,
+              "generic typed compare/select realization materializes "
+              "load/load/compare/select/store before route construction"))
+        return result;
+    }
 
     llvm::Expected<tianchenrv::plugin::rvv::
                        RVVSelectedBodyEmitCRouteDescription>
@@ -2487,8 +2509,9 @@ module {
               directRoute);
       if (int result = expectErrorContains(
               std::move(directRouteError),
-              {"pre-realized RVV selected body must use public selected "
-               "lowering-boundary materialization",
+              {"pre-realized RVV selected body",
+               "owned by selected-body realization owner",
+               "must use public selected lowering-boundary materialization",
                "before provider route construction"}))
         return result;
 
@@ -3853,8 +3876,9 @@ module {
                   negativeComputedMaskSegment2StoreVariant, kernel,
                   capabilities, VariantEmissionRole::DirectVariant),
               staleSegment2StoreRoute),
-          {"pre-realized RVV selected body must use public selected "
-           "lowering-boundary materialization",
+          {"pre-realized RVV selected body",
+           "owned by selected-body realization owner",
+           "must use public selected lowering-boundary materialization",
            "before provider route construction"}))
     return result;
   negativeComputedMaskSegment2StoreBody->setAttr(
@@ -4362,8 +4386,9 @@ module {
               VariantEmissionRequest(reduceVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               reducePlan),
-          {"pre-realized RVV selected body must use public selected "
-           "lowering-boundary materialization",
+          {"pre-realized RVV selected body",
+           "owned by selected-body realization owner",
+           "must use public selected lowering-boundary materialization",
            "before provider route construction"}))
     return result;
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute reduceRoute;
@@ -4372,8 +4397,9 @@ module {
           VariantEmitCLowerableRequest(reduceVariant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
           reduceRoute),
-      {"pre-realized RVV selected body must use public selected "
-       "lowering-boundary materialization",
+      {"pre-realized RVV selected body",
+       "owned by selected-body realization owner",
+       "must use public selected lowering-boundary materialization",
        "before provider route construction"});
 }
 

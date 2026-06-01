@@ -25567,13 +25567,18 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     return std::move(error);
   if (llvm::Error error = verifyRVVConstructionProtocolReady())
     return std::move(error);
-  if (variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+  std::optional<RVVPreRealizedSelectedBodyMatch> preRealizedBody =
+      findFirstPreRealizedRVVSelectedBodyMatch(request.getVariant());
+  if (preRealizedBody)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("RVV selected-body realization boundary must run before "
                     "route facts are collected for selected variant @") +
         request.getVariant().getSymName() +
-        "; route planning/provider saw a pre-realized tcrv_rvv body instead "
-        "of a realized setvl/with_vl body");
+        "; route planning/provider saw a pre-realized tcrv_rvv body '" +
+        preRealizedBody->bodyOp->getName().getStringRef() +
+        "' owned by selected-body realization owner '" +
+        preRealizedBody->familyName +
+        "' instead of a realized setvl/with_vl body");
 
   llvm::Expected<RVVSelectedBodyRouteSlice> slice =
       collectRVVSelectedBodyRouteSlice(request.getVariant());

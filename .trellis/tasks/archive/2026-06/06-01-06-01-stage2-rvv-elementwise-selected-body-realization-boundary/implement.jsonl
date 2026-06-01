@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, RVV-first stage order, and typed RVV authority chain for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body owner registry and elementwise selected-body realization boundary contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundaries and provider-built TCRVEmitCLowerableRoute requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++ evidence for selected-body realization and route-provider behavior."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checklist for selected-body realization and route provider ownership."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/dtype/config authority checklist for RVV realization work."}

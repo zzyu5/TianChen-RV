@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation remains within Stage 2 RVV selected-body realization scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV owner registry, direct route-entry fail-closed behavior, and elementwise realization evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence and legacy Stage 1 negative-path constraints."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-locality and absence of core/common semantic RVV branches."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review dtype/config/runtime authority placement."}

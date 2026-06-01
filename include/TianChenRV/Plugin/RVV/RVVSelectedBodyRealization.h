@@ -9,6 +9,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <optional>
+
 namespace tianchenrv::plugin::rvv {
 
 struct RVVSelectedBodyRealizationOwner {
@@ -21,12 +23,20 @@ struct RVVSelectedBodyRealizationOwner {
   RealizationHook realize = nullptr;
 };
 
+struct RVVPreRealizedSelectedBodyMatch {
+  mlir::Operation *bodyOp = nullptr;
+  llvm::StringRef familyName;
+};
+
 llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
 getRVVSelectedBodyRealizationOwners();
 
 llvm::Expected<const RVVSelectedBodyRealizationOwner *>
 getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
                                           llvm::StringRef context);
+
+std::optional<RVVPreRealizedSelectedBodyMatch>
+findFirstPreRealizedRVVSelectedBodyMatch(tcrv::exec::VariantOp variant);
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
 
