@@ -1105,6 +1105,35 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "eq", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_computed_mask_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_select_pre_realized_body %cmp_lhs, %cmp_rhs, %true_value, %false_value, %out, %n {lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-vector-select", op_kind = "computed_mask_select", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_runtime_scalar_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body %lhs, %rhs_scalar, %true_value, %false_value, %out, %n {lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-compare-select", op_kind = "runtime_scalar_cmp_select", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_runtime_scalar_dual_cmp_mask_and_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs_a = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs_a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar_a = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar_a", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %cmp_lhs_b = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs_b", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar_b = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar_b", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-secondary-scalar-value"} : i32
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body %cmp_lhs_a, %rhs_scalar_a, %cmp_lhs_b, %rhs_scalar_b, %true_value, %false_value, %out, %n {lmul = "m1", mask_composition = "and", mask_memory_form = "composed-compare-produced-mask", mask_role = "predicate-mask-produced-by-mask-and", mask_source = "mask-and-of-two-runtime-scalar-compare-produced-masks", memory_form = "runtime-scalar-dual-cmp-mask-and-select", op_kind = "runtime_scalar_dual_cmp_mask_and_select", predicate_kind_a = "sle", predicate_kind_b = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1200,6 +1229,48 @@ module {
               "load/load/compare/select/store before route construction"))
         return result;
     }
+    if (variantName == "rvv_pre_computed_mask_select") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 4 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.splat") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.mask_and") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 0,
+              "generic typed computed-mask select realization materializes "
+              "compare loads, value loads, compare/select/store before route "
+              "construction"))
+        return result;
+    }
+    if (variantName == "rvv_pre_runtime_scalar_cmp_select") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 3 &&
+                  countNestedOps(variant, "tcrv_rvv.splat") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.mask_and") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 0,
+              "generic typed runtime-scalar compare/select realization "
+              "materializes load/splat/load/load/compare/select/store "
+              "before route construction"))
+        return result;
+    }
+    if (variantName == "rvv_pre_runtime_scalar_dual_cmp_mask_and_select") {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 4 &&
+                  countNestedOps(variant, "tcrv_rvv.splat") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.compare") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.mask_and") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.select") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.binary") == 0,
+              "generic typed runtime-scalar dual compare/select realization "
+              "materializes dual load/splat/compare, mask_and, "
+              "select/store before route construction"))
+        return result;
+    }
 
     llvm::Expected<tianchenrv::plugin::rvv::
                        RVVSelectedBodyEmitCRouteDescription>
@@ -1216,6 +1287,8 @@ module {
             routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
                     providerPlanID ||
                 routeDescription->plainCompareSelectRouteFamilyPlanID ==
+                    providerPlanID ||
+                routeDescription->computedMaskSelectRouteFamilyPlanID ==
                     providerPlanID,
             llvm::Twine("realized @") + variantName +
                 " records the expected RVV-owned provider plan"))
@@ -1244,6 +1317,21 @@ module {
           "rvv_pre_cmp_select",
           "tcrv_rvv.typed_compare_select_pre_realized_body",
           "tcrv_rvv.select", "rvv-plain-compare-select-route-family-plan.v1"))
+    return result;
+  if (int result = realizeClusterVariant(
+          "rvv_pre_computed_mask_select",
+          "tcrv_rvv.typed_computed_mask_select_pre_realized_body",
+          "tcrv_rvv.select", "rvv-computed-mask-select-route-family-plan.v1"))
+    return result;
+  if (int result = realizeClusterVariant(
+          "rvv_pre_runtime_scalar_cmp_select",
+          "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body",
+          "tcrv_rvv.select", "rvv-computed-mask-select-route-family-plan.v1"))
+    return result;
+  if (int result = realizeClusterVariant(
+          "rvv_pre_runtime_scalar_dual_cmp_mask_and_select",
+          "tcrv_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body",
+          "tcrv_rvv.select", "rvv-computed-mask-select-route-family-plan.v1"))
     return result;
 
   VariantOp reduceVariant = findVariant(kernel, "rvv_pre_reduce");

@@ -1831,3 +1831,53 @@ Hardened the RVV plugin-local selected-body realization boundary so pre-realized
 ### Next Steps
 
 - None - task complete
+
+
+## Session 361: Stage2 RVV compare/select selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV compare/select selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the compare/select selected-body realization evidence gap by extending
+the RVV plugin C++ boundary test across plain compare/select, computed-mask
+select, runtime-scalar compare/select, and runtime-scalar dual compare-mask-and
+select. Existing production owner/provider code already realized these bodies;
+this round proves their explicit `setvl` / `with_vl` / typed dataflow shape is
+materialized before provider route construction.
+
+### Main Changes
+
+- Extended `runElementwiseCompareSelectRealizationBoundaryTest` with
+  pre-realized computed-mask, runtime-scalar, and dual runtime-scalar
+  compare/select variants.
+- Added focused assertions for load/splat/compare/mask_and/select/store counts
+  before `describeRVVSelectedBodyEmitCRoute` and
+  `buildRVVSelectedBodyEmitCLowerableRoute`.
+- Preserved RVV plugin ownership: no common EmitC semantic inference, no new
+  predicate coverage, no legacy i32 helper route authority, and no spec change.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for compare/select selected-boundary, generated-bundle dry-run, and direct pre-realized fail-closed tests: 8/8 passed.
+- [OK] bounded old-authority scan classified remaining hits as spec text, fail-closed guards, negative/stale tests, provider-derived leaves, or mirror checks.
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 464/464.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

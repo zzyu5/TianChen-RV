@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation remains within Stage 2 RVV selected-body realization scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check compare/select selected-body realization, direct route-entry fail-closed behavior, and provider preflight evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence and legacy Stage 1 negative-path constraints."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-locality and absence of core/common semantic RVV branches."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review dtype/config/runtime authority placement."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-elementwise-selected-body-realization-boundary/prd.md", "reason": "Check compare/select changes preserve the adjacent elementwise selected-body boundary."}
