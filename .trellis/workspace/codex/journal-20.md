@@ -60,6 +60,62 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 368: Stage2 RVV computed-mask MAcc selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV computed-mask MAcc selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Added focused computed-mask MAcc selected-body owner-boundary evidence:
+direct pre-realized route facts/build fail closed, owner-local negative
+validation, realization to setvl/with_vl/compare-mask/masked_macc/store, and
+provider facts/statement-plan/route checks.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `06-01-stage2-rvv-computed-mask-macc-realization-boundary`.
+- Added `runComputedMaskMAccSelectedBodyRealizationOwnerTest` to prove vector
+  and runtime-scalar computed-mask MAcc selected-body realization before route
+  construction.
+- Verified direct pre-realized route description, direct selected-body route
+  construction, stale route metadata bypass, and retired direct route-entry
+  attempts all fail closed before provider route construction.
+- Added owner-local negative coverage for invalid predicate/mask facts,
+  invalid LMUL/config, non-agnostic policy, wrong compare/payload/acc/out/n
+  roles, and wrong runtime-scalar RHS role.
+- Verified realized route description, route-family provider plans,
+  materialization facts, math operand-binding facts, route-control plan,
+  computed-mask accumulation statement plan, and provider-built route consume
+  realized facts only.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test -j 8`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk git diff --check`
+- [INFO] `rtk ctest --test-dir build -R tianchenrv-rvv-extension-plugin-test --output-on-failure` found no registered tests in the current build tree.
+- [OK] Bounded old-authority scan classified new exact intrinsic hits as
+  provider-derived leaf evidence; existing hits remain spec/fail-closed
+  inventory or provider-derived route evidence.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 366: Stage2 RVV reduction-accumulation selected-body realization boundary
 
 **Date**: 2026-06-01

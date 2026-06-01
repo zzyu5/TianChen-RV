@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and RVV-first stage order for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization owner registry, computed-mask MAcc owner-family boundary, and fail-closed route-provider requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/C++ test and RVV evidence policy for changed compiler behavior."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality checklist for keeping realization and provider facts RVV-owned."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checklist for ensuring tcrv.exec remains an envelope and RVV ops own execution details."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-macc-realization-boundary/prd.md", "reason": "Immediately preceding base MAcc realization boundary evidence and testing pattern."}

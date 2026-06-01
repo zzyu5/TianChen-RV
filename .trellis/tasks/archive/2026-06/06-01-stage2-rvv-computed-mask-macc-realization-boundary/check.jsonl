@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global authority-chain and Stage 2 realization acceptance constraints for final review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body owner registry, route-entry fail-closed behavior, provider facts, and required evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC remains neutral and routes are provider-built."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused tests and evidence claims against the project testing policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin-owned realization/provider boundaries."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or tcrv.exec semantic drift was introduced."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-macc-realization-boundary/prd.md", "reason": "Check continuity with the completed base MAcc boundary and avoid regression of that pattern."}

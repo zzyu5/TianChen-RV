@@ -4078,6 +4078,793 @@ module {
                                     /*scalarBroadcast=*/true);
 }
 
+int runComputedMaskMAccSelectedBodyRealizationOwnerTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_cm_macc_owner_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_cm_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_macc_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-stride-macc", op_kind = "computed_masked_macc_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_rt_scalar_cm_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body %cmp_lhs, %rhs_scalar, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-unit-stride-macc", op_kind = "runtime_scalar_cmp_masked_macc_add", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_bad_cm_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_computed_mask_macc_pre_realized_body %cmp_lhs, %cmp_rhs, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-stride-macc", op_kind = "computed_masked_macc_add", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_bad_rt_scalar_cm_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body %cmp_lhs, %rhs_scalar, %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-unit-stride-macc", op_kind = "runtime_scalar_cmp_masked_macc_add", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_wrong_family_macc_for_cm_owner attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV computed-mask MAcc owner module");
+  KernelOp kernel = findKernel(*module, "rvv_cm_macc_owner_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for computed-mask MAcc owner test"))
+    return result;
+
+  VariantOp cmMAccVariant = findVariant(kernel, "rvv_pre_cm_macc");
+  auto cmMAccBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(
+      findFirstNestedOp(
+          cmMAccVariant,
+          "tcrv_rvv.typed_computed_mask_macc_pre_realized_body"));
+  if (int result = expect(
+          cmMAccBody != nullptr,
+          "found computed-mask MAcc pre-realized body for owner-local test"))
+    return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isPreRealizedRVVComputedMaskMAccClusterOp(
+                  cmMAccBody.getOperation()),
+          "dedicated computed-mask MAcc owner recognizes vector "
+          "computed-mask MAcc bodies"))
+    return result;
+
+  llvm::Expected<const tianchenrv::plugin::rvv::
+                     RVVSelectedBodyRealizationOwner *>
+      owner = tianchenrv::plugin::rvv::
+          getRVVSelectedBodyRealizationOwnerForBody(
+              cmMAccBody.getOperation(),
+              "computed-mask MAcc selected-body realization owner test");
+  if (!owner)
+    return fail("computed-mask MAcc selected-body owner lookup: " +
+                llvm::toString(owner.takeError()));
+  const tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner
+      *computedMaskMAccOwner = *owner;
+  if (int result = expect(computedMaskMAccOwner->familyName ==
+                                  "computed-mask MAcc" &&
+                              computedMaskMAccOwner->realize != nullptr,
+                          "computed-mask MAcc uses the dedicated "
+                          "selected-body owner"))
+    return result;
+
+  {
+    mlir::OpBuilder nullBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> nullResult =
+        computedMaskMAccOwner->realize(
+            VariantLoweringBoundaryRequest(
+                cmMAccVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, nullBuilder),
+            nullptr);
+    if (nullResult)
+      return fail("computed-mask MAcc owner-local hook accepted a null body");
+    if (int result = expectErrorContains(
+            nullResult.takeError(),
+            {"computed-mask MAcc selected-body realization owner requires a "
+             "pre-realized RVV body op"}))
+      return result;
+  }
+
+  VariantOp wrongFamilyVariant =
+      findVariant(kernel, "rvv_wrong_family_macc_for_cm_owner");
+  mlir::Operation *wrongFamilyBody =
+      findFirstNestedOp(wrongFamilyVariant,
+                        "tcrv_rvv.typed_macc_pre_realized_body");
+  if (int result = expect(
+          wrongFamilyBody != nullptr &&
+              !tianchenrv::plugin::rvv::
+                  isPreRealizedRVVComputedMaskMAccClusterOp(wrongFamilyBody),
+          "dedicated computed-mask MAcc owner rejects plain MAcc bodies"))
+    return result;
+  {
+    mlir::OpBuilder wrongFamilyBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> wrongFamilyResult =
+        computedMaskMAccOwner->realize(
+            VariantLoweringBoundaryRequest(
+                wrongFamilyVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, wrongFamilyBuilder),
+            wrongFamilyBody);
+    if (wrongFamilyResult)
+      return fail("computed-mask MAcc owner-local hook accepted a plain MAcc "
+                  "body");
+    if (int result = expectErrorContains(
+            wrongFamilyResult.takeError(),
+            {"computed-mask MAcc selected-body realization owner received a "
+             "body outside its RVV-owned realization family"}))
+      return result;
+  }
+
+  VariantOp badCMAccVariant = findVariant(kernel, "rvv_bad_cm_macc");
+  auto badCMAccBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::TypedComputedMaskMAccPreRealizedBodyOp>(
+      findFirstNestedOp(
+          badCMAccVariant,
+          "tcrv_rvv.typed_computed_mask_macc_pre_realized_body"));
+  if (int result = expect(badCMAccBody != nullptr,
+                          "found bad computed-mask MAcc body for "
+                          "owner-local fail-closed tests"))
+    return result;
+
+  mlir::Builder attrBuilder(module->getContext());
+  auto expectComputedMaskMAccOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        computedMaskMAccOwner->realize(
+            VariantLoweringBoundaryRequest(
+                badCMAccVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            badCMAccBody.getOperation());
+    if (invalid)
+      return fail("computed-mask MAcc owner-local hook accepted invalid "
+                  "typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  badCMAccBody->setAttr("predicate_kind",
+                        attrBuilder.getStringAttr("metadata-predicate"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only predicate_kind",
+           "slt"}))
+    return result;
+  badCMAccBody->setAttr("predicate_kind", attrBuilder.getStringAttr("slt"));
+
+  badCMAccBody->setAttr("mask_role",
+                        attrBuilder.getStringAttr("metadata-mask-role"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only mask_role",
+           "predicate-mask-produced-by-compare"}))
+    return result;
+  badCMAccBody->setAttr(
+      "mask_role",
+      attrBuilder.getStringAttr("predicate-mask-produced-by-compare"));
+
+  badCMAccBody->setAttr("mask_memory_form",
+                        attrBuilder.getStringAttr("metadata-mask-form"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body currently supports only mask_memory_form",
+           "compare-produced-mask"}))
+    return result;
+  badCMAccBody->setAttr("mask_memory_form",
+                        attrBuilder.getStringAttr("compare-produced-mask"));
+
+  badCMAccBody->setAttr("lmul", attrBuilder.getStringAttr("m4"));
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body requires SEW32 LMUL m1 or SEW32 LMUL m2"}))
+    return result;
+  badCMAccBody->setAttr("lmul", attrBuilder.getStringAttr("m1"));
+
+  mlir::Attribute originalPolicy = badCMAccBody->getAttr("policy");
+  mlir::Attribute badPolicy = mlir::parseAttribute(
+      "#tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>",
+      module->getContext());
+  if (int result =
+          expect(static_cast<bool>(badPolicy),
+                 "parsed non-agnostic computed-mask MAcc policy"))
+    return result;
+  badCMAccBody->setAttr("policy", badPolicy);
+  if (int result = expectComputedMaskMAccOwnerError(
+          {"computed-mask macc body requires tail agnostic, mask agnostic "
+           "policy"}))
+    return result;
+  badCMAccBody->setAttr("policy", originalPolicy);
+
+  auto expectRuntimeRoleError =
+      [&](mlir::Value value, llvm::StringRef badRole,
+          std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::Operation *runtimeValue = value.getDefiningOp();
+    mlir::Attribute originalRole = runtimeValue->getAttr("role");
+    runtimeValue->setAttr("role", attrBuilder.getStringAttr(badRole));
+    int result = expectComputedMaskMAccOwnerError(fragments);
+    runtimeValue->setAttr("role", originalRole);
+    return result;
+  };
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getCompareLhs(), "rhs-input-buffer",
+          {"computed-mask macc compare lhs operand", "lhs-input-buffer"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getCompareRhs(), "lhs-input-buffer",
+          {"computed-mask macc compare rhs operand", "rhs-input-buffer"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getLhs(), "lhs-input-buffer",
+          {"computed-mask macc lhs payload", "dot-lhs-input-buffer"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getRhs(), "rhs-input-buffer",
+          {"computed-mask macc rhs payload", "dot-rhs-input-buffer"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getAcc(), "rhs-input-buffer",
+          {"computed-mask macc accumulator", "accumulator-input-buffer"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getOut(), "lhs-input-buffer",
+          {"computed-mask macc out operand", "output-buffer"}))
+    return result;
+  if (int result = expectRuntimeRoleError(
+          badCMAccBody.getN(), "output-buffer",
+          {"computed-mask macc runtime n/AVL operand",
+           "runtime-element-count"}))
+    return result;
+
+  badCMAccBody->setAttr("route_id",
+                        attrBuilder.getStringAttr("computed_masked_macc_add"));
+  badCMAccBody->setAttr("op_kind",
+                        attrBuilder.getStringAttr("metadata-route"));
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute staleRoute;
+  if (int result = expectErrorContains(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  badCMAccVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              staleRoute),
+          {"pre-realized RVV selected body",
+           "owned by selected-body realization owner",
+           "must use public selected lowering-boundary materialization",
+           "before provider route construction"}))
+    return result;
+  badCMAccBody->setAttr("op_kind",
+                        attrBuilder.getStringAttr("computed_masked_macc_add"));
+  badCMAccBody->removeAttr("route_id");
+
+  VariantOp badRuntimeScalarVariant =
+      findVariant(kernel, "rvv_bad_rt_scalar_cm_macc");
+  auto badRuntimeScalarBody = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::
+          TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(
+      findFirstNestedOp(
+          badRuntimeScalarVariant,
+          "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body"));
+  if (int result = expect(
+          badRuntimeScalarBody != nullptr,
+          "found bad runtime-scalar computed-mask MAcc body for "
+          "owner-local fail-closed tests"))
+    return result;
+  auto expectRuntimeScalarCMAccOwnerError =
+      [&](std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OpBuilder invalidBuilder(module->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> invalid =
+        computedMaskMAccOwner->realize(
+            VariantLoweringBoundaryRequest(
+                badRuntimeScalarVariant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant, invalidBuilder),
+            badRuntimeScalarBody.getOperation());
+    if (invalid)
+      return fail("computed-mask MAcc owner-local hook accepted invalid "
+                  "runtime-scalar typed body facts");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+  badRuntimeScalarBody->setAttr("predicate_kind",
+                                attrBuilder.getStringAttr("slt"));
+  if (int result = expectRuntimeScalarCMAccOwnerError(
+          {"runtime scalar computed-mask macc body currently supports only "
+           "predicate_kind",
+           "sle"}))
+    return result;
+  badRuntimeScalarBody->setAttr("predicate_kind",
+                                attrBuilder.getStringAttr("sle"));
+
+  mlir::Operation *runtimeScalarRhs =
+      badRuntimeScalarBody.getRhsScalar().getDefiningOp();
+  mlir::Attribute originalRuntimeScalarRhsRole =
+      runtimeScalarRhs->getAttr("role");
+  runtimeScalarRhs->setAttr("role",
+                            attrBuilder.getStringAttr("lhs-input-buffer"));
+  if (int result = expectRuntimeScalarCMAccOwnerError(
+          {"runtime scalar computed-mask macc rhs scalar operand",
+           "rhs-scalar-value"}))
+    return result;
+  runtimeScalarRhs->setAttr("role", originalRuntimeScalarRhsRole);
+
+  auto exerciseRealizedComputedMaskMAccVariant =
+      [&](llvm::StringRef variantName, bool runtimeScalar) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *body = findFirstNestedOp(
+        variant,
+        runtimeScalar
+            ? "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_"
+              "pre_realized_body"
+            : "tcrv_rvv.typed_computed_mask_macc_pre_realized_body");
+    if (int result = expect(
+            body != nullptr &&
+                tianchenrv::plugin::rvv::
+                    isPreRealizedRVVComputedMaskMAccClusterOp(body),
+            llvm::Twine("found computed-mask MAcc pre-realized body for @") +
+                variantName))
+      return result;
+
+    llvm::Expected<const tianchenrv::plugin::rvv::
+                       RVVSelectedBodyRealizationOwner *>
+        selectedOwner =
+            tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody(
+                body, "computed-mask MAcc direct route-entry demotion test");
+    if (!selectedOwner)
+      return fail(llvm::Twine("computed-mask MAcc owner lookup for @") +
+                  variantName + ": " +
+                  llvm::toString(selectedOwner.takeError()));
+    if (int result = expect(
+            (*selectedOwner)->familyName == "computed-mask MAcc",
+            llvm::Twine("selected @") + variantName +
+                " dispatches through the computed-mask MAcc owner"))
+      return result;
+
+    {
+      mlir::OpBuilder directRouteEntryBuilder(module->getContext());
+      llvm::Error directRouteEntry =
+          tianchenrv::plugin::rvv::
+              diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
+                  VariantLoweringBoundaryRequest(
+                      variant, kernel, capabilities,
+                      VariantEmissionRole::DirectVariant,
+                      directRouteEntryBuilder));
+      if (int result = expectErrorContains(
+              std::move(directRouteEntry),
+              {"direct pre-realized RVV route-entry realization is retired",
+               "public selected lowering-boundary materialization",
+               "before provider route construction"}))
+        return result;
+    }
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        beforeRealization =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (beforeRealization)
+      return fail(llvm::Twine("computed-mask MAcc pre-realized body @") +
+                  variantName +
+                  " unexpectedly reached route facts before realization");
+    if (int result = expectErrorContains(
+            beforeRealization.takeError(),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body", "computed-mask MAcc"}))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+    llvm::Error directRouteError =
+        tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+            VariantEmitCLowerableRequest(
+                variant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant),
+            directRoute);
+    if (int result = expectErrorContains(
+            std::move(directRouteError),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body", "computed-mask MAcc"}))
+      return result;
+
+    VariantLoweringBoundaryResult boundaryResult;
+    mlir::OpBuilder producerBuilder(module->getContext());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, producerBuilder),
+                boundaryResult),
+            llvm::Twine("selected-body producer consumes computed-mask MAcc "
+                        "pre-realized body @") +
+                variantName))
+      return result;
+
+    const std::int64_t expectedLoadCount = runtimeScalar ? 4 : 5;
+    const std::int64_t expectedSplatCount = runtimeScalar ? 1 : 0;
+    if (int result = expect(
+            boundaryResult.isMaterialized() &&
+                countNestedOps(
+                    variant,
+                    "tcrv_rvv.typed_computed_mask_macc_pre_realized_body") ==
+                    0 &&
+                countNestedOps(
+                    variant,
+                    "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_"
+                    "pre_realized_body") == 0 &&
+                countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.load") ==
+                    expectedLoadCount &&
+                countNestedOps(variant, "tcrv_rvv.splat") ==
+                    expectedSplatCount &&
+                countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.masked_macc") == 1 &&
+                countNestedOps(variant, "tcrv_rvv.store") == 1,
+            llvm::Twine("dedicated computed-mask MAcc owner materializes @") +
+                variantName +
+                " into setvl/with_vl/compare-inputs/mask/payload/"
+                "accumulator/masked-macc/store typed facts"))
+      return result;
+
+    mlir::Operation *realizedCompare =
+        findFirstNestedOp(variant, "tcrv_rvv.compare");
+    auto compareKind =
+        realizedCompare
+            ? realizedCompare->getAttrOfType<mlir::StringAttr>("kind")
+            : mlir::StringAttr();
+    mlir::Operation *realizedMAcc =
+        findFirstNestedOp(variant, "tcrv_rvv.masked_macc");
+    auto maccKind =
+        realizedMAcc ? realizedMAcc->getAttrOfType<mlir::StringAttr>("kind")
+                     : mlir::StringAttr();
+    auto maskRole =
+        realizedMAcc
+            ? realizedMAcc->getAttrOfType<mlir::StringAttr>("mask_role")
+            : mlir::StringAttr();
+    auto maskSource =
+        realizedMAcc
+            ? realizedMAcc->getAttrOfType<mlir::StringAttr>("mask_source")
+            : mlir::StringAttr();
+    auto accumulatorLayout =
+        realizedMAcc
+            ? realizedMAcc->getAttrOfType<mlir::StringAttr>(
+                  "accumulator_layout")
+            : mlir::StringAttr();
+    auto resultLayout =
+        realizedMAcc ? realizedMAcc->getAttrOfType<mlir::StringAttr>(
+                           "result_layout")
+                     : mlir::StringAttr();
+    if (int result = expect(
+            compareKind &&
+                compareKind.getValue() == (runtimeScalar ? "sle" : "slt") &&
+                maccKind && maccKind.getValue() == "add" && maskRole &&
+                maskRole.getValue() == "predicate-mask-produced-by-compare" &&
+                maskSource &&
+                maskSource.getValue() ==
+                    "compare-produced-mask-same-vl-scope" &&
+                accumulatorLayout &&
+                accumulatorLayout.getValue() ==
+                    "separate-i32-vector-accumulator-input" &&
+                resultLayout &&
+                resultLayout.getValue() ==
+                    "store-multiply-accumulate-result-to-output-buffer",
+            llvm::Twine("computed-mask MAcc realization @") + variantName +
+                " preserves predicate, mask, accumulator, and result facts"))
+      return result;
+
+    constexpr llvm::StringLiteral kExpectedSetVLLeaf("__riscv_vsetvl_e32m1");
+    constexpr llvm::StringLiteral kExpectedLoadLeaf("__riscv_vle32_v_i32m1");
+    constexpr llvm::StringLiteral kExpectedSplatLeaf("__riscv_vmv_v_x_i32m1");
+    constexpr llvm::StringLiteral kExpectedMAccLeaf("__riscv_vmacc_vv_i32m1");
+    constexpr llvm::StringLiteral kExpectedMergeLeaf(
+        "__riscv_vmerge_vvm_i32m1");
+    constexpr llvm::StringLiteral kExpectedStoreLeaf("__riscv_vse32_v_i32m1");
+    const llvm::StringRef expectedCompareLeaf =
+        runtimeScalar ? "__riscv_vmsle_vv_i32m1_b32"
+                      : "__riscv_vmslt_vv_i32m1_b32";
+    const llvm::StringRef expectedRuntimeABIOrder =
+        runtimeScalar ? "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n"
+                      : "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n";
+    const llvm::StringRef expectedSplatLeaf =
+        runtimeScalar ? llvm::StringRef(kExpectedSplatLeaf)
+                      : llvm::StringRef();
+    const llvm::StringRef expectedBindingPlanID =
+        runtimeScalar ? "rvv-route-operand-binding:"
+                        "runtime_scalar_cmp_masked_macc_add.v1"
+                      : "rvv-route-operand-binding:"
+                        "computed_masked_macc_add.v1";
+    const auto expectedOperation =
+        runtimeScalar
+            ? RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd
+            : RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+    const auto expectedMemoryForm =
+        runtimeScalar
+            ? RVVSelectedBodyMemoryForm::
+                  RuntimeScalarComputedMaskUnitStrideMAcc
+            : RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized computed-mask MAcc route @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
+    if (int result = expect(
+            routeDescription->operation == expectedOperation &&
+                routeDescription->memoryForm == expectedMemoryForm &&
+                routeDescription->sew == 32 &&
+                routeDescription->lmul == "m1" &&
+                routeDescription->typedComputeOpName ==
+                    "tcrv_rvv.masked_macc" &&
+                routeDescription->comparePredicateKind ==
+                    (runtimeScalar ? "sle" : "slt") &&
+                routeDescription->runtimeABIOrder == expectedRuntimeABIOrder &&
+                routeDescription->routeOperandBindingPlanID ==
+                    expectedBindingPlanID &&
+                routeDescription->accumulationRouteFamilyPlanID ==
+                    "rvv-computed-mask-accumulation-route-family-plan.v1" &&
+                routeDescription->accumulationComputeSuffix ==
+                    "vector-masked-macc-add" &&
+                routeDescription->accumulationMaskProducerSource ==
+                    (runtimeScalar ? "runtime-scalar-splat-compare-rhs"
+                                   : "vector-compare-rhs-load") &&
+                routeDescription->setVLIntrinsic == kExpectedSetVLLeaf &&
+                routeDescription->vectorLoadIntrinsic == kExpectedLoadLeaf &&
+                routeDescription->rhsBroadcastIntrinsic == expectedSplatLeaf &&
+                routeDescription->compareIntrinsic == expectedCompareLeaf &&
+                routeDescription->intrinsic == kExpectedMAccLeaf &&
+                routeDescription->maskedMergeIntrinsic ==
+                    kExpectedMergeLeaf &&
+                routeDescription->storeIntrinsic == kExpectedStoreLeaf &&
+                routeDescription->maskRole ==
+                    "predicate-mask-produced-by-compare" &&
+                routeDescription->maskSource ==
+                    "compare-produced-mask-same-vl-scope" &&
+                routeDescription->maskMemoryForm ==
+                    "compare-produced-mask" &&
+                routeDescription->inactiveLaneContract ==
+                    "masked-macc-false-lanes-preserve-accumulator" &&
+                routeDescription->maskedPassthroughLayout ==
+                    "accumulator-vector-preserves-inactive-lanes" &&
+                routeDescription->maccAccumulatorLayout ==
+                    "separate-i32-vector-accumulator-input" &&
+                routeDescription->maccResultLayout ==
+                    "store-multiply-accumulate-result-to-output-buffer",
+            llvm::Twine("realized computed-mask MAcc route @") +
+                variantName +
+                " records operation, mask producer, ABI order, MAcc plan, "
+                "operand binding, inactive-lane, layout, and RVV-owned leaves"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+        analysis = analyzeRouteInModule(*module, "rvv_cm_macc_owner_kernel",
+                                        variantName);
+    if (!analysis)
+      return fail(llvm::Twine("analyze realized computed-mask MAcc route @") +
+                  variantName + ": " +
+                  llvm::toString(analysis.takeError()));
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::
+                verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                    *analysis,
+                    "computed-mask MAcc realization-boundary unit test"),
+            llvm::Twine("verify computed-mask MAcc route-family/provider "
+                        "plans after realization for @") +
+                variantName))
+      return result;
+
+    auto materializationFacts =
+        tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts(
+            *analysis, "computed-mask MAcc realization-boundary unit test");
+    if (!materializationFacts)
+      return fail(llvm::Twine("computed-mask MAcc materialization facts after "
+                              "realization for @") +
+                  variantName + ": " +
+                  llvm::toString(materializationFacts.takeError()));
+    if (int result = expect(
+            materializationFacts->computedMaskAccumulationPlan ==
+                &*analysis->computedMaskAccumulationRouteFamilyPlan &&
+                materializationFacts->setVLLeaf == kExpectedSetVLLeaf &&
+                materializationFacts->vectorLoadLeaf == kExpectedLoadLeaf &&
+                materializationFacts->sourceLoadLeaf == kExpectedLoadLeaf &&
+                materializationFacts->elementwiseComputeLeaf ==
+                    kExpectedMAccLeaf &&
+                materializationFacts->compareLeaf == expectedCompareLeaf &&
+                materializationFacts->maskedMergeLeaf == kExpectedMergeLeaf &&
+                materializationFacts->storeLeaf == kExpectedStoreLeaf &&
+                materializationFacts->rhsScalarBroadcastLeaf ==
+                    expectedSplatLeaf &&
+                materializationFacts->typedConfigFacts.vectorTypeName ==
+                    "!tcrv_rvv.vector<i32, \"m1\">" &&
+                materializationFacts->resultVectorTypeName ==
+                    "!tcrv_rvv.vector<i32, \"m1\">",
+            llvm::Twine("computed-mask MAcc materialization facts for @") +
+                variantName +
+                " derive compare, MAcc, merge, store, and optional splat "
+                "leaves from realized typed structure"))
+      return result;
+
+    auto mathFacts =
+        tianchenrv::plugin::rvv::getRVVSelectedBodyMathRouteOperandBindingFacts(
+            *analysis, "computed-mask MAcc realization-boundary unit test");
+    if (!mathFacts)
+      return fail(llvm::Twine("computed-mask MAcc math facts after "
+                              "realization for @") +
+                  variantName + ": " + llvm::toString(mathFacts.takeError()));
+    if (int result = expect(
+            mathFacts->bindsComputedMaskMAcc &&
+                mathFacts->bindingPlan == &analysis->routeOperandBindingPlan &&
+                mathFacts->lhsABI && mathFacts->lhsABI->cName == "cmp_lhs" &&
+                mathFacts->rhsABI &&
+                mathFacts->rhsABI->cName ==
+                    (runtimeScalar ? "rhs_scalar" : "cmp_rhs") &&
+                mathFacts->dotLHSABI &&
+                mathFacts->dotLHSABI->cName == "lhs" &&
+                mathFacts->dotRHSABI &&
+                mathFacts->dotRHSABI->cName == "rhs" &&
+                mathFacts->accumulatorABI &&
+                mathFacts->accumulatorABI->cName == "acc" &&
+                mathFacts->outABI && mathFacts->outABI->cName == "out" &&
+                mathFacts->runtimeElementCountABI &&
+                mathFacts->runtimeElementCountABI->cName == "n",
+            llvm::Twine("computed-mask MAcc math facts bind compare, "
+                        "payload, accumulator, output, and runtime AVL "
+                        "operands for @") +
+                variantName))
+      return result;
+
+    auto routeControlPlan =
+        tianchenrv::plugin::rvv::getRVVSelectedBodyRouteControlProviderPlan(
+            *analysis, *materializationFacts,
+            "computed-mask MAcc realization-boundary unit test");
+    if (!routeControlPlan)
+      return fail(llvm::Twine("computed-mask MAcc route-control plan after "
+                              "realization for @") +
+                  variantName + ": " +
+                  llvm::toString(routeControlPlan.takeError()));
+    if (int result = expect(
+            routeControlPlan->plansRouteControl &&
+                routeControlPlan->controlsComputedMaskAccumulation &&
+                routeControlPlan->runtimeControlPlan ==
+                    &analysis->computedMaskAccumulationRouteFamilyPlan
+                         ->runtimeControlPlan &&
+                routeControlPlan->typedConfigFacts ==
+                    &analysis->typedConfigFacts &&
+                routeControlPlan->selectedTargetCapabilityFacts ==
+                    &analysis->selectedTargetCapabilityFacts,
+            llvm::Twine("computed-mask MAcc route-control provider plan "
+                        "consumes typed config, target capability, runtime "
+                        "AVL/VL, and mask facts for @") +
+                variantName))
+      return result;
+
+    auto statementPlan =
+        tianchenrv::plugin::rvv::
+            getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+                *analysis, *materializationFacts, *mathFacts,
+                "computed-mask MAcc realization-boundary unit test");
+    if (!statementPlan)
+      return fail(llvm::Twine("computed-mask MAcc statement plan after "
+                              "realization for @") +
+                  variantName + ": " +
+                  llvm::toString(statementPlan.takeError()));
+
+    llvm::SmallVector<llvm::StringRef, 10> expectedBodyCallees = {
+        kExpectedSetVLLeaf,
+        kExpectedLoadLeaf,
+        runtimeScalar ? kExpectedSplatLeaf : kExpectedLoadLeaf,
+        kExpectedLoadLeaf,
+        kExpectedLoadLeaf,
+        kExpectedLoadLeaf,
+        expectedCompareLeaf,
+        kExpectedMAccLeaf,
+        kExpectedMergeLeaf,
+        kExpectedStoreLeaf};
+    if (int result = expect(
+            statementPlan->plansComputedMaskAccumulationRoute &&
+                statementPlan->plansComputedMaskedMAccAdd == !runtimeScalar &&
+                statementPlan->plansRuntimeScalarComputedMaskedMAccAdd ==
+                    runtimeScalar &&
+                statementPlan->computedMaskAccumulationPlan ==
+                    materializationFacts->computedMaskAccumulationPlan &&
+                statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    kExpectedSetVLLeaf &&
+                statementPlan->loop.bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            llvm::Twine("computed-mask MAcc statement plan consumes realized "
+                        "setvl/mask/payload/MAcc/merge/store structure for @") +
+                variantName))
+      return result;
+    for (std::size_t index = 0; index < expectedBodyCallees.size(); ++index) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee ==
+                  expectedBodyCallees[index],
+              llvm::Twine("computed-mask MAcc statement-plan loop step ") +
+                  llvm::Twine(index) + " for @" + variantName +
+                  " uses RVV-owned callee '" + expectedBodyCallees[index] +
+                  "'"))
+        return result;
+    }
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider consumes dedicated-owner realized "
+                        "computed-mask MAcc facts for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    kExpectedSetVLLeaf &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            llvm::Twine("provider route preserves computed-mask MAcc "
+                        "pre-loop and loop steps for @") +
+                variantName))
+      return result;
+    for (std::size_t index = 0; index < expectedBodyCallees.size(); ++index) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee ==
+                  expectedBodyCallees[index],
+              llvm::Twine("provider route computed-mask MAcc loop step ") +
+                  llvm::Twine(index) + " for @" + variantName +
+                  " uses RVV-owned callee '" + expectedBodyCallees[index] +
+                  "'"))
+        return result;
+    }
+    return 0;
+  };
+
+  if (int result = exerciseRealizedComputedMaskMAccVariant(
+          "rvv_pre_cm_macc", /*runtimeScalar=*/false))
+    return result;
+  return exerciseRealizedComputedMaskMAccVariant(
+      "rvv_pre_rt_scalar_cm_macc", /*runtimeScalar=*/true);
+}
+
 int runWideningConversionSelectedBodyRealizationOwnerTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
@@ -26652,6 +27439,9 @@ int main() {
           runStandaloneReductionSelectedBodyRealizationOwnerTest(context))
     return result;
   if (int result = runMAccSelectedBodyRealizationOwnerTest(context))
+    return result;
+  if (int result =
+          runComputedMaskMAccSelectedBodyRealizationOwnerTest(context))
     return result;
   if (int result =
           runWideningConversionSelectedBodyRealizationOwnerTest(context))
