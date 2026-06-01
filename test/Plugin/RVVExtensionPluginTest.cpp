@@ -1918,6 +1918,402 @@ module {
       "old-destination-vector-preserves-inactive-lanes");
 }
 
+int runSegment2MemoryRealizationBoundaryTest(mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2MemoryRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodySegment2RouteFamilyProviderPlan;
+  using tianchenrv::plugin::rvv::stringifyRVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_segment2_memory_realization_boundary_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_segment2_deinterleave_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", lmul = "m1", memory_form = "segment2-load-unit-store", op_kind = "segment2_deinterleave_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_segment2_interleave_unit_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body %src0, %src1, %dst, %n {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", lmul = "m1", memory_form = "unit-load-segment2-store", op_kind = "segment2_interleave_unit_load", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source0_memory_form = "unit-stride-load", source1_memory_form = "unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV segment2 memory realization-boundary "
+                "module");
+  KernelOp kernel =
+      findKernel(*module, "rvv_segment2_memory_realization_boundary_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for segment2 memory realization-boundary test"))
+    return result;
+
+  auto realizeSegment2MemoryVariant =
+      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          bool deinterleave,
+          std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found segment2 memory pre-realized "
+                                        "body for @") +
+                                variantName))
+      return result;
+
+    llvm::Expected<const tianchenrv::plugin::rvv::
+                       RVVSelectedBodyRealizationOwner *>
+        owner = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyRealizationOwnerForBody(
+                preRealized, "segment2 memory selected-body realization "
+                             "boundary unit test");
+    if (!owner)
+      return fail(llvm::Twine("segment2 memory owner lookup failed for @") +
+                  variantName + ": " + llvm::toString(owner.takeError()));
+    if (int result = expect((*owner)->familyName == "segment2 memory" &&
+                                (*owner)->realize != nullptr,
+                            llvm::Twine("segment2 memory selected body @") +
+                                variantName +
+                                " is registry-owned before route planning"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        beforeRealization =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (beforeRealization)
+      return fail(llvm::Twine("segment2 memory pre-realized @") +
+                  variantName +
+                  " unexpectedly reached route facts before realization");
+    if (int result = expectErrorContains(
+            beforeRealization.takeError(),
+            {"selected-body realization boundary must run before route facts",
+             "pre-realized tcrv_rvv body", "segment2 memory"}))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute directRoute;
+    llvm::Error directRouteError = registry.buildVariantEmitCLowerableRoute(
+        VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+        directRoute);
+    if (int result = expectErrorContains(
+            std::move(directRouteError),
+            {"pre-realized RVV selected body",
+             "owned by selected-body realization owner", "segment2 memory",
+             "before provider route construction"}))
+      return result;
+
+    mlir::OpBuilder validationBuilder(module->getContext());
+    if (deinterleave) {
+      auto body =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedSegment2DeinterleaveMemoryPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(static_cast<bool>(body),
+                              "found plain segment2 deinterleave body for "
+                              "owner-local validation"))
+        return result;
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          validationBuilder),
+                      body),
+              "segment2 owner-local validation accepts the selected "
+              "deinterleave body"))
+        return result;
+    } else {
+      auto body =
+          llvm::dyn_cast<tianchenrv::tcrv::rvv::
+                             TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
+              preRealized);
+      if (int result = expect(static_cast<bool>(body),
+                              "found plain segment2 interleave body for "
+                              "owner-local validation"))
+        return result;
+      if (int result = expectSuccess(
+              tianchenrv::plugin::rvv::
+                  validatePreRealizedRVVSelectedSegment2InterleaveMemoryBody(
+                      VariantLoweringBoundaryRequest(
+                          variant, kernel, capabilities,
+                          VariantEmissionRole::DirectVariant,
+                          validationBuilder),
+                      body),
+              "segment2 owner-local validation accepts the selected "
+              "interleave body"))
+        return result;
+    }
+
+    mlir::OpBuilder producerBuilder(module->getContext());
+    VariantLoweringBoundaryResult boundaryResult;
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, producerBuilder),
+                boundaryResult),
+            llvm::Twine("public selected lowering-boundary producer consumes "
+                        "segment2 memory pre-realized @") +
+                variantName))
+      return result;
+    if (int result = expect(boundaryResult.isMaterialized(),
+                            llvm::Twine("segment2 memory selected-boundary "
+                                        "producer materializes @") +
+                                variantName))
+      return result;
+    if (int result =
+            expect(countNestedOps(variant, preRealizedOpName) == 0 &&
+                       countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.with_vl") == 1,
+                   llvm::Twine("segment2 memory pre-realized @") +
+                       variantName +
+                       " is consumed into explicit setvl/with_vl structure"))
+      return result;
+
+    if (deinterleave) {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.segment2_load") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.move") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.load") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.segment2_store") == 0,
+              "segment2 deinterleave realization materializes segment2_load, "
+              "field moves, and field stores before route construction"))
+        return result;
+    } else {
+      if (int result = expect(
+              countNestedOps(variant, "tcrv_rvv.load") == 2 &&
+                  countNestedOps(variant, "tcrv_rvv.segment2_store") == 1 &&
+                  countNestedOps(variant, "tcrv_rvv.segment2_load") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.move") == 0 &&
+                  countNestedOps(variant, "tcrv_rvv.store") == 0,
+              "segment2 interleave realization materializes field loads and "
+              "segment2_store before route construction"))
+        return result;
+    }
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized segment2 memory route for @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
+
+    const RVVSelectedBodyOperationKind expectedOperation =
+        deinterleave
+            ? RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore
+            : RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+    const RVVSelectedBodyMemoryForm expectedMemoryForm =
+        deinterleave ? RVVSelectedBodyMemoryForm::Segment2LoadUnitStore
+                     : RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
+    if (int result = expect(
+            routeDescription->operation == expectedOperation &&
+                routeDescription->memoryForm == expectedMemoryForm &&
+                routeDescription->segment2MemoryRouteFamilyPlanID ==
+                    "rvv-segment2-memory-route-family-plan.v1" &&
+                routeDescription->segmentCount == 2 &&
+                routeDescription->runtimeABIOrder ==
+                    (deinterleave ? "src,out0,out1,n" : "src0,src1,dst,n"),
+            llvm::Twine("realized segment2 memory @") + variantName +
+                " records operation, memory form, segment count, runtime ABI, "
+                "and route-family facts"))
+      return result;
+    if (int result = expect(
+            routeDescription->field0Role ==
+                    (deinterleave ? "segment-field0-output-buffer"
+                                  : "segment-field0-input-buffer") &&
+                routeDescription->field1Role ==
+                    (deinterleave ? "segment-field1-output-buffer"
+                                  : "segment-field1-input-buffer") &&
+                routeDescription->sourceMemoryForm ==
+                    (deinterleave ? "segment2-interleaved-unit-stride-load"
+                                  : "unit-stride-load") &&
+                routeDescription->destinationMemoryForm ==
+                    (deinterleave ? "unit-stride-store"
+                                  : "segment2-interleaved-unit-stride-store"),
+            llvm::Twine("realized segment2 memory @") + variantName +
+                " preserves field roles and source/destination memory forms"))
+      return result;
+    if (int result = expect(
+            stringifyRVVSelectedBodyOperationKind(
+                routeDescription->operation) ==
+                    (deinterleave ? "segment2_deinterleave_unit_store"
+                                  : "segment2_interleave_unit_load") &&
+                stringifyRVVSelectedBodyMemoryForm(
+                    routeDescription->memoryForm) ==
+                    (deinterleave ? "segment2-load-unit-store"
+                                  : "unit-load-segment2-store"),
+            llvm::Twine("realized segment2 memory @") + variantName +
+                " stringifies to the expected typed route facts"))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+        analysis = analyzeRouteInModule(
+            *module, "rvv_segment2_memory_realization_boundary_kernel",
+            variantName);
+    if (!analysis)
+      return fail(llvm::Twine("analyze realized segment2 memory route for @") +
+                  variantName + ": " +
+                  llvm::toString(analysis.takeError()));
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+                *analysis, "segment2 memory realization-boundary unit test"),
+            "verify segment2 memory route-family plan after realization"))
+      return result;
+
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        *analysis, "segment2 memory realization-boundary unit test");
+    if (!materializationFacts)
+      return fail("segment2 memory materialization facts after realization: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto memoryFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+        *analysis, "segment2 memory realization-boundary unit test");
+    if (!memoryFacts)
+      return fail("segment2 memory operand-binding facts after realization: " +
+                  llvm::toString(memoryFacts.takeError()));
+
+    auto providerPlan = getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+        *analysis, *materializationFacts, *memoryFacts,
+        "segment2 memory realization-boundary unit test");
+    if (!providerPlan)
+      return fail("segment2 memory route-family provider plan after "
+                  "realization: " +
+                  llvm::toString(providerPlan.takeError()));
+    if (int result = expect(
+            providerPlan->plansSegment2MemoryRoute &&
+                providerPlan->plansPlainSegment2DeinterleaveUnitStore ==
+                    deinterleave &&
+                providerPlan->plansPlainSegment2InterleaveUnitLoad ==
+                    !deinterleave &&
+                providerPlan->segment2MemoryPlan ==
+                    materializationFacts->segment2MemoryPlan &&
+                providerPlan->bindingPlan == &analysis->routeOperandBindingPlan,
+            llvm::Twine("segment2 memory provider plan @") + variantName +
+                " consumes realized typed body, materialization, and "
+                "operand-binding facts"))
+      return result;
+    if (int result = expectSegment2ProviderBoundaryPreflight(
+            *analysis, *materializationFacts, *memoryFacts, *providerPlan,
+            "segment2 memory realization-boundary unit test"))
+      return result;
+
+    auto statementPlan = getRVVSelectedBodySegment2MemoryRouteStatementPlan(
+        *analysis, *materializationFacts, *memoryFacts,
+        "segment2 memory realization-boundary unit test");
+    if (!statementPlan)
+      return fail("segment2 memory statement plan after realization: " +
+                  llvm::toString(statementPlan.takeError()));
+    if (int result = expect(
+            statementPlan->plansSegment2MemoryRoute &&
+                statementPlan->plansPlainSegment2DeinterleaveUnitStore ==
+                    deinterleave &&
+                statementPlan->plansPlainSegment2InterleaveUnitLoad ==
+                    !deinterleave &&
+                statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    "__riscv_vsetvl_e32m1" &&
+                statementPlan->loop.bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            llvm::Twine("segment2 memory statement plan @") + variantName +
+                " owns the expected full-chunk setvl and loop step count"))
+      return result;
+    unsigned index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee == expected,
+              llvm::Twine("segment2 memory statement-plan loop step ") +
+                  llvm::Twine(index) + " for @" + variantName +
+                  " uses RVV-owned callee '" + expected + "'"))
+        return result;
+      ++index;
+    }
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider consumes producer-realized segment2 memory "
+                        "body for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            llvm::Twine("provider route attaches the segment2 statement-plan "
+                        "steps for @") +
+                variantName))
+      return result;
+    index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee == expected,
+              llvm::Twine("provider segment2 loop step ") +
+                  llvm::Twine(index) + " for @" + variantName +
+                  " matches statement-plan callee '" + expected + "'"))
+        return result;
+      ++index;
+    }
+    return expectSegment2RouteConsumesProviderPlan(
+        route, *providerPlan, analysis->description, false,
+        "producer-realized segment2 memory provider-built route");
+  };
+
+  if (int result = realizeSegment2MemoryVariant(
+          "rvv_pre_segment2_deinterleave_unit_store",
+          "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
+          /*deinterleave=*/true,
+          {"__riscv_vsetvl_e32m1", "__riscv_vlseg2e32_v_i32m1x2",
+           "__riscv_vget_v_i32m1x2_i32m1",
+           "__riscv_vget_v_i32m1x2_i32m1", "__riscv_vse32_v_i32m1",
+           "__riscv_vse32_v_i32m1"}))
+    return result;
+  return realizeSegment2MemoryVariant(
+      "rvv_pre_segment2_interleave_unit_load",
+      "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
+      /*deinterleave=*/false,
+      {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+       "__riscv_vle32_v_i32m1", "__riscv_vcreate_v_i32m1x2",
+       "__riscv_vsseg2e32_v_i32m1x2"});
+}
+
 int runSelectedBodyRealizationOwnerRegistryTest() {
   using tianchenrv::plugin::rvv::RVVSelectedBodyRealizationOwner;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody;
@@ -24497,6 +24893,8 @@ int main() {
     return result;
   if (int result =
           runRuntimeScalarComputedMaskMemoryRealizationBoundaryTest(context))
+    return result;
+  if (int result = runSegment2MemoryRealizationBoundaryTest(context))
     return result;
   if (int result = runSelectedBodyRealizationOwnerRegistryTest())
     return result;

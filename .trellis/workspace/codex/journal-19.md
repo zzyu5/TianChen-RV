@@ -969,7 +969,9 @@ Moved computed-mask segment2 selected-body validation into the segment2 route-fa
 
 ### Main Changes
 
-(Add details)
+- Added `runSegment2MemoryRealizationBoundaryTest` for plain segment2 deinterleave/interleave selected-body realization.
+- Verified pre-realized segment2 bodies fail route description/direct route construction before public selected-boundary materialization.
+- Checked realized `segment2_load`/`move`/`store` and `load`/`segment2_store` bodies feed segment2 provider-plan, statement-plan, preflight, and route construction.
 
 ### Git Commits
 
@@ -1132,7 +1134,10 @@ Testing:
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 465/465.
+- [OK] `rtk git diff --check`
 
 ### Status
 
@@ -1934,6 +1939,39 @@ Proved the RVV base memory selected-body realization boundary for strided-load/u
 ### Summary
 
 Added focused RVV plugin C++ evidence that runtime-scalar computed-mask store/load-store pre-realized bodies fail closed before route construction, are consumed by the public selected lowering-boundary producer into explicit setvl/with_vl/load-or-splat/compare/masked memory structure, and then feed the computed-mask memory provider route.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 364: Stage2 RVV segment2 memory selected-body realization boundary
+
+**Date**: 2026-06-01
+**Task**: Stage2 RVV segment2 memory selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Added focused RVV plugin C++ evidence that plain segment2 deinterleave/interleave pre-realized bodies fail closed before route construction, realize through the public selected lowering-boundary producer into explicit setvl/with_vl/segment2 load-or-store structure, and feed segment2 provider/statement-plan route construction.
 
 ### Main Changes
 
