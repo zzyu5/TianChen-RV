@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/testing/index.md", "reason": "RVV Stage1 focused testing and evidence policy"}
+{"file": ".trellis/spec/index.md", "reason": "Global Stage1 guardrails for review"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV elementwise route-family verification contract"}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Common EmitC neutrality review"}

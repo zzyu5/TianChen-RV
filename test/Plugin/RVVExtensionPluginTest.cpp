@@ -5877,13 +5877,13 @@ module {
                              ->scalarBroadcastElementwiseRouteFamilyPlanID ==
                          "rvv-scalar-broadcast-elementwise-route-family-plan.v1" &&
                      routeDescription->targetLeafProfile ==
-                         "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1" &&
+                         "rvv-v1-typed-scalar-broadcast-elementwise-leaf-profile.v1" &&
                      routeDescription->providerSupportedMirror ==
                          "provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated" &&
                      routeDescription->requiredHeaderDeclarations ==
                          "stddef.h,stdint.h,riscv_vector.h" &&
                      routeDescription->cTypeMappingSummary ==
-                         "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1" &&
+                         "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,result:typed-vector" &&
                      routeDescription->runtimeABIOrder ==
                          "lhs,rhs_scalar,out,n" &&
                      routeDescription->routeOperandBindingSummary ==
@@ -5945,7 +5945,7 @@ module {
   stale.targetLeafProfile = "route-id-selected-profile";
   if (int result = expectStaleFieldRejected(
           stale, {"target leaf profile",
-                  "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1",
+                  "rvv-v1-typed-scalar-broadcast-elementwise-leaf-profile.v1",
                   "route-id-selected-profile"}))
     return result;
 
@@ -6203,7 +6203,8 @@ module {
                       ->storeIntrinsic ==
                   addAnalysis->typedConfigFacts.storeIntrinsic &&
               addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
-                      ->rhsScalarSplatIntrinsic == "__riscv_vmv_v_x_i32m1" &&
+                      ->rhsScalarSplatIntrinsic ==
+                  addAnalysis->typedConfigFacts.scalarSplatIntrinsic &&
               addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
                       ->arithmeticIntrinsic == "__riscv_vadd_vv_i32m1" &&
               addAnalysis->routeOperandBindingPlan.planID ==

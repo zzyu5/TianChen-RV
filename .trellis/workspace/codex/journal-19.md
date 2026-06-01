@@ -64,6 +64,52 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 358: Stage1 typed RVV elementwise intrinsic derivation
+
+**Date**: 2026-06-01
+**Task**: Stage1 typed RVV elementwise intrinsic derivation
+**Branch**: `main`
+
+### Summary
+
+Moved the elementwise route-family owner off complete owner-local
+`i32m1/i32m2` intrinsic spellings for scalar splat and strided leaves, added a
+typed scalar-splat leaf to `RVVSelectedBodyTypedConfigFacts`, and composed
+arithmetic/compare/select leaves from operation kind plus typed SEW/LMUL facts.
+
+### Main Changes
+
+- Added `scalarSplatIntrinsic` to typed RVV config facts and verified
+  scalar-broadcast mirrors against it.
+- Updated scalar-broadcast and strided elementwise plans to consume typed config
+  leaves before provider route construction.
+- Changed scalar-broadcast elementwise mirror labels from `e32m1` wording to
+  typed-vector/typed-scalar wording.
+- Recorded the elementwise typed leaf derivation contract in the RVV plugin
+  spec.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 464/464
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 358: Stage1 generic typed RVV runtime-scalar splat-store replacement
 
 **Date**: 2026-06-01

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global Stage1 and source-of-truth constraints"}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Common EmitC neutrality and plugin lowering boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin typed body route-authority and elementwise planning contracts"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused RVV test/evidence constraints"}

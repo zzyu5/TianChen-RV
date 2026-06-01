@@ -2174,6 +2174,17 @@ route materialization facts, and RVV-owned operand-binding facts. It is not a
 common EmitC fact, not artifact metadata, not an acceptance/status mirror, and
 not a route-support declaration by itself.
 
+For elementwise route-family leaf derivation, `RVVSelectedBodyTypedConfigFacts`
+must carry the typed `setvl`, unit load, unit store, strided load/store, and
+scalar-splat leaves needed by already supported elementwise sub-families.
+Scalar-broadcast elementwise must consume the typed config scalar-splat leaf
+instead of choosing `vmv` spelling from an owner-local `i32m1` template.
+Strided elementwise must consume typed config strided load/store leaves.
+Arithmetic, compare, and masked-merge leaves may be composed by the RVV owner
+from operation kind plus typed element/SEW/LMUL facts, but exact intrinsic
+spellings are derived outputs only and must fail closed when the typed
+combination is unsupported.
+
 ### 4. Validation & Error Matrix
 
 - A non elementwise-arithmetic route requests the boundary -> return an empty
@@ -2195,6 +2206,10 @@ not a route-support declaration by itself.
 - Required materialization leaves such as `setvl`, load, scalar broadcast,
   compute, compare, masked merge, strided load, or strided store are absent ->
   fail closed before common EmitC.
+- Scalar-broadcast, strided, or masked elementwise plan leaves disagree with
+  `RVVSelectedBodyTypedConfigFacts` for scalar splat, strided load/store,
+  vector type/C type, mask type/C type, setvl, unit load, or store -> fail
+  closed before provider route construction.
 - Required source operation provenance for configure/load/compute/store steps
   is absent or reports the wrong EmitC source role -> fail closed before common
   EmitC.

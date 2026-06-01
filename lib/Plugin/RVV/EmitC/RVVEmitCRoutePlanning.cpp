@@ -8204,11 +8204,12 @@ deriveRVVSelectedBodyTypedConfigFacts(
       configProfile.vectorCType.empty() || configProfile.vlCType.empty() ||
       configProfile.setVLIntrinsic.empty() ||
       configProfile.vectorLoadIntrinsic.empty() ||
+      configProfile.rhsBroadcastIntrinsic.empty() ||
       configProfile.storeIntrinsic.empty())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " typed config facts require provider-derived vector type, C type, "
-        "VL type, setvl, load, and store leaves");
+        "VL type, setvl, load, scalar-splat, and store leaves");
 
   llvm::Expected<llvm::StringRef> elementTypeName =
       getRVVSelectedBodyElementTypeNameForSEW(config.sew, context);
@@ -8238,6 +8239,7 @@ deriveRVVSelectedBodyTypedConfigFacts(
   facts.indexedLoadIntrinsic = configProfile.indexedLoadIntrinsic;
   facts.indexedStoreIntrinsic = configProfile.indexedStoreIntrinsic;
   facts.stridedLoadIntrinsic = configProfile.stridedLoadIntrinsic;
+  facts.scalarSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
   facts.maskedLoadIntrinsic =
       getRVVSelectedBodyRuntimeScalarMaskedLoadIntrinsic(configProfile);
   facts.storeIntrinsic = configProfile.storeIntrinsic;
@@ -8355,6 +8357,11 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
     if (llvm::Error error =
             requireMatch("vector-load intrinsic", facts.vectorLoadIntrinsic,
                          description.vectorLoadIntrinsic))
+      return error;
+  if (!description.rhsBroadcastIntrinsic.empty())
+    if (llvm::Error error =
+            requireMatch("scalar-splat intrinsic", facts.scalarSplatIntrinsic,
+                         description.rhsBroadcastIntrinsic))
       return error;
   return llvm::Error::success();
 }

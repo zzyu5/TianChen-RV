@@ -4,6 +4,7 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 
 #include <cstdint>
@@ -74,7 +75,7 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseRouteFamilyPlanID(
     "rvv-scalar-broadcast-elementwise-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseTargetLeafProfile(
-    "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1");
+    "rvv-v1-typed-scalar-broadcast-elementwise-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVScalarBroadcastElementwiseProviderSupportedMirror(
         "provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated");
@@ -82,7 +83,7 @@ constexpr llvm::StringLiteral
     kRVVScalarBroadcastElementwiseRequiredHeaderDeclarations(
         "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseCTypeMappingSummary(
-    "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1");
+    "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,result:typed-vector");
 
 constexpr llvm::StringLiteral
     kRVVMaskedCompareMaskSource("compare-produced-mask-same-vl-scope");
@@ -151,6 +152,19 @@ llvm::Error requireElementwisePlanField(
       field + " '" + expected + "' but found '" + actual + "'");
 }
 
+llvm::Error requireElementwisePlanDerivedField(
+    const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual) {
+  if (!actual.trim().empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("elementwise arithmetic route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) +
+      "' requires provider-derived " + field +
+      " from selected typed RVV body/config facts");
+}
+
 llvm::Error requireScalarBroadcastPlanField(
     const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan,
     llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
@@ -174,6 +188,24 @@ llvm::Error requireScalarBroadcastPlanDerivedField(
       stringifyRVVSelectedBodyOperationKind(plan.operation) +
       "' requires provider-derived " + field +
       " from selected typed RVV body/config facts");
+}
+
+llvm::Error requireElementwiseTypedConfigLeaf(
+    const RVVSelectedBodyTypedConfigFacts &typedFacts, llvm::StringRef field,
+    llvm::StringRef leaf, RVVSelectedBodyOperationKind operation) {
+  if (!leaf.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("elementwise route-family typed config derivation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(operation) +
+      "' requires provider-derived " + field +
+      " from typed config facts '" + typedFacts.factsID + "'");
+}
+
+llvm::StringRef internElementwiseDerivedLeaf(std::string leaf) {
+  static llvm::StringSet<> leafPool;
+  return leafPool.insert(std::move(leaf)).first->getKey();
 }
 
 llvm::Error requireRouteDescriptionField(llvm::StringRef context,
@@ -275,133 +307,111 @@ getElementwiseArithmeticCTypeMappingSummary(RVVSelectedBodyOperationKind op) {
   return {};
 }
 
-llvm::StringRef getElementwiseArithmeticIntrinsic(
-    RVVSelectedBodyOperationKind operation, std::int64_t sew,
-    llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (lmul != tcrv::rvv::getRVVLMULM1())
-      return {};
-    if (operation == RVVSelectedBodyOperationKind::Add ||
-        operation == RVVSelectedBodyOperationKind::MaskedAdd)
-      return "__riscv_vadd_vv_i64m1";
-    if (operation == RVVSelectedBodyOperationKind::MaskedSub)
-      return "__riscv_vsub_vv_i64m1";
-    if (operation == RVVSelectedBodyOperationKind::MaskedMul)
-      return "__riscv_vmul_vv_i64m1";
-    return {};
-  }
-  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits())
-    return {};
-  const bool m2 = lmul == tcrv::rvv::getRVVLMULM2();
-  const bool m1 = lmul == tcrv::rvv::getRVVLMULM1();
-  if (!m1 && !m2)
-    return {};
+std::optional<std::string>
+getElementwiseVectorIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
+  if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      sew != tcrv::rvv::getRVVSEW64Bits())
+    return std::nullopt;
+  if (lmul != tcrv::rvv::getRVVLMULM1() &&
+      lmul != tcrv::rvv::getRVVLMULM2())
+    return std::nullopt;
+  return (llvm::Twine("i") + llvm::Twine(sew) + lmul).str();
+}
+
+std::optional<std::string>
+getElementwiseMaskIntrinsicSuffix(std::int64_t sew, llvm::StringRef lmul) {
+  std::optional<std::string> vectorSuffix =
+      getElementwiseVectorIntrinsicSuffix(sew, lmul);
+  if (!vectorSuffix)
+    return std::nullopt;
+  std::int64_t maskBits = 0;
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      lmul == tcrv::rvv::getRVVLMULM1())
+    maskBits = 32;
+  else if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+           lmul == tcrv::rvv::getRVVLMULM2())
+    maskBits = 16;
+  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+           lmul == tcrv::rvv::getRVVLMULM1())
+    maskBits = 64;
+  else if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+           lmul == tcrv::rvv::getRVVLMULM2())
+    maskBits = 32;
+  if (maskBits == 0)
+    return std::nullopt;
+  return (llvm::Twine(*vectorSuffix) + "_b" + llvm::Twine(maskBits)).str();
+}
+
+llvm::StringRef
+getElementwiseArithmeticIntrinsicStem(RVVSelectedBodyOperationKind operation) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::StridedAdd:
   case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
   case RVVSelectedBodyOperationKind::MaskedAdd:
-    return m2 ? "__riscv_vadd_vv_i32m2" : "__riscv_vadd_vv_i32m1";
+    return "vadd";
   case RVVSelectedBodyOperationKind::Sub:
   case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
   case RVVSelectedBodyOperationKind::MaskedSub:
-    return m2 ? "__riscv_vsub_vv_i32m2" : "__riscv_vsub_vv_i32m1";
+    return "vsub";
   case RVVSelectedBodyOperationKind::Mul:
   case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
   case RVVSelectedBodyOperationKind::MaskedMul:
-    return m2 ? "__riscv_vmul_vv_i32m2" : "__riscv_vmul_vv_i32m1";
+    return "vmul";
   default:
     return {};
   }
 }
 
-llvm::StringRef getElementwiseEqualCompareIntrinsic(std::int64_t sew,
-                                                    llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vmseq_vv_i64m2_b32";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vmseq_vv_i64m1_b64";
-    return {};
-  }
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vmseq_vv_i32m2_b16";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vmseq_vv_i32m1_b32";
-  }
-  return {};
+std::optional<std::string> deriveElementwiseArithmeticIntrinsic(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul) {
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      lmul != tcrv::rvv::getRVVLMULM1())
+    return std::nullopt;
+  llvm::StringRef stem = getElementwiseArithmeticIntrinsicStem(operation);
+  if (stem.empty())
+    return std::nullopt;
+  if (sew == tcrv::rvv::getRVVSEW64Bits() &&
+      operation != RVVSelectedBodyOperationKind::Add &&
+      operation != RVVSelectedBodyOperationKind::MaskedAdd &&
+      operation != RVVSelectedBodyOperationKind::MaskedSub &&
+      operation != RVVSelectedBodyOperationKind::MaskedMul)
+    return std::nullopt;
+  std::optional<std::string> suffix =
+      getElementwiseVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_") + stem + "_vv_" + *suffix).str();
 }
 
-llvm::StringRef getElementwiseSelectIntrinsic(std::int64_t sew,
-                                              llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vmerge_vvm_i64m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vmerge_vvm_i64m1";
-    return {};
-  }
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vmerge_vvm_i32m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vmerge_vvm_i32m1";
-  }
-  return {};
+std::optional<std::string>
+deriveElementwiseEqualCompareIntrinsic(std::int64_t sew,
+                                       llvm::StringRef lmul) {
+  std::optional<std::string> suffix =
+      getElementwiseMaskIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vmseq_vv_") + *suffix).str();
 }
 
-llvm::StringRef getElementwiseStridedLoadIntrinsic(std::int64_t sew,
-                                                   llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vlse64_v_i64m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vlse64_v_i64m1";
-    return {};
-  }
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vlse32_v_i32m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vlse32_v_i32m1";
-  }
-  return {};
+std::optional<std::string>
+deriveElementwiseSelectIntrinsic(std::int64_t sew, llvm::StringRef lmul) {
+  std::optional<std::string> suffix =
+      getElementwiseVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vmerge_vvm_") + *suffix).str();
 }
 
-llvm::StringRef getElementwiseStridedStoreIntrinsic(std::int64_t sew,
-                                                    llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vsse64_v_i64m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vsse64_v_i64m1";
-    return {};
-  }
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vsse32_v_i32m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vsse32_v_i32m1";
-  }
-  return {};
-}
-
-llvm::StringRef getScalarBroadcastSplatIntrinsic(std::int64_t sew,
-                                                 llvm::StringRef lmul) {
-  if (sew == tcrv::rvv::getRVVSEW64Bits()) {
-    if (lmul == tcrv::rvv::getRVVLMULM2())
-      return "__riscv_vmv_v_x_i64m2";
-    if (lmul == tcrv::rvv::getRVVLMULM1())
-      return "__riscv_vmv_v_x_i64m1";
-  }
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM2())
-    return "__riscv_vmv_v_x_i32m2";
-  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
-      lmul == tcrv::rvv::getRVVLMULM1())
-    return "__riscv_vmv_v_x_i32m1";
-  return {};
+std::optional<std::string>
+deriveElementwiseScalarSplatIntrinsic(std::int64_t sew,
+                                      llvm::StringRef lmul) {
+  std::optional<std::string> suffix =
+      getElementwiseVectorIntrinsicSuffix(sew, lmul);
+  if (!suffix)
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vmv_v_x_") + *suffix).str();
 }
 
 } // namespace
@@ -582,44 +592,72 @@ llvm::Error validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "elementwise arithmetic route-family plan requires provider-derived "
         "setvl and vector-load leaves");
-  if (llvm::Error error = requireElementwisePlanField(
-          plan, "strided-load leaf", plan.stridedLoadIntrinsic,
-          isStrided ? getElementwiseStridedLoadIntrinsic(plan.sew, plan.lmul)
-                    : llvm::StringRef()))
+  if (isStrided) {
+    if (llvm::Error error = requireElementwisePlanDerivedField(
+            plan, "strided-load leaf", plan.stridedLoadIntrinsic))
+      return error;
+  } else if (llvm::Error error = requireElementwisePlanField(
+                 plan, "strided-load leaf", plan.stridedLoadIntrinsic, ""))
     return error;
-  if (llvm::Error error = requireElementwisePlanField(
-          plan, "RHS broadcast leaf", plan.rhsBroadcastIntrinsic,
-          usesRHSBroadcast
-              ? getScalarBroadcastSplatIntrinsic(plan.sew, plan.lmul)
-              : llvm::StringRef()))
+  if (usesRHSBroadcast) {
+    if (llvm::Error error = requireElementwisePlanDerivedField(
+            plan, "RHS broadcast leaf", plan.rhsBroadcastIntrinsic))
+      return error;
+  } else if (llvm::Error error = requireElementwisePlanField(
+                 plan, "RHS broadcast leaf", plan.rhsBroadcastIntrinsic, ""))
     return error;
   if (plan.arithmeticIntrinsic.empty())
     return makeRVVEmitCRouteProviderError(
         "elementwise arithmetic route-family plan requires a "
         "provider-derived arithmetic intrinsic leaf");
+  std::optional<std::string> expectedArithmeticIntrinsic =
+      deriveElementwiseArithmeticIntrinsic(plan.operation, plan.sew,
+                                           plan.lmul);
+  if (!expectedArithmeticIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("elementwise arithmetic route-family plan cannot derive "
+                    "an arithmetic intrinsic leaf for operation '") +
+        stringifyRVVSelectedBodyOperationKind(plan.operation) +
+        "' from typed SEW/LMUL facts");
   if (llvm::Error error = requireElementwisePlanField(
           plan, "arithmetic leaf", plan.arithmeticIntrinsic,
-          getElementwiseArithmeticIntrinsic(plan.operation, plan.sew,
-                                            plan.lmul)))
+          *expectedArithmeticIntrinsic))
     return error;
-  if (llvm::Error error = requireElementwisePlanField(
-          plan, "compare leaf", plan.compareIntrinsic,
-          isMasked ? getElementwiseEqualCompareIntrinsic(plan.sew, plan.lmul)
-                   : llvm::StringRef()))
-    return error;
-  if (llvm::Error error = requireElementwisePlanField(
-          plan, "masked merge leaf", plan.maskedMergeIntrinsic,
-          isMasked ? getElementwiseSelectIntrinsic(plan.sew, plan.lmul)
-                   : llvm::StringRef()))
-    return error;
+  if (isMasked) {
+    std::optional<std::string> expectedCompareIntrinsic =
+        deriveElementwiseEqualCompareIntrinsic(plan.sew, plan.lmul);
+    std::optional<std::string> expectedMergeIntrinsic =
+        deriveElementwiseSelectIntrinsic(plan.sew, plan.lmul);
+    if (!expectedCompareIntrinsic || !expectedMergeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          "masked elementwise arithmetic route-family plan cannot derive "
+          "compare/select leaves from typed SEW/LMUL facts");
+    if (llvm::Error error = requireElementwisePlanField(
+            plan, "compare leaf", plan.compareIntrinsic,
+            *expectedCompareIntrinsic))
+      return error;
+    if (llvm::Error error = requireElementwisePlanField(
+            plan, "masked merge leaf", plan.maskedMergeIntrinsic,
+            *expectedMergeIntrinsic))
+      return error;
+  } else {
+    if (llvm::Error error = requireElementwisePlanField(
+            plan, "compare leaf", plan.compareIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireElementwisePlanField(
+            plan, "masked merge leaf", plan.maskedMergeIntrinsic, ""))
+      return error;
+  }
   if (plan.storeIntrinsic.empty())
     return makeRVVEmitCRouteProviderError(
         "elementwise arithmetic route-family plan requires a provider-derived "
         "store leaf");
-  if (llvm::Error error = requireElementwisePlanField(
-          plan, "strided-store leaf", plan.stridedStoreIntrinsic,
-          isStrided ? getElementwiseStridedStoreIntrinsic(plan.sew, plan.lmul)
-                    : llvm::StringRef()))
+  if (isStrided) {
+    if (llvm::Error error = requireElementwisePlanDerivedField(
+            plan, "strided-store leaf", plan.stridedStoreIntrinsic))
+      return error;
+  } else if (llvm::Error error = requireElementwisePlanField(
+                 plan, "strided-store leaf", plan.stridedStoreIntrinsic, ""))
     return error;
   if (llvm::Error error = requireElementwisePlanField(
           plan, "result name", plan.resultName,
@@ -763,6 +801,67 @@ deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
 
   const RVVSelectedBodyTypedConfigFacts &typedFacts =
       analysis.typedConfigFacts;
+  if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+          typedFacts, "VL C type", typedFacts.vlCType, operation))
+    return std::move(error);
+  if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+          typedFacts, "vector type", typedFacts.vectorTypeName, operation))
+    return std::move(error);
+  if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+          typedFacts, "vector C type", typedFacts.vectorCType, operation))
+    return std::move(error);
+  if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+          typedFacts, "setvl leaf", typedFacts.setVLIntrinsic, operation))
+    return std::move(error);
+  if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+          typedFacts, "vector-load leaf", typedFacts.vectorLoadIntrinsic,
+          operation))
+    return std::move(error);
+  if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+          typedFacts, "store leaf", typedFacts.storeIntrinsic, operation))
+    return std::move(error);
+  if (isMasked) {
+    if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+            typedFacts, "mask type", typedFacts.maskTypeName, operation))
+      return std::move(error);
+    if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+            typedFacts, "mask C type", typedFacts.maskCType, operation))
+      return std::move(error);
+  }
+  if (isStrided) {
+    if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+            typedFacts, "strided-load leaf", typedFacts.stridedLoadIntrinsic,
+            operation))
+      return std::move(error);
+    if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+            typedFacts, "strided-store leaf", typedFacts.stridedStoreIntrinsic,
+            operation))
+      return std::move(error);
+  }
+  if (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad)
+    if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+            typedFacts, "scalar-splat leaf", typedFacts.scalarSplatIntrinsic,
+            operation))
+      return std::move(error);
+  std::optional<std::string> arithmeticIntrinsic =
+      deriveElementwiseArithmeticIntrinsic(operation, typedFacts.sew,
+                                           typedFacts.lmul);
+  if (!arithmeticIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan cannot derive arithmetic "
+        "leaf from typed operation/SEW/LMUL facts");
+  std::optional<std::string> compareIntrinsic;
+  std::optional<std::string> mergeIntrinsic;
+  if (isMasked) {
+    compareIntrinsic =
+        deriveElementwiseEqualCompareIntrinsic(typedFacts.sew, typedFacts.lmul);
+    mergeIntrinsic =
+        deriveElementwiseSelectIntrinsic(typedFacts.sew, typedFacts.lmul);
+    if (!compareIntrinsic || !mergeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          "masked elementwise arithmetic route-family plan cannot derive "
+          "compare/select leaves from typed operation/SEW/LMUL facts");
+  }
 
   RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan plan;
   plan.operation = operation;
@@ -800,20 +899,22 @@ deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
   plan.setVLIntrinsic = typedFacts.setVLIntrinsic;
   plan.vectorLoadIntrinsic = typedFacts.vectorLoadIntrinsic;
   plan.stridedLoadIntrinsic =
-      isStrided ? getElementwiseStridedLoadIntrinsic(plan.sew, plan.lmul) : "";
+      isStrided ? typedFacts.stridedLoadIntrinsic : llvm::StringRef();
   plan.rhsBroadcastIntrinsic =
       analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad
-          ? getScalarBroadcastSplatIntrinsic(plan.sew, plan.lmul)
+          ? typedFacts.scalarSplatIntrinsic
           : llvm::StringRef();
   plan.arithmeticIntrinsic =
-      getElementwiseArithmeticIntrinsic(operation, plan.sew, plan.lmul);
+      internElementwiseDerivedLeaf(std::move(*arithmeticIntrinsic));
   plan.compareIntrinsic =
-      isMasked ? getElementwiseEqualCompareIntrinsic(plan.sew, plan.lmul) : "";
+      isMasked ? internElementwiseDerivedLeaf(std::move(*compareIntrinsic))
+               : llvm::StringRef();
   plan.maskedMergeIntrinsic =
-      isMasked ? getElementwiseSelectIntrinsic(plan.sew, plan.lmul) : "";
+      isMasked ? internElementwiseDerivedLeaf(std::move(*mergeIntrinsic))
+               : llvm::StringRef();
   plan.storeIntrinsic = typedFacts.storeIntrinsic;
   plan.stridedStoreIntrinsic =
-      isStrided ? getElementwiseStridedStoreIntrinsic(plan.sew, plan.lmul) : "";
+      isStrided ? typedFacts.stridedStoreIntrinsic : llvm::StringRef();
   plan.resultName = getElementwiseResultName(operation);
   plan.maskName = isMasked ? getElementwiseMaskName(operation) : "";
   plan.maskRole = isMasked ? kRVVMaskedPredicateMaskRole : "";
@@ -1016,16 +1117,20 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
   if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
           plan, "vector-load leaf", plan.vectorLoadIntrinsic))
     return error;
-  if (llvm::Error error = requireScalarBroadcastPlanField(
-          plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic,
-          getScalarBroadcastSplatIntrinsic(plan.runtimeControlPlan.sew,
-                                           plan.runtimeControlPlan.lmul)))
+  if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
+          plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic))
     return error;
+  std::optional<std::string> expectedArithmeticIntrinsic =
+      deriveElementwiseArithmeticIntrinsic(plan.operation,
+                                           plan.runtimeControlPlan.sew,
+                                           plan.runtimeControlPlan.lmul);
+  if (!expectedArithmeticIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan cannot derive "
+        "compute leaf from typed SEW/LMUL facts");
   if (llvm::Error error = requireScalarBroadcastPlanField(
           plan, "elementwise compute leaf", plan.arithmeticIntrinsic,
-          getElementwiseArithmeticIntrinsic(plan.operation,
-                                            plan.runtimeControlPlan.sew,
-                                            plan.runtimeControlPlan.lmul)))
+          *expectedArithmeticIntrinsic))
     return error;
   if (llvm::Error error = requireScalarBroadcastPlanDerivedField(
           plan, "store leaf", plan.storeIntrinsic))
@@ -1090,6 +1195,33 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
 
   const RVVSelectedBodyTypedConfigFacts &typedFacts =
       analysis.typedConfigFacts;
+  for (auto [field, leaf] : {
+           std::pair<llvm::StringRef, llvm::StringRef>("VL C type",
+                                                       typedFacts.vlCType),
+           std::pair<llvm::StringRef, llvm::StringRef>(
+               "vector type", typedFacts.vectorTypeName),
+           std::pair<llvm::StringRef, llvm::StringRef>(
+               "vector C type", typedFacts.vectorCType),
+           std::pair<llvm::StringRef, llvm::StringRef>(
+               "setvl leaf", typedFacts.setVLIntrinsic),
+           std::pair<llvm::StringRef, llvm::StringRef>(
+               "vector-load leaf", typedFacts.vectorLoadIntrinsic),
+           std::pair<llvm::StringRef, llvm::StringRef>(
+               "scalar-splat leaf", typedFacts.scalarSplatIntrinsic),
+           std::pair<llvm::StringRef, llvm::StringRef>("store leaf",
+                                                       typedFacts.storeIntrinsic),
+       }) {
+    if (llvm::Error error = requireElementwiseTypedConfigLeaf(
+            typedFacts, field, leaf, analysis.slice.arithmeticKind))
+      return std::move(error);
+  }
+  std::optional<std::string> arithmeticIntrinsic =
+      deriveElementwiseArithmeticIntrinsic(analysis.slice.arithmeticKind,
+                                           typedFacts.sew, typedFacts.lmul);
+  if (!arithmeticIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan cannot derive compute "
+        "leaf from typed operation/SEW/LMUL facts");
 
   RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan plan;
   plan.operation = analysis.slice.arithmeticKind;
@@ -1121,11 +1253,9 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
   plan.vectorCType = typedFacts.vectorCType;
   plan.setVLIntrinsic = typedFacts.setVLIntrinsic;
   plan.vectorLoadIntrinsic = typedFacts.vectorLoadIntrinsic;
-  plan.rhsScalarSplatIntrinsic =
-      getScalarBroadcastSplatIntrinsic(typedFacts.sew, typedFacts.lmul);
+  plan.rhsScalarSplatIntrinsic = typedFacts.scalarSplatIntrinsic;
   plan.arithmeticIntrinsic =
-      getElementwiseArithmeticIntrinsic(plan.operation, typedFacts.sew,
-                                        typedFacts.lmul);
+      internElementwiseDerivedLeaf(std::move(*arithmeticIntrinsic));
   plan.storeIntrinsic = typedFacts.storeIntrinsic;
   plan.resultName = getElementwiseResultName(plan.operation);
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
@@ -1240,6 +1370,24 @@ verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " masked elementwise arithmetic route-family mask C type must mirror "
         "selected typed RVV body/config facts before provider "
+        "materialization");
+  const bool usesStridedInputs =
+      plan.operation == RVVSelectedBodyOperationKind::StridedAdd;
+  const bool usesRHSBroadcast =
+      plan.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
+  const llvm::StringRef expectedStridedLoadIntrinsic =
+      usesStridedInputs ? typedFacts.stridedLoadIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedStridedStoreIntrinsic =
+      usesStridedInputs ? typedFacts.stridedStoreIntrinsic : llvm::StringRef();
+  const llvm::StringRef expectedRHSBroadcastIntrinsic =
+      usesRHSBroadcast ? typedFacts.scalarSplatIntrinsic : llvm::StringRef();
+  if (plan.stridedLoadIntrinsic != expectedStridedLoadIntrinsic ||
+      plan.stridedStoreIntrinsic != expectedStridedStoreIntrinsic ||
+      plan.rhsBroadcastIntrinsic != expectedRHSBroadcastIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family memory/broadcast leaves must "
+        "mirror selected typed RVV body/config facts before provider "
         "materialization");
   if (plan.elementCType != getElementwiseElementCType(plan.elementTypeName))
     return makeRVVEmitCRouteProviderError(
@@ -1419,6 +1567,7 @@ verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
       plan.vectorCType != typedFacts.vectorCType ||
       plan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
       plan.vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+      plan.rhsScalarSplatIntrinsic != typedFacts.scalarSplatIntrinsic ||
       plan.storeIntrinsic != typedFacts.storeIntrinsic)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -1853,18 +2002,39 @@ llvm::Error verifyRVVSelectedBodyElementwiseRouteDescriptionMirrors(
             context, "C type mapping summary", description.cTypeMappingSummary,
             getElementwiseArithmeticCTypeMappingSummary(description.operation)))
       return error;
+    std::optional<std::string> expectedArithmeticIntrinsic =
+        deriveElementwiseArithmeticIntrinsic(
+            description.operation, description.sew, description.lmul);
+    if (!expectedArithmeticIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " compute intrinsic cannot be derived from elementwise operation "
+          "and typed SEW/LMUL mirrors");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "compute intrinsic", description.intrinsic,
-            getElementwiseArithmeticIntrinsic(description.operation,
-                                             description.sew,
-                                             description.lmul)))
+            *expectedArithmeticIntrinsic))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "RHS broadcast intrinsic", description.rhsBroadcastIntrinsic,
-            description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad
-                ? getScalarBroadcastSplatIntrinsic(description.sew,
-                                                  description.lmul)
-                : llvm::StringRef()))
+    if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
+      std::optional<std::string> expectedSplatIntrinsic =
+          deriveElementwiseScalarSplatIntrinsic(description.sew,
+                                               description.lmul);
+      if (!expectedSplatIntrinsic)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " RHS broadcast intrinsic cannot be derived from typed SEW/LMUL "
+            "mirrors");
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "RHS broadcast intrinsic",
+              description.rhsBroadcastIntrinsic, *expectedSplatIntrinsic))
+        return error;
+      if (description.rhsBroadcastIntrinsic.empty())
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " RHS broadcast intrinsic must be provider-derived from selected "
+            "typed RVV body/config facts");
+    } else if (llvm::Error error = requireRouteDescriptionField(
+                   context, "RHS broadcast intrinsic",
+                   description.rhsBroadcastIntrinsic, ""))
       return error;
     return llvm::Error::success();
   }
@@ -1900,14 +2070,33 @@ llvm::Error verifyRVVSelectedBodyElementwiseRouteDescriptionMirrors(
           context, "C type mapping summary", description.cTypeMappingSummary,
           kRVVScalarBroadcastElementwiseCTypeMappingSummary))
     return error;
+  std::optional<std::string> expectedSplatIntrinsic =
+      deriveElementwiseScalarSplatIntrinsic(description.sew, description.lmul);
+  if (!expectedSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " RHS broadcast intrinsic cannot be derived from typed SEW/LMUL "
+        "mirrors");
   if (llvm::Error error = requireRouteDescriptionField(
           context, "RHS broadcast intrinsic", description.rhsBroadcastIntrinsic,
-          getScalarBroadcastSplatIntrinsic(description.sew, description.lmul)))
+          *expectedSplatIntrinsic))
     return error;
-  return requireRouteDescriptionField(
-      context, "compute intrinsic", description.intrinsic,
-      getElementwiseArithmeticIntrinsic(description.operation, description.sew,
-                                       description.lmul));
+  if (description.rhsBroadcastIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " RHS broadcast intrinsic must be provider-derived from selected typed "
+        "RVV body/config facts");
+  std::optional<std::string> expectedArithmeticIntrinsic =
+      deriveElementwiseArithmeticIntrinsic(description.operation,
+                                           description.sew, description.lmul);
+  if (!expectedArithmeticIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compute intrinsic cannot be derived from scalar-broadcast operation "
+        "and typed SEW/LMUL mirrors");
+  return requireRouteDescriptionField(context, "compute intrinsic",
+                                      description.intrinsic,
+                                      *expectedArithmeticIntrinsic);
 }
 
 } // namespace tianchenrv::plugin::rvv

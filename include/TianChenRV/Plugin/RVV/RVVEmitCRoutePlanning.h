@@ -218,6 +218,7 @@ struct RVVSelectedBodyTypedConfigFacts {
   llvm::StringRef indexedLoadIntrinsic;
   llvm::StringRef indexedStoreIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef scalarSplatIntrinsic;
   llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;

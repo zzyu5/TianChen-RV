@@ -4,7 +4,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-scalar-broadcast-elementwise-route-family-plan.v1/s//rvv-script-derived-scalar-broadcast-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs_scalar,out,n/s//lhs,out,rhs_scalar,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-ABI
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated/s//provider_supported_mirror:rvv-script-derived-scalar-broadcast/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-PROVIDER
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rhs_scalar:i32/s//rhs_scalar:i64/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rhs_scalar:typed-scalar/s//rhs_scalar:stale-scalar/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-TYPE
 
 // Pre-realized selected-body input for one bounded Stage2 vector-scalar add.
 // The RVV plugin must realize the explicit RHS scalar ABI value into generic
@@ -57,10 +57,10 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan", value = "rvv-scalar-broadcast-elementwise-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew32-lmul-m1"}
-// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-scalar-broadcast-elementwise-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,result:typed-vector"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
@@ -79,7 +79,7 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: tianchenrv.rvv.scalar_broadcast_elementwise_route_family_plan: rvv-scalar-broadcast-elementwise-route-family-plan.v1
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,result:typed-vector
 // HEADER: void tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add(const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n);
 
 // STALE-SB-PLAN: RVV materialized EmitC target artifact bridge failed
@@ -100,4 +100,4 @@ module {
 // STALE-SB-TYPE: RVV materialized EmitC target artifact bridge failed
 // STALE-SB-TYPE: tcrv_rvv.c_type_mapping
 // STALE-SB-TYPE-SAME: must mirror
-// STALE-SB-TYPE-SAME: rhs_scalar:i64
+// STALE-SB-TYPE-SAME: rhs_scalar:stale-scalar
