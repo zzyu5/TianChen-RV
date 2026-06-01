@@ -578,8 +578,8 @@ getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan(
     return plan;
 
   plan.plansRuntimeScalarSplatStoreRoute = true;
-  plan.plansRuntimeI32SplatStore =
-      description.operation == RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  plan.plansTypedRuntimeScalarSplatStore =
+      description.operation == RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   plan.runtimeScalarSplatStorePlan =
       materializationFacts.runtimeScalarSplatStorePlan;
 

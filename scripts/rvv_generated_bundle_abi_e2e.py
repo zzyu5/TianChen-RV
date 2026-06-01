@@ -130,7 +130,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "runtime_scalar_cmp_masked_standalone_reduce_min_lmul_m2",
     "runtime_scalar_cmp_masked_standalone_reduce_max",
     "runtime_scalar_cmp_masked_standalone_reduce_max_lmul_m2",
-    "runtime_i32_splat_store",
+    "runtime_scalar_splat_store",
     "i64_add",
     "lmul_m2_add",
     "widen_i32_to_i64",
@@ -873,7 +873,7 @@ def scalar_broadcast_route_operand_binding_operands(kind: str) -> str:
 
 
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
-    "rvv-route-operand-binding:runtime_i32_splat_store.v1"
+    "rvv-route-operand-binding:runtime_scalar_splat_store.v1"
 )
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_FAMILY_PLAN = (
     "rvv-runtime-scalar-splat-store-route-family-plan.v1"
@@ -882,7 +882,7 @@ WIDENING_CONVERSION_ROUTE_FAMILY_PLAN = (
     "rvv-widening-conversion-route-family-plan.v1"
 )
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
-    "rvv-route-operand-binding:runtime_i32_splat_store.v1;"
+    "rvv-route-operand-binding:runtime_scalar_splat_store.v1;"
     "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|runtime-scalar-splat-call|header-mirror;"
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
@@ -942,7 +942,7 @@ STRIDED_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 RUNTIME_SCALAR_SPLAT_STORE_RUNTIME_ABI_ORDER = "rhs_scalar,out,n"
 RUNTIME_SCALAR_SPLAT_STORE_TARGET_LEAF_PROFILE = (
-    "rvv-v1-e32m1-runtime-scalar-splat-store-leaf-profile.v1"
+    "rvv-v1-typed-runtime-scalar-splat-store-leaf-profile.v1"
 )
 RUNTIME_SCALAR_SPLAT_STORE_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-runtime-scalar-splat-store-plan-validated"
@@ -951,7 +951,7 @@ RUNTIME_SCALAR_SPLAT_STORE_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 RUNTIME_SCALAR_SPLAT_STORE_C_TYPE_MAPPING = (
-    "vl:size_t,rhs_scalar:i32,result:signed-e32m1"
+    "vl:size_t,rhs_scalar:typed-scalar,result:typed-vector"
 )
 WIDEN_I32_TO_I64_TARGET_LEAF_PROFILE = (
     "rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1"
@@ -2500,7 +2500,7 @@ class OpExpectation:
 
     @property
     def is_runtime_scalar_splat_store(self) -> bool:
-        return self.kind == "runtime_i32_splat_store"
+        return self.kind == "runtime_scalar_splat_store"
 
     @property
     def is_standalone_reduce_add(self) -> bool:
@@ -3233,15 +3233,15 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="(int32_t)-3",
         expected_expression="lhs[index] * rhs_scalar",
     ),
-    "runtime_i32_splat_store": OpExpectation(
-        kind="runtime_i32_splat_store",
-        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-runtime-i32-splat-store.mlir"),
+    "runtime_scalar_splat_store": OpExpectation(
+        kind="runtime_scalar_splat_store",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-splat-store.mlir"),
         input_mode="explicit-selected-body",
         source_seed=False,
-        selected_variant="explicit_selected_body_rvv_runtime_i32_splat_store",
-        external_abi_name="rvv-generic-runtime-i32-splat-store-callable-c-abi.v1",
-        function_name="tcrv_emitc_explicit_selected_body_runtime_i32_splat_store_kernel_explicit_selected_body_rvv_runtime_i32_splat_store",
-        emitc_route="rvv-generic-runtime-i32-splat-store-emitc-route",
+        selected_variant="explicit_selected_body_rvv_runtime_scalar_splat_store",
+        external_abi_name="rvv-generic-runtime-scalar-splat-store-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_runtime_scalar_splat_store_kernel_explicit_selected_body_rvv_runtime_scalar_splat_store",
+        emitc_route="rvv-generic-runtime-scalar-splat-store-emitc-route",
         typed_compute_op="tcrv_rvv.splat",
         memory_form="runtime-scalar-splat-store",
         lhs_initializer="(int32_t)0",
@@ -4654,12 +4654,12 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_scalar_broadcast_mul",
         function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_mul_kernel_pre_realized_body_rvv_scalar_broadcast_mul",
     ),
-    "runtime_i32_splat_store": replace(
-        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_i32_splat_store"],
-        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-i32-splat-store.mlir"),
+    "runtime_scalar_splat_store": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_splat_store"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-splat-store.mlir"),
         input_mode="pre-realized-selected-body",
-        selected_variant="pre_realized_body_rvv_runtime_i32_splat_store",
-        function_name="tcrv_emitc_pre_realized_body_runtime_i32_splat_store_kernel_pre_realized_body_rvv_runtime_i32_splat_store",
+        selected_variant="pre_realized_body_rvv_runtime_scalar_splat_store",
+        function_name="tcrv_emitc_pre_realized_body_runtime_scalar_splat_store_kernel_pre_realized_body_rvv_runtime_scalar_splat_store",
     ),
     "standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_add"],
@@ -23841,7 +23841,7 @@ def run_e2e(args: argparse.Namespace) -> int:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
                 "scalar_broadcast_add/sub/mul, scalar_broadcast_macc_add, "
-                "runtime_i32_splat_store, or "
+                "runtime_scalar_splat_store, or "
                 "runtime_scalar_cmp_select/runtime_scalar_cmp_masked_store/"
                 "runtime_scalar_dual_cmp_mask_and_select/"
                 "runtime_scalar_cmp_masked_load_store/"
@@ -24987,7 +24987,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "runtime RHS scalar value for scalar_broadcast_add/sub/mul, "
             "scalar_broadcast_macc_add, "
-            "runtime_i32_splat_store, runtime_scalar_cmp_select, or "
+            "runtime_scalar_splat_store, runtime_scalar_cmp_select, or "
             "runtime_scalar_dual_cmp_mask_and_select, or "
             "runtime_scalar_cmp_masked_store/"
             "runtime_scalar_cmp_masked_load_store/"

@@ -648,7 +648,7 @@ bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
 
 bool isSupportedTypedRuntimeScalarSplatStorePreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "runtime_i32_splat_store";
+  return opKind == "runtime_scalar_splat_store";
 }
 
 bool isSupportedTypedBinaryPreRealizedMemoryForm(llvm::StringRef memoryForm) {
@@ -3335,7 +3335,7 @@ TypedRuntimeScalarSplatStorePreRealizedBodyOp::verify() {
           getOpKind()))
     return emitOpError()
            << "currently supports only op_kind "
-              "\"runtime_i32_splat_store\" for the bounded selected-body "
+              "\"runtime_scalar_splat_store\" for the bounded selected-body "
               "runtime scalar splat-store hook";
   if (!isSupportedTypedRuntimeScalarSplatStorePreRealizedMemoryForm(
           getMemoryForm()))

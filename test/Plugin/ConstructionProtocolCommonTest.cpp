@@ -1743,7 +1743,7 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.move";
     else if (route.operationMnemonic == "segment2_interleave_unit_load")
       executableComputeOp = "tcrv_rvv.segment2_store";
-    else if (route.operationMnemonic == "runtime_i32_splat_store")
+    else if (route.operationMnemonic == "runtime_scalar_splat_store")
       executableComputeOp = "tcrv_rvv.splat";
     llvm::StringRef rhsSourceOp = "tcrv_rvv.load";
     if (isConversionRoute) {
@@ -1797,7 +1797,7 @@ int runRVVCommonValidationTest() {
     } else if (isScalarBroadcastElementwiseRoute ||
                isScalarBroadcastMAccRoute ||
                isRuntimeScalarCompareSelectRoute ||
-               route.operationMnemonic == "runtime_i32_splat_store") {
+               route.operationMnemonic == "runtime_scalar_splat_store") {
       rhsSourceOp = "tcrv_rvv.splat";
     }
     llvm::Expected<llvm::SmallVector<
@@ -1852,7 +1852,7 @@ int runRVVCommonValidationTest() {
     const bool hasSegment2Interleave =
         route.operationMnemonic == "segment2_interleave_unit_load";
     const bool hasRuntimeScalarSplatStore =
-        route.operationMnemonic == "runtime_i32_splat_store";
+        route.operationMnemonic == "runtime_scalar_splat_store";
     const bool hasConversion = isConversionRoute;
     const bool hasWideningMAcc = isWideningMAccRoute;
     const bool hasWideningDotReduce = isWideningDotReduceRoute;
@@ -2091,7 +2091,7 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic == "runtime_i32_splat_store") {
+    } else if (route.operationMnemonic == "runtime_scalar_splat_store") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check Stage1 route-authority reset and global source-of-truth invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider facts, selected-body realization, and runtime scalar splat-store contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral provider-route consumers"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check plugin-locality and descriptor/source-front-door restrictions"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and bounded authority scans satisfy RVV Stage1 policy"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin/core locality for changed code"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute-boundary integrity for typed RVV route surface changes"}

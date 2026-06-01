@@ -25,7 +25,7 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
 }
 
 bool isPreRealizedRuntimeScalarSplatStoreOpKind(llvm::StringRef opKind) {
-  return opKind == "runtime_i32_splat_store";
+  return opKind == "runtime_scalar_splat_store";
 }
 
 bool isPreRealizedRuntimeScalarSplatStoreMemoryForm(
@@ -229,7 +229,7 @@ realizePreRealizedRVVRuntimeScalarSplatStoreOwner(
   if (!isPreRealizedRuntimeScalarSplatStoreOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized runtime scalar splat-store realization supports only "
-        "op_kind 'runtime_i32_splat_store'");
+        "op_kind 'runtime_scalar_splat_store'");
   if (!isPreRealizedRuntimeScalarSplatStoreMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized runtime scalar splat-store realization supports only "

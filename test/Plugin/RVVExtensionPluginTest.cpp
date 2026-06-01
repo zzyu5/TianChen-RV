@@ -1394,7 +1394,7 @@ module {
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_i32_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_scalar_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
   }
 }
@@ -1803,11 +1803,11 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_computed_mask_select_pre_realized_body %cmp_lhs, %cmp_rhs, %true_value, %false_value, %out, %n {lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-vector-select", op_kind = "computed_mask_select", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-true-value-when-mask-else-false-value", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
-    tcrv.exec.variant @rvv_pre_route_runtime_i32_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+    tcrv.exec.variant @rvv_pre_route_runtime_scalar_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_i32_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_scalar_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -2058,7 +2058,7 @@ module {
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_i32_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body %rhs_scalar, %out, %n {lmul = "m1", memory_form = "runtime-scalar-splat-store", op_kind = "runtime_scalar_splat_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (i32, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -2956,7 +2956,7 @@ module {
           /*buildRouteBeforePlan=*/true))
     return result;
   if (int result = exerciseVariant(
-          "rvv_pre_route_runtime_i32_splat_store",
+          "rvv_pre_route_runtime_scalar_splat_store",
           "tcrv_rvv.typed_runtime_scalar_splat_store_pre_realized_body",
           "runtime scalar splat-store",
           "rvv-runtime-scalar-splat-store-route-family-plan.v1",
@@ -4314,10 +4314,10 @@ module {
   if (int result = expectErrorContains(
           invalidRuntimeSplat.takeError(),
           {"pre-realized runtime scalar splat-store realization supports only "
-           "op_kind 'runtime_i32_splat_store'"}))
+           "op_kind 'runtime_scalar_splat_store'"}))
     return result;
   runtimeSplatBody->setAttr(
-      "op_kind", attrBuilder.getStringAttr("runtime_i32_splat_store"));
+      "op_kind", attrBuilder.getStringAttr("runtime_scalar_splat_store"));
 
   mlir::OpBuilder runtimeRealizeBuilder(module->getContext());
   llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> runtimeRealized =
@@ -6010,14 +6010,14 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
   }
   if (int result = expect(
           !isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
-              RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
-          "runtime_i32_splat_store must stay outside scalar-broadcast "
+              RVVSelectedBodyOperationKind::RuntimeScalarSplatStore),
+          "runtime_scalar_splat_store must stay outside scalar-broadcast "
           "elementwise family"))
     return result;
   if (int result = expect(
           isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
-              RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
-          "runtime_i32_splat_store must be a runtime scalar splat-store "
+              RVVSelectedBodyOperationKind::RuntimeScalarSplatStore),
+          "runtime_scalar_splat_store must be a runtime scalar splat-store "
           "family consumer"))
     return result;
   if (int result = expect(
@@ -6055,13 +6055,13 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
 
   RVVSelectedBodyRouteAnalysis missingRuntimeSplatPlan;
   missingRuntimeSplatPlan.description.operation =
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
               missingRuntimeSplatPlan,
               "runtime scalar splat-store provider unit test"),
           {"requires the runtime scalar splat-store route-family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleRuntimeSplatNonConsumer;
@@ -6069,7 +6069,7 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
       RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
   staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
   staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan
-      ->operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      ->operation = RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
               staleRuntimeSplatNonConsumer,
@@ -6131,14 +6131,14 @@ module {
     }
   }
 
-  tcrv.exec.kernel @runtime_i32_splat_store_provider_kernel {
+  tcrv.exec.kernel @runtime_scalar_splat_store_provider_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_runtime_i32_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+    tcrv.exec.variant @rvv_runtime_scalar_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_i32_splat_store, sew = 32 : i64, source_kernel = "runtime_i32_splat_store_provider_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_scalar_splat_store, sew = 32 : i64, source_kernel = "runtime_scalar_splat_store_provider_kernel", status = "selected-lowering-boundary"} {
         %splat_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         tcrv_rvv.store %out, %splat_vec, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
@@ -6373,22 +6373,32 @@ module {
     return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeSplatAnalysis =
-      analyzeRouteInModule(*module, "runtime_i32_splat_store_provider_kernel",
-                           "rvv_runtime_i32_splat_store");
+      analyzeRouteInModule(*module, "runtime_scalar_splat_store_provider_kernel",
+                           "rvv_runtime_scalar_splat_store");
   if (!runtimeSplatAnalysis)
-    return fail("analyze runtime_i32_splat_store provider route: " +
+    return fail("analyze runtime_scalar_splat_store provider route: " +
                 llvm::toString(runtimeSplatAnalysis.takeError()));
   if (int result = expectSuccess(
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
               *runtimeSplatAnalysis,
               "runtime scalar splat-store provider unit test"),
-          "valid runtime_i32_splat_store family provider plan"))
+          "valid runtime_scalar_splat_store family provider plan"))
     return result;
   if (int result = expect(
           runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan &&
               runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
                       ->operation ==
-                  RVVSelectedBodyOperationKind::RuntimeI32SplatStore &&
+                  RVVSelectedBodyOperationKind::RuntimeScalarSplatStore &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->sew == 32 &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->lmul == "m1" &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->tailPolicy == "agnostic" &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->maskPolicy == "agnostic" &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->scalarCType == "int32_t" &&
               runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
                       ->runtimeControlPlan.controlPlanID ==
                   tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
@@ -6398,8 +6408,8 @@ module {
               runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
                       ->storeIntrinsic == "__riscv_vse32_v_i32m1" &&
               runtimeSplatAnalysis->routeOperandBindingPlan.planID ==
-                  "rvv-route-operand-binding:runtime_i32_splat_store.v1",
-          "runtime_i32_splat_store plan must carry runtime control, scalar "
+                  "rvv-route-operand-binding:runtime_scalar_splat_store.v1",
+          "runtime_scalar_splat_store plan must carry runtime control, scalar "
           "splat, store, and binding facts"))
     return result;
   auto expectRuntimeSplatRouteControl =
@@ -6430,7 +6440,7 @@ module {
                     &analysis.typedConfigFacts &&
                 routeControlPlan->selectedTargetCapabilityFacts ==
                     &analysis.selectedTargetCapabilityFacts,
-            "runtime_i32_splat_store route-control provider plan joins typed "
+            "runtime_scalar_splat_store route-control provider plan joins typed "
             "config, target capability, and runtime AVL/VL facts"))
       return result;
     if (int result = expect(
@@ -6438,7 +6448,7 @@ module {
                 residualFacts->rhsScalarABI->cName == "rhs_scalar" &&
                 residualFacts->outABI->cName == "out" &&
                 residualFacts->runtimeElementCountABI->cName == "n",
-            "runtime_i32_splat_store route-control test also sees residual "
+            "runtime_scalar_splat_store route-control test also sees residual "
             "scalar, output, and runtime count bindings"))
       return result;
     return expect(
@@ -6454,7 +6464,7 @@ module {
                 analysis.description.targetCapabilityProviderMirror &&
             routeControlPlan->selectedLegalityMirror ==
                 analysis.description.targetCapabilityLegalityMirror,
-        "runtime_i32_splat_store route-control provider plan carries "
+        "runtime_scalar_splat_store route-control provider plan carries "
         "validated mirrors before statement planning");
   };
   if (int result = expectRuntimeSplatRouteControl(*runtimeSplatAnalysis))
@@ -6484,7 +6494,7 @@ module {
                 llvm::toString(runtimeSplatStatementPlan.takeError()));
   if (int result = expect(
           runtimeSplatStatementPlan->plansRuntimeScalarSplatStoreRoute &&
-              runtimeSplatStatementPlan->plansRuntimeI32SplatStore &&
+              runtimeSplatStatementPlan->plansTypedRuntimeScalarSplatStore &&
               runtimeSplatStatementPlan->runtimeScalarSplatStorePlan ==
                   &*runtimeSplatAnalysis
                         ->runtimeScalarSplatStoreRouteFamilyPlan &&
@@ -6520,15 +6530,15 @@ module {
               runtimeSplatStatementPlan->loop.bodySteps[2]
                       .operands[2]
                       .expression == "vl",
-          "runtime_i32_splat_store statement plan derives pre-loop setvl, "
+          "runtime_scalar_splat_store statement plan derives pre-loop setvl, "
           "loop setvl, splat, and store from typed runtime AVL/VL facts"))
     return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
               *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact preflight unit test"),
-          "runtime_i32_splat_store provider fact preflight accepts validated "
+              "runtime_scalar_splat_store provider-fact preflight unit test"),
+          "runtime_scalar_splat_store provider fact preflight accepts validated "
           "typed body, family plan, materialization, residual binding, "
           "route-control, ABI, and statement facts before route construction"))
     return result;
@@ -6540,7 +6550,7 @@ module {
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
               missingRuntimeSplatProviderPlan, *runtimeSplatStatementFacts,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact missing family unit test"),
+              "runtime_scalar_splat_store provider-fact missing family unit test"),
           {"requires the runtime scalar splat-store route-family plan",
            "provider materialization"}))
     return result;
@@ -6554,7 +6564,7 @@ module {
               *runtimeSplatAnalysis,
               staleRuntimeSplatProviderMaterialization,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact stale vector type unit "
+              "runtime_scalar_splat_store provider-fact stale vector type unit "
               "test"),
           {"runtime scalar splat-store route construction requires "
            "materialization facts",
@@ -6569,7 +6579,7 @@ module {
               *runtimeSplatAnalysis,
               staleRuntimeSplatProviderMaterialization,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact missing splat leaf unit "
+              "runtime_scalar_splat_store provider-fact missing splat leaf unit "
               "test"),
           {"runtime scalar splat-store route construction requires "
            "materialization facts",
@@ -6584,7 +6594,7 @@ module {
               *runtimeSplatAnalysis,
               staleRuntimeSplatProviderMaterialization,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact missing store leaf unit "
+              "runtime_scalar_splat_store provider-fact missing store leaf unit "
               "test"),
           {"runtime scalar splat-store route construction requires "
            "materialization facts",
@@ -6600,7 +6610,7 @@ module {
               *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
               staleRuntimeSplatProviderResidualFacts,
               *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact stale scalar binding "
+              "runtime_scalar_splat_store provider-fact stale scalar binding "
               "unit test"),
           {"rhs_scalar/out/n operand-binding facts",
            "TCRVEmitCLowerableRoute"}))
@@ -6614,7 +6624,7 @@ module {
               *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
               staleRuntimeSplatProviderResidualFacts,
               *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact stale output binding "
+              "runtime_scalar_splat_store provider-fact stale output binding "
               "unit test"),
           {"rhs_scalar/out/n operand-binding facts",
            "TCRVEmitCLowerableRoute"}))
@@ -6628,7 +6638,7 @@ module {
               *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
               staleRuntimeSplatProviderResidualFacts,
               *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact stale n binding unit "
+              "runtime_scalar_splat_store provider-fact stale n binding unit "
               "test"),
           {"rhs_scalar/out/n operand-binding facts",
            "TCRVEmitCLowerableRoute"}))
@@ -6641,9 +6651,9 @@ module {
   auto staleRuntimeSplatProviderControlFacts =
       getRVVSelectedBodyRouteMaterializationFacts(
           staleRuntimeSplatProviderControl,
-          "runtime_i32_splat_store provider-fact stale route-control unit test");
+          "runtime_scalar_splat_store provider-fact stale route-control unit test");
   if (!staleRuntimeSplatProviderControlFacts)
-    return fail("runtime_i32_splat_store provider stale route-control "
+    return fail("runtime_scalar_splat_store provider stale route-control "
                 "materialization facts: " +
                 llvm::toString(
                     staleRuntimeSplatProviderControlFacts.takeError()));
@@ -6652,7 +6662,7 @@ module {
               staleRuntimeSplatProviderControl,
               *staleRuntimeSplatProviderControlFacts,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact stale route-control unit "
+              "runtime_scalar_splat_store provider-fact stale route-control unit "
               "test"),
           {"route-control provider plan target-capability gate",
            "supported_sew", "32"}))
@@ -6666,7 +6676,7 @@ module {
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
               staleRuntimeSplatProviderABI, *runtimeSplatStatementFacts,
               *runtimeSplatStatementResidualFacts, *runtimeSplatStatementPlan,
-              "runtime_i32_splat_store provider-fact stale ABI order unit "
+              "runtime_scalar_splat_store provider-fact stale ABI order unit "
               "test"),
           {"runtime scalar splat-store route-family route, runtime, type",
            "validated family plan"}))
@@ -6680,7 +6690,7 @@ module {
               *runtimeSplatAnalysis, *runtimeSplatStatementFacts,
               *runtimeSplatStatementResidualFacts,
               staleRuntimeSplatProviderStatement,
-              "runtime_i32_splat_store provider-fact stale statement unit "
+              "runtime_scalar_splat_store provider-fact stale statement unit "
               "test"),
           {"statement/leaf facts for setvl, scalar splat, and store",
            "TCRVEmitCLowerableRoute"}))
@@ -6693,7 +6703,7 @@ module {
           verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
               staleRuntimeSplatNonConsumerProviderFacts,
               *runtimeSplatStatementFacts, {}, {},
-              "runtime_i32_splat_store non-consumer provider-fact unit test"),
+              "runtime_scalar_splat_store non-consumer provider-fact unit test"),
           {"must not carry runtime scalar splat-store provider facts",
            "non-runtime-splat-store operation", "add",
            "TCRVEmitCLowerableRoute"}))
@@ -6718,7 +6728,7 @@ module {
                       RuntimeScalarSplatStore &&
               migratedRuntimeSplatPlan->preLoopSteps.size() == 1 &&
               migratedRuntimeSplatPlan->loop.bodySteps.size() == 3,
-          "runtime_i32_splat_store is now an active migrated statement-plan "
+          "runtime_scalar_splat_store is now an active migrated statement-plan "
           "consumer"))
     return result;
 
@@ -6739,7 +6749,7 @@ module {
               .takeError(),
           {"route-control provider plan requires the verified runtime scalar "
            "splat-store route-family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis copiedRuntimeSplatControl =
@@ -6758,7 +6768,7 @@ module {
               .takeError(),
           {"runtime scalar splat-store materialization facts from the same "
            "selected route analysis",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleSplatPolicy = *runtimeSplatAnalysis;
@@ -6813,7 +6823,7 @@ module {
               .takeError(),
           {"runtime scalar splat-store materialization facts to mirror the "
            "verified splat-store family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   stale = *runtimeSplatAnalysis;
@@ -6877,7 +6887,7 @@ module {
       verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
           stale, "runtime scalar splat-store provider unit test"),
       {"mirror plan id",
-       "rvv-route-operand-binding:runtime_i32_splat_store.v1",
+       "rvv-route-operand-binding:runtime_scalar_splat_store.v1",
        "rvv-route-operand-binding:scalar_broadcast_add.v1"});
 }
 
@@ -7568,7 +7578,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
                   RVVSelectedBodyOperationKind::ScalarBroadcastMul) &&
               !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add) &&
               !owners[1].isConsumer(
-                  RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+                  RVVSelectedBodyOperationKind::RuntimeScalarSplatStore),
           "scalar-broadcast elementwise owner classification is isolated"))
     return result;
   if (int result = expect(
@@ -7603,7 +7613,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
   }
   if (int result = expect(
           !isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
-              RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+              RVVSelectedBodyOperationKind::RuntimeScalarSplatStore),
           "runtime scalar splat-store remains outside the aggregate "
           "elementwise/select owner boundary"))
     return result;
@@ -7655,7 +7665,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
 
   RVVSelectedBodyRouteAnalysis nonElementwiseSelectAnalysis;
   nonElementwiseSelectAnalysis.description.operation =
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
               nonElementwiseSelectAnalysis,
@@ -7674,7 +7684,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
               staleElementwiseNonConsumer,
               "elementwise/select owner registry unit test"),
           {"must not carry an elementwise arithmetic route-family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleScalarBroadcastNonConsumer =
@@ -7688,7 +7698,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
               staleScalarBroadcastNonConsumer,
               "elementwise/select owner registry unit test"),
           {"must not carry a scalar-broadcast elementwise route-family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis stalePlainCompareNonConsumer =
@@ -7701,7 +7711,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
               stalePlainCompareNonConsumer,
               "elementwise/select owner registry unit test"),
           {"must not carry a plain compare-select route-family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis staleComputedMaskSelectNonConsumer =
@@ -7715,7 +7725,7 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
           staleComputedMaskSelectNonConsumer,
           "elementwise/select owner registry unit test"),
       {"must not carry a computed-mask select route-family plan",
-       "runtime_i32_splat_store"});
+       "runtime_scalar_splat_store"});
 }
 
 int runCompareSelectMaskRouteFamilyOwnerRegistryTest() {
@@ -8436,7 +8446,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
     return result;
   if (int result = expect(
           owners[3].isConsumer(
-              RVVSelectedBodyOperationKind::RuntimeI32SplatStore) &&
+              RVVSelectedBodyOperationKind::RuntimeScalarSplatStore) &&
               !owners[3].isConsumer(
                   RVVSelectedBodyOperationKind::ScalarBroadcastAdd),
           "top-level runtime splat-store owner classification remains "
@@ -8445,7 +8455,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
   if (int result = expect(
           owners[4].isConsumer(RVVSelectedBodyOperationKind::WidenI32ToI64) &&
               !owners[4].isConsumer(
-                  RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+                  RVVSelectedBodyOperationKind::RuntimeScalarSplatStore),
           "top-level widening conversion owner classification remains "
           "isolated"))
     return result;
@@ -8456,7 +8466,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
         RVVSelectedBodyOperationKind::MAccAdd,
         RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::Add,
-        RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+        RVVSelectedBodyOperationKind::RuntimeScalarSplatStore,
         RVVSelectedBodyOperationKind::WidenI32ToI64}) {
     if (int result = expect(
             isRVVSelectedBodyRouteFamilyProviderConsumer(op),
@@ -8521,13 +8531,13 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
 
   RVVSelectedBodyRouteAnalysis missingRuntimeSplatPlan;
   missingRuntimeSplatPlan.description.operation =
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyRouteFamilyProviderPlans(
               missingRuntimeSplatPlan,
               "top-level route-family provider owner registry unit test"),
           {"requires the runtime scalar splat-store route-family plan",
-           "runtime_i32_splat_store"}))
+           "runtime_scalar_splat_store"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingWideningPlan;
@@ -8546,7 +8556,7 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
       RVVSelectedBodyOperationKind::WidenI32ToI64;
   staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
   staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan
-      ->operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      ->operation = RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   return expectErrorContains(
       verifyRVVSelectedBodyRouteFamilyProviderPlans(
           staleRuntimeSplatNonConsumer,
@@ -8642,7 +8652,7 @@ int runRouteControlProviderOwnerRegistryTest() {
        RVVSelectedBodyMemoryForm::VectorRHSLoad, "plain MAcc"},
       {RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
        RVVSelectedBodyMemoryForm::RHSScalarBroadcast, "scalar-broadcast MAcc"},
-      {RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+      {RVVSelectedBodyOperationKind::RuntimeScalarSplatStore,
        RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
        "runtime scalar splat-store"},
       {RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
@@ -8975,7 +8985,7 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
        RVVSelectedBodyMemoryForm::VectorRHSLoad, "compare/select"},
       {RVVSelectedBodyOperationKind::WidenI32ToI64,
        RVVSelectedBodyMemoryForm::UnitStrideConversion, "widening conversion"},
-      {RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+      {RVVSelectedBodyOperationKind::RuntimeScalarSplatStore,
        RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
        "runtime scalar splat-store"},
       {RVVSelectedBodyOperationKind::ReduceAdd,
@@ -9386,9 +9396,9 @@ int runRouteMaterializationFactsBoundaryTest() {
   {
     RVVSelectedBodyRouteAnalysis analysis;
     analysis.description.operation =
-        RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+        RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
     auto &plan = analysis.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
-    plan.operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+    plan.operation = RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
     plan.requiredHeaders = {"runtime-splat.h"};
     plan.vlCType = "runtime-vl";
     plan.vectorTypeName = "runtime-vector";
@@ -14475,7 +14485,7 @@ module {
 
   RVVSelectedBodyRouteAnalysis unrelated;
   unrelated.description.operation =
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   auto emptyPlan = getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
       unrelated, {}, {}, {},
       "elementwise arithmetic statement plan empty unit test");
@@ -15503,7 +15513,7 @@ module {
 
   RVVSelectedBodyRouteAnalysis unrelated;
   unrelated.description.operation =
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   auto emptyPlan = getRVVSelectedBodyCompareSelectRouteStatementPlan(
       unrelated, {}, {},
       "compare/select statement plan empty unit test");
@@ -23174,7 +23184,7 @@ int runRouteOperandBindingPlanValidationTest() {
 
   RVVRouteOperandBindingPlan runtimeSplatPlan;
   runtimeSplatPlan.planID =
-      "rvv-route-operand-binding:runtime_i32_splat_store.v1";
+      "rvv-route-operand-binding:runtime_scalar_splat_store.v1";
   addBinding(runtimeSplatPlan, "rhs_scalar",
              makeTargetExportABIParameter(
                  "rhs_scalar", "int32_t",
@@ -23193,14 +23203,14 @@ int runRouteOperandBindingPlanValidationTest() {
              {"runtime-abi-mirror", "setvl-avl", "loop-control",
               "header-mirror"});
   auto runtimeSplatAnalysis = makeResidualAnalysis(
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore, "rhs_scalar,out,n",
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore, "rhs_scalar,out,n",
       runtimeSplatPlan);
   runtimeSplatAnalysis.description.memoryForm =
       tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
           RuntimeScalarSplatStore;
   runtimeSplatAnalysis.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
   runtimeSplatAnalysis.runtimeScalarSplatStoreRouteFamilyPlan->operation =
-      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
   runtimeSplatAnalysis.runtimeScalarSplatStoreRouteFamilyPlan->memoryForm =
       tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
           RuntimeScalarSplatStore;

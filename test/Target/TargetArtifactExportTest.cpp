@@ -701,7 +701,7 @@ mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
   std::string variant = getRVVTestVariantSymbol(op);
   if (op ==
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
-          RuntimeI32SplatStore) {
+          RuntimeScalarSplatStore) {
     std::string vectorType =
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.vector<i32, \"m2\">"
@@ -3133,7 +3133,7 @@ bool expectRVVTargetArtifactExporterShape(
 
   RVVTargetArtifactCandidateFixture runtimeSplatFixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
-          RuntimeI32SplatStore);
+          RuntimeScalarSplatStore);
   if (!expectRVVTargetArtifactCandidateFixtureReady(
           runtimeSplatFixture,
           "build valid RVV runtime-scalar splat-store candidate fixture"))

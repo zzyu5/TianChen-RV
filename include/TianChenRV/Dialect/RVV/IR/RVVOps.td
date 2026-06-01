@@ -373,7 +373,7 @@ def TypedRuntimeScalarSplatStorePreRealizedBodyOp
   let summary = "typed pre-realized RVV runtime scalar splat-store selected body";
   let description = [{
     Carries the RVV plugin-local pre-realized selected body for the bounded
-    runtime i32 scalar-to-vector splat followed by unit-stride store route.
+    runtime scalar-to-vector splat followed by unit-stride store route.
     The op is nested directly in a selected tcrv.exec.variant and binds an
     explicit RHS scalar runtime ABI value, output buffer, runtime n/AVL, and
     compile-time RVV config facts.

@@ -1626,7 +1626,7 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "route; or "
       "lhs, rhs_scalar, src, dst, n for the bounded typed int32_t/int64_t "
       "runtime scalar computed-mask store/load-store route; or "
-      "rhs_scalar, out, n for the bounded runtime int32_t scalar splat-store "
+      "rhs_scalar, out, n for the bounded typed runtime scalar splat-store "
       "route; or src, out0, out1, n for the bounded int32_t segment2 "
       "deinterleave route; or src0, src1, dst, n for the bounded int32_t "
       "segment2 interleave route; or cmp_lhs, cmp_rhs, src0, src1, dst, n "

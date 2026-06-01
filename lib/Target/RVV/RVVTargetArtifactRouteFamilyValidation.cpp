@@ -702,7 +702,7 @@ llvm::Error requireRVVBaseMemoryMovementProviderField(
 bool isRVVRuntimeScalarSplatStoreRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   return operation ==
-         plugin::rvv::RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+         plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
 }
 
 bool routeHasHeader(

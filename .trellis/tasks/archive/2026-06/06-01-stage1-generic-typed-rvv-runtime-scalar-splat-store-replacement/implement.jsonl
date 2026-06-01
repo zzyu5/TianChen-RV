@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and RVV Stage1 route-authority reset invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, selected-body realization, provider route facts, and runtime scalar splat-store boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality, registry/interface boundary, and descriptor/source-front-door constraints"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required focused C++/lit checks and RVV Stage1 legacy-authority negative coverage"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review checklist for keeping RVV-specific lowering inside the plugin"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review checklist for keeping compute semantics out of tcrv.exec and common code"}

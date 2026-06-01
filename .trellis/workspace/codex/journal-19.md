@@ -64,6 +64,61 @@ neutrality, and target artifact behavior.
 - None - task complete
 
 
+## Session 358: Stage1 generic typed RVV runtime-scalar splat-store replacement
+
+**Date**: 2026-06-01
+**Task**: Stage1 generic typed RVV runtime-scalar splat-store replacement
+**Branch**: `main`
+
+### Summary
+
+Replaced runtime scalar splat-store route authority from the finite
+`RuntimeI32SplatStore` / `runtime_i32_splat_store` shape with the generic typed
+`RuntimeScalarSplatStore` / `runtime_scalar_splat_store` route surface. The
+current supported instance remains typed SEW32/LMUL m1, but provider checks now
+carry and verify SEW, LMUL, policy, scalar C type, vector type, and route leaves
+from typed `tcrv_rvv` body/config/runtime facts.
+
+### Main Changes
+
+- Renamed runtime scalar splat-store operation kind, op mnemonic, operand-binding
+  plan id, construction protocol entries, target fixtures, and generated-bundle
+  expectations to `runtime_scalar_splat_store`.
+- Added typed config fields to the runtime scalar splat-store route-family plan
+  and made provider validation derive expected type/intrinsic leaves through the
+  typed config profile instead of a runtime-i32 route name.
+- Updated pre-realized body verification and selected-body realization to accept
+  the generic typed op kind and fail closed for stale/unsupported op kinds.
+- Updated RVV plugin spec with the generic typed runtime scalar splat-store
+  provider contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: genericize runtime scalar splat-store route |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-construction-protocol-common-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test && artifacts/tmp/tianchenrv-build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] generated-bundle dry-run for pre-realized `runtime_scalar_splat_store`, counts `0,1,16,23,257`, scalar values `-37,19`.
+- [OK] bounded old-authority scan found no `RuntimeI32SplatStore` / `runtime_i32_splat_store` residue; added-line scan found only an `implicit-check-not="tcrv_rvv.i32_"` assertion.
+- [OK] `check-tianchenrv` passed 464/464.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 357: Stage2 RVV runtime-scalar splat-store provider ABI preflight
 
 **Date**: 2026-06-01

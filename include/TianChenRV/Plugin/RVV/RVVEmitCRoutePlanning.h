@@ -434,6 +434,10 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -442,6 +446,7 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef vlCType;
+  llvm::StringRef scalarCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
   llvm::StringRef setVLIntrinsic;
@@ -1144,7 +1149,7 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan {
       *runtimeScalarSplatStorePlan = nullptr;
 
   bool plansRuntimeScalarSplatStoreRoute = false;
-  bool plansRuntimeI32SplatStore = false;
+  bool plansTypedRuntimeScalarSplatStore = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;

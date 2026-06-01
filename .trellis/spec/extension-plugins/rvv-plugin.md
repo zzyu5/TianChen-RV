@@ -1264,7 +1264,7 @@ consuming the selected typed RVV body, the validated runtime scalar
 splat-store family plan, provider materialization facts, residual
 operand-binding facts, route-control facts, and the RVV-owned runtime scalar
 splat-store statement plan. This preflight is the provider-side closure for
-the existing `runtime_i32_splat_store` selected-body route; it must not add
+the existing `runtime_scalar_splat_store` selected-body route; it must not add
 new dtype, LMUL, frontend, runtime-scalar, or store-family coverage.
 
 #### 2. Signatures
@@ -1293,11 +1293,12 @@ constructing the `TCRVEmitCLowerableRoute`.
 For runtime scalar splat-store consumers, the preflight must require:
 
 - the same-analysis `RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan`;
-- typed config facts for SEW/LMUL, policy, VL C type, result vector type/C
-  type, setvl leaf, store leaf, and result vector name;
+- typed config facts for SEW/LMUL, tail/mask policy, scalar C type, VL C type,
+  result vector type/C type, setvl leaf, store leaf, and result vector name;
 - scalar splat and store facts from the runtime scalar splat-store family plan;
 - materialization facts that mirror the family plan for required headers,
-  VL type, result vector type/C type, setvl, runtime scalar splat, and store;
+  scalar type, VL type, result vector type/C type, setvl, runtime scalar
+  splat, and store;
 - residual operand-binding facts from the same selected analysis for
   `rhs_scalar`, `out`, and runtime `n`;
 - the RVV-owned route-control provider plan for the same typed config, selected
@@ -1320,8 +1321,13 @@ metadata, consult route ids, or call selected-body owner hooks.
 - Non-runtime-splat-store route carries a runtime scalar splat-store family
   plan, materialization facts, residual binding flag, statement plan, or
   family-plan mirror -> fail closed as stale provider facts.
-- Typed config disagrees with SEW/LMUL, policy, VL type, result vector type/C
-  type, setvl, or store facts -> fail closed.
+- Typed config disagrees with SEW/LMUL, policy, scalar type, VL type, result
+  vector type/C type, setvl, scalar splat, or store facts -> fail closed.
+- Current support may remain bounded to the typed SEW32/LMUL m1 instance, but
+  that support must be accepted as an ordinary `runtime_scalar_splat_store`
+  typed config instance. The old i32 operation mnemonic, route id, artifact
+  name, helper namespace, or exact intrinsic spelling must not be the route
+  authority.
 - Materialization facts lack the scalar splat or store leaf, carry the wrong
   result vector type, or carry stale source, mask, conversion, reduction,
   accumulation, contraction, or segment facts as authority -> fail closed.
@@ -1342,11 +1348,16 @@ metadata, consult route ids, or call selected-body owner hooks.
 
 #### 5. Good/Base/Bad Cases
 
-Good: typed `runtime_i32_splat_store` selected body -> runtime scalar
+Good: typed `runtime_scalar_splat_store` selected body -> runtime scalar
 splat-store family plan -> materialization facts -> residual operand bindings
 for `rhs_scalar`, `out`, and `n` -> route-control provider plan -> runtime
 scalar splat-store statement plan -> provider preflight -> provider-built
 `TCRVEmitCLowerableRoute`.
+
+Good: current i32m1 splat-store support is derived from typed SEW32/LMUL m1
+body/config facts and the common typed config profile, then mirrored through a
+typed target leaf profile such as
+`rvv-v1-typed-runtime-scalar-splat-store-leaf-profile.v1`.
 
 Base: elementwise arithmetic, compare/select, widening conversion, reduction,
 memory, contraction, segment2, and unrelated routes do not consume this
@@ -1359,7 +1370,7 @@ body and verified runtime scalar splat-store provider facts.
 
 #### 6. Tests Required
 
-- C++ positive tests for `runtime_i32_splat_store` preflight success before
+- C++ positive tests for `runtime_scalar_splat_store` preflight success before
   route construction.
 - C++ fail-closed tests for missing family plan, stale materialization facts,
   wrong result vector type, missing scalar splat/store leaves, wrong residual
@@ -1384,14 +1395,14 @@ Wrong:
 
 ```text
 provider:
-  sees runtime_i32_splat_store route id / artifact name / ABI string
+  sees runtime_scalar_splat_store route id / artifact name / ABI string
   -> builds TCRVEmitCLowerableRoute
 ```
 
 Correct:
 
 ```text
-typed runtime_i32_splat_store tcrv_rvv body
+typed runtime_scalar_splat_store tcrv_rvv body
   -> verified runtime scalar splat-store family plan
   -> materialization facts + residual operand-binding facts
   -> route-control provider plan
@@ -2087,7 +2098,7 @@ Wrong:
 
 ```text
 provider prelude:
-  if operation is masked_add, strided_add, or runtime_i32_splat_store,
+  if operation is masked_add, strided_add, or runtime_scalar_splat_store,
   bind residual logical operands here
 ```
 

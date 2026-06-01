@@ -70,7 +70,7 @@ enum class RVVSelectedBodyOperationKind {
   ScalarBroadcastAdd,
   ScalarBroadcastSub,
   ScalarBroadcastMul,
-  RuntimeI32SplatStore,
+  RuntimeScalarSplatStore,
   WidenI32ToI64,
   WidenI16ToI32,
   WideningMAccAdd,
