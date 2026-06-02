@@ -172,6 +172,91 @@ typed body/runtime ABI fact
   -> target artifact mirror matches exactly
 ```
 
+## Provider Header And Type Summary Contract
+
+### 1. Scope / Trigger
+
+When an extension provider emits `required_header_declarations` or
+`c_type_mapping` summaries that are later mirrored into a target artifact,
+target artifact validation must check those summaries against the
+operation-specific provider contract before accepting the bundle.
+
+### 2. Signatures
+
+For RVV selected-body routes, the provider-owned route description carries
+bounded summary fields such as:
+
+```text
+required_header_declarations = stddef.h,stdint.h,riscv_vector.h
+c_type_mapping = vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store
+```
+
+### 3. Contracts
+
+- The provider derives these summaries from the same typed
+  `tcrv_rvv` body/config/runtime facts used to build the route.
+- Common EmitC carries route headers, type mappings, and metadata mirrors
+  without inventing RVV header/type semantics.
+- Target validation must verify both:
+  - the rebuilt route actually has the required headers and type mappings;
+  - the provider summary fields exactly match the expected route-family facts.
+- Candidate artifact metadata must mirror the provider summary exactly after
+  provider route construction.
+
+### 4. Validation & Error Matrix
+
+- Missing provider header summary -> fail before artifact export.
+- Provider header summary differs from the expected route-family header set ->
+  fail before artifact export.
+- Provider C type summary differs from the expected route-family C type facts
+  -> fail before artifact export.
+- Rebuilt route lacks a header/type mapping named by the provider summary ->
+  fail before artifact export.
+- Candidate artifact metadata carries stale header/type summary mirrors ->
+  fail before bundle acceptance.
+
+### 5. Good/Base/Bad Cases
+
+- Good: computed-mask indexed scatter-store records
+  `stddef.h,stdint.h,riscv_vector.h` and
+  `vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store`,
+  and the target validator compares those exact strings with provider facts and
+  artifact mirrors.
+- Base: non-RVV routes use their own provider-family summary contract or omit
+  RVV-specific keys.
+- Bad: a route has `riscv_vector.h` in the rebuilt route object but mirrors
+  `required_header_declarations = stddef.h,stdint.h`; this is stale metadata
+  and must not be accepted.
+- Bad: indexed routes fold the index vector into a signed payload group in
+  `c_type_mapping`; the index must remain explicit as `index:u32m1`.
+
+### 6. Tests Required
+
+- Target artifact C++ tests must mutate provider route descriptions and
+  candidate metadata mirrors to prove stale header/type summaries fail closed.
+- Generated-bundle dry-run FileCheck tests must assert representative
+  `required_header_declarations` and `c_type_mapping` values for routes that
+  claim generated artifact support.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route object contains riscv_vector.h
+  -> provider summary says stddef.h,stdint.h
+  -> artifact accepted because route headers were usable
+```
+
+Correct:
+
+```text
+typed tcrv_rvv body/config/runtime facts
+  -> provider emits operation-specific headers and C type summary
+  -> target validator checks the provider summary and route payload
+  -> artifact metadata mirrors the provider summary exactly
+```
+
 ## RVV Rules
 
 An RVV lowerable route is valid only when:

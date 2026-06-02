@@ -2647,7 +2647,7 @@ RVVManualRouteDescription makeRVVManualIndexedGatherDescription() {
   description.maskTailPolicyOwner = "computed-mask memory mask/tail policy";
   description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
   description.cTypeMappingSummary =
-      "vl:size_t,compare/source/index/passthrough:signed-e32m1,mask:b32,result:masked-indexed-load-store";
+      "vl:size_t,compare/source/passthrough:signed-e32m1,index:u32m1,mask:b32,result:masked-indexed-load-store";
   description.vlCType = "size_t";
   description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
   description.vectorCType = "vint32m1_t";
@@ -11063,6 +11063,61 @@ bool expectRVVTargetArtifactExporterShape(
            "header/prototype marker 'hdr'"}))
     return false;
 
+  RVVRouteDescription staleIndexedScatterProviderMirror =
+      manualIndexedScatterDescription;
+  staleIndexedScatterProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-indexed-scatter";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterProviderMirror,
+          "compare/select mask registry rejects stale indexed scatter "
+          "provider mirror fact",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-computed-mask-indexed-scatter-store-plan-validated",
+           "metadata-only-indexed-scatter"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterTargetLeaf =
+      manualIndexedScatterDescription;
+  staleIndexedScatterTargetLeaf.targetLeafProfile =
+      "metadata-derived-indexed-scatter-leaf";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterTargetLeaf,
+          "compare/select mask registry rejects stale indexed scatter target "
+          "leaf fact",
+          {"target_leaf_profile",
+           "rvv-v1-e32m1-computed-mask-indexed-scatter-store-leaf-profile.v1",
+           "metadata-derived-indexed-scatter-leaf"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterHeaders =
+      manualIndexedScatterDescription;
+  staleIndexedScatterHeaders.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterHeaders,
+          "compare/select mask registry rejects stale indexed scatter header "
+          "facts",
+          {"required header declarations",
+           "stddef.h,stdint.h,riscv_vector.h", "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterTypeMapping =
+      manualIndexedScatterDescription;
+  staleIndexedScatterTypeMapping.cTypeMappingSummary =
+      "vl:size_t,metadata-only-index:masked-indexed-store";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterTypeMapping,
+          "compare/select mask registry rejects stale indexed scatter C type "
+          "mapping fact",
+          {"C type mapping summary",
+           "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store",
+           "metadata-only-index"}))
+    return false;
+
   RVVRouteDescription staleIndexedGatherUniqueness =
       manualIndexedDescription;
   staleIndexedGatherUniqueness.indexUniqueness = "unique";
@@ -11084,6 +11139,41 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale indexed scatter "
           "uniqueness fact",
           {"index uniqueness", "unique", "metadata-derived-uniqueness"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterIndexEEW =
+      manualIndexedScatterDescription;
+  staleIndexedScatterIndexEEW.indexEEW = 64;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterIndexEEW,
+          "compare/select mask registry rejects stale indexed scatter index "
+          "EEW fact",
+          {"index EEW", "32", "64"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterOffsetUnit =
+      manualIndexedScatterDescription;
+  staleIndexedScatterOffsetUnit.offsetUnit = "byte";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterOffsetUnit,
+          "compare/select mask registry rejects stale indexed scatter offset "
+          "unit fact",
+          {"offset unit", "element", "byte"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterDestinationMemoryForm =
+      manualIndexedScatterDescription;
+  staleIndexedScatterDestinationMemoryForm.indexedDestinationMemoryForm =
+      "metadata-derived-indexed-destination";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterDestinationMemoryForm,
+          "compare/select mask registry rejects stale indexed scatter "
+          "destination memory form fact",
+          {"indexed destination memory form", "masked-indexed-store",
+           "metadata-derived-indexed-destination"}))
     return false;
 
   RVVRouteDescription staleStridedDestinationStride =
@@ -11296,6 +11386,113 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale indexed scatter "
           "uniqueness metadata",
           {"index_uniqueness", "unique", "metadata-derived-uniqueness"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterProviderMirrorCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:metadata-only-indexed-scatter"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterProviderMirrorCandidate,
+          manualIndexedScatterRoute, manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter "
+          "provider mirror metadata",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-computed-mask-indexed-scatter-store-plan-validated",
+           "metadata-only-indexed-scatter"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterTargetLeafCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterTargetLeafCandidate,
+          "tcrv_rvv.target_leaf_profile",
+          "metadata-derived-indexed-scatter-leaf"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterTargetLeafCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter target "
+          "leaf metadata",
+          {"target_leaf_profile",
+           "rvv-v1-e32m1-computed-mask-indexed-scatter-store-leaf-profile.v1",
+           "metadata-derived-indexed-scatter-leaf"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterHeadersCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedScatterHeadersCandidate,
+                                    "tcrv_rvv.required_header_declarations",
+                                    "stddef.h,stdint.h"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterHeadersCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter header "
+          "metadata",
+          {"required_header_declarations",
+           "stddef.h,stdint.h,riscv_vector.h", "stddef.h,stdint.h"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterTypeMappingCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterTypeMappingCandidate, "tcrv_rvv.c_type_mapping",
+          "vl:size_t,metadata-only-index:masked-indexed-store"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterTypeMappingCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter C type "
+          "mapping metadata",
+          {"c_type_mapping",
+           "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store",
+           "metadata-only-index"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterEEWCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedScatterEEWCandidate,
+                                    "tcrv_rvv.index_eew", "64"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterEEWCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter index "
+          "EEW metadata",
+          {"index_eew", "32", "64"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterOffsetCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedScatterOffsetCandidate,
+                                    "tcrv_rvv.offset_unit", "byte"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterOffsetCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter offset "
+          "metadata",
+          {"offset_unit", "element", "byte"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterDestinationCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterDestinationCandidate,
+          "tcrv_rvv.indexed_destination_memory_form",
+          "metadata-derived-indexed-destination"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterDestinationCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter "
+          "destination metadata",
+          {"indexed_destination_memory_form", "masked-indexed-store",
+           "metadata-derived-indexed-destination"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedScatterBindingCandidate =

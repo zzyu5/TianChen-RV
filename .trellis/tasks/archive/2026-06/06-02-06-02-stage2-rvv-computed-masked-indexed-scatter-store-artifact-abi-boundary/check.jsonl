@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body/provider ownership, no legacy i32 positive route, and plugin-local scatter realization"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check route operand binding summary, Common EmitC neutrality, and target artifact handoff"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused FileCheck/C++ tests, generated-bundle evidence, and ssh rvv correctness requirements"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check route facts remain plugin-owned and common/core code does not infer RVV semantics"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check the task remains a low-level tcrv_rvv execution slice rather than a frontend/high-level compute path"}

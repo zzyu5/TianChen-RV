@@ -1909,3 +1909,36 @@ No new `ssh rvv` run was needed because generated runtime artifact behavior did 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 384: Stage2 RVV computed masked indexed scatter artifact ABI
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed masked indexed scatter artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Validated computed-masked indexed scatter artifact facts with provider header/type summary checks, focused target regressions, generated-bundle dry-run, and ssh rvv correctness.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `20cac8d4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

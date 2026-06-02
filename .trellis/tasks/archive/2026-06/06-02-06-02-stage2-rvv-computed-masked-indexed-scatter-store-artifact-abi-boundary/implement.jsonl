@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source of truth, RVV Stage2 typed-body route authority, and descriptor/source-front-door red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body realization, provider legality, and computed-mask memory ownership"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and route operand binding summary contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, generated-bundle dry-run, and ssh rvv runtime evidence requirements"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared guide routing for RVV route/lowering/artifact work"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Keep target/profile facts constraining legality instead of defining route authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep scatter route facts and selected-body realization inside the RVV plugin/provider"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep this as low-level RVV execution structure, not high-level frontend compute"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-indexed-gather-load-artifact-abi-boundary/prd.md", "reason": "Archived paired gather-load context and evidence shape to avoid repeating metadata-only closeout"}

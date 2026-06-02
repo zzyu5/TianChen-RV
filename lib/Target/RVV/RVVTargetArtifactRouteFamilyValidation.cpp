@@ -7251,6 +7251,49 @@ llvm::StringRef getRVVCompareSelectMaskExpectedTargetLeafProfile(
   }
 }
 
+llvm::StringRef getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (isRVVCompareSelectMaskRouteFamilyOperation(operation))
+    return "stddef.h,stdint.h,riscv_vector.h";
+  return {};
+}
+
+llvm::StringRef getRVVCompareSelectMaskExpectedCTypeMappingSummary(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
+    return "vl:size_t,lhs/rhs:typed-vector,mask:typed-mask,result:typed-vector";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
+    return "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector";
+  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+    return "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,true_false:typed-vector,result:typed-vector";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarDualCompareMaskAndSelect:
+    return "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStore:
+    return "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,dst:masked-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskLoadStore:
+    return "vl:size_t,lhs/source/passthrough:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:masked-load-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+    return "vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-load-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+    return "vl:size_t,compare/source:signed-e32m1,mask:b32,dst:masked-strided-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskStridedLoadUnitStore:
+    return "vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-strided-load-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedGatherLoadUnitStore:
+    return "vl:size_t,compare/source/passthrough:signed-e32m1,index:u32m1,mask:b32,result:masked-indexed-load-store";
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store";
+  default:
+    return {};
+  }
+}
+
 llvm::StringRef getRVVCompareSelectMaskExpectedMaskProducerSource(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -8224,6 +8267,17 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
           getRVVCompareSelectMaskExpectedTargetLeafProfile(
               description.operation)))
     return error;
+  if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
+          "required header declarations",
+          description.requiredHeaderDeclarations,
+          getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
+              description.operation)))
+    return error;
+  if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
+          "C type mapping summary", description.cTypeMappingSummary,
+          getRVVCompareSelectMaskExpectedCTypeMappingSummary(
+              description.operation)))
+    return error;
   if (llvm::Error error =
           validateRVVCompareSelectMaskDualProviderFacts(description))
     return error;
@@ -8452,9 +8506,10 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         isRVVCompareSelectMaskIndexedMemoryOperation(description.operation);
     if (description.indexEEW != (isIndexed ? 32 : 0))
       return makeRVVTargetRouteError(
-          "compare-produced computed-mask memory target artifact consumer "
-          "requires provider-derived index EEW to mirror indexed memory "
-          "route facts");
+          llvm::Twine("compare-produced computed-mask memory target artifact "
+                      "consumer requires provider-derived index EEW '") +
+          llvm::Twine(isIndexed ? 32 : 0) + "' but was '" +
+          llvm::Twine(description.indexEEW) + "'");
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
             "offset unit", description.offsetUnit,
             isIndexed ? llvm::StringRef("element") : llvm::StringRef()))
