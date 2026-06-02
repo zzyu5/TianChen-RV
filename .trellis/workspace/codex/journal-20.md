@@ -1942,3 +1942,36 @@ Validated computed-masked indexed scatter artifact facts with provider header/ty
 ### Next Steps
 
 - None - task complete
+
+
+## Session 385: Stage2 RVV computed-masked segment2 load artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked segment2 load artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Tightened computed-mask segment2 load artifact mirrors, added load-specific target fail-closed regressions, dry-run facts, ssh rvv correctness evidence, and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de423987` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
