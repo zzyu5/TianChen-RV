@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification against global RVV-first Stage 2 authority and no legacy i32/source-front-door route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization/provider ownership, compare/select preflight, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider operand binding, header/type summaries, and provider fact surfaces are consumed as mirrors after provider route construction."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check compare/select evidence, generated-bundle dry-run, and ssh rvv runtime correctness requirements."}
+{"command": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test", "reason": "Rebuild changed RVV provider/target validation code and generated MLIR/TableGen dependencies."}
+{"command": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Validate target artifact route-family registry behavior and dual compare/select fail-closed diagnostics."}
+{"command": "tcrv-opt/tcrv-translate direct FileCheck for pre-realized REALIZED/PLAN/HEADER fixture", "reason": "Verify selected-body realization, provider-derived emission-plan mirrors, and header artifact output."}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "reason": "Verify script-side evidence parsing and harness templates after dual compare/select updates."}
+{"command": "rvv_generated_bundle_abi_e2e.py dry-run pre-realized runtime_scalar_dual_cmp_mask_and_select with FileCheck", "reason": "Confirm provider-derived dual compare/select boundary facts, binding summary, headers/types, and negative old-authority markers."}
+{"command": "rvv_generated_bundle_abi_e2e.py --direct-pre-realized-route-entry --op-kind runtime_scalar_dual_cmp_mask_and_select", "reason": "Confirm stale direct pre-realized route-entry shortcut remains fail-closed."}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --ssh-target rvv --op-kind runtime_scalar_dual_cmp_mask_and_select --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91", "reason": "Real ssh rvv generated-bundle correctness over required counts and scalar threshold pairs."}
+{"command": "git diff --check", "reason": "Whitespace and patch hygiene."}
+{"command": "bounded old-authority scan over touched files", "reason": "No new RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, exact __riscv_*_i32m1, descriptor/direct-C/source-export/source-front-door authority introduced."}

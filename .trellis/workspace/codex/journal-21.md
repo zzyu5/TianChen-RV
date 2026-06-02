@@ -162,7 +162,10 @@ Moved runtime-scalar computed-mask standalone reduce-add inactive neutral litera
 
 ### Main Changes
 
-(Add details)
+- Added provider-owned canonical facts for runtime-scalar dual compare/mask-and/select routes, including ABI order, two scalar roles, predicate/mask/select layout, header/type summaries, and a 499-byte complete route operand binding summary.
+- Rewired target artifact validation and C++ fail-closed checks to consume provider facts instead of target-local duplicate route truth.
+- Updated generated-bundle evidence and MLIR/FileCheck fixtures for the full eight-parameter ABI binding summary.
+- Recorded the SEW/LMUL-aware route fact accessor contract in `.trellis/spec/lowering-runtime/emitc-route.md`.
 
 ### Git Commits
 
@@ -172,7 +175,13 @@ Moved runtime-scalar computed-mask standalone reduce-add inactive neutral litera
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] targeted lit from `build/test` with filter `runtime-scalar-dual-cmp-mask-and-select`: 8 tests passed.
+- [OK] real `ssh rvv` generated-bundle run for counts `0,1,16,23,257` and rhs scalar values `-37,91`; all 20 pair/count cases passed with tail preservation.
+- [OK] `git diff --check`
+- [OK] bounded added-line old-authority scan over touched diff.
 
 ### Status
 
@@ -302,6 +311,48 @@ Validated signed widening MAcc provider facts, target artifact fail-closed check
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 393: Stage2 RVV runtime-scalar dual-cmp mask-and-select artifact ABI boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV runtime-scalar dual-cmp mask-and-select artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Finished runtime_scalar_dual_cmp_mask_and_select provider facts, target artifact validation, generated-bundle dry-run checks, ssh rvv correctness, and Trellis archive.
+
+### Main Changes
+
+- Added provider-owned canonical facts for runtime-scalar dual compare/mask-and/select routes, including ABI order, two scalar roles, predicate/mask/select layout, header/type summaries, and a 499-byte complete route operand binding summary.
+- Rewired target artifact validation and C++ fail-closed checks to consume provider facts instead of target-local duplicate route truth.
+- Updated generated-bundle evidence and MLIR/FileCheck fixtures for the full eight-parameter ABI binding summary.
+- Recorded the SEW/LMUL-aware route fact accessor contract in `.trellis/spec/lowering-runtime/emitc-route.md`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] targeted lit from `build/test` with filter `runtime-scalar-dual-cmp-mask-and-select`: 8 tests passed.
+- [OK] real `ssh rvv` generated-bundle run for counts `0,1,16,23,257` and rhs scalar values `-37,91`; all 20 pair/count cases passed with tail preservation.
+- [OK] `git diff --check`
+- [OK] bounded added-line old-authority scan over touched diff.
 
 ### Status
 

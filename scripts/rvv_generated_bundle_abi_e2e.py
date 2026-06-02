@@ -1041,17 +1041,18 @@ RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_MEMORY_LAYOUT = (
     "output-runtime-abi"
 )
 RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
-    "rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1"
+    "rvv-route-operand-binding:rs_dual_cmp_mask_select.v1"
 )
 RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
-    "cmp_lhs_a=abi|load|cmp|and;"
-    "rhs_scalar_a=abi|splat|cmp;"
-    "cmp_lhs_b=abi|load|cmp|and;"
-    "rhs_scalar_b=abi|splat|cmp;"
-    "true_value=abi|load|sel;"
-    "false_value=abi|load|sel;"
-    "out=abi|store|hdr;"
-    "n=abi|setvl|loop|hdr"
+    f"{RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_PLAN};"
+    "cmp_lhs_a=lhs-input-buffer:cmp_lhs_a:abi|ld|cmp|and|hdr;"
+    "rhs_scalar_a=rhs-scalar-value:rhs_scalar_a:abi|splat|cmp|hdr;"
+    "cmp_lhs_b=rhs-input-buffer:cmp_lhs_b:abi|ld|cmp|and|hdr;"
+    "rhs_scalar_b=rhs-secondary-scalar-value:rhs_scalar_b:abi|splat|cmp|hdr;"
+    "true_value=true-value-input-buffer:true_value:abi|ld|sel|hdr;"
+    "false_value=false-value-input-buffer:false_value:abi|ld|sel|hdr;"
+    "out=output-buffer:out:abi|st|hdr;"
+    "n=runtime-element-count:n:abi|setvl|loop|hdr"
 )
 RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_SECONDARY_RHS_SCALAR_VALUES = (-37, 91)
 RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,src,dst,n"

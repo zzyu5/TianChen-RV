@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV Stage 2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned compare/select selected-body realization, provider preflight, and fail-closed authority placement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type mirror, and route-family fact surface contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Compare/select generated-bundle evidence, runtime ssh rvv requirements, and FileCheck/C++ testing contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-signed-widening-macc-add-artifact-abi-boundary/prd.md", "reason": "Closest completed provider fact -> target validation -> generated bundle -> ssh rvv task shape."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp, splat, compare, mask_and, select, load, store, vector/mask types."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Add provider-owned dual compare/select route facts accessor contract."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Compare/select route-family plan, operand-binding facts, and statement-plan facts structures."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implement canonical dual compare/select facts, binding summary, provider closure, and route metadata population."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "Verify statement-plan ownership and selected mask/select facts if provider preflight requires tightening."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Consume provider-owned dual compare/select facts and reject stale candidate/provider mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run/runtime evidence and harness checks for dual compare/select facts."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir", "reason": "Tighten REALIZED/PLAN/HEADER fixture checks for the pre-realized path."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-dual-cmp-mask-and-select-dry-run.test", "reason": "Anchor dry-run evidence and harness checks for provider-derived dual compare/select facts."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-dual-cmp-mask-and-select-fail-closed.test", "reason": "Keep direct pre-realized route-entry shortcut fail-closed."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target artifact C++ fail-closed assertions for precise provider fact diagnostics."}

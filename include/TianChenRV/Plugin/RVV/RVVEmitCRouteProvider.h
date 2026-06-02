@@ -318,6 +318,50 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
 llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
     RVVSelectedBodyOperationKind operation, std::int64_t sew);
 
+struct RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef secondaryComparePredicateKind;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef secondaryCompareIntrinsic;
+  llvm::StringRef maskAndIntrinsic;
+  llvm::StringRef selectIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef computedMaskSelectRouteFamilyPlanID;
+  llvm::StringRef computedMaskSelectMaskProducerSource;
+  llvm::StringRef maskTailPolicyRouteFamilyPlanID;
+  llvm::StringRef maskTailPolicyOwner;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef maskComposition;
+  llvm::StringRef selectLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+};
+
+std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
+getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+
+std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
+getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul);
+
 struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

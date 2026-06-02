@@ -573,7 +573,7 @@ constexpr llvm::StringLiteral
         "rvv-route-operand-binding:runtime_scalar_cmp_select.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID(
-        "rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1");
+        "rvv-route-operand-binding:rs_dual_cmp_mask_select.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreOperandBindingPlanID(
         "rvv-route-operand-binding:runtime_scalar_cmp_masked_store.v1");
@@ -1103,6 +1103,36 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
             kRVVRuntimeScalarComputedMaskLoadStoreOperandBindingPlanID;
     if (!usesCompactSummary)
       return use;
+    if (plan.planID ==
+        kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID) {
+      if (use == "runtime-abi-mirror")
+        return "abi";
+      if (use == "materialized-load-base" ||
+          use == "materialized-secondary-load-base" ||
+          use == "materialized-true-load-base" ||
+          use == "materialized-false-load-base")
+        return "ld";
+      if (use == "scalar-broadcast-rhs-call" ||
+          use == "secondary-scalar-broadcast-rhs-call")
+        return "splat";
+      if (use == "compare-lhs-call" || use == "compare-rhs-call" ||
+          use == "secondary-compare-lhs-call" ||
+          use == "secondary-compare-rhs-call")
+        return "cmp";
+      if (use == "mask-and-lhs-call" || use == "mask-and-rhs-call")
+        return "and";
+      if (use == "select-true-call" || use == "select-false-call")
+        return "sel";
+      if (use == "materialized-store-base")
+        return "st";
+      if (use == "setvl-avl")
+        return "setvl";
+      if (use == "loop-control")
+        return "loop";
+      if (use == "header-mirror")
+        return "hdr";
+      return use;
+    }
     if (use == "runtime-abi-mirror")
       return "abi";
     if (use == "materialized-load-base")
@@ -1164,19 +1194,6 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
 
   std::string text;
   llvm::raw_string_ostream os(text);
-  if (plan.planID ==
-      kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID) {
-    os << "cmp_lhs_a=abi|load|cmp|and;"
-       << "rhs_scalar_a=abi|splat|cmp;"
-       << "cmp_lhs_b=abi|load|cmp|and;"
-       << "rhs_scalar_b=abi|splat|cmp;"
-       << "true_value=abi|load|sel;"
-       << "false_value=abi|load|sel;"
-       << "out=abi|store|hdr;"
-       << "n=abi|setvl|loop|hdr";
-    os.flush();
-    return text;
-  }
   os << plan.planID;
   for (const RVVRouteOperandBinding &binding : plan.bindings) {
     os << ";" << binding.logicalOperand << "="
@@ -11041,19 +11058,20 @@ void addComputedMaskSelectOperandBindings(
     addRouteOperandBinding(
         plan, "cmp_lhs_a", slice.lhsABI,
         {"runtime-abi-mirror", "materialized-load-base",
-         "compare-lhs-call", "mask-and-lhs-call"});
+         "compare-lhs-call", "mask-and-lhs-call", "header-mirror"});
     addRouteOperandBinding(
         plan, "rhs_scalar_a", slice.rhsABI,
         {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
-         "compare-rhs-call"});
+         "compare-rhs-call", "header-mirror"});
     addRouteOperandBinding(
         plan, "cmp_lhs_b", slice.secondaryCompareLhsABI,
         {"runtime-abi-mirror", "materialized-secondary-load-base",
-         "secondary-compare-lhs-call", "mask-and-rhs-call"});
+         "secondary-compare-lhs-call", "mask-and-rhs-call",
+         "header-mirror"});
     addRouteOperandBinding(
         plan, "rhs_scalar_b", slice.secondaryCompareRhsScalarABI,
         {"runtime-abi-mirror", "secondary-scalar-broadcast-rhs-call",
-         "secondary-compare-rhs-call"});
+         "secondary-compare-rhs-call", "header-mirror"});
   } else {
     addRouteOperandBinding(
         plan, "lhs", slice.lhsABI,
@@ -17887,6 +17905,127 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
   }
 }
 
+std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
+getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
+    RVVSelectedBodyOperationKind operation) {
+  return getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
+      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
+      tcrv::rvv::getRVVLMULM1());
+}
+
+std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
+getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul) {
+  if (operation !=
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect)
+    return std::nullopt;
+
+  const llvm::StringRef scalarCType =
+      getRVVSelectedBodySignedScalarCType(sew);
+  const llvm::StringRef constPointerCType =
+      getRVVSelectedBodyConstInputPointerCType(sew);
+  const llvm::StringRef outputPointerCType =
+      getRVVSelectedBodyOutputPointerCType(sew);
+  const llvm::StringRef rhsScalarSplatIntrinsic =
+      getRVVSelectedBodyScalarSplatIntrinsic(sew, lmul);
+  const llvm::StringRef compareIntrinsic =
+      getRVVSelectedBodyCompareIntrinsicForPredicate("sle", sew, lmul);
+  const llvm::StringRef maskAndIntrinsic =
+      getRVVSelectedBodyMaskAndIntrinsic(sew, lmul);
+  const llvm::StringRef selectIntrinsic =
+      getRVVSelectedBodySelectIntrinsic(sew, lmul);
+  const llvm::StringRef storeIntrinsic =
+      getRVVSelectedBodyStoreIntrinsic(sew, lmul);
+  if (scalarCType.empty() || constPointerCType.empty() ||
+      outputPointerCType.empty() || rhsScalarSplatIntrinsic.empty() ||
+      compareIntrinsic.empty() || maskAndIntrinsic.empty() ||
+      selectIntrinsic.empty() || storeIntrinsic.empty())
+    return std::nullopt;
+
+  RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm =
+      RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
+  facts.runtimeABIOrder =
+      kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder;
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.targetLeafProfile =
+      kRVVRuntimeScalarDualCompareMaskAndSelectTargetLeafProfile;
+  facts.providerSupportedMirror =
+      kRVVRuntimeScalarDualCompareMaskAndSelectProviderSupportedMirror;
+  facts.requiredHeaderDeclarations =
+      kRVVRuntimeScalarDualCompareMaskAndSelectRequiredHeaderDeclarations;
+  facts.cTypeMappingSummary =
+      kRVVRuntimeScalarDualCompareMaskAndSelectCTypeMappingSummary;
+  facts.routeOperandBindingPlanID =
+      kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.select";
+  facts.comparePredicateKind = "sle";
+  facts.secondaryComparePredicateKind = "sle";
+  facts.rhsScalarSplatIntrinsic = rhsScalarSplatIntrinsic;
+  facts.compareIntrinsic = compareIntrinsic;
+  facts.secondaryCompareIntrinsic = facts.compareIntrinsic;
+  facts.maskAndIntrinsic = maskAndIntrinsic;
+  facts.selectIntrinsic = selectIntrinsic;
+  facts.storeIntrinsic = storeIntrinsic;
+  facts.computedMaskSelectRouteFamilyPlanID =
+      kRVVComputedMaskSelectRouteFamilyPlanID;
+  facts.computedMaskSelectMaskProducerSource =
+      kRVVComputedMaskSelectDualRuntimeScalarProducerSource;
+  facts.maskTailPolicyRouteFamilyPlanID = kRVVMaskTailPolicyRouteFamilyPlanID;
+  facts.maskTailPolicyOwner = kRVVComputedMaskSelectMaskTailPolicyOwner;
+  facts.maskRole = "predicate-mask-produced-by-mask-and";
+  facts.maskSource = "mask-and-of-two-runtime-scalar-compare-produced-masks";
+  facts.maskMemoryForm = "composed-compare-produced-mask";
+  facts.maskComposition = "and";
+  facts.selectLayout = "select-true-value-when-mask-else-false-value";
+  facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.destinationMemoryForm = kRVVDestinationMemoryForm;
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "cmp_lhs_a", constPointerCType,
+      support::RuntimeABIParameterRole::LHSInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "rhs_scalar_a", scalarCType,
+      support::RuntimeABIParameterRole::RHSScalarValue,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "cmp_lhs_b", constPointerCType,
+      support::RuntimeABIParameterRole::RHSInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "rhs_scalar_b", scalarCType,
+      support::RuntimeABIParameterRole::RHSSecondaryScalarValue,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "true_value", constPointerCType,
+      support::RuntimeABIParameterRole::TrueValueInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "false_value", constPointerCType,
+      support::RuntimeABIParameterRole::FalseValueInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "out", outputPointerCType, support::RuntimeABIParameterRole::OutputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.routeOperandBindingSummary =
+      (llvm::Twine(facts.routeOperandBindingPlanID) +
+       ";cmp_lhs_a=lhs-input-buffer:cmp_lhs_a:abi|ld|cmp|and|hdr;"
+       "rhs_scalar_a=rhs-scalar-value:rhs_scalar_a:abi|splat|cmp|hdr;"
+       "cmp_lhs_b=rhs-input-buffer:cmp_lhs_b:abi|ld|cmp|and|hdr;"
+       "rhs_scalar_b=rhs-secondary-scalar-value:rhs_scalar_b:abi|splat|cmp|hdr;"
+       "true_value=true-value-input-buffer:true_value:abi|ld|sel|hdr;"
+       "false_value=false-value-input-buffer:false_value:abi|ld|sel|hdr;"
+       "out=output-buffer:out:abi|st|hdr;"
+       "n=runtime-element-count:n:abi|setvl|loop|hdr")
+          .str();
+  return facts;
+}
+
 bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -22936,6 +23075,10 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
               primaryLHS, "mask-and-lhs-call",
               (llvm::Twine(routeName) + " mask-and lhs operand").str()))
         return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              primaryLHS, "header-mirror",
+              (llvm::Twine(routeName) + " lhs header mirror").str()))
+        return std::move(error);
     } else if (llvm::Error error = requireOperandUse(
                    primaryLHS, "header-mirror",
                    (llvm::Twine(routeName) + " lhs header mirror").str())) {
@@ -22958,6 +23101,10 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
               primaryRHS, "header-mirror",
               (llvm::Twine(routeName) + " rhs header mirror").str()))
         return std::move(error);
+    } else if (llvm::Error error = requireOperandUse(
+                   primaryRHS, "header-mirror",
+                   (llvm::Twine(routeName) + " rhs header mirror").str())) {
+      return std::move(error);
     }
 
     if (isDual) {
@@ -22977,6 +23124,10 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
               "cmp_lhs_b", "mask-and-rhs-call",
               (llvm::Twine(routeName) + " mask-and rhs operand").str()))
         return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs_b", "header-mirror",
+              (llvm::Twine(routeName) + " secondary lhs header mirror").str()))
+        return std::move(error);
       if (llvm::Error error = bindOperand(
               facts.secondaryCompareRhsScalarABI, "rhs_scalar_b",
               "secondary-scalar-broadcast-rhs-call",
@@ -22986,6 +23137,10 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
       if (llvm::Error error = requireOperandUse(
               "rhs_scalar_b", "secondary-compare-rhs-call",
               (llvm::Twine(routeName) + " secondary rhs compare operand").str()))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar_b", "header-mirror",
+              (llvm::Twine(routeName) + " secondary rhs header mirror").str()))
         return std::move(error);
     }
 
@@ -27186,6 +27341,20 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isMAccRouteFamilyRoute =
       isRVVSelectedBodyMAccRouteFamilyConsumer(operationProfile.operation);
 
+  std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
+      dualCompareSelectFacts;
+  if (isRuntimeScalarDualCompareMaskAndSelect) {
+    dualCompareSelectFacts =
+        getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
+            operationProfile.operation, description.sew, description.lmul);
+    if (!dualCompareSelectFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_dual_cmp_mask_and_select provider requires "
+          "canonical dual compare/select route facts for the selected "
+          "SEW/LMUL before provider materialization");
+  }
+
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
           operationProfile.operationMnemonic);
@@ -27335,25 +27504,32 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "target leaf profile", description.targetLeafProfile,
-            getComputedMaskSelectTargetLeafProfile(
-                operationProfile.operation)))
+            dualCompareSelectFacts ? dualCompareSelectFacts->targetLeafProfile
+                                   : getComputedMaskSelectTargetLeafProfile(
+                                         operationProfile.operation)))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "provider_supported_mirror",
             description.providerSupportedMirror,
-            getComputedMaskSelectProviderSupportedMirror(
-                operationProfile.operation)))
+            dualCompareSelectFacts
+                ? dualCompareSelectFacts->providerSupportedMirror
+                : getComputedMaskSelectProviderSupportedMirror(
+                      operationProfile.operation)))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "required header declarations",
             description.requiredHeaderDeclarations,
-            getComputedMaskSelectHeaderDeclarations(
-                operationProfile.operation)))
+            dualCompareSelectFacts
+                ? dualCompareSelectFacts->requiredHeaderDeclarations
+                : getComputedMaskSelectHeaderDeclarations(
+                      operationProfile.operation)))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
-            getComputedMaskSelectCTypeMappingSummary(
-                operationProfile.operation)))
+            dualCompareSelectFacts
+                ? dualCompareSelectFacts->cTypeMappingSummary
+                : getComputedMaskSelectCTypeMappingSummary(
+                      operationProfile.operation)))
       return error;
   } else if (isBaseMemoryMovementRouteFamilyRoute) {
     // Base memory movement mirrors are verified by the RVV owner below.
@@ -28060,6 +28236,16 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " requires a non-empty route operand ABI binding mirror summary");
+    if (dualCompareSelectFacts &&
+        description.routeOperandBindingSummary !=
+            dualCompareSelectFacts->routeOperandBindingSummary)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_dual_cmp_mask_and_select provider requires "
+          "route operand ABI binding summary to mirror canonical dual "
+          "compare/select facts '" +
+          dualCompareSelectFacts->routeOperandBindingSummary + "' but was '" +
+          description.routeOperandBindingSummary + "'");
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "route operand ABI binding plan",

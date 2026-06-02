@@ -292,14 +292,28 @@ std::optional<RVV<RouteFamily>RouteFacts>
 getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation);
 ```
 
+For route families whose concrete facts vary by typed RVV configuration, expose
+the selected configuration explicitly:
+
+```c++
+std::optional<RVV<RouteFamily>RouteFacts>
+getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation,
+                              std::int64_t sew,
+                              llvm::StringRef lmul);
+```
+
 ### 3. Contracts
 
 - The accessor is implemented in the RVV plugin/provider layer and is derived
   from the same typed body/config/runtime authority used to build the route.
 - Provider plan validation must fail closed when a supported operation cannot
   obtain its canonical facts from the accessor.
-- Target artifact validation may consume the accessor, but must not define its
-  own duplicate source of route-family truth for the same fields.
+- Target artifact validation may consume the accessor, but must pass the
+  operation, SEW, and LMUL from the provider-built route description whenever
+  those fields affect runtime ABI types, RVV intrinsic spellings, type mapping,
+  or binding summaries.
+- Target artifact validation must not define its own duplicate source of
+  route-family truth for the same fields.
 - Candidate artifact metadata mirrors the provider facts only after provider
   route construction; mirror fields remain non-authoritative.
 - A runtime-scalar variant and a vector/vector variant of the same route class
