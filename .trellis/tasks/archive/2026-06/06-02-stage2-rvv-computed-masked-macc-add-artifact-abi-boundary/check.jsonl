@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the change stays within RVV Stage 2 typed route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask MAcc realization/provider ownership and no metadata/string authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route operand-binding, common EmitC neutrality, and target artifact mirror contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle and ssh rvv evidence satisfy computed-mask MAcc testing requirements."}

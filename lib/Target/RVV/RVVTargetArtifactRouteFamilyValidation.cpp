@@ -4040,9 +4040,28 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingSummary(
     "n=runtime-element-count:n:abi|setvl-avl|loop|hdr");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccOperandBindingPlanID(
     "rvv-route-operand-binding:computed_masked_macc_add.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccOperandBindingSummary(
+    "rvv-route-operand-binding:computed_masked_macc_add.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;"
+    "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID(
         "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskedMAccOperandBindingSummary(
+        "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1;"
+        "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+        "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;"
+        "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+        "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+        "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+        "out=output-buffer:out:abi|store|hdr;"
+        "n=runtime-element-count:n:abi|setvl-avl|loop|hdr");
 constexpr llvm::StringLiteral kRVVPlainMAccRouteFamilyPlanID(
     "rvv-plain-macc-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccRouteFamilyPlanID(
@@ -4515,6 +4534,24 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
                     "provider route operand binding summary '") +
         kRVVScalarBroadcastMAccOperandBindingSummary + "' but was '" +
         description.routeOperandBindingSummary + "'");
+  if (description.operation ==
+          plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd &&
+      description.routeOperandBindingSummary !=
+          kRVVComputedMaskedMAccOperandBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask MAcc target artifact consumer requires "
+                    "provider route operand binding summary '") +
+        kRVVComputedMaskedMAccOperandBindingSummary + "' but was '" +
+        description.routeOperandBindingSummary + "'");
+  if (description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                   RuntimeScalarComputedMaskedMAccAdd &&
+      description.routeOperandBindingSummary !=
+          kRVVRuntimeScalarComputedMaskedMAccOperandBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime-scalar computed-mask MAcc target artifact "
+                    "consumer requires provider route operand binding summary '") +
+        kRVVRuntimeScalarComputedMaskedMAccOperandBindingSummary +
+        "' but was '" + description.routeOperandBindingSummary + "'");
   if (description.targetLeafProfile != expectedTargetLeafProfile)
     return makeRVVTargetRouteError(
         llvm::Twine("MAcc target artifact consumer requires target leaf profile "

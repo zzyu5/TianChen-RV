@@ -6809,6 +6809,27 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-computed-mask-macc-plan"}))
     return false;
 
+  RVVRouteDescription staleComputedMaskedMAccBindingSummary =
+      computedMaskedMAccDescription;
+  staleComputedMaskedMAccBindingSummary.routeOperandBindingSummary =
+      "rvv-route-operand-binding:computed_masked_macc_add.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call;"
+      "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+      "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+      "out=output-buffer:out:abi|store|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectMAccProviderFailure(
+          computedMaskedMAccFixture.candidate, computedMaskedMAccRoute,
+          staleComputedMaskedMAccBindingSummary,
+          "MAcc registry rejects stale computed-mask binding summary",
+          {"computed-mask MAcc target artifact consumer requires provider "
+           "route operand binding summary",
+           "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr",
+           "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call;"}))
+    return false;
+
   RVVRouteDescription staleRuntimeScalarMAccMaskProducer =
       runtimeScalarComputedMAccDescription;
   staleRuntimeScalarMAccMaskProducer.accumulationMaskProducerSource =

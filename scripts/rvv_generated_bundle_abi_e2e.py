@@ -18962,7 +18962,47 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int32_t init_cmp_lhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  return (int32_t)(((index % 5) < 2)
+                       ? (int32_t)(5 + (int32_t)index)
+                       : (int32_t)(90 + (int32_t)index));
+}}
+
+static int32_t init_cmp_rhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.rhs_initializer};
+  return (int32_t)(((index % 5) < 2)
+                       ? (int32_t)(60 + (int32_t)index)
+                       : (int32_t)(30 + (int32_t)index));
+}}
+
+static int32_t init_lhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.true_value_initializer};
+  return (int32_t)(((index % 3) == 0)
+                       ? -((int32_t)(index % 13) + 4)
+                       : ((int32_t)(index % 13) + 5));
+}}
+
+static int32_t init_rhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.false_value_initializer};
+  return (int32_t)(((index % 4) < 2)
+                       ? ((int32_t)(index % 17) + 6)
+                       : -((int32_t)(index % 17) + 7));
+}}
+
+static int32_t init_acc(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.source_initializer};
+  return (int32_t)(((index % 2) == 0)
+                       ? (31 - (int32_t)(index % 17))
+                       : -(29 + (int32_t)(index % 17)));
+}}
+
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 8;
   if (alloc_n == 8 && n == 0)
@@ -18985,11 +19025,11 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    cmp_lhs[index] = {expectation.lhs_initializer};
-    cmp_rhs[index] = {expectation.rhs_initializer};
-    lhs[index] = {expectation.true_value_initializer};
-    rhs[index] = {expectation.false_value_initializer};
-    acc[index] = {expectation.source_initializer};
+    cmp_lhs[index] = init_cmp_lhs(index, pattern);
+    cmp_rhs[index] = init_cmp_rhs(index, pattern);
+    lhs[index] = init_lhs(index, pattern);
+    rhs[index] = init_rhs(index, pattern);
+    acc[index] = init_acc(index, pattern);
     out[index] = {expectation.out_initializer};
   }}
 
@@ -19001,6 +19041,10 @@ static int run_case(size_t n) {{
   size_t add_only_distinguishing = 0;
   size_t mul_only_distinguishing = 0;
   size_t signed_product_lanes = 0;
+  size_t positive_products = 0;
+  size_t negative_products = 0;
+  size_t positive_accumulators = 0;
+  size_t negative_accumulators = 0;
   for (size_t index = 0; index < n; ++index) {{
     int predicate = {expectation.compare_predicate_c_expression("cmp_lhs[index]", "cmp_rhs[index]")};
     int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
@@ -19019,10 +19063,18 @@ static int run_case(size_t n) {{
       ++mul_only_distinguishing;
     if (predicate && product != 0 && acc[index] != 0)
       ++signed_product_lanes;
+    if (predicate && product > 0)
+      ++positive_products;
+    if (predicate && product < 0)
+      ++negative_products;
+    if (acc[index] > 0)
+      ++positive_accumulators;
+    if (acc[index] < 0)
+      ++negative_accumulators;
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d cmp_lhs=%d cmp_rhs=%d lhs=%d rhs=%d acc=%d predicate=%d product=%d\\n",
-              n, index, out[index], expected, cmp_lhs[index], cmp_rhs[index],
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got=%d expected=%d cmp_lhs=%d cmp_rhs=%d lhs=%d rhs=%d acc=%d predicate=%d product=%d\\n",
+              n, pattern, index, out[index], expected, cmp_lhs[index], cmp_rhs[index],
               lhs[index], rhs[index], acc[index], predicate, product);
       free(cmp_lhs);
       free(cmp_rhs);
@@ -19037,8 +19089,8 @@ static int run_case(size_t n) {{
   for (size_t index = n; index < alloc_n; ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, out[index], {expectation.out_initializer});
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, pattern, index, out[index], {expectation.out_initializer});
       free(cmp_lhs);
       free(cmp_rhs);
       free(lhs);
@@ -19049,23 +19101,45 @@ static int run_case(size_t n) {{
     }}
   }}
 
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (cmp_lhs[index] != init_cmp_lhs(index, pattern) ||
+        cmp_rhs[index] != init_cmp_rhs(index, pattern) ||
+        lhs[index] != init_lhs(index, pattern) ||
+        rhs[index] != init_rhs(index, pattern) ||
+        acc[index] != init_acc(index, pattern)) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu pattern=%d raw_index=%zu\\n",
+              n, pattern, index);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 14;
+    }}
+  }}
+
   if (n > 3 && (active_lanes == 0 || inactive_lanes == 0 ||
                 inactive_acc_preserved == 0 ||
                 add_only_distinguishing == 0 ||
                 mul_only_distinguishing == 0 ||
-                signed_product_lanes == 0)) {{
+                signed_product_lanes == 0 ||
+                positive_products == 0 || negative_products == 0 ||
+                positive_accumulators == 0 || negative_accumulators == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu active=%zu inactive=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu signed_product_lanes=%zu\\n",
-            n, active_lanes, inactive_lanes, inactive_acc_preserved,
+            "{expectation.kind} coverage missing n=%zu pattern=%d active=%zu inactive=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu signed_product_lanes=%zu positive_products=%zu negative_products=%zu positive_accumulators=%zu negative_accumulators=%zu\\n",
+            n, pattern, active_lanes, inactive_lanes, inactive_acc_preserved,
             add_only_distinguishing, mul_only_distinguishing,
-            signed_product_lanes);
+            signed_product_lanes, positive_products, negative_products,
+            positive_accumulators, negative_accumulators);
     free(cmp_lhs);
     free(cmp_rhs);
     free(lhs);
     free(rhs);
     free(acc);
     free(out);
-    return 14;
+    return 15;
   }}
 
   free(cmp_lhs);
@@ -19074,9 +19148,10 @@ static int run_case(size_t n) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok computed_mask macc active_lanes=%zu inactive_lanes=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu tail_preserved\\n",
-         n, active_lanes, inactive_lanes, inactive_acc_preserved,
-         add_only_distinguishing, mul_only_distinguishing);
+  printf("{expectation.kind} case n=%zu pattern=%d ok computed_mask macc active_lanes=%zu inactive_lanes=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu signed_products=%zu source_preserved tail_preserved\\n",
+         n, pattern, active_lanes, inactive_lanes, inactive_acc_preserved,
+         add_only_distinguishing, mul_only_distinguishing,
+         signed_product_lanes);
   return 0;
 }}
 
@@ -19084,12 +19159,14 @@ int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -25522,10 +25599,16 @@ def run_self_test() -> int:
                 or "inactive_acc_preserved" not in harness
                 or "add_only_distinguishing" not in harness
                 or "mul_only_distinguishing" not in harness
+                or "for (int pattern = 0; pattern < 2; ++pattern)"
+                not in harness
+                or "run_case(counts[index], pattern)" not in harness
+                or "source_preserved tail_preserved" not in harness
+                or "patterns=0,1" not in harness
             ):
                 raise AssertionError(
                     "self-test harness generation lost computed-mask macc "
-                    "mask, accumulator passthrough, or arithmetic coverage"
+                    "two-pattern mask, accumulator passthrough, source, tail, "
+                    "or arithmetic coverage"
                 )
             if expectation.is_macc_add and (
                 "static int32_t init_lhs(size_t index, int pattern)" not in harness

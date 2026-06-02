@@ -1390,3 +1390,70 @@ Archived scalar_broadcast_macc_add Stage2 ABI boundary: compact abi/hdr operand-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 383: Stage2 RVV computed-masked macc-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked macc-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded Stage 2 `computed_masked_macc_add` artifact/runtime ABI
+boundary. The target artifact consumer now exact-validates the provider-owned
+operand-binding summary for `cmp_lhs`, `cmp_rhs`, `lhs`, `rhs`, `acc`, `out`,
+and `n`; generated-bundle evidence now runs two data/mask patterns over
+counts `0`, `1`, `16`, `17`, and `257`; and explicit plus pre-realized
+generated bundles pass real `ssh rvv` correctness with source, inactive-lane,
+and tail preservation checks.
+
+### Main Changes
+
+- Added computed-mask MAcc route operand-binding summary exact validation in
+  `RVVTargetArtifactRouteFamilyValidation.cpp`, including the existing
+  runtime-scalar family member without expanding runtime-scalar scope.
+- Added a `TargetArtifactExportTest` stale-summary regression that removes
+  the `cmp_rhs` `hdr` participation token and proves provider facts fail
+  closed before artifact acceptance.
+- Strengthened `rvv_generated_bundle_abi_e2e.py` computed-mask MAcc harness
+  generation to run patterns `0,1`, verify source preservation, active
+  `acc + lhs * rhs`, inactive accumulator preservation, add-only/mul-only
+  distinguishing cases, and output tail preservation.
+- Updated explicit/pre-realized dry-run FileCheck tests and direct
+  pre-realized fail-closed coverage to use counts `0,1,16,17,257`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Direct `tcrv-opt` / `tcrv-translate` / `FileCheck-20` checks for explicit and pre-realized computed-mask MAcc target fixtures
+- [OK] Manual stale route/provider/binding/ABI/header/type/accumulation/layout fail-closed FileCheck reproduction
+- [OK] Explicit and pre-realized generated-bundle dry-run `FileCheck-20` checks
+- [OK] Direct pre-realized shortcut fail-closed script reproduction
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Explicit and pre-realized real `ssh rvv` compile/run correctness for counts `0`, `1`, `16`, `17`, `257` and patterns `0,1`
+- [OK] Added-line old-authority scan over touched files found no new legacy route-authority residue
+- [OK] `rtk git diff --check`
+
+### Spec Update
+
+No `.trellis/spec` update was needed. Existing RVV plugin, EmitC route, and
+testing specs already require provider-owned route operand-binding summaries,
+computed-mask MAcc evidence boundaries, fail-closed target artifact validation,
+and real `ssh rvv` evidence for runtime correctness claims.
+
+### Status
+
+[OK] Completed; archived and committed after this journal entry.
+
+### Next Steps
+
+- None - task complete
