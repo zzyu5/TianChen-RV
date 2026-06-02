@@ -49,7 +49,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-stride-standalone-reduction"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,acc,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:standalone_reduce_max.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.standalone_reduction_route_family_plan", value = "rvv-standalone-reduction-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.standalone_reduction_source_vector_type", value = "!tcrv_rvv.vector<i32, \22m2\22>"}
 // PLAN-SAME: {key = "tcrv_rvv.standalone_reduction_source_vector_c_type", value = "vint32m2_t"}
@@ -69,7 +69,7 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_standalone_reduce_max_lmul_m2
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-standalone-reduce-max-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:standalone_reduce_max.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER-DAG: tianchenrv.rvv.standalone_reduction_source_vector_type: !tcrv_rvv.vector<i32, "m2">
 // HEADER-DAG: tianchenrv.rvv.standalone_reduction_source_vector_c_type: vint32m2_t
 // HEADER-DAG: tianchenrv.rvv.standalone_reduction_scalar_result_vector_type: !tcrv_rvv.vector<i32, "m1">

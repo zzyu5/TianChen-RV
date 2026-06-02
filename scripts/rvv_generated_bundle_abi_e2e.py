@@ -568,10 +568,10 @@ SCALAR_BROADCAST_ELEMENTWISE_ROUTE_FAMILY_PLAN = (
 STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = "rvv-route-operand-binding:standalone_reduce_add.v1"
 STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE = (
     "rvv-route-operand-binding:{kind}.v1;"
-    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;"
-    "acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;"
-    "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+    "lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
+    "out=output-buffer:out:abi|acc-state|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
 STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
     STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE.format(
@@ -17638,13 +17638,17 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int32_t make_lhs_value(size_t index) {{
-  return (int32_t)(((index % 7) < 3)
-                       ? -((int32_t)(index % 31) + 1)
-                       : ((int32_t)(index % 37) + 2));
+static int32_t make_lhs_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return (int32_t)(((index % 7) < 3)
+                         ? -((int32_t)(index % 31) + 1)
+                         : ((int32_t)(index % 37) + 2));
+  return (int32_t)(((index % 5) < 2)
+                       ? ((int32_t)(index % 41) - 19)
+                       : -((int32_t)(index % 23) + 5));
 }}
 
-static int run_case(size_t n, int32_t seed) {{
+static int run_case(size_t n, int32_t seed, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
@@ -17657,7 +17661,7 @@ static int run_case(size_t n, int32_t seed) {{
 
   int32_t expected = seed;
   for (size_t index = 0; index < alloc_n; ++index) {{
-    lhs[index] = make_lhs_value(index);
+    lhs[index] = make_lhs_value(index, pattern);
     if (index < n)
       {expected_update}
   }}
@@ -17669,48 +17673,64 @@ static int run_case(size_t n, int32_t seed) {{
 
   if (out[0] != expected) {{
     fprintf(stderr,
-            "{expectation.kind} mismatch n=%zu seed=%d got=%d expected=%d\\n",
-            n, seed, out[0], expected);
+            "{expectation.kind} mismatch n=%zu seed=%d pattern=%d got=%d expected=%d\\n",
+            n, seed, pattern, out[0], expected);
     free(lhs);
     return 12;
   }}
   if (acc[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} mutated seed input n=%zu got=%d expected=%d\\n",
-            n, acc[0], seed);
+            "{expectation.kind} mutated seed input n=%zu pattern=%d got=%d expected=%d\\n",
+            n, pattern, acc[0], seed);
     free(lhs);
     return 13;
   }}
-  for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
-    if (out[index] != {expectation.out_initializer}) {{
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    int32_t expected_lhs = make_lhs_value(index, pattern);
+    if (lhs[index] != expected_lhs) {{
       fprintf(stderr,
-              "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
-              n, seed, index, out[index], {OUT_SENTINEL});
+              "{expectation.kind} mutated source input n=%zu seed=%d pattern=%d index=%zu got=%d expected=%d\\n",
+              n, seed, pattern, index, lhs[index], expected_lhs);
       free(lhs);
       return 14;
     }}
   }}
+  for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d pattern=%d index=%zu got=%d sentinel=%d\\n",
+              n, seed, pattern, index, out[index], {OUT_SENTINEL});
+      free(lhs);
+      return 15;
+    }}
+  }}
 
   free(lhs);
-  printf("{expectation.kind} case n=%zu seed=%d ok scalar_out=%d tail_preserved\\n",
-         n, seed, out[0]);
+  printf("{expectation.kind} case n=%zu seed=%d pattern=%d ok scalar_out=%d tail_preserved source_preserved\\n",
+         n, seed, pattern, out[0]);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const int32_t seeds[] = {{(int32_t)-11, (int32_t)17}};
+  const int patterns[] = {{0, 1}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t seed_count = sizeof(seeds) / sizeof(seeds[0]);
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
   for (size_t seed_index = 0; seed_index < seed_count; ++seed_index) {{
-    for (size_t count_index = 0; count_index < count_count; ++count_index) {{
-      int status = run_case(counts[count_index], seeds[seed_index]);
-      if (status != 0)
-        return status;
+    for (size_t pattern_index = 0; pattern_index < pattern_count;
+         ++pattern_index) {{
+      for (size_t count_index = 0; count_index < count_count; ++count_index) {{
+        int status = run_case(counts[count_index], seeds[seed_index],
+                              patterns[pattern_index]);
+        if (status != 0)
+          return status;
+      }}
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17 patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17 patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -24073,6 +24093,11 @@ def run_one_op_e2e(
                 f"signed i32 {expectation.standalone_reduction_kind} reduction "
                 "combines input lanes with the scalar accumulator seed"
             )
+            evidence["harness"]["source_pattern_contract"] = (
+                "two signed input patterns and two scalar seeds prove source "
+                "contribution, seed contribution, source preservation, and "
+                "multi-VL runtime n behavior"
+            )
             evidence["harness"]["scalar_result_contract"] = (
                 "only out[0] is written and non-scalar output slots preserve "
                 "sentinels"
@@ -25730,11 +25755,14 @@ def run_self_test() -> int:
             if expectation.is_standalone_reduce and (
                 "acc[0] != seed" not in harness
                 or "tail_preserved" not in harness
+                or "source_preserved" not in harness
+                or "patterns=0,1" not in harness
+                or "run_case(counts[count_index], seeds[seed_index]" not in harness
                 or expectation.standalone_reduction_kind not in harness
             ):
                 raise AssertionError(
                     "self-test harness generation lost standalone reduction "
-                    "seed, kind, or scalar-tail coverage"
+                    "seed, source-pattern, kind, or scalar-tail coverage"
                 )
             if expectation.is_widening_dot_reduce_add and (
                 "signed_horizontal_dot" not in harness

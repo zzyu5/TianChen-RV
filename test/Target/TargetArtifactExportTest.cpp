@@ -3976,6 +3976,21 @@ bool expectRVVTargetArtifactExporterShape(
            "rvv-route-operand-binding:standalone_reduce_add.v1"}))
     return false;
 
+  RVVRouteDescription staleStandaloneAddHeaderBinding =
+      standaloneReduceAddDescription;
+  staleStandaloneAddHeaderBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:standalone_reduce_add.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|load|reduce-input;"
+      "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
+      "out=output-buffer:out:abi|acc-state|store|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddHeaderBinding,
+          "standalone reduce_add registry rejects missing lhs header binding",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:standalone_reduce_add.v1"}))
+    return false;
+
   RVVRouteDescription staleStandaloneAddAccumulatorLayout =
       standaloneReduceAddDescription;
   staleStandaloneAddAccumulatorLayout.reductionAccumulatorLayout = "";
@@ -4056,6 +4071,29 @@ bool expectRVVTargetArtifactExporterShape(
           "standalone reduce_add registry rejects stale typed-op mirror",
           {"rvv_selected_body_typed_compute_op", "tcrv_rvv.standalone_reduce",
            "metadata-derived-standalone-reduction"}))
+    return false;
+
+  TargetArtifactCandidate staleStandaloneAddBindingMirror =
+      standaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleStandaloneAddBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          "rvv-route-operand-binding:standalone_reduce_add.v1;"
+          "lhs=lhs-input-buffer:lhs:abi|load|reduce-input|header-mirror;"
+          "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
+          "out=output-buffer:out:abi|acc-state|store|hdr;"
+          "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")) {
+    llvm::errs() << "test fixture did not contain standalone reduce_add "
+                    "binding summary mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceAddCandidateFailure(
+          staleStandaloneAddBindingMirror,
+          "standalone reduce_add registry rejects stale binding summary "
+          "header mirror",
+          {"route_operand_binding_operands",
+           "rvv-route-operand-binding:standalone_reduce_add.v1",
+           "header-mirror"}))
     return false;
 
   TargetArtifactCandidate staleStandaloneAddM2VectorLoadMirror =

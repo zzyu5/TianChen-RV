@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the result remains Stage 2 typed RVV route support and does not reintroduce Stage 1 legacy authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify standalone reduction realization/provider/scalar channel ownership and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route operand-binding summaries, hdr participation, common EmitC neutrality, and target artifact mirror validation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify dry-run and ssh rvv evidence meet runtime correctness and harness evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-masked-macc-lmul-m2-artifact-abi/prd.md", "reason": "Compare against the prior completed ABI-boundary task style without expanding this standalone reduction scope."}

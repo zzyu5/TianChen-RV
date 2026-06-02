@@ -4862,10 +4862,10 @@ std::string getRVVPlainStandaloneReductionExpectedBindingSummary(
   if (planID.empty())
     return {};
   return (llvm::Twine(planID) +
-          ";lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;"
-          "acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;"
-          "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
-          "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror")
+          ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;"
+          "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
+          "out=output-buffer:out:abi|acc-state|store|hdr;"
+          "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
       .str();
 }
 

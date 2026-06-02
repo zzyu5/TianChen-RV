@@ -11211,19 +11211,16 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = dynamicContext;
     addRouteOperandBinding(
         plan, "lhs", slice.lhsABI,
-        {"runtime-abi-mirror", "materialized-load-base",
-         "standalone-reduction-input-call"});
+        {"abi", "load", "reduce-input", "hdr"});
     addRouteOperandBinding(
         plan, "acc", slice.accumulatorABI,
-        {"runtime-abi-mirror", "standalone-initial-accumulator-call"});
+        {"abi", "seed", "acc-state", "hdr"});
     addRouteOperandBinding(
         plan, "out", slice.outABI,
-        {"runtime-abi-mirror", "standalone-accumulator-state-load",
-         "materialized-store-base", "header-mirror"});
+        {"abi", "acc-state", "store", "hdr"});
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control",
-         "header-mirror"});
+        {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.arithmeticKind ==
              RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) {
     plan.planID = kRVVComputedMaskUnitLoadStoreOperandBindingPlanID.str();
@@ -24800,33 +24797,45 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
       return std::move(error);
     facts.bindsStandaloneReduction = true;
     if (llvm::Error error = bindOperand(
-            facts.lhsABI, "lhs", "materialized-load-base",
+            facts.lhsABI, "lhs", "load",
             "standalone reduction input load operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("lhs", "standalone-reduction-input-call",
+            requireOperandUse("lhs", "reduce-input",
                               "standalone reduction input compute operand"))
       return std::move(error);
     if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              "standalone reduction input header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
             bindOperand(facts.accumulatorABI, "acc",
-                        "standalone-initial-accumulator-call",
+                        "seed",
                         "standalone reduction accumulator operand"))
       return std::move(error);
     if (llvm::Error error =
+            requireOperandUse("acc", "acc-state",
+                              "standalone reduction accumulator state"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "hdr",
+                              "standalone reduction accumulator header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
             bindOperand(facts.outABI, "out",
-                        "standalone-accumulator-state-load",
+                        "acc-state",
                         "standalone reduction output accumulator state"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("out", "materialized-store-base",
+            requireOperandUse("out", "store",
                               "standalone reduction output store operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("out", "header-mirror",
+            requireOperandUse("out", "hdr",
                               "standalone reduction output header mirror"))
       return std::move(error);
-    if (llvm::Error error = bindRuntimeCount(
-            "loop-control", "header-mirror", "standalone reduction"))
+    if (llvm::Error error =
+            bindRuntimeCount("loop", "hdr", "standalone reduction"))
       return std::move(error);
     return facts;
 

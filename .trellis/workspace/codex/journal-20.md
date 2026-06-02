@@ -60,6 +60,78 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 384: Stage2 RVV standalone reduce-add scalar artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV standalone reduce-add scalar artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded Stage 2 plain `standalone_reduce_add` artifact/runtime ABI
+boundary. Plain standalone reduction route operand binding now carries compact
+provider-derived `abi|...|hdr` facts for `lhs`, `acc`, `out`, and `n`;
+target artifact validation rejects stale/missing binding/header mirrors; and
+generated-bundle harnesses prove scalar seed contribution, multi-VL carry,
+lane-0 scalar output, source/seed preservation, and output sentinel
+preservation on real `ssh rvv`.
+
+### Main Changes
+
+- Upgraded plain standalone reduction route operand binding from
+  `runtime-abi-mirror/header-mirror` tokens to compact `abi|...|hdr` entries.
+- Strengthened provider math operand-binding facts for standalone reduction
+  so `lhs`, `acc`, `out`, and `n` must carry the expected route and
+  header/prototype markers before route construction.
+- Updated target artifact expected binding summaries and added
+  `TargetArtifactExportTest` negative coverage for missing/stale standalone
+  reduce-add binding/header facts.
+- Strengthened the generated-bundle standalone reduction harness to run two
+  signed input patterns and two seeds, verify source preservation, preserve the
+  seed input, check only `out[0]`, and preserve non-scalar output sentinels.
+- Updated explicit/pre-realized standalone reduce-add dry-run checks and shared
+  plain standalone min/max golden expectations for the new provider summary.
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Direct `tcrv-opt` / `tcrv-translate` / `FileCheck-20` checks for explicit and pre-realized standalone reduce-add target fixtures.
+- [OK] Direct FileCheck loop over changed standalone add/min/max Target/RVV fixtures.
+- [OK] Explicit, pre-realized, and pre-realized LMUL m2 standalone reduce-add generated-bundle dry-run checks.
+- [OK] Direct pre-realized route-entry fail-closed script check for `standalone_reduce_add` and `standalone_reduce_add_lmul_m2`.
+- [OK] Standalone reduce min/max dry-run generation and FileCheck for shared plain standalone golden updates.
+- [OK] Real `ssh rvv` explicit and pre-realized generated-bundle compile/run correctness for counts `0,1,16,17,257`, seeds `-11,17`, patterns `0,1`.
+- [OK] Added-line old-authority scan over touched files found no new positive legacy/source-front-door/descriptor/direct-C/source-export/common-EmitC semantic authority.
+- [OK] `rtk git diff --check`
+
+### Runtime Evidence
+
+- Explicit:
+  `artifacts/tmp/06-02-standalone-reduce-add-ssh-rvv/explicit/standalone_reduce_add/evidence.json`
+- Pre-realized:
+  `artifacts/tmp/06-02-standalone-reduce-add-ssh-rvv/pre-realized/standalone_reduce_add/evidence.json`
+- PASS marker:
+  `PASS op=standalone_reduce_add counts=0,1,16,17,257 seeds=-11,17 patterns=0,1`
+
+### Spec Update
+
+No `.trellis/spec` update was needed. Existing RVV plugin, EmitC route, and
+testing specs already cover standalone reduction scalar channel ownership,
+`hdr` participation for exported runtime ABI operands, fail-closed target
+artifact validation, and `ssh rvv` runtime evidence.
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 383: Stage2 RVV runtime-scalar masked MAcc LMUL m2 artifact ABI boundary
 
 **Date**: 2026-06-02

@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-standalone-reduce-add/evidence.json
 # RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
@@ -40,6 +40,8 @@
 # REDUCE-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
 # REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
+# REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_route_family_plan"
 # REDUCE-DAG: "value": "rvv-standalone-reduction-route-family-plan.v1"
 # REDUCE-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary"
@@ -84,6 +86,7 @@
 # REDUCE-DAG: "store_vl": "1"
 # REDUCE-DAG: "seed_store_initializes_empty_count_result": true
 # REDUCE-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
+# REDUCE-DAG: "source_pattern_contract": "two signed input patterns and two scalar seeds prove source contribution, seed contribution, source preservation, and multi-VL runtime n behavior"
 # REDUCE-DAG: "status": "dry_run_success"
 
 # HARNESS: int32_t expected = seed;
@@ -91,5 +94,6 @@
 # HARNESS: acc[0] = seed;
 # HARNESS: tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add(lhs, acc, out, n);
 # HARNESS: tail_preserved
-# HARNESS: const size_t counts[] = {0, 1, 7, 16, 23, 257};
-# HARNESS: seeds=-11,17
+# HARNESS: source_preserved
+# HARNESS: const size_t counts[] = {0, 1, 16, 17, 257};
+# HARNESS: seeds=-11,17 patterns=0,1

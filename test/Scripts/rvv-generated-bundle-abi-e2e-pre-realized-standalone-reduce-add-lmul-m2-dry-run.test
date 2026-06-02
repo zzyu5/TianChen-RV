@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add-lmul-m2 --overwrite --op-kind standalone_reduce_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add-lmul-m2 --overwrite --op-kind standalone_reduce_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-standalone-reduce-add-lmul-m2/evidence.json
 # RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add-lmul-m2/standalone_reduce_add_lmul_m2/evidence.json
 # RUN: FileCheck %s --check-prefix=CPP < %t.artifacts/pre-realized-standalone-reduce-add-lmul-m2/standalone_reduce_add_lmul_m2/materialized_rvv_emitc.cpp
@@ -50,5 +50,6 @@
 # HARNESS: acc[0] = seed;
 # HARNESS: tcrv_emitc_pre_realized_body_standalone_reduce_add_lmul_m2_kernel_pre_realized_body_rvv_standalone_reduce_add_lmul_m2(lhs, acc, out, n);
 # HARNESS: tail_preserved
-# HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
-# HARNESS: seeds=-11,17
+# HARNESS: source_preserved
+# HARNESS: const size_t counts[] = {0, 1, 16, 17, 257};
+# HARNESS: seeds=-11,17 patterns=0,1

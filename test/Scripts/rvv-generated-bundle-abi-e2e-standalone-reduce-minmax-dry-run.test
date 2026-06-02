@@ -26,7 +26,7 @@
 # MIN-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # MIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1"
 # MIN-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# MIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# MIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MIN-DAG: "reduction_contract": "signed i32 min reduction combines input lanes with the scalar accumulator seed"
 # MIN-DAG: "reduction_accumulation_boundary":
 # MIN-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
@@ -54,7 +54,7 @@
 # MAX-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # MAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1"
 # MAX-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# MAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# MAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MAX-DAG: "reduction_contract": "signed i32 max reduction combines input lanes with the scalar accumulator seed"
 # MAX-DAG: "reduction_accumulation_boundary":
 # MAX-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
