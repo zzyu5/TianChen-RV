@@ -2295,6 +2295,7 @@ TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
   add("tcrv_rvv.provider_supported_mirror",
       description.providerSupportedMirror);
   add("tcrv_rvv.target_leaf_profile", description.targetLeafProfile);
+  add("rvv_selected_body_typed_compute_op", description.typedComputeOpName);
   add("tcrv_rvv.plain_compare_select_route_family_plan",
       description.plainCompareSelectRouteFamilyPlanID);
   add("tcrv_rvv.computed_mask_select_route_family_plan",
@@ -2646,6 +2647,7 @@ RVVManualRouteDescription makeRVVManualIndexedGatherDescription() {
   description.lmul = "m1";
   description.tailPolicy = "agnostic";
   description.maskPolicy = "agnostic";
+  description.typedComputeOpName = "tcrv_rvv.masked_indexed_load";
   description.emitCRouteID = "manual-computed-mask-indexed-gather-route";
   description.providerSupportedMirror =
       "provider_supported_mirror:rvv-computed-mask-indexed-gather-load-plan-validated";
@@ -2801,6 +2803,7 @@ RVVManualRouteDescription makeRVVManualIndexedScatterDescription() {
   description.lmul = "m1";
   description.tailPolicy = "agnostic";
   description.maskPolicy = "agnostic";
+  description.typedComputeOpName = "tcrv_rvv.masked_indexed_store";
   description.emitCRouteID = "manual-computed-mask-indexed-scatter-route";
   description.providerSupportedMirror =
       "provider_supported_mirror:rvv-computed-mask-indexed-scatter-store-plan-validated";
@@ -13590,6 +13593,17 @@ bool expectRVVTargetArtifactExporterShape(
           {"index source", "runtime_abi:index", "metadata-derived-index"}))
     return false;
 
+  RVVRouteDescription staleIndexedTypedCompute = manualIndexedDescription;
+  staleIndexedTypedCompute.typedComputeOpName =
+      "metadata-derived-masked-indexed-load";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute, staleIndexedTypedCompute,
+          "compare/select mask registry rejects stale indexed gather typed "
+          "compute fact",
+          {"typed compute op", "tcrv_rvv.masked_indexed_load",
+           "metadata-derived-masked-indexed-load"}))
+    return false;
+
   RVVRouteDescription wrongIndexedBindingPlan = manualIndexedDescription;
   wrongIndexedBindingPlan.routeOperandBindingPlanID =
       "metadata-derived-computed-mask-indexed-gather-binding-plan";
@@ -13597,8 +13611,9 @@ bool expectRVVTargetArtifactExporterShape(
           manualIndexedCandidate, manualIndexedRoute, wrongIndexedBindingPlan,
           "compare/select mask registry rejects wrong computed-mask indexed "
           "gather binding plan",
-          {"route operand binding summary requires provider plan",
-           "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"}))
+          {"route operand binding plan",
+           "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1",
+           "metadata-derived-computed-mask-indexed-gather-binding-plan"}))
     return false;
 
   RVVRouteDescription staleIndexedBindingSummary = manualIndexedDescription;
@@ -13616,8 +13631,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleIndexedBindingSummary,
           "compare/select mask registry rejects computed-mask indexed gather "
           "binding summary without header marker",
-          {"logical operand 'cmp_lhs'", "provider ABI marker 'abi'",
-           "header/prototype marker 'hdr'"}))
+          {"route operand binding facts",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
   RVVRouteDescription wrongIndexedScatterBindingPlan =
@@ -13629,8 +13645,9 @@ bool expectRVVTargetArtifactExporterShape(
           wrongIndexedScatterBindingPlan,
           "compare/select mask registry rejects wrong computed-mask indexed "
           "scatter binding plan",
-          {"route operand binding summary requires provider plan",
-           "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1"}))
+          {"route operand binding plan",
+           "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1",
+           "metadata-derived-computed-mask-indexed-scatter-binding-plan"}))
     return false;
 
   RVVRouteDescription staleComputedMaskIndexedScatterBindingSummary =
@@ -13649,8 +13666,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskIndexedScatterBindingSummary,
           "compare/select mask registry rejects computed-mask indexed scatter "
           "binding summary without header marker",
-          {"logical operand 'cmp_lhs'", "provider ABI marker 'abi'",
-           "header/prototype marker 'hdr'"}))
+          {"route operand binding facts",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
   RVVRouteDescription staleIndexedScatterProviderMirror =
@@ -13706,6 +13724,19 @@ bool expectRVVTargetArtifactExporterShape(
           {"C type mapping summary",
            "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store",
            "metadata-only-index"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterTypedCompute =
+      manualIndexedScatterDescription;
+  staleIndexedScatterTypedCompute.typedComputeOpName =
+      "metadata-derived-masked-indexed-store";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterTypedCompute,
+          "compare/select mask registry rejects stale indexed scatter typed "
+          "compute fact",
+          {"typed compute op", "tcrv_rvv.masked_indexed_store",
+           "metadata-derived-masked-indexed-store"}))
     return false;
 
   RVVRouteDescription staleIndexedGatherUniqueness =
@@ -13938,6 +13969,24 @@ bool expectRVVTargetArtifactExporterShape(
            "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
+  TargetArtifactCandidate wrongIndexedTypedComputeCandidate =
+      manualIndexedCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedTypedComputeCandidate,
+          "rvv_selected_body_typed_compute_op",
+          "metadata-derived-masked-indexed-load"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedTypedComputeCandidate, manualIndexedRoute,
+          manualIndexedDescription,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "gather typed compute metadata",
+          {"rvv_selected_body_typed_compute_op",
+           "selected typed RVV compare/select mask typed compute op",
+           "tcrv_rvv.masked_indexed_load",
+           "metadata-derived-masked-indexed-load"}))
+    return false;
+
   TargetArtifactCandidate wrongIndexedSourceCandidate = manualIndexedCandidate;
   if (!rewriteArtifactMetadataValue(wrongIndexedSourceCandidate,
                                     "tcrv_rvv.index_source",
@@ -14041,6 +14090,24 @@ bool expectRVVTargetArtifactExporterShape(
           {"c_type_mapping",
            "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store",
            "metadata-only-index"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterTypedComputeCandidate =
+      manualIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterTypedComputeCandidate,
+          "rvv_selected_body_typed_compute_op",
+          "metadata-derived-masked-indexed-store"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedScatterTypedComputeCandidate, manualIndexedScatterRoute,
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects stale indexed scatter typed "
+          "compute metadata",
+          {"rvv_selected_body_typed_compute_op",
+           "selected typed RVV compare/select mask typed compute op",
+           "tcrv_rvv.masked_indexed_store",
+           "metadata-derived-masked-indexed-store"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedScatterEEWCandidate =

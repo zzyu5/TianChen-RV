@@ -319,6 +319,50 @@ struct RVVBaseMemoryMovementRouteFacts {
 std::optional<RVVBaseMemoryMovementRouteFacts>
 getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation);
 
+struct RVVComputedMaskIndexedMemoryRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
+  llvm::StringRef computedMaskMemoryMaskProducerSource;
+  llvm::StringRef maskTailPolicyRouteFamilyPlanID;
+  llvm::StringRef maskTailPolicyOwner;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+};
+
+std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
+getRVVComputedMaskIndexedMemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+
 struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

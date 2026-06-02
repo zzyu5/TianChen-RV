@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV/RVV authority chain, Stage 2 typed RVV body boundary, and no descriptor/source-front-door authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, legality, route provider, and fail-closed diagnostics rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned EmitC route contract, operand binding summary contract, and header/type mirror validation rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence policy and RVV ssh evidence boundary."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage 2 route-supported typed body and mirror-only route metadata constraints."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-base-memory-route-family-production-validation-closeout/prd.md", "reason": "Previous indexed base-memory closeout and validation fact-surface pattern to extend to computed masked indexed routes."}

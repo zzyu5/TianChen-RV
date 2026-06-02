@@ -391,6 +391,113 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact/evidence mirrors match exactly
 ```
 
+### Computed-Mask Indexed Memory Fact Surface
+
+For `computed_masked_indexed_gather_load_unit_store` and
+`computed_masked_indexed_scatter_store_unit_load`, provider/target shared
+constants must use the provider-owned surface:
+
+```c++
+struct RVVComputedMaskIndexedMemoryRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
+  llvm::StringRef computedMaskMemoryMaskProducerSource;
+  llvm::StringRef maskTailPolicyRouteFamilyPlanID;
+  llvm::StringRef maskTailPolicyOwner;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  std::int64_t indexEEW;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+};
+
+std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
+getRVVComputedMaskIndexedMemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+```
+
+Contracts:
+
+- Gather and scatter both use runtime ABI order
+  `cmp_lhs,cmp_rhs,src,index,dst,n` and exported header/prototype binding for
+  every ABI parameter.
+- Gather uses typed compute op `tcrv_rvv.masked_indexed_load`, memory form
+  `computed-mask-indexed-gather-load-unit-store`, indexed data memory form
+  `masked-indexed-load`, and no scatter uniqueness fact.
+- Scatter uses typed compute op `tcrv_rvv.masked_indexed_store`, memory form
+  `computed-mask-unit-load-indexed-scatter-store`, indexed destination memory
+  form `masked-indexed-store`, and index uniqueness `unique`.
+- Both routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`, compare
+  predicate `slt`, compare-produced mask facts, mask/tail route-family plan,
+  inactive-lane contract, passthrough/no-write layout, indexed memory layout,
+  index source `runtime_abi:index`, index EEW `32`, offset unit `element`,
+  provider-supported mirror, target leaf profile, header declarations, C type
+  summary, operand binding plan, and exact operand binding summary from the
+  accessor.
+- Common EmitC/export may carry these provider-built strings and metadata
+  mirrors, but must not infer any mask/index/load/store fact from the route id,
+  artifact name, descriptor, C ABI spelling, or candidate metadata.
+
+Validation and error behavior:
+
+- Missing accessor result for either computed-mask indexed operation -> fail
+  before target artifact export.
+- Gather facts applied to scatter, or scatter facts applied to gather -> fail
+  on memory form, typed compute op, indexed data/destination form, uniqueness,
+  target profile, provider mirror, or binding summary before bundle acceptance.
+- Missing or stale mask facts, index facts, inactive-lane contract, route-family
+  plan, header/type summary, target profile, provider mirror, runtime ABI order,
+  or binding summary -> fail before target artifact acceptance.
+- Candidate metadata mirrors must match the provider-built route description
+  exactly. Stale candidate mirrors for typed compute op, index source/EEW,
+  offset unit, uniqueness, header/type summary, provider mirror, target
+  profile, or operand binding summary fail closed.
+- Accidental fallback to unmasked indexed memory, unit-stride computed-mask
+  memory, strided computed-mask memory, descriptor/direct-C/source-export, or
+  legacy `i32m1` route authority is invalid.
+
+Tests required:
+
+- C++ target artifact tests must mutate provider route descriptions for stale
+  gather/scatter typed compute, mask/index facts, binding facts, header/type
+  facts, target profile, provider mirror, and gather/scatter cross-contamination.
+- C++ target artifact tests must mutate candidate metadata mirrors for the same
+  fields and prove stale metadata cannot be accepted.
+- Generated-bundle dry-run FileCheck tests must keep explicit and pre-realized
+  gather/scatter coverage and expose representative `typed_compute_op`,
+  memory form, binding summary, mask/index facts, provider mirror, and target
+  profile in evidence JSON.
+- Runtime `ssh rvv` evidence is required only when the task claims new runtime,
+  correctness, or performance behavior. Pure validation tightening may reuse
+  prior runtime evidence and must state that no generated runtime semantics
+  changed.
+
 ### Widening Conversion Fact Surface
 
 For selected-body widening conversion routes, provider/target shared constants

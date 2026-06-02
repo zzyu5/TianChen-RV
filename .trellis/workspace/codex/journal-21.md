@@ -608,6 +608,65 @@ indexed gather mirrors or accidental strided/unit-load residue.
 - Archive task and create the coherent task commit.
 
 
+## Session 401: Stage2 RVV computed masked indexed memory production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV computed masked indexed memory production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the in-progress computed masked indexed memory production validation
+boundary. The RVV provider now exposes canonical computed-mask indexed gather
+and scatter facts, and target artifact validation consumes those facts for
+provider descriptions and artifact metadata mirrors instead of reconstructing
+the route family in target-local constants.
+
+### Main Changes
+
+- Added `RVVComputedMaskIndexedMemoryRouteFacts` and
+  `getRVVComputedMaskIndexedMemoryRouteFacts(...)` for
+  `computed_masked_indexed_gather_load_unit_store` and
+  `computed_masked_indexed_scatter_store_unit_load`.
+- Built provider-owned runtime ABI, mask/index, inactive-lane, header/type,
+  route-family, target profile, provider mirror, typed compute op, and operand
+  binding facts for both routes.
+- Rewired target artifact validation to compare computed masked indexed
+  gather/scatter provider descriptions and candidate metadata mirrors against
+  that provider fact surface.
+- Added C++ fail-closed coverage for stale typed compute, stale binding
+  summaries/plans, stale provider mirrors, target profiles, header/type facts,
+  index facts, and candidate metadata mirrors.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable
+  computed-mask indexed memory fact-surface contract.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-abi-e2e-(pre-realized-)?computed-masked-indexed-gather-load-dry-run'` from `build/test` passed 2/2 selected tests.
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-abi-e2e-(pre-realized-)?computed-masked-indexed-scatter-store-dry-run'` from `build/test` passed 2/2 selected tests.
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'selected-body-artifact-computed-masked-indexed-(gather-load|scatter-store)'` from `build/test` passed 4/4 selected tests.
+- [OK] `rtk git diff --check`
+- [OK] Bounded touched-diff old-authority scan over changed C++/test files found no newly added legacy `i32m1`, source-front-door, source-export, direct-C, or descriptor authority markers.
+
+### Runtime Evidence
+
+Real `ssh rvv` was not rerun because this round tightened production
+provider-to-target validation only. Route emission, generated runtime ABI
+behavior, and executable runtime semantics did not change, so this closeout
+reuses the immediately preceding archived computed masked indexed gather and
+scatter runtime evidence for explicit and pre-realized selected bodies.
+
+### Status
+
+[OK] **Completed and archived pending coherent commit**
+
+### Next Steps
+
+- Create the coherent task commit.
+
+
 ## Session 400: Stage2 RVV base-memory route-family production validation closeout
 
 **Date**: 2026-06-03

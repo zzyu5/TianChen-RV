@@ -11084,6 +11084,80 @@ void addRouteOperandBinding(
   plan.bindings.push_back(std::move(binding));
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVComputedMaskIndexedMemoryRuntimeABIParameters(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return tcrv::rvv::
+        getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return tcrv::rvv::
+        getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
+  default:
+    return {};
+  }
+}
+
+RVVRouteOperandBindingPlan
+buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(
+    const RVVComputedMaskIndexedMemoryRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  auto parameter =
+      [&](std::size_t index) -> const support::RuntimeABIParameter & {
+    return facts.runtimeABIParameters[index];
+  };
+
+  switch (facts.operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    addRouteOperandBinding(
+        plan, "cmp_lhs", parameter(0),
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", parameter(1),
+        {"abi", "cmp-rhs-load", "rhs-call", "hdr-mirror"});
+    addRouteOperandBinding(plan, "src", parameter(2),
+                           {"abi", "midx-base", "midx-load-call",
+                            "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "index", parameter(3),
+        {"abi", "materialized-index-load-base", "index-offset-scale",
+         "index-source-mirror", "hdr-mirror"});
+    addRouteOperandBinding(plan, "dst", parameter(4),
+                           {"abi", "old-dst-load", "passthru-call",
+                            "store-base", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(5),
+        {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    addRouteOperandBinding(
+        plan, "cmp_lhs", parameter(0),
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", parameter(1),
+        {"abi", "cmp-rhs-load", "rhs-call", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "src", parameter(2),
+        {"abi", "src-load", "mistore-src-call", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "index", parameter(3),
+        {"abi", "materialized-index-load-base", "index-offset-scale",
+         "index-source-mirror", "hdr-mirror"});
+    addRouteOperandBinding(plan, "dst", parameter(4),
+                           {"abi", "mistore-base", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(5),
+        {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+    break;
+  default:
+    break;
+  }
+
+  return plan;
+}
+
 void addComputedMaskSelectOperandBindings(
     RVVRouteOperandBindingPlan &plan,
     const RVVSelectedBodyRouteSlice &slice, bool isVectorProducer,
@@ -17927,6 +18001,82 @@ llvm::Error verifySelectedRVVRoleSequence(
 std::optional<RVVWideningConversionRouteFacts>
 getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
   return buildRVVWideningConversionRouteFacts(operation);
+}
+
+std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
+getRVVComputedMaskIndexedMemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation) {
+  const bool isGather =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+  const bool isScatter =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
+  if (!isGather && !isScatter)
+    return std::nullopt;
+
+  RVVComputedMaskIndexedMemoryRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
+  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = getComputedMaskMemoryRuntimeABIOrder(operation);
+  facts.targetLeafProfile = getComputedMaskMemoryTargetLeafProfile(operation);
+  facts.providerSupportedMirror =
+      getComputedMaskMemoryProviderSupportedMirror(operation);
+  facts.requiredHeaderDeclarations =
+      getComputedMaskMemoryRequiredHeaderDeclarations(operation);
+  facts.cTypeMappingSummary =
+      getComputedMaskMemoryCTypeMappingSummary(operation);
+  facts.routeOperandBindingPlanID =
+      getExpectedRVVRouteOperandBindingPlanID(operation);
+  facts.typedComputeOpName =
+      isGather ? llvm::StringRef("tcrv_rvv.masked_indexed_load")
+               : llvm::StringRef("tcrv_rvv.masked_indexed_store");
+  facts.comparePredicateKind = "slt";
+  facts.computedMaskMemoryRouteFamilyPlanID =
+      kRVVComputedMaskMemoryRouteFamilyPlanID;
+  facts.computedMaskMemoryMaskProducerSource =
+      getComputedMaskMemoryProducerSource(operation);
+  facts.maskTailPolicyRouteFamilyPlanID = kRVVMaskTailPolicyRouteFamilyPlanID;
+  facts.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
+  facts.maskRole = kRVVMaskedPredicateMaskRole;
+  facts.maskSource = kRVVMaskedCompareMaskSource;
+  facts.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  facts.inactiveLaneContract =
+      getComputedMaskMemoryInactiveLaneContract(operation);
+  facts.maskedPassthroughLayout =
+      getComputedMaskMemoryPassthroughLayout(operation);
+  facts.indexedMemoryLayout = getComputedMaskMemoryLayout(operation);
+  facts.sourceMemoryForm = getComputedMaskMemorySourceMemoryForm(operation);
+  facts.destinationMemoryForm =
+      getComputedMaskMemoryDestinationMemoryForm(operation);
+  facts.indexEEW = 32;
+  facts.offsetUnit = kRVVIndexedGatherOffsetUnit;
+  facts.indexSource = kRVVIndexSource;
+  facts.indexUniqueness =
+      isScatter ? llvm::StringRef(kRVVIndexedScatterIndexUniqueness)
+                : llvm::StringRef();
+  facts.indexedDataMemoryForm =
+      isGather ? llvm::StringRef(kRVVMaskedIndexedLoadSourceMemoryForm)
+               : llvm::StringRef();
+  facts.indexedDestinationMemoryForm =
+      isScatter ? llvm::StringRef(kRVVMaskedIndexedStoreDestinationMemoryForm)
+                : llvm::StringRef();
+  facts.runtimeABIParameters =
+      getRVVComputedMaskIndexedMemoryRuntimeABIParameters(operation);
+
+  RVVRouteOperandBindingPlan plan =
+      buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(plan);
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    facts.logicalOperands.push_back(binding.logicalOperand);
+
+  return facts;
 }
 
 llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(

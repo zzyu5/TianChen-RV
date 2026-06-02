@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final diff preserves TianChen-RV/RVV authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider/target validation remains plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check target artifact validation consumes provider-owned route facts and rejects stale mirrors."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit/generated-bundle evidence and no unsupported runtime claim."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Check RVV runtime evidence reuse is stated only when no runtime semantics changed."}
