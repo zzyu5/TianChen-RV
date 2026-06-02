@@ -11160,7 +11160,7 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         {"abi", "src-load", "masked-reduce-input", inactiveUse, "hdr"});
     addRouteOperandBinding(
         plan, "acc", slice.accumulatorABI,
-        {"abi", "initial-seed", "acc-state", "masked-reduce-acc"});
+        {"abi", "initial-seed", "acc-state", "masked-reduce-acc", "hdr"});
     addRouteOperandBinding(
         plan, "out", slice.outABI,
         {"abi", "acc-state", "store-base", "hdr"});
@@ -24959,13 +24959,11 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
                               "computed-mask standalone reduction accumulator "
                               "compute operand"))
       return std::move(error);
-    if (!isRuntimeScalarThreshold) {
-      if (llvm::Error error =
-              requireOperandUse("acc", "hdr",
-                                "computed-mask standalone reduction "
-                                "accumulator seed header mirror"))
-        return std::move(error);
-    }
+    if (llvm::Error error =
+            requireOperandUse("acc", "hdr",
+                              "computed-mask standalone reduction "
+                              "accumulator seed header mirror"))
+      return std::move(error);
     if (llvm::Error error =
             bindOperand(facts.outABI, "out", "acc-state",
                         "computed-mask standalone reduction output "

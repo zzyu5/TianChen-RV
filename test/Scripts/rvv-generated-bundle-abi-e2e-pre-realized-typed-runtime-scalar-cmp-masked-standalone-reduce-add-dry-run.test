@@ -40,13 +40,21 @@
 # I64-DAG: "reduction_kind": "add"
 # I64-DAG: "accumulator_layout": "scalar-i64-seed-lane0-from-accumulator-input"
 # I64-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,src,acc,out,n"
+# I64-DAG: acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr
+# I64-DAG: "source_pattern_contract": "two compare/source input patterns, two runtime scalar threshold values, and two scalar seeds prove active-lane source contribution, source preservation, seed preservation, and multi-VL runtime n behavior"
 # I64-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # I64-DAG: "status": "dry_run_success"
 
-# HARNESS64: int64_t expected = seed;
-# HARNESS64: expected = (int64_t)(expected + src[index]);
-# HARNESS64: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64(cmp_lhs, rhs_scalar, src, acc, out, n);
-# HARNESS64: runtime_scalar_computed_mask_standalone_reduce
-# HARNESS64: inactive_nonzero
-# HARNESS64: tail_preserved
-# HARNESS64: const int64_t rhs_scalar_values[] = {(int64_t)-37LL, (int64_t)91LL};
+# HARNESS64-DAG: make_cmp_lhs_value(size_t index, int pattern)
+# HARNESS64-DAG: make_src_value(size_t index, int pattern)
+# HARNESS64-DAG: runtime_scalar_computed_mask_standalone_reduce
+# HARNESS64-DAG: inactive_nonzero
+# HARNESS64-DAG: source_preserved
+# HARNESS64-DAG: tail_preserved
+# HARNESS64-DAG: int64_t expected = seed;
+# HARNESS64-DAG: expected = (int64_t)(expected + src[index]);
+# HARNESS64-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESS64-DAG: const int64_t rhs_scalar_values[] = {(int64_t)-37LL, (int64_t)91LL};
+# HARNESS64-DAG: const int patterns[] = {0, 1};
+# HARNESS64-DAG: patterns[pattern_index]
+# HARNESS64-DAG: seeds=-11,17 patterns=0,1

@@ -5624,6 +5624,26 @@ bool expectRVVTargetArtifactExporterShape(
            "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1"}))
     return false;
 
+  RVVRouteDescription
+      staleRuntimeScalarStandaloneAddAccumulatorHeaderBinding =
+          runtimeScalarStandaloneReduceAddDescription;
+  staleRuntimeScalarStandaloneAddAccumulatorHeaderBinding
+      .routeOperandBindingSummary =
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+      "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+      "out=output-buffer:out:abi|acc-state|store-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectRuntimeScalarStandaloneReduceAddProviderFailure(
+          staleRuntimeScalarStandaloneAddAccumulatorHeaderBinding,
+          "runtime-scalar computed-mask standalone reduce_add registry "
+          "rejects missing accumulator header binding",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1"}))
+    return false;
+
   RVVRouteDescription staleRuntimeScalarStandaloneAddInactiveLane =
       runtimeScalarStandaloneReduceAddDescription;
   staleRuntimeScalarStandaloneAddInactiveLane.inactiveLaneZeroingRequirement = "";

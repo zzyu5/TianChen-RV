@@ -60,6 +60,56 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 383: Stage2 RVV runtime-scalar masked standalone reduce-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar masked standalone reduce-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `runtime_scalar_cmp_masked_standalone_reduce_add`
+artifact/runtime ABI boundary. The provider binding summary now treats scalar
+seed `acc` as an exported header/prototype ABI participant, target artifact
+validation rejects the stale missing-`hdr` summary, generated-bundle harnesses
+exercise two compare/source patterns, and explicit plus pre-realized selected
+bodies have real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `acc|hdr` participation to runtime-scalar computed-mask standalone
+  reduction route binding facts and target artifact validation.
+- Added a stale binding-summary regression in the target artifact exporter
+  tests.
+- Strengthened generated-bundle evidence and harness checks for source pattern
+  coverage, source preservation, tail preservation, and runtime scalar
+  splat/compare facts.
+
+### Git Commits
+
+- Final task archive commit for this round.
+
+### Testing
+
+- [OK] Python compile and generated-bundle self-test.
+- [OK] Focused build and target artifact C++ regression.
+- [OK] Direct MLIR/FileCheck explicit, pre-realized, and touched shared
+  min/max fixture checks.
+- [OK] Generated-bundle dry-run, evidence, harness, and direct-pre-realized
+  fail-closed checks.
+- [OK] Real `ssh rvv` explicit and pre-realized correctness for counts
+  `0,1,16,23,257`, rhs scalars `-37,91`, seeds `-11,17`, and patterns `0,1`.
+- [OK] Bounded old-authority scan and `git diff --check`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit this round.
+
+
 ## Session 384: Stage2 RVV computed-mask standalone reduce-add artifact ABI boundary
 
 **Date**: 2026-06-02

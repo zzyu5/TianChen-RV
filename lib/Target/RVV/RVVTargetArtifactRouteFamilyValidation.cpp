@@ -4944,7 +4944,7 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingSummary(
           "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
           inactiveUse +
           "|hdr;"
-          "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+          "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
           "out=output-buffer:out:abi|acc-state|store-base|hdr;"
           "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
       .str();

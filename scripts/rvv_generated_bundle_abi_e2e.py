@@ -604,7 +604,7 @@ RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TE
     "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
     "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;"
     "src=source-input-buffer:src:abi|src-load|masked-reduce-input|{inactive_use}|hdr;"
-    "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+    "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
     "out=output-buffer:out:abi|acc-state|store-base|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
@@ -18018,15 +18018,30 @@ static long long printable_value({value_type} value) {{
   return (long long)value;
 }}
 
-static {value_type} make_cmp_lhs_value(size_t index) {{
-  return {expectation.lhs_initializer};
+static {value_type} make_cmp_lhs_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  return ({value_type})(((index % 7) == 0) ? ({value_type})-96 :
+                        ((index % 7) == 1) ? ({value_type})-45 :
+                        ((index % 7) == 2) ? ({value_type})-3 :
+                        ((index % 7) == 3) ? ({value_type})28 :
+                        ((index % 7) == 4) ? ({value_type})76 :
+                        ((index % 7) == 5) ? ({value_type})118 :
+                                              ({value_type})151);
 }}
 
-static {value_type} make_src_value(size_t index) {{
-  return {expectation.source_initializer};
+static {value_type} make_src_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.source_initializer};
+  return ({value_type})(((index % 5) == 0) ? ({value_type})(13 + ({value_type})index) :
+                        ((index % 5) == 1) ? ({value_type})(-21 - ({value_type})index) :
+                        ((index % 5) == 2) ? ({value_type})(34 + ({value_type})(index * 2)) :
+                        ((index % 5) == 3) ? ({value_type})(-55 - ({value_type})(index * 3)) :
+                                              ({value_type})(8 + ({value_type})(index * 5)));
 }}
 
-static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed) {{
+static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed,
+                    int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   {value_type} *cmp_lhs = ({value_type} *)malloc(sizeof({value_type}) * alloc_n);
@@ -18048,8 +18063,8 @@ static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed) {{
   size_t active_negative = 0;
   size_t inactive_nonzero = 0;
   for (size_t index = 0; index < alloc_n; ++index) {{
-    cmp_lhs[index] = make_cmp_lhs_value(index);
-    src[index] = make_src_value(index);
+    cmp_lhs[index] = make_cmp_lhs_value(index, pattern);
+    src[index] = make_src_value(index, pattern);
     if (index < n) {{
       int active = {active_expression};
       if (active) {{
@@ -18074,18 +18089,18 @@ static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed) {{
 
   if (out[0] != expected) {{
     fprintf(stderr,
-            "{expectation.kind} mismatch n=%zu rhs_scalar=%lld seed=%lld got=%lld expected=%lld active_lanes=%zu inactive_lanes=%zu\\n",
+            "{expectation.kind} mismatch n=%zu rhs_scalar=%lld seed=%lld pattern=%d got=%lld expected=%lld active_lanes=%zu inactive_lanes=%zu\\n",
             n, printable_value(rhs_scalar), printable_value(seed),
-            printable_value(out[0]), printable_value(expected), active_lanes,
-            inactive_lanes);
+            pattern, printable_value(out[0]), printable_value(expected),
+            active_lanes, inactive_lanes);
     free(cmp_lhs);
     free(src);
     return 12;
   }}
   if (acc[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} mutated seed input n=%zu rhs_scalar=%lld got=%lld expected=%lld\\n",
-            n, printable_value(rhs_scalar), printable_value(acc[0]),
+            "{expectation.kind} mutated seed input n=%zu rhs_scalar=%lld pattern=%d got=%lld expected=%lld\\n",
+            n, printable_value(rhs_scalar), pattern, printable_value(acc[0]),
             printable_value(seed));
     free(cmp_lhs);
     free(src);
@@ -18102,26 +18117,38 @@ static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed) {{
       return 14;
     }}
   }}
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    {value_type} expected_src = make_src_value(index, pattern);
+    if (src[index] != expected_src) {{
+      fprintf(stderr,
+              "{expectation.kind} mutated source input n=%zu rhs_scalar=%lld seed=%lld pattern=%d index=%zu got=%lld expected=%lld\\n",
+              n, printable_value(rhs_scalar), printable_value(seed), pattern,
+              index, printable_value(src[index]), printable_value(expected_src));
+      free(cmp_lhs);
+      free(src);
+      return 18;
+    }}
+  }}
   if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar=%lld active_lanes=%zu inactive_lanes=%zu\\n",
-            n, printable_value(rhs_scalar), active_lanes, inactive_lanes);
+            "{expectation.kind} runtime scalar mask coverage missing n=%zu rhs_scalar=%lld pattern=%d active_lanes=%zu inactive_lanes=%zu\\n",
+            n, printable_value(rhs_scalar), pattern, active_lanes, inactive_lanes);
     free(cmp_lhs);
     free(src);
     return 15;
   }}
   if (n > 1 && (active_positive == 0 || active_negative == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} payload-sign coverage missing n=%zu rhs_scalar=%lld active_positive=%zu active_negative=%zu\\n",
-            n, printable_value(rhs_scalar), active_positive, active_negative);
+            "{expectation.kind} payload-sign coverage missing n=%zu rhs_scalar=%lld pattern=%d active_positive=%zu active_negative=%zu\\n",
+            n, printable_value(rhs_scalar), pattern, active_positive, active_negative);
     free(cmp_lhs);
     free(src);
     return 16;
   }}
   if (n > 1 && inactive_nonzero == 0) {{
     fprintf(stderr,
-            "{expectation.kind} inactive exclusion coverage missing n=%zu rhs_scalar=%lld\\n",
-            n, printable_value(rhs_scalar));
+            "{expectation.kind} inactive exclusion coverage missing n=%zu rhs_scalar=%lld pattern=%d\\n",
+            n, printable_value(rhs_scalar), pattern);
     free(cmp_lhs);
     free(src);
     return 17;
@@ -18129,14 +18156,10 @@ static int run_case(size_t n, {value_type} rhs_scalar, {value_type} seed) {{
 
   free(cmp_lhs);
   free(src);
-  printf("{expectation.kind} case n=%zu rhs_scalar=%lld seed=%lld ok runtime_scalar_computed_mask_standalone_reduce scalar_out=%lld active_lanes=%zu inactive_lanes=%zu active_positive=%zu active_negative=%zu inactive_nonzero=%zu tail_preserved\\n",
-         n, printable_value(rhs_scalar), printable_value(seed),
-         printable_value(out[0]), active_lanes, inactive_lanes,
-         active_positive, active_negative, inactive_nonzero);
   return 0;
 }}
 
-static int run_all_inactive_case(size_t n, {value_type} seed) {{
+static int run_all_inactive_case(size_t n, {value_type} seed, int pattern) {{
   size_t alloc_n = n == 0 ? 1 : n;
   {value_type} *cmp_lhs = ({value_type} *)malloc(sizeof({value_type}) * alloc_n);
   {value_type} *src = ({value_type} *)malloc(sizeof({value_type}) * alloc_n);
@@ -18152,7 +18175,7 @@ static int run_all_inactive_case(size_t n, {value_type} seed) {{
   }}
   for (size_t index = 0; index < alloc_n; ++index) {{
     cmp_lhs[index] = ({value_type})(1000 + ({value_type})index);
-    src[index] = make_src_value(index);
+    src[index] = make_src_value(index, pattern);
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
@@ -18162,8 +18185,8 @@ static int run_all_inactive_case(size_t n, {value_type} seed) {{
 
   if (out[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} all-inactive mismatch n=%zu seed=%lld got=%lld expected=%lld\\n",
-            n, printable_value(seed), printable_value(out[0]),
+            "{expectation.kind} all-inactive mismatch n=%zu seed=%lld pattern=%d got=%lld expected=%lld\\n",
+            n, printable_value(seed), pattern, printable_value(out[0]),
             printable_value(seed));
     free(cmp_lhs);
     free(src);
@@ -18171,8 +18194,8 @@ static int run_all_inactive_case(size_t n, {value_type} seed) {{
   }}
   if (acc[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} all-inactive mutated seed n=%zu got=%lld expected=%lld\\n",
-            n, printable_value(acc[0]), printable_value(seed));
+            "{expectation.kind} all-inactive mutated seed n=%zu pattern=%d got=%lld expected=%lld\\n",
+            n, pattern, printable_value(acc[0]), printable_value(seed));
     free(cmp_lhs);
     free(src);
     return 23;
@@ -18191,8 +18214,6 @@ static int run_all_inactive_case(size_t n, {value_type} seed) {{
 
   free(cmp_lhs);
   free(src);
-  printf("{expectation.kind} all_inactive_mask case n=%zu seed=%lld ok scalar_out=%lld tail_preserved\\n",
-         n, printable_value(seed), printable_value(seed));
   return 0;
 }}
 
@@ -18200,24 +18221,32 @@ int main(void) {{
   const size_t counts[] = {{{counts}}};
   const {value_type} rhs_scalar_values[] = {{{scalar_values_literal}}};
   const {value_type} seeds[] = {{({value_type})-11, ({value_type})17}};
+  const int patterns[] = {{0, 1}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
   const size_t seed_count = sizeof(seeds) / sizeof(seeds[0]);
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
   for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
     for (size_t seed_index = 0; seed_index < seed_count; ++seed_index) {{
-      for (size_t count_index = 0; count_index < count_count; ++count_index) {{
-        int status = run_case(counts[count_index], rhs_scalar_values[scalar_index],
-                              seeds[seed_index]);
-        if (status != 0)
-          return status;
-        status = run_all_inactive_case(counts[count_index], seeds[seed_index]);
-        if (status != 0)
-          return status;
+      for (size_t pattern_index = 0; pattern_index < pattern_count;
+           ++pattern_index) {{
+        for (size_t count_index = 0; count_index < count_count; ++count_index) {{
+          int status = run_case(counts[count_index],
+                                rhs_scalar_values[scalar_index],
+                                seeds[seed_index], patterns[pattern_index]);
+          if (status != 0)
+            return status;
+          status = run_all_inactive_case(counts[count_index],
+                                         seeds[seed_index],
+                                         patterns[pattern_index]);
+          if (status != 0)
+            return status;
+        }}
       }}
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} seeds=-11,17\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} seeds=-11,17\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} seeds=-11,17 patterns=0,1 runtime_scalar_computed_mask_standalone_reduce source_preserved tail_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} seeds=-11,17 patterns=0,1 runtime_scalar_computed_mask_standalone_reduce source_preserved tail_preserved\\n");
   return 0;
 }}
 """.lstrip()
@@ -24129,6 +24158,12 @@ def run_one_op_e2e(
                 "contract before the horizontal reduction even when their "
                 "payload values are nonzero"
             )
+            evidence["harness"]["source_pattern_contract"] = (
+                "two compare/source input patterns, two runtime scalar "
+                "threshold values, and two scalar seeds prove active-lane "
+                "source contribution, source preservation, seed preservation, "
+                "and multi-VL runtime n behavior"
+            )
             evidence["harness"]["scalar_result_contract"] = (
                 "only out[0] is written and non-scalar output slots preserve "
                 "sentinels"
@@ -25773,11 +25808,18 @@ def run_self_test() -> int:
                 or "inactive_lanes" not in harness
                 or "inactive_nonzero" not in harness
                 or "acc[0] != seed" not in harness
+                or "make_cmp_lhs_value(size_t index, int pattern)" not in harness
+                or "make_src_value(size_t index, int pattern)" not in harness
+                or "run_case(counts[count_index]" not in harness
+                or "patterns[pattern_index]" not in harness
+                or "source_preserved" not in harness
+                or "patterns=0,1" not in harness
             ):
                 raise AssertionError(
                     "self-test harness generation lost runtime scalar "
                     "computed-mask standalone reduction threshold, inactive "
-                    "exclusion, or scalar seed coverage"
+                    "exclusion, scalar seed, pattern, or source preservation "
+                    "coverage"
                 )
             if expectation.is_computed_mask_standalone_reduce and (
                 "active_lanes" not in harness
