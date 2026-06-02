@@ -417,3 +417,34 @@ Checks:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 395: Stage2 RVV widen i32-to-i64 conversion artifact ABI boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV widen i32-to-i64 conversion artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Added provider-owned widening conversion facts, rewired target validation to consume them, verified generated bundle dry-run and real ssh rvv correctness for widen_i32_to_i64.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

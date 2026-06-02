@@ -427,6 +427,38 @@ std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
 getRVVRuntimeScalarComputedMaskMAccRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+struct RVVWideningConversionRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeOpName;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef conversionRelation;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef conversionIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vlCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef resultName;
+  std::string routeOperandBindingSummary;
+};
+
+std::optional<RVVWideningConversionRouteFacts>
+getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
+
 struct RVVWideningMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

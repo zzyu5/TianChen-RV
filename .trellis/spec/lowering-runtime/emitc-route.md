@@ -391,6 +391,89 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact/evidence mirrors match exactly
 ```
 
+### Widening Conversion Fact Surface
+
+For selected-body widening conversion routes, provider/target shared constants
+must use the provider-owned surface:
+
+```c++
+struct RVVWideningConversionRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeOpName;
+  std::int64_t sourceSEW;
+  llvm::StringRef sourceLMUL;
+  std::int64_t resultSEW;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef conversionRelation;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef conversionIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vlCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef resultName;
+  std::string routeOperandBindingSummary;
+};
+
+std::optional<RVVWideningConversionRouteFacts>
+getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
+```
+
+The accessor is the canonical provider-owned fact surface for
+`widen_i32_to_i64` and `widen_i16_to_i32`. `widen_i32_to_i64` facts must include
+runtime ABI order `lhs,out,n`, source `i32/m1`, result `i64/m2`, conversion
+relation `signed-i32m1-to-i64m2`, typed compute op
+`tcrv_rvv.widening_convert`, unit-stride conversion memory form, route family
+plan, route operand binding plan/summary, required headers, C type mapping,
+target leaf profile, and explicit `provider_supported_mirror`.
+
+Provider route-family plan derivation may use typed body/config/runtime facts
+to select the operation, but every shared constant above must be copied from
+`getRVVWideningConversionRouteFacts(...)` or validated against it. Target
+artifact validation must consume this same accessor and reject stale local
+copies of source/result SEW-LMUL, conversion relation, header/type mapping,
+target profile, provider mirror, route-family plan, or operand binding summary
+before accepting a bundle.
+
+Good:
+
+```text
+typed widen_i32_to_i64 body/config/runtime facts
+  -> getRVVWideningConversionRouteFacts(WidenI32ToI64)
+  -> widening conversion route-family plan
+  -> provider-built TCRVEmitCLowerableRoute
+  -> target validator consumes the same accessor
+```
+
+Bad:
+
+```text
+target validator local table says source=i32/m1 result=i64/m2
+  -> accepts artifact while provider fact accessor is missing or stale
+```
+
+Required tests:
+
+- C++ target/provider tests must fail closed for stale provider mirror, target
+  leaf/profile, source/result SEW-LMUL, conversion relation, route-family plan,
+  route operand binding plan/summary, and stale non-conversion route-family
+  mirrors.
+- Generated-bundle dry-run must expose provider-derived conversion facts and
+  mirror fields.
+- Runtime RVV correctness claims still require real `ssh rvv` execution after
+  provider and target validators accept the route.
+
 ## RVV Rules
 
 An RVV lowerable route is valid only when:

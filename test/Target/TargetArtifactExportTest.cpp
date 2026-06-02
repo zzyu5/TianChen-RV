@@ -6851,6 +6851,65 @@ bool expectRVVTargetArtifactExporterShape(
                 mutatedContext),
         mutationContext, fragments);
   };
+  auto expectWideningI32ProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{widenI32Fixture.candidate,
+                                             widenI32Route, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleWidenI32ProviderMirror = widenI32Description;
+  staleWidenI32ProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-widen-i32-to-i64";
+  if (!expectWideningI32ProviderFailure(
+          staleWidenI32ProviderMirror,
+          "widen_i32_to_i64 registry rejects stale provider mirror",
+          {"provider-owned support", "widen_i32_to_i64",
+           "metadata-only-widen-i32-to-i64"}))
+    return false;
+
+  RVVRouteDescription staleWidenI32SourcePolicy = widenI32Description;
+  staleWidenI32SourcePolicy.sourceLMUL = "mf2";
+  if (!expectWideningI32ProviderFailure(
+          staleWidenI32SourcePolicy,
+          "widen_i32_to_i64 registry rejects stale source SEW/LMUL policy",
+          {"source/result dtype policy", "widen_i32_to_i64",
+           "source LMUL 'mf2'"}))
+    return false;
+
+  RVVRouteDescription staleWidenI32DestinationPolicy = widenI32Description;
+  staleWidenI32DestinationPolicy.lmul = "m1";
+  if (!expectWideningI32ProviderFailure(
+          staleWidenI32DestinationPolicy,
+          "widen_i32_to_i64 registry rejects stale destination SEW/LMUL "
+          "policy",
+          {"source/result dtype policy", "widen_i32_to_i64",
+           "result LMUL 'm1'"}))
+    return false;
+
+  RVVRouteDescription staleWidenI32TargetProfile = widenI32Description;
+  staleWidenI32TargetProfile.targetLeafProfile =
+      "metadata-derived-target-profile";
+  if (!expectWideningI32ProviderFailure(
+          staleWidenI32TargetProfile,
+          "widen_i32_to_i64 registry rejects stale target leaf profile",
+          {"target leaf facts", "widen_i32_to_i64",
+           "metadata-derived-target-profile"}))
+    return false;
+
+  RVVRouteDescription staleWidenI32BindingSummary = widenI32Description;
+  staleWidenI32BindingSummary.routeOperandBindingSummary =
+      "metadata-derived-binding-summary";
+  if (!expectWideningI32ProviderFailure(
+          staleWidenI32BindingSummary,
+          "widen_i32_to_i64 registry rejects stale binding summary",
+          {"binding summary", "widen_i32_to_i64",
+           "metadata-derived-binding-summary"}))
+    return false;
 
   RVVRouteDescription staleWideningConversionProvider =
       widenI16Description;

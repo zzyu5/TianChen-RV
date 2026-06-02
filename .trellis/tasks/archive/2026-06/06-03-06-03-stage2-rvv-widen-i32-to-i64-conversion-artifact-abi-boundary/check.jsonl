@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification against global RVV-first Stage 2 authority and no legacy i32/source-front-door route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization/provider ownership, widening conversion preflight, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider operand binding, header/type summaries, and provider fact surfaces are consumed as mirrors after provider route construction."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check conversion/SEW generated-bundle dry-run and ssh rvv runtime correctness requirements."}
+{"command": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "reason": "Rebuild changed RVV provider/target validation code and generated MLIR/TableGen dependencies."}
+{"command": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Validate RVV provider/route-family behavior and fail-closed diagnostics."}
+{"command": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Validate target artifact route-family registry behavior and fail-closed diagnostics."}
+{"command": "targeted lit/FileCheck for widen-i32-to-i64 fixtures", "reason": "Verify selected-body realization, provider-derived emission-plan mirrors, header artifact output, and dry-run evidence."}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "reason": "Verify script-side evidence parsing and harness templates after generated-bundle updates."}
+{"command": "python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --ssh-target rvv --op-kind widen_i32_to_i64 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj llvm-readobj-20", "reason": "Real ssh rvv generated-bundle correctness over required counts and signed input patterns."}
+{"command": "git diff --check", "reason": "Whitespace and patch hygiene."}
+{"command": "bounded old-authority scan over touched files", "reason": "No new RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, exact __riscv_*_i32m1, descriptor/direct-C/source-export/source-front-door authority introduced."}

@@ -9513,77 +9513,26 @@ llvm::Error validateRVVConversionDtypePolicyRuntimeABIFacts(
 
 llvm::Error validateRVVConversionDtypePolicyTypedFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.wideningConversionRouteFamilyPlanID !=
-      "rvv-widening-conversion-route-family-plan.v1")
-    return makeRVVTargetRouteError(
-        llvm::Twine("widening conversion dtype-policy target artifact "
-                    "consumer requires provider-owned widening conversion "
-                    "route-family plan "
-                    "'rvv-widening-conversion-route-family-plan.v1' but was "
-                    "'") +
-        description.wideningConversionRouteFamilyPlanID + "'");
-  if (description.typedComputeOpName != "tcrv_rvv.widening_convert")
-    return makeRVVTargetRouteError(
-        "widening conversion dtype-policy target artifact consumer requires "
-        "selected typed tcrv_rvv.widening_convert body before artifact export");
-
-  struct ExpectedConversionFacts {
-    plugin::rvv::RVVSelectedBodyOperationKind operation;
-    std::int64_t sourceSEW;
-    llvm::StringRef sourceLMUL;
-    llvm::StringRef sourceVectorTypeName;
-    llvm::StringRef sourceVectorCType;
-    std::int64_t resultSEW;
-    llvm::StringRef resultLMUL;
-    llvm::StringRef resultVectorTypeName;
-    llvm::StringRef resultVectorCType;
-    llvm::StringRef conversionRelation;
-    llvm::StringRef cTypeMappingSummary;
-    llvm::StringRef providerSupportedMirror;
-    llvm::StringRef targetLeafProfile;
-  };
-  const ExpectedConversionFacts widenI32ToI64 = {
-      plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64,
-      32,
-      "m1",
-      "!tcrv_rvv.vector<i32, \"m1\">",
-      "vint32m1_t",
-      64,
-      "m2",
-      "!tcrv_rvv.vector<i64, \"m2\">",
-      "vint64m2_t",
-      "signed-i32m1-to-i64m2",
-      "vl:size_t,source:signed-e32m1,result:signed-e64m2",
-      "provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated",
-      "rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1"};
-  const ExpectedConversionFacts widenI16ToI32 = {
-      plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32,
-      16,
-      "mf2",
-      "!tcrv_rvv.vector<i16, \"mf2\">",
-      "vint16mf2_t",
-      32,
-      "m1",
-      "!tcrv_rvv.vector<i32, \"m1\">",
-      "vint32m1_t",
-      "signed-i16mf2-to-i32m1",
-      "vl:size_t,source:signed-e16mf2,result:signed-e32m1",
-      "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated",
-      "rvv-v1-i16mf2-i32m1-widening-conversion-leaf-profile.v1"};
-
-  const ExpectedConversionFacts *expected = nullptr;
-  switch (description.operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64:
-    expected = &widenI32ToI64;
-    break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32:
-    expected = &widenI16ToI32;
-    break;
-  default:
+  std::optional<plugin::rvv::RVVWideningConversionRouteFacts> expected =
+      plugin::rvv::getRVVWideningConversionRouteFacts(description.operation);
+  if (!expected)
     return makeRVVTargetRouteError(
         "widening conversion dtype-policy target artifact consumer rejects "
         "non-widening-conversion operation kinds");
-  }
+
+  if (description.wideningConversionRouteFamilyPlanID !=
+      expected->routeFamilyPlanID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening conversion dtype-policy target artifact "
+                    "consumer requires provider-owned widening conversion "
+                    "route-family plan '") +
+        expected->routeFamilyPlanID + "' but was '" +
+        description.wideningConversionRouteFamilyPlanID + "'");
+  if (description.typedComputeOpName != expected->typedComputeOpName)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening conversion dtype-policy target artifact "
+                    "consumer requires selected typed ") +
+        expected->typedComputeOpName + " body before artifact export");
 
   if (description.sourceSEW != expected->sourceSEW ||
       description.sourceLMUL != expected->sourceLMUL ||
@@ -9610,16 +9559,40 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
 
   if (description.cTypeMappingSummary != expected->cTypeMappingSummary ||
       description.providerSupportedMirror != expected->providerSupportedMirror ||
-      description.targetLeafProfile != expected->targetLeafProfile)
+      description.targetLeafProfile != expected->targetLeafProfile ||
+      description.requiredHeaderDeclarations !=
+          expected->requiredHeaderDeclarations ||
+      description.routeOperandBindingPlanID !=
+          expected->routeOperandBindingPlanID ||
+      description.routeOperandBindingSummary !=
+          expected->routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine("widening conversion dtype-policy target artifact "
-                    "consumer requires provider-owned support, C type, and "
-                    "target leaf facts for '") +
+                    "consumer requires provider-owned support, header, C type, "
+                    "binding, and target leaf facts for '") +
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
             expected->operation) +
         "' but saw support '" + description.providerSupportedMirror +
+        "', header declarations '" + description.requiredHeaderDeclarations +
         "', C type mapping '" + description.cTypeMappingSummary +
+        "', binding plan '" + description.routeOperandBindingPlanID +
+        "', binding summary '" + description.routeOperandBindingSummary +
         "', and target leaf profile '" + description.targetLeafProfile + "'");
+
+  if (description.vlCType != expected->vlCType ||
+      description.sourceVectorLoadIntrinsic !=
+          expected->sourceVectorLoadIntrinsic ||
+      description.setVLIntrinsic != expected->setVLIntrinsic ||
+      description.intrinsic != expected->conversionIntrinsic ||
+      description.storeIntrinsic != expected->storeIntrinsic ||
+      description.resultName != expected->resultName)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening conversion dtype-policy target artifact "
+                    "consumer requires provider-owned setvl, source-load, "
+                    "conversion, store, VL, and result-name facts for '") +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            expected->operation) +
+        "' before artifact export");
 
   return llvm::Error::success();
 }
