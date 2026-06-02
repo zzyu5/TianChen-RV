@@ -8790,6 +8790,45 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-only-segment2-store"}))
     return false;
 
+  RVVRouteDescription staleStoreHeaderBinding =
+      computedMaskSegment2StoreDescription;
+  staleStoreHeaderBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+      "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem;"
+      "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem;"
+      "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
+  if (!expectSegment2ProviderFailure(
+          computedMaskSegment2StoreFixture, computedMaskSegment2StoreRoute,
+          staleStoreHeaderBinding,
+          "computed-mask segment2 store validator rejects stale ABI/header "
+          "binding markers",
+          {"route operand binding summary",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
+    return false;
+
+  TargetArtifactCandidate staleStoreBindingMirror =
+      computedMaskSegment2StoreFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleStoreBindingMirror, "tcrv_rvv.route_operand_binding_operands",
+          staleStoreHeaderBinding.routeOperandBindingSummary)) {
+    llvm::errs() << "computed-mask segment2 store fixture did not contain "
+                    "route operand binding metadata\n";
+    return false;
+  }
+  if (!expectSegment2CandidateFailure(
+          computedMaskSegment2StoreRoute, computedMaskSegment2StoreDescription,
+          staleStoreBindingMirror,
+          "computed-mask segment2 store validator rejects stale binding "
+          "mirror without exported header markers",
+          {"route_operand_binding_operands",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
+    return false;
+
   TargetArtifactCandidate wrongStoreBindingMirror =
       computedMaskSegment2StoreFixture.candidate;
   if (!rewriteArtifactMetadataValue(wrongStoreBindingMirror,

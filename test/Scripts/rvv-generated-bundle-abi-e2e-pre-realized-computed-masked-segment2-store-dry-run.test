@@ -34,6 +34,8 @@
 # CMSEG-DAG: "value": "cmp_lhs,cmp_rhs,src0,src1,dst,n"
 # CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1"
+# CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem|hdr;src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem|hdr;dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # CMSEG-DAG: "key": "tcrv_rvv.segment_memory_layout"
 # CMSEG-DAG: "value": "unit-stride-compare-field-payloads-segment2-masked-destination-runtime-abi"
 # CMSEG-DAG: "key": "tcrv_rvv.mask_source"
@@ -54,4 +56,4 @@
 # HARNESS: computed_mask segment2_store
 # HARNESS: field_distinguishing_lanes
 # HARNESS: source_preserved tail_preserved
-# HARNESS: PASS op=computed_masked_segment2_store_unit_load counts=0,1,7,16,23,257
+# HARNESS: PASS op=computed_masked_segment2_store_unit_load counts=0,1,7,16,23,257 patterns=0,1

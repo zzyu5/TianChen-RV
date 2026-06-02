@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 boundaries, and descriptor/source-front-door red lines"}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin classification and pre-development checklist"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned realization/provider, and fail-closed route authority contract"}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime pre-development checklist for common EmitC route work"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider operand-binding summary, hdr marker, common EmitC neutrality, and target artifact handoff contract"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing checklist for MLIR, target artifact, script, and ssh rvv evidence"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, mask/tail, and runtime evidence contracts"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared routing guide for RVV route, lowering, artifact, and test work"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and typed-body authority review"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality and common/core neutrality review"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary review for selected typed RVV body work"}

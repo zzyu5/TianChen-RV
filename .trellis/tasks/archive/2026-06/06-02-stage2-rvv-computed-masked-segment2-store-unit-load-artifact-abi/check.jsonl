@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global RVV-first authority chain and Stage 2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check against RVV plugin-local realization/provider ownership"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check against provider operand-binding, hdr marker, and common EmitC neutrality contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check against focused lit/C++/script and ssh rvv evidence requirements"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Final capability/typed-body authority check"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final plugin-locality and common/core neutrality check"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Final compute-boundary check"}

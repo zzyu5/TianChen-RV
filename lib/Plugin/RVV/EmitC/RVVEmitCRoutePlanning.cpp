@@ -23812,6 +23812,16 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               isUpdate ? "computed_masked_segment2_update_unit_load"
                        : "computed_masked_segment2_store_unit_load"))
         return std::move(error);
+      if (!isUpdate) {
+        if (llvm::Error error = requireOperandUse(
+                "cmp_lhs", "hdr",
+                "computed_masked_segment2_store compare lhs header"))
+          return std::move(error);
+        if (llvm::Error error = requireOperandUse(
+                "cmp_rhs", "hdr",
+                "computed_masked_segment2_store compare rhs header"))
+          return std::move(error);
+      }
       if (llvm::Error error =
               bindOperand(facts.field0ABI, "src0", "f0-load",
                           "computed_masked_segment2_store field0 payload"))
@@ -23839,6 +23849,11 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               requireOperandUse("src0", "src0-mem",
                                 "computed_masked_segment2_store src0 memory"))
         return std::move(error);
+      if (!isUpdate)
+        if (llvm::Error error = requireOperandUse(
+                "src0", "hdr",
+                "computed_masked_segment2_store src0 header"))
+          return std::move(error);
       if (llvm::Error error =
               bindOperand(facts.field1ABI, "src1", "f1-load",
                           "computed_masked_segment2_store field1 payload"))
@@ -23866,6 +23881,11 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               requireOperandUse("src1", "src1-mem",
                                 "computed_masked_segment2_store src1 memory"))
         return std::move(error);
+      if (!isUpdate)
+        if (llvm::Error error = requireOperandUse(
+                "src1", "hdr",
+                "computed_masked_segment2_store src1 header"))
+          return std::move(error);
       if (llvm::Error error =
               bindOperand(facts.destinationABI, "dst", "mseg-store",
                           "computed_masked_segment2_store destination"))

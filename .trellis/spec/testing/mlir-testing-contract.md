@@ -88,6 +88,14 @@ lanes when applicable) with sentinels and fail if the generated route writes
 outside the runtime element count. These sentinel checks are evidence quality
 guards only; they do not become route, dtype, or artifact authority.
 
+For multi-pattern generated-bundle harnesses, the pattern dimension is part of
+the evidence surface. If `run_case` accepts a pattern argument, `main` must
+iterate every required pattern, pass the pattern into `run_case`, and print the
+pattern set in the final success marker, such as `patterns=0,1`. Dry-run
+FileCheck and script self-tests must check that pattern loop shape, so a
+single-count call such as `run_case(counts[index])` cannot pass local dry-run
+while failing real `ssh rvv` compilation.
+
 ## Mask/Tail Policy Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

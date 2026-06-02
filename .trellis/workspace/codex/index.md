@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-20.md`
-- **Total Sessions**: 377
+- **Total Sessions**: 380
 - **Last Active**: 2026-06-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-20.md` | ~1149 | Active |
+| `journal-20.md` | ~1303 | Active |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
@@ -48,6 +48,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 380 | 2026-06-02 | Stage2 RVV computed-masked segment2 store artifact ABI | HEAD | `main` |
 | 377 | 2026-06-02 | Stage2 RVV segment2 deinterleave artifact ABI | `HEAD` | `main` |
 | 376 | 2026-06-02 | Stage2 RVV computed-masked indexed scatter store ABI | - | `main` |
 | 375 | 2026-06-02 | Stage2 RVV computed-mask indexed gather artifact ABI | pending-final-commit | `main` |

@@ -9350,10 +9350,10 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRouteOperandPlan(
     "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRouteOperandSummary(
     "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
-    "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem;"
-    "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+    "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem|hdr;"
+    "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem|hdr;"
     "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRouteOperandPlan(
