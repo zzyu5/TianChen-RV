@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification against global RVV-first Stage 2 authority and no legacy i32/source-front-door route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization/provider ownership and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider operand binding and header/type summaries are consumed as mirrors after provider route construction."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check computed-mask MAcc evidence, generated-bundle dry-run, and ssh rvv runtime correctness requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check target capability/profile facts are explicit validation inputs, not route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin-locality and Common EmitC neutrality after implementation."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute/front-door path or descriptor/direct-C fallback was added."}

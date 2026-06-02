@@ -257,6 +257,109 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact metadata mirrors the provider summary exactly
 ```
 
+## RVV Route-Family Fact Surface Contract
+
+### 1. Scope / Trigger
+
+When an RVV route family is consumed by both the RVV provider and target
+artifact validation, operation-specific constants must live behind a
+provider-owned fact surface rather than being independently reconstructed in
+target code. This applies to combined routes such as computed-mask MAcc where
+ABI order, compare operands, mask source, accumulator passthrough, headers,
+types, and binding summaries must stay identical across provider planning,
+route construction, target validation, and generated-bundle evidence.
+
+### 2. Signatures
+
+The concrete C++ shape is a small provider-owned facts struct plus accessor:
+
+```c++
+struct RVV<RouteFamily>RouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  // Route-family fields: typed op, predicate, mask, layout, intrinsic,
+  // accumulator/result contracts, stride/index/segment facts, etc.
+};
+
+std::optional<RVV<RouteFamily>RouteFacts>
+getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation);
+```
+
+### 3. Contracts
+
+- The accessor is implemented in the RVV plugin/provider layer and is derived
+  from the same typed body/config/runtime authority used to build the route.
+- Provider plan validation must fail closed when a supported operation cannot
+  obtain its canonical facts from the accessor.
+- Target artifact validation may consume the accessor, but must not define its
+  own duplicate source of route-family truth for the same fields.
+- Candidate artifact metadata mirrors the provider facts only after provider
+  route construction; mirror fields remain non-authoritative.
+- A runtime-scalar variant and a vector/vector variant of the same route class
+  should each have explicit facts when their ABI roles, predicates, or mask
+  producer sources differ.
+
+### 4. Validation & Error Matrix
+
+- Missing provider fact accessor result for a supported operation -> provider
+  and target validators fail before artifact export.
+- Target-local constant disagrees with provider fact -> remove the target-local
+  constant and validate against the provider fact.
+- Candidate mirror carries stale runtime-scalar facts for a vector/vector
+  route, or stale vector facts for a runtime-scalar route -> fail before
+  bundle acceptance.
+- Binding summary, ABI order, predicate, mask source, layout, header, or type
+  mapping differs from the provider facts -> fail before target artifact
+  acceptance.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `computed_masked_macc_add` gets canonical facts for
+  `cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n`, `slt`, vector compare mask source,
+  accumulator passthrough, binding summary, headers, and C type mapping; both
+  provider and target validation consume those facts.
+- Base: a route family with only one consumer may keep local constants until
+  those facts are shared across provider, target, scripts, or evidence.
+- Bad: target validation defines its own `computed_masked_macc_add` ABI order
+  and binding summary while the provider owns another copy.
+
+### 6. Tests Required
+
+- MLIR/FileCheck or direct pipeline tests must mutate candidate mirrors for
+  stale provider facts, binding summaries, ABI order, predicate, mask source,
+  accumulator/result layout, headers, and types.
+- C++ target tests should cover non-textual validator behavior when practical.
+- Generated-bundle dry-run must expose representative route facts and mirror
+  fields in evidence JSON.
+- RVV runtime claims still require real `ssh rvv` execution after provider and
+  target validation accept the route.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider constants say cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n
+target constants independently say cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n
+```
+
+Correct:
+
+```text
+typed tcrv_rvv body/config/runtime facts
+  -> RVV provider fact accessor
+  -> provider plan and TCRVEmitCLowerableRoute
+  -> target validator consumes the same fact surface
+  -> artifact/evidence mirrors match exactly
+```
+
 ## RVV Rules
 
 An RVV lowerable route is valid only when:

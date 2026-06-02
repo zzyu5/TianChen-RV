@@ -1021,13 +1021,69 @@ getExpectedRVVSelectedBodyMAccRuntimeABIOrder(
     return kRVVMAccRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
     return kRVVScalarBroadcastMAccRuntimeABIOrder;
-  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
-    return kRVVComputedMaskedMAccRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd: {
+    std::optional<RVVComputedMaskMAccRouteFacts> routeFacts =
+        getRVVComputedMaskMAccRouteFacts(operation);
+    return routeFacts ? routeFacts->runtimeABIOrder : llvm::StringRef();
+  }
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
     return kRVVRuntimeScalarComputedMaskedMAccRuntimeABIOrder;
   default:
     return std::nullopt;
   }
+}
+
+std::optional<RVVComputedMaskMAccRouteFacts>
+getRVVComputedMaskMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
+  if (operation != RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd)
+    return std::nullopt;
+
+  RVVComputedMaskMAccRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc;
+  facts.runtimeABIOrder = kRVVComputedMaskedMAccRuntimeABIOrder;
+  facts.targetLeafProfile = kRVVComputedMaskedMAccTargetLeafProfile;
+  facts.providerSupportedMirror = kRVVComputedMaskedMAccProviderSupportedMirror;
+  facts.requiredHeaderDeclarations =
+      kRVVComputedMaskedMAccRequiredHeaderDeclarations;
+  facts.cTypeMappingSummary = kRVVComputedMaskedMAccCTypeMappingSummary;
+  facts.routeOperandBindingPlanID =
+      kRVVComputedMaskedMAccOperandBindingPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.masked_macc";
+  facts.comparePredicateKind = "slt";
+  facts.accumulationRouteFamilyPlanID =
+      kRVVComputedMaskAccumulationRouteFamilyPlanID;
+  facts.accumulationComputeSuffix =
+      kRVVComputedMaskAccumulationVectorMAccSuffix;
+  facts.accumulationMaskProducerSource =
+      kRVVComputedMaskAccumulationVectorCompareProducerSource;
+  facts.accumulationAccumulatorContract =
+      kRVVComputedMaskAccumulationMAccAccumulatorContract;
+  facts.accumulationResultContract =
+      kRVVComputedMaskAccumulationMAccResultContract;
+  facts.maskRole = kRVVMaskedPredicateMaskRole;
+  facts.maskSource = kRVVMaskedCompareMaskSource;
+  facts.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  facts.inactiveLaneContract =
+      "masked-macc-false-lanes-preserve-accumulator";
+  facts.maskedPassthroughLayout =
+      "accumulator-vector-preserves-inactive-lanes";
+  facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.destinationMemoryForm = kRVVDestinationMemoryForm;
+  facts.indexedMemoryLayout = kRVVComputedMaskedMAccMemoryLayout;
+  facts.maccAccumulatorLayout = kRVVMAccAccumulatorLayout;
+  facts.maccResultLayout = kRVVMAccResultLayout;
+  facts.routeOperandBindingSummary =
+      (llvm::Twine(kRVVComputedMaskedMAccOperandBindingPlanID) +
+       ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+       "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;"
+       "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+       "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+       "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+       "out=output-buffer:out:abi|store|hdr;"
+       "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+          .str();
+  return facts;
 }
 
 std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
@@ -1612,6 +1668,8 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
       isRuntimeScalarComputedMaskStandaloneReductionOperation(plan.operation);
   const bool isVectorCompareProducer = !isRuntimeScalarProducer;
+  const std::optional<RVVComputedMaskMAccRouteFacts> computedMaskMAccFacts =
+      getRVVComputedMaskMAccRouteFacts(plan.operation);
   const std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
       runtimeScalarMAccFacts =
           getRVVRuntimeScalarComputedMaskMAccRouteFacts(plan.operation);
@@ -1619,6 +1677,12 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan supports only masked "
         "macc or masked standalone reduction consumers");
+  if (plan.operation == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd &&
+      !computedMaskMAccFacts)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires "
+        "provider-owned computed-mask MAcc route facts for "
+        "computed_masked_macc_add");
   if (plan.usesVectorMAccSuffix != isMAcc)
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan requires "
@@ -1637,7 +1701,9 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
         "usesRuntimeScalarProducer to mirror the selected mask producer");
 
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->memoryForm
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->memoryForm
           : isMAcc
                 ? (isRuntimeScalarProducer
@@ -1650,18 +1716,24 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                        : RVVSelectedBodyMemoryForm::
                              ComputedMaskUnitStrideStandaloneReduction);
   llvm::StringRef expectedSuffix =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationComputeSuffix
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationComputeSuffix
           : isMAcc ? kRVVComputedMaskAccumulationVectorMAccSuffix
                    : kRVVComputedMaskAccumulationStandaloneReductionSuffix;
   llvm::StringRef expectedProducerSource =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationMaskProducerSource
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationMaskProducerSource
       : isRuntimeScalarProducer
           ? kRVVComputedMaskAccumulationRuntimeScalarProducerSource
           : kRVVComputedMaskAccumulationVectorCompareProducerSource;
   llvm::StringRef expectedRuntimeABIOrder =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->runtimeABIOrder
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->runtimeABIOrder
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -1672,7 +1744,9 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  ? llvm::StringRef("cmp_lhs,rhs_scalar,src,acc,out,n")
                  : llvm::StringRef("cmp_lhs,cmp_rhs,src,acc,out,n"));
   llvm::StringRef expectedTargetLeafProfile =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->targetLeafProfile
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->targetLeafProfile
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -1682,7 +1756,9 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  ? kRVVRuntimeScalarComputedMaskStandaloneReductionTargetLeafProfile
                  : kRVVComputedMaskStandaloneReductionTargetLeafProfile);
   llvm::StringRef expectedProviderSupportedMirror =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->providerSupportedMirror
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->providerSupportedMirror
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -1692,7 +1768,9 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  ? kRVVRuntimeScalarComputedMaskStandaloneReductionProviderSupportedMirror
                  : kRVVComputedMaskStandaloneReductionProviderSupportedMirror);
   llvm::StringRef expectedHeaderDeclarations =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->requiredHeaderDeclarations
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->requiredHeaderDeclarations
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -1700,7 +1778,9 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  : kRVVComputedMaskedMAccRequiredHeaderDeclarations)
           : kRVVStandaloneReductionRequiredHeaderDeclarations;
   llvm::StringRef expectedCTypeMappingSummary =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->cTypeMappingSummary
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->cTypeMappingSummary
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -1710,41 +1790,55 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  ? kRVVRuntimeScalarComputedMaskStandaloneReductionCTypeMappingSummary
                  : kRVVComputedMaskStandaloneReductionCTypeMappingSummary);
   llvm::StringRef expectedAccumulatorContract =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationAccumulatorContract
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationAccumulatorContract
       : isMAcc ? kRVVComputedMaskAccumulationMAccAccumulatorContract
                : kRVVComputedMaskAccumulationReductionAccumulatorContract;
   llvm::StringRef expectedResultContract =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationResultContract
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationResultContract
       : isMAcc ? kRVVComputedMaskAccumulationMAccResultContract
                : kRVVComputedMaskAccumulationReductionResultContract;
   llvm::StringRef expectedInactiveLaneContract =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->inactiveLaneContract
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->inactiveLaneContract
       : isMAcc
           ? llvm::StringRef("masked-macc-false-lanes-preserve-accumulator")
           : getStandaloneReductionInactiveLaneRequirement(plan.operation);
   llvm::StringRef expectedPassthroughLayout =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->maskedPassthroughLayout
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->maskedPassthroughLayout
           : isMAcc ? llvm::StringRef("accumulator-vector-preserves-inactive-lanes")
                    : llvm::StringRef();
   llvm::StringRef expectedMaskRole =
-      runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskRole
+      computedMaskMAccFacts ? computedMaskMAccFacts->maskRole
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskRole
                              : llvm::StringRef(kRVVMaskedPredicateMaskRole);
   llvm::StringRef expectedMaskSource =
-      runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskSource
+      computedMaskMAccFacts ? computedMaskMAccFacts->maskSource
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskSource
                              : llvm::StringRef(kRVVMaskedCompareMaskSource);
   llvm::StringRef expectedMaskMemoryForm =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->maskMemoryForm
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->maskMemoryForm
           : llvm::StringRef(kRVVComputedMaskMemoryMaskMemoryForm);
   llvm::StringRef expectedSourceMemoryForm =
-      runtimeScalarMAccFacts ? runtimeScalarMAccFacts->sourceMemoryForm
+      computedMaskMAccFacts ? computedMaskMAccFacts->sourceMemoryForm
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->sourceMemoryForm
                              : llvm::StringRef(kRVVUnitStrideSourceMemoryForm);
   llvm::StringRef expectedDestinationMemoryForm =
-      runtimeScalarMAccFacts ? runtimeScalarMAccFacts->destinationMemoryForm
+      computedMaskMAccFacts ? computedMaskMAccFacts->destinationMemoryForm
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->destinationMemoryForm
                              : llvm::StringRef(kRVVDestinationMemoryForm);
   llvm::StringRef expectedScalarCarry =
       isStandaloneReduction
@@ -1752,7 +1846,12 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                 kRVVComputedMaskAccumulationReductionScalarCarryContract)
           : llvm::StringRef();
   llvm::StringRef expectedPredicate =
-      isMAcc && !isRuntimeScalarProducer ? "slt" : "sle";
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->comparePredicateKind
+      : runtimeScalarMAccFacts
+          ? runtimeScalarMAccFacts->comparePredicateKind
+          : (isMAcc && !isRuntimeScalarProducer ? llvm::StringRef("slt")
+                                                : llvm::StringRef("sle"));
   std::optional<std::string> expectedSetVLLeaf =
       deriveMAccSetVLIntrinsic(plan.runtimeControlPlan.sew,
                                plan.runtimeControlPlan.lmul);
@@ -1908,7 +2007,9 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
     return error;
   if (isMAcc) {
     llvm::StringRef expectedMemoryLayout =
-        runtimeScalarMAccFacts
+        computedMaskMAccFacts
+            ? computedMaskMAccFacts->indexedMemoryLayout
+        : runtimeScalarMAccFacts
             ? runtimeScalarMAccFacts->indexedMemoryLayout
         : isRuntimeScalarProducer
             ? llvm::StringRef(kRVVRuntimeScalarComputedMaskedMAccMemoryLayout)
@@ -1921,15 +2022,19 @@ llvm::Error validateRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
     if (llvm::Error error = requireMAccPlanField(
             "computed-mask accumulation", plan.operation,
             "accumulator layout", plan.accumulatorLayout,
-            runtimeScalarMAccFacts
+            computedMaskMAccFacts
+                ? computedMaskMAccFacts->maccAccumulatorLayout
+            : runtimeScalarMAccFacts
                 ? runtimeScalarMAccFacts->maccAccumulatorLayout
                 : llvm::StringRef(kRVVMAccAccumulatorLayout)))
       return error;
     if (llvm::Error error = requireMAccPlanField(
             "computed-mask accumulation", plan.operation, "result layout",
             plan.resultLayout,
-            runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maccResultLayout
-                                   : llvm::StringRef(kRVVMAccResultLayout)))
+            computedMaskMAccFacts
+                ? computedMaskMAccFacts->maccResultLayout
+            : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maccResultLayout
+                                     : llvm::StringRef(kRVVMAccResultLayout)))
       return error;
   } else {
     if (llvm::Error error = requireMAccPlanField(
@@ -1998,11 +2103,21 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
       operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
       isRuntimeScalarComputedMaskStandaloneReductionOperation(operation);
+  const std::optional<RVVComputedMaskMAccRouteFacts> computedMaskMAccFacts =
+      getRVVComputedMaskMAccRouteFacts(operation);
   const std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
       runtimeScalarMAccFacts =
           getRVVRuntimeScalarComputedMaskMAccRouteFacts(operation);
+  if (operation == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd &&
+      !computedMaskMAccFacts)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask accumulation route-family plan requires "
+        "provider-owned computed-mask MAcc route facts for "
+        "computed_masked_macc_add");
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->memoryForm
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->memoryForm
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -2131,8 +2246,13 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
         "computed-mask accumulation route-family plan cannot derive MAcc "
         "leaf from typed operation/SEW/LMUL facts");
   std::optional<std::string> compareIntrinsic = deriveMAccCompareIntrinsic(
-      isMAcc && !isRuntimeScalarProducer ? "slt" : "sle", typedFacts.sew,
-      typedFacts.lmul);
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->comparePredicateKind
+      : runtimeScalarMAccFacts
+          ? runtimeScalarMAccFacts->comparePredicateKind
+          : (isMAcc && !isRuntimeScalarProducer ? llvm::StringRef("slt")
+                                                : llvm::StringRef("sle")),
+      typedFacts.sew, typedFacts.lmul);
   if (!compareIntrinsic)
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route-family plan cannot derive compare "
@@ -2166,19 +2286,25 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   applyMAccTypedConfigSnapshot(plan, typedFacts);
   plan.familyPlanID = kRVVComputedMaskAccumulationRouteFamilyPlanID;
   plan.computeSuffix =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationComputeSuffix
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationComputeSuffix
           : isMAcc ? kRVVComputedMaskAccumulationVectorMAccSuffix
                    : kRVVComputedMaskAccumulationStandaloneReductionSuffix;
   plan.maskProducerSource =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationMaskProducerSource
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationMaskProducerSource
       : isRuntimeScalarProducer
           ? kRVVComputedMaskAccumulationRuntimeScalarProducerSource
           : kRVVComputedMaskAccumulationVectorCompareProducerSource;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->targetLeafProfile
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->targetLeafProfile
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -2188,7 +2314,9 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  ? kRVVRuntimeScalarComputedMaskStandaloneReductionTargetLeafProfile
                  : kRVVComputedMaskStandaloneReductionTargetLeafProfile);
   plan.providerSupportedMirror =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->providerSupportedMirror
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->providerSupportedMirror
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -2201,7 +2329,9 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
   plan.requiredHeaders.push_back("stdint.h");
   plan.requiredHeaders.push_back("riscv_vector.h");
   plan.requiredHeaderDeclarations =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->requiredHeaderDeclarations
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->requiredHeaderDeclarations
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -2209,7 +2339,9 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
                  : kRVVComputedMaskedMAccRequiredHeaderDeclarations)
           : kRVVStandaloneReductionRequiredHeaderDeclarations;
   plan.cTypeMappingSummary =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->cTypeMappingSummary
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->cTypeMappingSummary
       : isMAcc
           ? (isRuntimeScalarProducer
@@ -2237,22 +2369,30 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
       isStandaloneReduction ? internMAccDerivedLeaf(
                                   std::move(*standaloneStoreIntrinsic))
                             : typedFacts.storeIntrinsic;
-  plan.maskRole = runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskRole
+  plan.maskRole = computedMaskMAccFacts ? computedMaskMAccFacts->maskRole
+                  : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskRole
                                          : kRVVMaskedPredicateMaskRole;
-  plan.maskSource = runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskSource
+  plan.maskSource = computedMaskMAccFacts ? computedMaskMAccFacts->maskSource
+                    : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->maskSource
                                            : kRVVMaskedCompareMaskSource;
-  plan.maskMemoryForm = runtimeScalarMAccFacts
+  plan.maskMemoryForm = computedMaskMAccFacts
+                            ? computedMaskMAccFacts->maskMemoryForm
+                        : runtimeScalarMAccFacts
                             ? runtimeScalarMAccFacts->maskMemoryForm
                             : kRVVComputedMaskMemoryMaskMemoryForm;
   plan.sourceMemoryForm =
-      runtimeScalarMAccFacts ? runtimeScalarMAccFacts->sourceMemoryForm
+      computedMaskMAccFacts ? computedMaskMAccFacts->sourceMemoryForm
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->sourceMemoryForm
                              : llvm::StringRef(kRVVUnitStrideSourceMemoryForm);
   plan.destinationMemoryForm =
-      runtimeScalarMAccFacts ? runtimeScalarMAccFacts->destinationMemoryForm
+      computedMaskMAccFacts ? computedMaskMAccFacts->destinationMemoryForm
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->destinationMemoryForm
                              : llvm::StringRef(kRVVDestinationMemoryForm);
   if (isMAcc) {
     plan.indexedMemoryLayout =
-        runtimeScalarMAccFacts
+        computedMaskMAccFacts
+            ? computedMaskMAccFacts->indexedMemoryLayout
+        : runtimeScalarMAccFacts
             ? runtimeScalarMAccFacts->indexedMemoryLayout
             : isRuntimeScalarProducer
                   ? llvm::StringRef(kRVVRuntimeScalarComputedMaskedMAccMemoryLayout)
@@ -2261,23 +2401,31 @@ deriveRVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan(
     plan.resultLayout = analysis.slice.maskedMAccOp.getResultLayout();
   }
   plan.accumulatorContract =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationAccumulatorContract
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationAccumulatorContract
       : isMAcc ? kRVVComputedMaskAccumulationMAccAccumulatorContract
                : kRVVComputedMaskAccumulationReductionAccumulatorContract;
   plan.resultContract =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->accumulationResultContract
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->accumulationResultContract
       : isMAcc ? kRVVComputedMaskAccumulationMAccResultContract
                : kRVVComputedMaskAccumulationReductionResultContract;
   plan.inactiveLaneContract =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->inactiveLaneContract
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->inactiveLaneContract
       : isMAcc
           ? llvm::StringRef("masked-macc-false-lanes-preserve-accumulator")
           : getStandaloneReductionInactiveLaneRequirement(operation);
   plan.maskedPassthroughLayout =
-      runtimeScalarMAccFacts
+      computedMaskMAccFacts
+          ? computedMaskMAccFacts->maskedPassthroughLayout
+      : runtimeScalarMAccFacts
           ? runtimeScalarMAccFacts->maskedPassthroughLayout
           : isMAcc ? llvm::StringRef("accumulator-vector-preserves-inactive-lanes")
                    : llvm::StringRef();
@@ -2359,8 +2507,12 @@ getExpectedRVVSelectedBodyMAccRouteOperandBindingPlanID(
     return kRVVMAccOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
     return kRVVScalarBroadcastMAccOperandBindingPlanID;
-  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
-    return kRVVComputedMaskedMAccOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd: {
+    std::optional<RVVComputedMaskMAccRouteFacts> routeFacts =
+        getRVVComputedMaskMAccRouteFacts(operation);
+    return routeFacts ? routeFacts->routeOperandBindingPlanID
+                      : llvm::StringRef();
+  }
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
     return kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID;
   default:
@@ -2474,8 +2626,14 @@ deriveRVVSelectedBodyMAccRouteOperandBindingPlan(
         {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.arithmeticKind ==
              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
-    plan.planID = kRVVComputedMaskedMAccOperandBindingPlanID.str();
-    expectedRuntimeABIOrder = kRVVComputedMaskedMAccRuntimeABIOrder;
+    std::optional<RVVComputedMaskMAccRouteFacts> routeFacts =
+        getRVVComputedMaskMAccRouteFacts(slice.arithmeticKind);
+    if (!routeFacts)
+      return makeRVVEmitCRouteProviderError(
+          "computed_masked_macc_add route requires provider-owned "
+          "computed-mask MAcc route facts before route operand binding");
+    plan.planID = routeFacts->routeOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = routeFacts->runtimeABIOrder;
     context = "computed_masked_macc_add route";
     addMAccRouteOperandBinding(plan, "cmp_lhs", slice.lhsABI,
                                {"abi", "cmp-lhs", "cmp-call", "hdr"});

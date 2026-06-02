@@ -246,3 +246,34 @@ Validated runtime-scalar computed-mask MAcc add provider facts, target artifact 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 391: Stage2 RVV computed-masked macc-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked macc-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Added provider-owned computed-mask MAcc facts, rewired provider/target validation, tightened generated-bundle checks, and verified ssh rvv correctness for counts 0,1,16,17,257 patterns 0,1.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

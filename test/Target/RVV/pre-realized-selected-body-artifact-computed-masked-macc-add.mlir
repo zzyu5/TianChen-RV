@@ -9,6 +9,12 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-TYPE
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-computed-mask-accumulation-route-family-plan.v1/s//rvv-script-derived-computed-mask-macc-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-ACCUM
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"/s//tcrv_rvv.macc_accumulator_layout", value = "script-derived-accumulator-layout"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-LAYOUT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:computed_masked_macc_add.v1/s//rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-RUNTIME-SCALAR-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.compare_predicate_kind", value = "slt"/s//tcrv_rvv.compare_predicate_kind", value = "sle"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-PREDICATE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"/s//tcrv_rvv.mask_source", value = "runtime-scalar-splat-compare-rhs"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-MASK-SOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.source_memory_form", value = "unit-stride-load"/s//tcrv_rvv.source_memory_form", value = "runtime-scalar-threshold"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-SOURCE-MEMORY
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.masked_passthrough_layout", value = "accumulator-vector-preserves-inactive-lanes"/s//tcrv_rvv.masked_passthrough_layout", value = "drop-inactive-lanes"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-PASSTHROUGH
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"/s//tcrv_rvv.macc_result_layout", value = "store-active-products-only"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MACC-RESULT
 
 // Pre-realized selected-body input for one bounded Stage2 computed-mask
 // multiply-accumulate slice. The RVV plugin must realize compare lhs/rhs,
@@ -157,3 +163,32 @@ module {
 // STALE-MACC-LAYOUT: tcrv_rvv.macc_accumulator_layout
 // STALE-MACC-LAYOUT-SAME: must mirror
 // STALE-MACC-LAYOUT-SAME: script-derived-accumulator-layout
+
+// STALE-MACC-RUNTIME-SCALAR-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-MACC-RUNTIME-SCALAR-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
+// STALE-MACC-RUNTIME-SCALAR-BINDING-SAME: rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1
+
+// STALE-MACC-PREDICATE: RVV materialized EmitC target artifact bridge failed
+// STALE-MACC-PREDICATE: tcrv_rvv.compare_predicate_kind
+// STALE-MACC-PREDICATE-SAME: must mirror
+// STALE-MACC-PREDICATE-SAME: sle
+
+// STALE-MACC-MASK-SOURCE: RVV materialized EmitC target artifact bridge failed
+// STALE-MACC-MASK-SOURCE: tcrv_rvv.mask_source
+// STALE-MACC-MASK-SOURCE-SAME: must mirror
+// STALE-MACC-MASK-SOURCE-SAME: runtime-scalar-splat-compare-rhs
+
+// STALE-MACC-SOURCE-MEMORY: RVV materialized EmitC target artifact bridge failed
+// STALE-MACC-SOURCE-MEMORY: tcrv_rvv.source_memory_form
+// STALE-MACC-SOURCE-MEMORY-SAME: must mirror
+// STALE-MACC-SOURCE-MEMORY-SAME: runtime-scalar-threshold
+
+// STALE-MACC-PASSTHROUGH: RVV materialized EmitC target artifact bridge failed
+// STALE-MACC-PASSTHROUGH: tcrv_rvv.masked_passthrough_layout
+// STALE-MACC-PASSTHROUGH-SAME: must mirror
+// STALE-MACC-PASSTHROUGH-SAME: drop-inactive-lanes
+
+// STALE-MACC-RESULT: RVV materialized EmitC target artifact bridge failed
+// STALE-MACC-RESULT: tcrv_rvv.macc_result_layout
+// STALE-MACC-RESULT-SAME: must mirror
+// STALE-MACC-RESULT-SAME: store-active-products-only

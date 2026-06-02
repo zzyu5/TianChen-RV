@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV Stage 2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body realization, route provider, legality, and fail-closed authority placement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type mirror, and Common EmitC neutrality contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Computed-mask MAcc generated-bundle evidence, runtime ssh rvv requirements, and FileCheck/C++ testing contracts."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts must constrain provider legality instead of defining RVV route semantics."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep computed-mask MAcc logic inside the RVV plugin/provider and target validation boundary."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure the path remains typed low-level tcrv_rvv body realization, not a high-level compute frontend."}
