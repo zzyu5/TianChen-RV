@@ -496,3 +496,54 @@ Implemented scalar_broadcast_add ABI/header binding facts, target validation, fo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 397: Stage2 RVV strided add artifact ABI boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV strided add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Implemented provider-owned strided_add ABI/header binding facts, target validation, generated-bundle evidence, and real ssh rvv correctness.
+
+### Main Changes
+
+- Strengthened strided_add route operand binding summaries so every generated ABI/header participant uses explicit `abi|...|hdr` facts for lhs, rhs, out, n, lhs_stride, rhs_stride, and out_stride.
+- Added target artifact validation for strided_add provider plan prefix, runtime ABI order, and indexed header binding entries before export.
+- Extended generated-bundle strided_add harness/evidence to cover independent runtime stride triples `2:3:2` and `3:2:4`, preserving input gaps, output gaps, and tails.
+- Tightened explicit and pre-realized selected-body fixtures plus dry-run checks for provider-derived memory forms, stride role/source mirrors, provider_supported_mirror, header/type facts, and target validation consumption.
+- Recorded final quality gate in the archived Trellis task; no spec update was needed because this instantiates existing Stage 2 provider-owned strided ABI/fact contracts.
+
+Testing:
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit selected-body strided_add dry-run plus FileCheck-20 STDOUT/ROOT/STRIDED/HARNESS
+- [OK] pre-realized selected-body strided_add dry-run plus FileCheck-20 STDOUT/ROOT/STRIDED/HARNESS
+- [OK] real `ssh rvv` explicit selected-body strided_add for counts `0,1,16,23,257` and stride triples `2:3:2,3:2:4`
+- [OK] real `ssh rvv` pre-realized selected-body strided_add for counts `0,1,16,23,257` and stride triples `2:3:2,3:2:4`
+- [OK] `git diff --check`
+- [OK] bounded touched-diff old-authority scan
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

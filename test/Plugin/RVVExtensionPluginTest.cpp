@@ -26976,36 +26976,36 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi", "lhs-load-base", "binary-lhs-call"});
+             {"abi", "lhs-load-base", "binary-lhs-call", "hdr"});
   addBinding(stridedAddPlan, "rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi", "rhs-load-base", "binary-rhs-call"});
+             {"abi", "rhs-load-base", "binary-rhs-call", "hdr"});
   addBinding(stridedAddPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi", "store-base", "header"});
+             {"abi", "store-base", "hdr"});
   addBinding(stridedAddPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"abi", "setvl-avl", "loop-control", "header"});
+             {"abi", "setvl-avl", "loop-control", "hdr"});
   addBinding(stridedAddPlan, "lhs_stride",
              makeTargetExportABIParameter(
                  "lhs_stride", "size_t",
                  RuntimeABIParameterRole::LHSInputStride),
-             {"abi", "lhs-load-stride", "lhs-byte-addr", "header"});
+             {"abi", "lhs-load-stride", "lhs-byte-addr", "hdr"});
   addBinding(stridedAddPlan, "rhs_stride",
              makeTargetExportABIParameter(
                  "rhs_stride", "size_t",
                  RuntimeABIParameterRole::RHSInputStride),
-             {"abi", "rhs-load-stride", "rhs-byte-addr", "header"});
+             {"abi", "rhs-load-stride", "rhs-byte-addr", "hdr"});
   addBinding(stridedAddPlan, "out_stride",
              makeTargetExportABIParameter(
                  "out_stride", "size_t",
                  RuntimeABIParameterRole::OutputStride),
-             {"abi", "store-stride", "out-byte-addr", "header"});
+             {"abi", "store-stride", "out-byte-addr", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               stridedAddPlan, "rvv-route-operand-binding:strided_add.v1",
@@ -27144,6 +27144,31 @@ int runRouteOperandBindingPlanValidationTest() {
                      stridedAddFacts->outStrideABI->cName == "out_stride",
                  "strided add residual binding facts expose vector and stride "
                  "operands"))
+    return result;
+
+  RVVRouteOperandBindingPlan missingStridedOutHeader = stridedAddPlan;
+  bool removedStridedOutHeader = false;
+  for (std::string &use :
+       missingStridedOutHeader.bindings[6].materializedUses) {
+    if (use != "hdr")
+      continue;
+    use = "header";
+    removedStridedOutHeader = true;
+    break;
+  }
+  if (int result = expect(removedStridedOutHeader,
+                          "test setup removes strided output header binding"))
+    return result;
+  auto staleMissingStridedOutHeader =
+      makeResidualAnalysis(RVVSelectedBodyOperationKind::StridedAdd,
+                           "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride",
+                           missingStridedOutHeader);
+  staleMissingStridedOutHeader.elementwiseArithmeticRouteFamilyPlan =
+      stridedAddAnalysis.elementwiseArithmeticRouteFamilyPlan;
+  if (int result = expectErrorContains(
+          getResidualFacts(staleMissingStridedOutHeader).takeError(),
+          {"out_stride", "hdr",
+           "strided_add output stride header/prototype binding"}))
     return result;
 
   RVVRouteOperandBindingPlan runtimeSplatPlan;

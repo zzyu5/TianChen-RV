@@ -933,14 +933,16 @@ STRIDED_ADD_ROUTE_OPERAND_BINDING_PLAN = (
 )
 STRIDED_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:strided_add.v1;"
-    "lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call;"
-    "rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call;"
-    "out=output-buffer:out:abi|store-base|header;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header;"
-    "lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|header;"
-    "rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|header;"
-    "out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call|hdr;"
+    "out=output-buffer:out:abi|store-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;"
+    "lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|hdr;"
+    "rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|hdr;"
+    "out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr"
 )
+STRIDED_ADD_RUNTIME_STRIDE_CASES = ((2, 3, 2), (3, 2, 4))
+STRIDED_ADD_RUNTIME_STRIDE_CASE_SUMMARY = "2:3:2,3:2:4"
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 RUNTIME_SCALAR_SPLAT_STORE_RUNTIME_ABI_ORDER = "rhs_scalar,out,n"
 RUNTIME_SCALAR_SPLAT_STORE_TARGET_LEAF_PROFILE = (
@@ -12140,6 +12142,16 @@ def verify_materialized_selected_body(
             "tcrv_rvv.strided_store",
             "materialized selected-body MLIR strided store",
         )
+        for role in (
+            "lhs-input-stride",
+            "rhs-input-stride",
+            "output-stride",
+        ):
+            require_contains(
+                text,
+                f'role = "{role}"',
+                "materialized selected-body MLIR strided_add stride ABI role",
+            )
     if expectation.is_strided_load_unit_store:
         require_contains(
             text,
@@ -14905,6 +14917,10 @@ def harness_source(
     )
     stride_values_literal = ", ".join(str(value) for value in stride_values)
     stride_values_summary = ",".join(str(value) for value in stride_values)
+    strided_add_cases_literal = ", ".join(
+        f"{{{lhs}, {rhs}, {out}}}"
+        for lhs, rhs, out in STRIDED_ADD_RUNTIME_STRIDE_CASES
+    )
     if expectation.is_computed_masked_segment2_load_unit_store:
         return f"""
 #include <stddef.h>
@@ -17482,29 +17498,32 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
+                    size_t out_stride) {{
   /* expected: {expectation.expected_expression} */
-  const size_t lhs_stride = 2;
-  const size_t rhs_stride = 3;
-  const size_t out_stride = 2;
-  const size_t max_stride = rhs_stride;
-  size_t alloc_n = (n == 0 ? 1 : n) * max_stride + 8;
-  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
-  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
-  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  size_t alloc_seed = n == 0 ? 1 : n;
+  size_t lhs_alloc = alloc_seed * lhs_stride + 8;
+  size_t rhs_alloc = alloc_seed * rhs_stride + 8;
+  size_t out_alloc = alloc_seed * out_stride + 8;
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * lhs_alloc);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * rhs_alloc);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * out_alloc);
   if (!lhs || !rhs || !out) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    fprintf(stderr,
+            "allocation failed for n=%zu strides=%zu:%zu:%zu\\n",
+            n, lhs_stride, rhs_stride, out_stride);
     free(lhs);
     free(rhs);
     free(out);
     return 11;
   }}
 
-  for (size_t index = 0; index < alloc_n; ++index) {{
+  for (size_t index = 0; index < lhs_alloc; ++index)
     lhs[index] = (int32_t)-1234567;
+  for (size_t index = 0; index < rhs_alloc; ++index)
     rhs[index] = (int32_t)1234567;
+  for (size_t index = 0; index < out_alloc; ++index)
     out[index] = {OUT_SENTINEL};
-  }}
 
   for (size_t index = 0; index < n; ++index) {{
     lhs[index * lhs_stride] = {expectation.lhs_initializer};
@@ -17528,13 +17547,14 @@ static int run_case(size_t n) {{
     }}
   }}
 
-  for (size_t index = 0; index < alloc_n; ++index) {{
+  for (size_t index = 0; index < out_alloc; ++index) {{
     if ((index % out_stride) == 0 && (index / out_stride) < n)
       continue;
     if (out[index] != {OUT_SENTINEL}) {{
       fprintf(stderr,
-              "{expectation.kind} touched non-strided output lane n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, out[index], {OUT_SENTINEL});
+              "{expectation.kind} touched non-strided output lane n=%zu raw_index=%zu got=%d sentinel=%d strides=%zu:%zu:%zu\\n",
+              n, index, out[index], {OUT_SENTINEL}, lhs_stride, rhs_stride,
+              out_stride);
       free(lhs);
       free(rhs);
       free(out);
@@ -17542,23 +17562,62 @@ static int run_case(size_t n) {{
     }}
   }}
 
+  for (size_t index = 0; index < lhs_alloc; ++index) {{
+    if ((index % lhs_stride) == 0 && (index / lhs_stride) < n)
+      continue;
+    if (lhs[index] != (int32_t)-1234567) {{
+      fprintf(stderr,
+              "{expectation.kind} lhs skipped slot changed n=%zu raw_index=%zu got=%d strides=%zu:%zu:%zu\\n",
+              n, index, lhs[index], lhs_stride, rhs_stride, out_stride);
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 14;
+    }}
+  }}
+
+  for (size_t index = 0; index < rhs_alloc; ++index) {{
+    if ((index % rhs_stride) == 0 && (index / rhs_stride) < n)
+      continue;
+    if (rhs[index] != (int32_t)1234567) {{
+      fprintf(stderr,
+              "{expectation.kind} rhs skipped slot changed n=%zu raw_index=%zu got=%d strides=%zu:%zu:%zu\\n",
+              n, index, rhs[index], lhs_stride, rhs_stride, out_stride);
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 15;
+    }}
+  }}
+
   free(lhs);
   free(rhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok\\n", n);
+  printf("{expectation.kind} case n=%zu ok strides=%zu:%zu:%zu independent_strides source_gaps_preserved output_gaps_preserved tail_preserved\\n",
+         n, lhs_stride, rhs_stride, out_stride);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
+  const struct {{
+    size_t lhs_stride;
+    size_t rhs_stride;
+    size_t out_stride;
+  }} stride_cases[] = {{{strided_add_cases_literal}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t stride_case_count = sizeof(stride_cases) / sizeof(stride_cases[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t stride_index = 0; stride_index < stride_case_count; ++stride_index) {{
+      int status = run_case(counts[index], stride_cases[stride_index].lhs_stride,
+                            stride_cases[stride_index].rhs_stride,
+                            stride_cases[stride_index].out_stride);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_triples={STRIDED_ADD_RUNTIME_STRIDE_CASE_SUMMARY}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_triples={STRIDED_ADD_RUNTIME_STRIDE_CASE_SUMMARY}\\n");
   return 0;
 }}
 """.lstrip()
@@ -24093,6 +24152,24 @@ def run_one_op_e2e(
                     "runtime strided_load_unit_store cases must execute the "
                     "same generated artifact with explicit runtime byte strides"
                 )
+        if expectation.is_strided_add:
+            evidence["harness"]["stride_triples"] = [
+                {
+                    "lhs_stride": lhs_stride,
+                    "rhs_stride": rhs_stride,
+                    "out_stride": out_stride,
+                }
+                for lhs_stride, rhs_stride, out_stride in STRIDED_ADD_RUNTIME_STRIDE_CASES
+            ]
+            evidence["harness"]["stride_coverage_contract"] = (
+                "runtime strided_add cases must execute the same generated "
+                "artifact with independent lhs/rhs/output element strides"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n/AVL must be honored while skipped source slots, "
+                "non-strided output slots, and output tail sentinels are "
+                "preserved"
+            )
         if expectation.is_cmp_select:
             evidence["harness"][
                 "predicate_coverage_contract"
@@ -25822,6 +25899,21 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost runtime destination "
                     "byte-stride coverage"
+                )
+            if expectation.is_strided_add and (
+                "stride_triples=2:3:2,3:2:4" not in harness
+                or "stride_cases[stride_index].lhs_stride" not in harness
+                or "stride_cases[stride_index].rhs_stride" not in harness
+                or "stride_cases[stride_index].out_stride" not in harness
+                or "source_gaps_preserved output_gaps_preserved tail_preserved"
+                not in harness
+                or "lhs skipped slot changed" not in harness
+                or "rhs skipped slot changed" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost strided_add "
+                    "independent stride triple, skipped-source, output-gap, "
+                    "or tail coverage"
                 )
             if expectation.is_indexed_gather_unit_store:
                 bundle_checks = verify_bundle(

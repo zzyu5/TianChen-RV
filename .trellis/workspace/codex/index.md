@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-21.md`
-- **Total Sessions**: 396
+- **Total Sessions**: 397
 - **Last Active**: 2026-06-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-21.md` | ~481 | Active |
+| `journal-21.md` | ~549 | Active |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
@@ -49,6 +49,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 397 | 2026-06-03 | Stage2 RVV strided add artifact ABI boundary | included-in-this-commit | `main` |
 | 396 | 2026-06-03 | Stage2 RVV scalar-broadcast add ABI | included-in-this-commit | `main` |
 | 395 | 2026-06-03 | Stage2 RVV widen i32-to-i64 conversion artifact ABI boundary | - | `main` |
 | 394 | 2026-06-03 | Stage2 RVV computed-masked strided-input widening dot-reduce artifact ABI boundary | included-in-this-commit | `main` |

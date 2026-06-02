@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.strided_memory_layout", value = "element-strided-lhs-rhs-output-runtime-abi"/s//tcrv_rvv.strided_memory_layout", value = "script-derived-strided-layout"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-LAYOUT
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride/s//lhs,rhs,out,n,rhs_stride,lhs_stride,out_stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr/s//out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-BINDING
 
 // Pre-realized selected-body input for one bounded Stage2 strided add. The
 // RVV plugin must realize the explicit stride ABI operands into typed
@@ -52,7 +53,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "strided-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:strided_add.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|header;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|header;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call|hdr;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call|hdr;out=output-buffer:out:abi|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|hdr;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.elementwise_arithmetic_route_family_plan", value = "rvv-elementwise-arithmetic-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-strided-elementwise-arithmetic-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-strided-elementwise-arithmetic-plan-validated"}
@@ -82,7 +83,7 @@ module {
 // HEADER-DAG: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER-DAG: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs:element-strided-typed-vector,rhs:element-strided-typed-vector,result:element-strided-typed-vector
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:strided_add.v1
-// HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|header;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|header;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call|hdr;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call|hdr;out=output-buffer:out:abi|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|hdr;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr
 // HEADER: void tcrv_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride, size_t out_stride);
 
 // STALE-STRIDED-LAYOUT: RVV materialized EmitC target artifact bridge failed
@@ -94,3 +95,8 @@ module {
 // STALE-STRIDED-ABI: tcrv_rvv.runtime_abi_order
 // STALE-STRIDED-ABI-SAME: must mirror
 // STALE-STRIDED-ABI-SAME: lhs,rhs,out,n,rhs_stride,lhs_stride,out_stride
+
+// STALE-STRIDED-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-STRIDED-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
+// STALE-STRIDED-BINDING-SAME: out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr
+// STALE-STRIDED-BINDING-SAME: out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header

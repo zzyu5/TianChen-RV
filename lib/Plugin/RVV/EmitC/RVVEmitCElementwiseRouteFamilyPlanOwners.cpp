@@ -1907,23 +1907,25 @@ deriveRVVSelectedBodyElementwiseRouteOperandBindingPlan(
   } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::StridedAdd) {
     context = "strided_add route";
     addElementwiseRouteOperandBinding(
-        plan, "lhs", slice.lhsABI, {"abi", "lhs-load-base", "binary-lhs-call"});
+        plan, "lhs", slice.lhsABI,
+        {"abi", "lhs-load-base", "binary-lhs-call", "hdr"});
     addElementwiseRouteOperandBinding(
-        plan, "rhs", slice.rhsABI, {"abi", "rhs-load-base", "binary-rhs-call"});
+        plan, "rhs", slice.rhsABI,
+        {"abi", "rhs-load-base", "binary-rhs-call", "hdr"});
     addElementwiseRouteOperandBinding(plan, "out", slice.outABI,
-                                      {"abi", "store-base", "header"});
+                                      {"abi", "store-base", "hdr"});
     addElementwiseRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop-control", "header"});
+        {"abi", "setvl-avl", "loop-control", "hdr"});
     addElementwiseRouteOperandBinding(
         plan, "lhs_stride", slice.lhsStrideABI,
-        {"abi", "lhs-load-stride", "lhs-byte-addr", "header"});
+        {"abi", "lhs-load-stride", "lhs-byte-addr", "hdr"});
     addElementwiseRouteOperandBinding(
         plan, "rhs_stride", slice.rhsStrideABI,
-        {"abi", "rhs-load-stride", "rhs-byte-addr", "header"});
+        {"abi", "rhs-load-stride", "rhs-byte-addr", "hdr"});
     addElementwiseRouteOperandBinding(
         plan, "out_stride", slice.outStrideABI,
-        {"abi", "store-stride", "out-byte-addr", "header"});
+        {"abi", "store-stride", "out-byte-addr", "hdr"});
   } else {
     dynamicContext =
         (stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind) + " route")

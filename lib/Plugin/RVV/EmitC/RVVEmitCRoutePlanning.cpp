@@ -25519,6 +25519,10 @@ getRVVSelectedBodyResidualRouteOperandBindingFacts(
             "lhs", "binary-lhs-call", "strided_add lhs compute operand"))
       return std::move(error);
     if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              "strided_add lhs header/prototype binding"))
+      return std::move(error);
+    if (llvm::Error error =
             bindOperand(facts.rhsABI, "rhs", "rhs-load-base",
                         "strided_add rhs load operand"))
       return std::move(error);
@@ -25526,14 +25530,18 @@ getRVVSelectedBodyResidualRouteOperandBindingFacts(
             "rhs", "binary-rhs-call", "strided_add rhs compute operand"))
       return std::move(error);
     if (llvm::Error error =
+            requireOperandUse("rhs", "hdr",
+                              "strided_add rhs header/prototype binding"))
+      return std::move(error);
+    if (llvm::Error error =
             bindOperand(facts.outABI, "out", "store-base",
                         "strided_add output store"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("out", "header",
-                              "strided_add output header mirror"))
+            requireOperandUse("out", "hdr",
+                              "strided_add output header/prototype binding"))
       return std::move(error);
-    if (llvm::Error error = bindRuntimeCount("loop-control", "header",
+    if (llvm::Error error = bindRuntimeCount("loop-control", "hdr",
                                              "strided_add"))
       return std::move(error);
     if (llvm::Error error =
@@ -25544,8 +25552,8 @@ getRVVSelectedBodyResidualRouteOperandBindingFacts(
             "lhs_stride", "lhs-byte-addr", "strided_add lhs byte address"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("lhs_stride", "header",
-                              "strided_add lhs stride header mirror"))
+            requireOperandUse("lhs_stride", "hdr",
+                              "strided_add lhs stride header/prototype binding"))
       return std::move(error);
     if (llvm::Error error =
             bindOperand(facts.rhsStrideABI, "rhs_stride", "rhs-load-stride",
@@ -25555,8 +25563,8 @@ getRVVSelectedBodyResidualRouteOperandBindingFacts(
             "rhs_stride", "rhs-byte-addr", "strided_add rhs byte address"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("rhs_stride", "header",
-                              "strided_add rhs stride header mirror"))
+            requireOperandUse("rhs_stride", "hdr",
+                              "strided_add rhs stride header/prototype binding"))
       return std::move(error);
     if (llvm::Error error =
             bindOperand(facts.outStrideABI, "out_stride", "store-stride",
@@ -25566,8 +25574,8 @@ getRVVSelectedBodyResidualRouteOperandBindingFacts(
             "out_stride", "out-byte-addr", "strided_add output byte address"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("out_stride", "header",
-                              "strided_add output stride header mirror"))
+            requireOperandUse("out_stride", "hdr",
+                              "strided_add output stride header/prototype binding"))
       return std::move(error);
     return facts;
   }

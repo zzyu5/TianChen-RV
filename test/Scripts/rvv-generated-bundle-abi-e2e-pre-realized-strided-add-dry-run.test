@@ -34,6 +34,8 @@
 # STRIDED-DAG: "value": "strided-load-store"
 # STRIDED-DAG: "key": "tcrv_rvv.runtime_abi_order"
 # STRIDED-DAG: "value": "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
+# STRIDED-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# STRIDED-DAG: "value": "rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call|hdr;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call|hdr;out=output-buffer:out:abi|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|hdr;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr"
 # STRIDED-DAG: "key": "tcrv_rvv.elementwise_arithmetic_route_family_plan"
 # STRIDED-DAG: "value": "rvv-elementwise-arithmetic-route-family-plan.v1"
 # STRIDED-DAG: "key": "tcrv_rvv.provider_supported_mirror"
@@ -44,13 +46,23 @@
 # STRIDED-DAG: "value": "strided-load"
 # STRIDED-DAG: "key": "tcrv_rvv.destination_memory_form"
 # STRIDED-DAG: "value": "strided-store"
+# STRIDED-DAG: "lhs_stride": 2
+# STRIDED-DAG: "rhs_stride": 3
+# STRIDED-DAG: "out_stride": 2
+# STRIDED-DAG: "lhs_stride": 3
+# STRIDED-DAG: "rhs_stride": 2
+# STRIDED-DAG: "out_stride": 4
+# STRIDED-DAG: "stride_coverage_contract": "runtime strided_add cases must execute the same generated artifact with independent lhs/rhs/output element strides"
 # STRIDED-DAG: "typed_compute_op": "tcrv_rvv.binary"
 # STRIDED-DAG: "memory_form": "strided-load-store"
 # STRIDED-DAG: "status": "dry_run_success"
 
-# HARNESS: const size_t lhs_stride = 2;
-# HARNESS: const size_t rhs_stride = 3;
-# HARNESS: const size_t out_stride = 2;
+# HARNESS: static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
 # HARNESS: tcrv_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add(lhs, rhs, out, n, lhs_stride, rhs_stride, out_stride);
 # HARNESS: int32_t expected = lhs[index * lhs_stride] + rhs[index * rhs_stride];
 # HARNESS: size_t out_index = index * out_stride;
+# HARNESS: source_gaps_preserved output_gaps_preserved tail_preserved
+# HARNESS: stride_cases
+# HARNESS-SAME: 2, 3, 2
+# HARNESS-SAME: 3, 2, 4
+# HARNESS: stride_triples=2:3:2,3:2:4

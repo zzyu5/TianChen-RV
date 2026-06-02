@@ -1472,6 +1472,51 @@ llvm::Error validateScalarBroadcastAddHeaderBindingSummary(
   return llvm::Error::success();
 }
 
+llvm::Error validateStridedAddHeaderBindingSummary(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
+  if (description.operation != OperationKind::StridedAdd)
+    return llvm::Error::success();
+
+  constexpr llvm::StringLiteral kExpectedPlan(
+      "rvv-route-operand-binding:strided_add.v1");
+  const llvm::StringRef operationMnemonic =
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
+  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires provider plan '" +
+        kExpectedPlan + "' before artifact export");
+  if (description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary is required before artifact export");
+  if (!llvm::StringRef(description.routeOperandBindingSummary)
+           .starts_with(kExpectedPlan))
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must start with provider plan '" +
+        kExpectedPlan + "' before artifact export");
+
+  constexpr llvm::StringLiteral logicalOperands[] = {
+      "lhs", "rhs", "out", "n", "lhs_stride", "rhs_stride", "out_stride"};
+  constexpr std::size_t logicalOperandCount =
+      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
+  if (description.runtimeABIParameters.size() != logicalOperandCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires the provider runtime ABI "
+        "order for lhs/rhs/out/n/lhs_stride/rhs_stride/out_stride before "
+        "artifact export");
+
+  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
+            description, operationMnemonic, logicalOperands[index],
+            description.runtimeABIParameters[index]))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateComputedMaskSegment2HeaderBindingSummary(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
@@ -12671,6 +12716,8 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
     return error;
   if (llvm::Error error =
           validateScalarBroadcastAddHeaderBindingSummary(description))
+    return error;
+  if (llvm::Error error = validateStridedAddHeaderBindingSummary(description))
     return error;
   return validateRVVElementwiseArithmeticRouteStatementPlan(route, description);
 }
