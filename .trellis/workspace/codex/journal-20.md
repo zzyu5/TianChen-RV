@@ -60,6 +60,67 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 383: Stage2 RVV runtime-scalar masked MAcc LMUL m2 artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: `stage2-rvv-runtime-scalar-masked-macc-lmul-m2-artifact-abi`
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `runtime_scalar_cmp_masked_macc_add_lmul_m2` Stage 2
+artifact/runtime ABI path. The round kept the existing ABI roles
+`cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n`, proved LMUL m2 comes from typed
+`tcrv_rvv` body/config/provider facts, and added target artifact stale-config
+validation before acceptance.
+
+### Main Changes
+
+- Added MAcc target artifact candidate mirror validation for
+  `tcrv_rvv.config_contract`, `tcrv_rvv.element_type`, `tcrv_rvv.sew`,
+  `tcrv_rvv.lmul`, and `tcrv_rvv.bounded_slice`.
+- Added C++ target artifact coverage for positive m2 route facts and stale m2
+  LMUL/config mirror rejection.
+- Strengthened the pre-realized m2 MLIR fixture to check plan/header config
+  facts.
+- Added generated-bundle dry-run and direct route-entry fail-closed script
+  tests for exactly `runtime_scalar_cmp_masked_macc_add_lmul_m2`.
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-stage2-rvv-runtime-scalar-masked-macc-lmul-m2-artifact-abi`
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] REALIZED/PLAN/HEADER FileCheck commands for
+  `test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add-lmul-m2.mlir`
+- [OK] Generated-bundle dry-run plus ROOT/MACC/CPP/HARNESS FileCheck checks
+  for `runtime_scalar_cmp_masked_macc_add_lmul_m2`
+- [OK] Direct pre-realized route-entry fail-closed reproduction for the m2 op
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Real `ssh rvv` compile/run evidence for counts `0,1,16,17,257`,
+  rhs scalar values `-37,91`, and patterns `0,1`; PASS marker:
+  `PASS op=runtime_scalar_cmp_masked_macc_add_lmul_m2 counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`
+- [OK] `rtk git diff --check`
+- [OK] Bounded authority scan over touched files: no new positive legacy
+  `i32m1`, descriptor, source-front-door, direct-C/source-export,
+  exact-intrinsic authority, or common EmitC RVV semantic dependency. New
+  legacy-string hits are negative `implicit-check-not` guards only.
+
+### Spec Update
+
+No `.trellis/spec/` update was needed. This round implemented existing RVV
+Stage 2 typed-body/config authority and generated-bundle evidence rules.
+
+### Status
+
+[OK] Completed; task archived and committed in the same final changeset.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 382: Stage2 RVV plain macc-add vector-vector artifact ABI boundary
 
 **Date**: 2026-06-02

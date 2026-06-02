@@ -6716,6 +6716,47 @@ bool expectRVVTargetArtifactExporterShape(
                           runtimeScalarComputedMAccDescription))
     return false;
 
+  RVVTargetArtifactCandidateFixture runtimeScalarComputedMAccM2Fixture(
+      OperationKind::RuntimeScalarComputedMaskedMAccAdd,
+      /*useRHSBroadcast=*/false,
+      tianchenrv::tcrv::rvv::getRVVLMULM2());
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      runtimeScalarComputedMAccM2Route;
+  RVVRouteDescription runtimeScalarComputedMAccM2Description;
+  if (!expectMAccPositive("runtime_scalar_computed_masked_macc_add_lmul_m2",
+                          runtimeScalarComputedMAccM2Fixture,
+                          runtimeScalarComputedMAccM2Route,
+                          runtimeScalarComputedMAccM2Description))
+    return false;
+  if (runtimeScalarComputedMAccM2Description.lmul !=
+          tianchenrv::tcrv::rvv::getRVVLMULM2() ||
+      runtimeScalarComputedMAccM2Description.configContractID !=
+          "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1" ||
+      runtimeScalarComputedMAccM2Description.vectorTypeName !=
+          "!tcrv_rvv.vector<i32, \"m2\">" ||
+      runtimeScalarComputedMAccM2Description.vectorCType != "vint32m2_t" ||
+      runtimeScalarComputedMAccM2Description.maskTypeName !=
+          "!tcrv_rvv.mask<i32, \"m2\">" ||
+      runtimeScalarComputedMAccM2Description.maskCType != "vbool16_t" ||
+      runtimeScalarComputedMAccM2Description.setVLIntrinsic !=
+          "__riscv_vsetvl_e32m2" ||
+      runtimeScalarComputedMAccM2Description.vectorLoadIntrinsic !=
+          "__riscv_vle32_v_i32m2" ||
+      runtimeScalarComputedMAccM2Description.rhsBroadcastIntrinsic !=
+          "__riscv_vmv_v_x_i32m2" ||
+      runtimeScalarComputedMAccM2Description.compareIntrinsic !=
+          "__riscv_vmsle_vv_i32m2_b16" ||
+      runtimeScalarComputedMAccM2Description.intrinsic !=
+          "__riscv_vmacc_vv_i32m2" ||
+      runtimeScalarComputedMAccM2Description.maskedMergeIntrinsic !=
+          "__riscv_vmerge_vvm_i32m2" ||
+      runtimeScalarComputedMAccM2Description.storeIntrinsic !=
+          "__riscv_vse32_v_i32m2") {
+    llvm::errs() << "runtime-scalar computed-mask MAcc m2 fixture did not "
+                    "derive m2 config/type/intrinsic facts\n";
+    return false;
+  }
+
   auto expectMAccProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -6861,6 +6902,42 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccRoute, staleRuntimeScalarMAccMaskProducer,
           "MAcc registry rejects stale runtime-scalar mask producer",
           {"provider-derived exact mask", "passthrough"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarMAccM2LMULMirror =
+      runtimeScalarComputedMAccM2Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeScalarMAccM2LMULMirror,
+                                    "tcrv_rvv.lmul", "m1")) {
+    llvm::errs() << "runtime-scalar MAcc m2 test fixture did not contain LMUL "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleRuntimeScalarMAccM2LMULMirror,
+          runtimeScalarComputedMAccM2Route,
+          runtimeScalarComputedMAccM2Description,
+          "MAcc registry rejects stale runtime-scalar m2 LMUL mirror",
+          {"tcrv_rvv.lmul", "m2", "m1"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarMAccM2ConfigMirror =
+      runtimeScalarComputedMAccM2Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarMAccM2ConfigMirror,
+          "tcrv_rvv.config_contract",
+          "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1")) {
+    llvm::errs() << "runtime-scalar MAcc m2 test fixture did not contain "
+                    "config contract metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleRuntimeScalarMAccM2ConfigMirror,
+          runtimeScalarComputedMAccM2Route,
+          runtimeScalarComputedMAccM2Description,
+          "MAcc registry rejects stale runtime-scalar m2 config mirror",
+          {"tcrv_rvv.config_contract",
+           "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+           "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}))
     return false;
 
   if (!expectMAccRouteFailure(

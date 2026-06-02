@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the change remains Stage 2 typed RVV evidence and does not reintroduce Stage 1 authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify runtime-scalar computed-mask MAcc realization/provider/statement-plan ownership and typed LMUL/config authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route operand-binding summaries, common EmitC neutrality, and target artifact mirror behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify dry-run and ssh rvv evidence meet runtime-scalar computed-mask MAcc evidence rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-cmp-masked-macc-add-artifact-abi-boundary/prd.md", "reason": "Check m2 evidence is a bounded extension of the completed m1 ABI boundary, not a broad clone batch."}

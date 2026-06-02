@@ -4670,6 +4670,7 @@ llvm::Error validateRVVMAccTargetArtifactCandidateMirrors(
   const TargetArtifactCandidate &candidate = context.candidate;
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
+  const std::string sew = llvm::Twine(description.sew).str();
 
   if (description.operation ==
       plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
@@ -4760,11 +4761,31 @@ llvm::Error validateRVVMAccTargetArtifactCandidateMirrors(
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.masked_passthrough_layout",
-            description.maskedPassthroughLayout,
+                        description.maskedPassthroughLayout,
             "selected typed RVV computed-mask MAcc passthrough layout"))
       return error;
   }
 
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.config_contract",
+          description.configContractID,
+          "selected typed RVV MAcc config contract"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.element_type", description.elementTypeName,
+          "selected typed RVV MAcc element type"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.sew", sew, "selected typed RVV MAcc SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.lmul", description.lmul,
+          "selected typed RVV MAcc LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.bounded_slice", description.boundedSlice,
+          "selected typed RVV MAcc bounded slice"))
+    return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.memory_form",
           plugin::rvv::stringifyRVVSelectedBodyMemoryForm(

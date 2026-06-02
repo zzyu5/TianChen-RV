@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first Stage 2 authority chain, and forbidden metadata/string authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, runtime-scalar computed-mask MAcc owner/provider/statement-plan boundaries, typed config authority, and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, route operand-binding summary, common EmitC neutrality, and target artifact handoff contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Computed-mask/runtime-scalar MAcc generated-bundle evidence, rhs_scalar harness coverage, and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-cmp-masked-macc-add-artifact-abi-boundary/prd.md", "reason": "Prior m1 runtime-scalar masked MAcc ABI boundary and evidence pattern to extend only through LMUL m2 config propagation."}

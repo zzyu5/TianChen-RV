@@ -1,0 +1,9 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --direct-pre-realized-route-entry --artifact-root %t.artifacts --run-id direct-pre-realized-runtime-scalar-cmp-masked-macc-add-lmul-m2 --overwrite --op-kind runtime_scalar_cmp_masked_macc_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s
+
+# CHECK: rvv_generated_bundle_abi_e2e: failed
+# CHECK: --direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): runtime_scalar_cmp_masked_macc_add_lmul_m2
+# CHECK-SAME: direct route-entry shortcut
+# CHECK-NOT: rvv-route-entry-selected-body-realization
+# CHECK-NOT: tcrv_rvv_generated_bundle_abi_runtime_scalar_cmp_masked_macc_add_lmul_m2_ok

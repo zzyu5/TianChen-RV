@@ -1,0 +1,69 @@
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-macc-add-lmul-m2 --overwrite --op-kind runtime_scalar_cmp_masked_macc_add_lmul_m2 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add-lmul-m2/evidence.json
+# RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add-lmul-m2/runtime_scalar_cmp_masked_macc_add_lmul_m2/evidence.json
+# RUN: FileCheck %s --check-prefix=CPP --implicit-check-not="__riscv_vsetvl_e32m1" --implicit-check-not="__riscv_vmacc_vv_i32m1" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add-lmul-m2/runtime_scalar_cmp_masked_macc_add_lmul_m2/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add-lmul-m2/runtime_scalar_cmp_masked_macc_add_lmul_m2/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_macc_add_lmul_m2_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_macc_add_lmul_m2"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# MACC-DAG: "input_mode": "pre-realized-selected-body"
+# MACC-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add-lmul-m2.mlir"
+# MACC-DAG: "expected_function": "tcrv_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2"
+# MACC-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1"
+# MACC-DAG: "expected_selected_variant": "rvv_pr_rt_scalar_masked_macc_m2"
+# MACC-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# MACC-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# MACC-DAG: "pre_realized_body_consumed": true
+# MACC-DAG: "typed_compute_op": "tcrv_rvv.masked_macc"
+# MACC-DAG: "key": "tcrv_rvv.config_contract"
+# MACC-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# MACC-DAG: "key": "tcrv_rvv.lmul"
+# MACC-DAG: "value": "m2"
+# MACC-DAG: "key": "tcrv_rvv.bounded_slice"
+# MACC-DAG: "value": "multi-vl-selected-body-sew32-lmul-m2"
+# MACC-DAG: "key": "tcrv_rvv.target_capability_legality_mirror"
+# MACC-DAG: "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m2;tail=agnostic;mask=agnostic"
+# MACC-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# MACC-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# MACC-DAG: "source_type_policy": {
+# MACC-DAG: "lmul": "m2"
+# MACC-DAG: "mask_c_type": "vbool16_t"
+# MACC-DAG: "vector_c_type": "vint32m2_t"
+# MACC-DAG: "vector_type": "!tcrv_rvv.vector<i32, \"m2\">"
+# MACC-DAG: "compare_operand_order": "cmp_lhs,rhs_scalar_splat,vl"
+# MACC-DAG: "__riscv_vsetvl_e32m2"
+# MACC-DAG: "__riscv_vle32_v_i32m2"
+# MACC-DAG: "runtime-scalar-splat-rhs"
+# MACC-DAG: "__riscv_vmsle_vv_i32m2_b16"
+# MACC-DAG: "__riscv_vmacc_vv_i32m2"
+# MACC-DAG: "__riscv_vmerge_vvm_i32m2"
+# MACC-DAG: "__riscv_vse32_v_i32m2"
+# MACC-DAG: "runtime_counts_are_execution_cases_not_macc_or_mask_authority": true
+# MACC-DAG: "status": "dry_run_success"
+
+# CPP: extern "C" void tcrv_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2
+# CPP-DAG: __riscv_vsetvl_e32m2
+# CPP-DAG: vint32m2_t
+# CPP-DAG: __riscv_vle32_v_i32m2
+# CPP-DAG: __riscv_vmv_v_x_i32m2
+# CPP-DAG: vbool16_t
+# CPP-DAG: __riscv_vmsle_vv_i32m2_b16
+# CPP-DAG: __riscv_vmacc_vv_i32m2
+# CPP-DAG: __riscv_vmerge_vvm_i32m2
+# CPP-DAG: __riscv_vse32_v_i32m2
+
+# HARNESS-DAG: const size_t counts[] = {0, 1, 16, 17, 257};
+# HARNESS-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS-DAG: const int patterns[] = {0, 1};
+# HARNESS-DAG: tcrv_emitc_pr_rt_scalar_masked_macc_m2_kernel_rvv_pr_rt_scalar_masked_macc_m2(cmp_lhs, rhs_scalar, lhs, rhs, acc, out, n);
+# HARNESS-DAG: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index])) : acc[index]);
+# HARNESS-DAG: runtime_scalar_cmp_masked_macc_add_lmul_m2_ok counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1
+# HARNESS-DAG: PASS op=runtime_scalar_cmp_masked_macc_add_lmul_m2 counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1
