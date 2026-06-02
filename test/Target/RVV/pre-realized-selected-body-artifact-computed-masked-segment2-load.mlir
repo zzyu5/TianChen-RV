@@ -77,7 +77,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.segment_memory_layout", value = "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_count", value = "2"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_load_intrinsic", value = "__riscv_vlseg2e32_v_i32m1x2_tumu"}
-// PLAN-SAME: {key = "tcrv_rvv.segment_store_intrinsic", value = "__riscv_vcreate_v_i32m1x2"}
+// PLAN-SAME: {key = "tcrv_rvv.segment_tuple_create_intrinsic", value = "__riscv_vcreate_v_i32m1x2"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_field_extract_intrinsic", value = "__riscv_vget_v_i32m1x2_i32m1"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-segment2-load-unit-store-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"

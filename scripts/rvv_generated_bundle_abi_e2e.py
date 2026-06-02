@@ -8209,7 +8209,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.segment_load_intrinsic": (
                     COMPUTED_MASK_SEGMENT2_LOAD_INTRINSIC
                 ),
-                "tcrv_rvv.segment_store_intrinsic": (
+                "tcrv_rvv.segment_tuple_create_intrinsic": (
                     COMPUTED_MASK_SEGMENT2_TUPLE_CREATE_INTRINSIC
                 ),
                 "tcrv_rvv.segment_field_extract_intrinsic": (

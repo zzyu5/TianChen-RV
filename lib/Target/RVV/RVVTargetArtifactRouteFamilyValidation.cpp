@@ -11334,9 +11334,8 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
               "selected typed RVV computed-mask segment2 load callee"))
         return error;
       if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_store_intrinsic",
-              description.segmentStoreIntrinsic,
-              "selected typed RVV computed-mask segment2 tuple materializer"))
+              candidate, "tcrv_rvv.segment_store_intrinsic", "",
+              "selected typed RVV computed-mask segment2 store callee"))
         return error;
       if (llvm::Error error = requireCandidateMetadataMirror(
               candidate, "tcrv_rvv.segment_field_extract_intrinsic",
@@ -11344,7 +11343,8 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
               "selected typed RVV computed-mask segment2 field extract"))
         return error;
       if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_tuple_create_intrinsic", "",
+              candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
+              description.segmentStoreIntrinsic,
               "selected typed RVV computed-mask segment2 tuple create"))
         return error;
     } else {

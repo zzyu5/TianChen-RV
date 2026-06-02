@@ -25656,7 +25656,7 @@ void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
                         description.segmentTupleCType});
     metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
                         description.segmentLoadIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
                         description.segmentStoreIntrinsic});
     metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
                         description.segmentFieldExtractIntrinsic});

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV project boundary and RVV stage ordering"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, segment2 route-family planning, statement-plan, and target export contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built EmitC route, operand binding, header, and C type summary contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, generated-bundle dry-run, and ssh rvv runtime evidence requirements"}

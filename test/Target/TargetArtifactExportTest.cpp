@@ -8571,6 +8571,30 @@ bool expectRVVTargetArtifactExporterShape(
                                          computedMaskSegment2UpdateRoute,
                                          mutated, mutationContext, fragments);
   };
+  auto expectComputedMaskSegment2LoadProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(computedMaskSegment2LoadFixture,
+                                         computedMaskSegment2LoadRoute, mutated,
+                                         mutationContext, fragments);
+  };
+  auto expectComputedMaskSegment2LoadRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2ProviderFailure(computedMaskSegment2LoadFixture,
+                                         mutatedRoute,
+                                         computedMaskSegment2LoadDescription,
+                                         mutationContext, fragments);
+  };
+  auto expectComputedMaskSegment2LoadCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    return expectSegment2CandidateFailure(
+        computedMaskSegment2LoadRoute, computedMaskSegment2LoadDescription,
+        mutated, mutationContext, fragments);
+  };
   auto expectComputedMaskSegment2RouteFailure =
       [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
               &mutatedRoute,
@@ -9190,6 +9214,174 @@ bool expectRVVTargetArtifactExporterShape(
            "segment-field0-input-buffer"}))
     return false;
 
+  RVVRouteDescription wrongLoadProviderMirror =
+      computedMaskSegment2LoadDescription;
+  wrongLoadProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-segment2-load";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadProviderMirror,
+          "computed-mask segment2 load validator rejects metadata-only "
+          "provider mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-computed-mask-segment2-load-plan-validated",
+           "metadata-only-segment2-load"}))
+    return false;
+
+  RVVRouteDescription wrongLoadTargetLeaf =
+      computedMaskSegment2LoadDescription;
+  wrongLoadTargetLeaf.targetLeafProfile =
+      "metadata-derived-segment2-load-leaf";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadTargetLeaf,
+          "computed-mask segment2 load validator rejects wrong target leaf",
+          {"target leaf profile",
+           "rvv-v1-e32m1-computed-mask-segment2-load-leaf-profile.v1",
+           "metadata-derived-segment2-load-leaf"}))
+    return false;
+
+  RVVRouteDescription wrongLoadHeaders = computedMaskSegment2LoadDescription;
+  wrongLoadHeaders.requiredHeaderDeclarations = "stddef.h,stdint.h";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadHeaders,
+          "computed-mask segment2 load validator rejects wrong route headers",
+          {"required header declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription wrongLoadTypeMapping =
+      computedMaskSegment2LoadDescription;
+  wrongLoadTypeMapping.cTypeMappingSummary = "metadata-only-type-map";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadTypeMapping,
+          "computed-mask segment2 load validator rejects wrong route type "
+          "mapping",
+          {"C type mapping", "masked-segment2-load-store",
+           "metadata-only-type-map"}))
+    return false;
+
+  RVVRouteDescription wrongLoadComputedMaskPlan =
+      computedMaskSegment2LoadDescription;
+  wrongLoadComputedMaskPlan.computedMaskMemoryRouteFamilyPlanID =
+      "metadata-derived-computed-mask";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadComputedMaskPlan,
+          "computed-mask segment2 load validator rejects wrong route-family "
+          "plan",
+          {"computed-mask route-family plan",
+           "rvv-computed-mask-memory-route-family-plan.v1",
+           "metadata-derived-computed-mask"}))
+    return false;
+
+  RVVRouteDescription staleLoadPlainSegment2Plan =
+      computedMaskSegment2LoadDescription;
+  staleLoadPlainSegment2Plan.segment2MemoryRouteFamilyPlanID =
+      "metadata-derived-plain-segment2";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          staleLoadPlainSegment2Plan,
+          "computed-mask segment2 load validator rejects stale plain segment2 "
+          "route-family plan",
+          {"stale plain segment2 route-family facts"}))
+    return false;
+
+  RVVRouteDescription wrongLoadMaskSource =
+      computedMaskSegment2LoadDescription;
+  wrongLoadMaskSource.maskSource = "metadata-derived-mask";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadMaskSource,
+          "computed-mask segment2 load validator rejects wrong mask source",
+          {"mask source", "compare-produced-mask-same-vl-scope",
+           "metadata-derived-mask"}))
+    return false;
+
+  RVVRouteDescription wrongLoadMaskRole = computedMaskSegment2LoadDescription;
+  wrongLoadMaskRole.maskRole = "metadata-derived-mask-role";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadMaskRole,
+          "computed-mask segment2 load validator rejects wrong mask role",
+          {"mask role", "predicate-mask-produced-by-compare",
+           "metadata-derived-mask-role"}))
+    return false;
+
+  RVVRouteDescription wrongLoadMaskForm = computedMaskSegment2LoadDescription;
+  wrongLoadMaskForm.maskMemoryForm = "metadata-derived-mask-form";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadMaskForm,
+          "computed-mask segment2 load validator rejects wrong mask form",
+          {"mask memory form", "compare-produced-mask",
+           "metadata-derived-mask-form"}))
+    return false;
+
+  RVVRouteDescription wrongLoadSegmentCount =
+      computedMaskSegment2LoadDescription;
+  wrongLoadSegmentCount.segmentCount = 3;
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadSegmentCount,
+          "computed-mask segment2 load validator rejects wrong segment count",
+          {"segment-count facts"}))
+    return false;
+
+  RVVRouteDescription wrongLoadSegmentLayout =
+      computedMaskSegment2LoadDescription;
+  wrongLoadSegmentLayout.segmentMemoryLayout =
+      "metadata-derived-segment2-layout";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadSegmentLayout,
+          "computed-mask segment2 load validator rejects wrong segment layout",
+          {"segment memory layout",
+           "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi",
+           "metadata-derived-segment2-layout"}))
+    return false;
+
+  RVVRouteDescription wrongLoadDestinationMemory =
+      computedMaskSegment2LoadDescription;
+  wrongLoadDestinationMemory.destinationMemoryForm =
+      "segment2-interleaved-unit-stride-store";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadDestinationMemory,
+          "computed-mask segment2 load validator rejects wrong destination "
+          "memory form",
+          {"destination memory form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
+  RVVRouteDescription wrongLoadPassthrough =
+      computedMaskSegment2LoadDescription;
+  wrongLoadPassthrough.inactiveLaneContract =
+      "metadata-derived-inactive-lanes";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadPassthrough,
+          "computed-mask segment2 load validator rejects wrong inactive-lane "
+          "contract",
+          {"inactive lane contract",
+           "masked-off-lanes-preserve-old-destination",
+           "metadata-derived-inactive-lanes"}))
+    return false;
+
+  RVVRouteDescription wrongLoadPassthroughLayout =
+      computedMaskSegment2LoadDescription;
+  wrongLoadPassthroughLayout.maskedPassthroughLayout =
+      "metadata-derived-passthrough";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadPassthroughLayout,
+          "computed-mask segment2 load validator rejects wrong passthrough "
+          "layout",
+          {"masked passthrough layout",
+           "old-destination-vector-preserves-inactive-lanes",
+           "metadata-derived-passthrough"}))
+    return false;
+
+  RVVRouteDescription wrongLoadFieldDestination =
+      computedMaskSegment2LoadDescription;
+  wrongLoadFieldDestination.field0DestinationMemoryForm =
+      "segment2-interleaved-unit-stride-store";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadFieldDestination,
+          "computed-mask segment2 load validator rejects wrong field "
+          "destination memory form",
+          {"field0 destination memory form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
   RVVRouteDescription staleLoadHeaderBinding =
       computedMaskSegment2LoadDescription;
   staleLoadHeaderBinding.routeOperandBindingSummary =
@@ -9229,6 +9421,139 @@ bool expectRVVTargetArtifactExporterShape(
            "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
+  TargetArtifactCandidate wrongLoadProviderMirrorCandidate =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongLoadProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:metadata-only-segment2-load")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "provider mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadProviderMirrorCandidate,
+          "computed-mask segment2 load validator rejects stale provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-computed-mask-segment2-load-plan-validated",
+           "metadata-only-segment2-load"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadTargetLeafCandidate =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadTargetLeafCandidate,
+                                    "tcrv_rvv.target_leaf_profile",
+                                    "metadata-derived-segment2-load-leaf")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "target leaf metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadTargetLeafCandidate,
+          "computed-mask segment2 load validator rejects stale target leaf "
+          "mirror",
+          {"target_leaf_profile",
+           "rvv-v1-e32m1-computed-mask-segment2-load-leaf-profile.v1",
+           "metadata-derived-segment2-load-leaf"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadHeaderMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadHeaderMirror,
+                                    "tcrv_rvv.required_header_declarations",
+                                    "stddef.h,stdint.h")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "header metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadHeaderMirror,
+          "computed-mask segment2 load validator rejects stale header mirror",
+          {"required_header_declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadTypeMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadTypeMirror,
+                                    "tcrv_rvv.c_type_mapping",
+                                    "metadata-only-type-map")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "type metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadTypeMirror,
+          "computed-mask segment2 load validator rejects stale type mirror",
+          {"c_type_mapping", "masked-segment2-load-store",
+           "metadata-only-type-map"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadMaskMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadMaskMirror,
+                                    "tcrv_rvv.mask_source",
+                                    "metadata-derived-mask")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "mask source metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadMaskMirror,
+          "computed-mask segment2 load validator rejects stale mask mirror",
+          {"mask_source", "compare-produced-mask-same-vl-scope",
+           "metadata-derived-mask"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadSegmentCountMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadSegmentCountMirror,
+                                    "tcrv_rvv.segment_count", "3")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "segment count metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadSegmentCountMirror,
+          "computed-mask segment2 load validator rejects stale segment-count "
+          "mirror",
+          {"segment_count", "2", "3"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadDestinationMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadDestinationMirror,
+                                    "tcrv_rvv.destination_memory_form",
+                                    "segment2-interleaved-unit-stride-store")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "destination memory form metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadDestinationMirror,
+          "computed-mask segment2 load validator rejects stale destination "
+          "mirror",
+          {"destination_memory_form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadFieldDestinationMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadFieldDestinationMirror,
+                                    "tcrv_rvv.field0_destination_memory_form",
+                                    "segment2-interleaved-unit-stride-store")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "field destination metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadFieldDestinationMirror,
+          "computed-mask segment2 load validator rejects stale field "
+          "destination mirror",
+          {"field0_destination_memory_form", "unit-stride-store",
+           "segment2-interleaved-unit-stride-store"}))
+    return false;
+
   TargetArtifactCandidate wrongLoadSourceMirror =
       computedMaskSegment2LoadFixture.candidate;
   if (!rewriteArtifactMetadataValue(wrongLoadSourceMirror,
@@ -9244,6 +9569,83 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 load validator rejects stale source mirror",
           {"source_memory_form", "segment2-interleaved-unit-stride-load",
            "unit-stride-load"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadTupleCTypeMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadTupleCTypeMirror,
+                                    "tcrv_rvv.segment_tuple_c_type",
+                                    "metadata-derived-segment2-tuple")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "segment tuple C type metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadTupleCTypeMirror,
+          "computed-mask segment2 load validator rejects stale tuple C type "
+          "mirror",
+          {"segment_tuple_c_type", "vint32m1x2_t",
+           "metadata-derived-segment2-tuple"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadTupleMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadTupleMirror,
+                                    "tcrv_rvv.segment_tuple_create_intrinsic",
+                                    "__metadata_vcreate")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "segment tuple create metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadTupleMirror,
+          "computed-mask segment2 load validator rejects stale tuple-create "
+          "mirror",
+          {"segment_tuple_create_intrinsic", "__riscv_vcreate_v_i32m1x2",
+           "__metadata_vcreate"}))
+    return false;
+
+  TargetArtifactCandidate staleLoadStoreMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  staleLoadStoreMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.segment_store_intrinsic", "__metadata_vsseg2"));
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          staleLoadStoreMirror,
+          "computed-mask segment2 load validator rejects stale segment-store "
+          "mirror",
+          {"segment_store_intrinsic", "must not carry"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadFieldNameMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadFieldNameMirror,
+                                    "tcrv_rvv.field0_name",
+                                    "metadata_field0_vec")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "field name metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadFieldNameMirror,
+          "computed-mask segment2 load validator rejects stale field name "
+          "mirror",
+          {"field0_name", "masked_segment2_field0_vec",
+           "metadata_field0_vec"}))
+    return false;
+
+  TargetArtifactCandidate staleLoadPlainSegment2Mirror =
+      computedMaskSegment2LoadFixture.candidate;
+  staleLoadPlainSegment2Mirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.segment2_memory_route_family_plan",
+          "metadata-derived-plain-segment2"));
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          staleLoadPlainSegment2Mirror,
+          "computed-mask segment2 load validator rejects stale plain segment2 "
+          "route-family mirror",
+          {"segment2_memory_route_family_plan",
+           "selected typed RVV segment2 route-family plan"}))
     return false;
 
   RVVRouteDescription wrongStoreDestinationMemory =
@@ -9598,23 +10000,46 @@ bool expectRVVTargetArtifactExporterShape(
           {"loop statements", "selected typed RVV source provenance"}))
     return false;
 
-  if (!expectSegment2ProviderFailure(
-          computedMaskSegment2LoadFixture,
+  if (!expectComputedMaskSegment2LoadRouteFailure(
           cloneRVVEmitCLowerableRouteWithLoopOperand(
-              computedMaskSegment2LoadRoute, 0, 7, 2, "src + i"),
-          computedMaskSegment2LoadDescription,
-          "computed-mask segment2 load validator rejects stale segment-load "
-          "pointer",
-          {"masked segment2 load", "operand[2]", "src + i"}))
+              computedMaskSegment2LoadRoute, 0, 6, 0,
+              "metadata_field0_old_vec"),
+          "computed-mask segment2 load validator rejects stale old field0 "
+          "passthrough tuple",
+          {"masked passthrough tuple", "operand[0]", "field0_old_vec",
+           "metadata_field0_old_vec"}))
     return false;
 
-  if (!expectSegment2ProviderFailure(
-          computedMaskSegment2LoadFixture,
+  if (!expectComputedMaskSegment2LoadRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2LoadRoute, 0, 7, 2, "src + i"),
+          "computed-mask segment2 load validator rejects stale segment-load "
+          "pointer",
+          {"masked segment2 load", "operand[2]", "src + (offset * 2)",
+           "src + i"}))
+    return false;
+
+  if (!expectComputedMaskSegment2LoadRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              computedMaskSegment2LoadRoute, 0, 8, 1, "1"),
+          "computed-mask segment2 load validator rejects stale field0 extract",
+          {"segment2 field0 extract", "operand[1]", "0", "1"}))
+    return false;
+
+  if (!expectComputedMaskSegment2LoadRouteFailure(
           cloneRVVEmitCLowerableRouteWithLoopOperand(
               computedMaskSegment2LoadRoute, 0, 10, 2, "full_chunk_vl"),
-          computedMaskSegment2LoadDescription,
           "computed-mask segment2 load validator rejects stale field-store VL",
-          {"field0 output store", "operand[2]", "full_chunk_vl"}))
+          {"field0 output store", "operand[2]", "vl", "full_chunk_vl"}))
+    return false;
+
+  if (!expectComputedMaskSegment2LoadRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopSourceInterface(
+              computedMaskSegment2LoadRoute, 0, 7,
+              "tcrv.stale_segment2_source"),
+          "computed-mask segment2 load validator rejects stale loop statement "
+          "source provenance",
+          {"loop statements", "selected typed RVV source provenance"}))
     return false;
 
   if (!expectPlainDeinterleaveRouteFailure(

@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-segment2-load --overwrite --op-kind computed_masked_segment2_load_unit_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-segment2-load --overwrite --op-kind computed_masked_segment2_load_unit_store --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-mask-segment2-load/evidence.json
 # RUN: FileCheck %s --check-prefix=CMSEG --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-segment2-load/computed_masked_segment2_load_unit_store/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-segment2-load/computed_masked_segment2_load_unit_store/rvv_generated_bundle_abi_computed_masked_segment2_load_unit_store_harness.c
@@ -40,22 +40,58 @@
 # CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1"
 # CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
 # CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem|hdr;out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|f0-store|f0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# CMSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_route_family_plan"
+# CMSEG-DAG: "value": "rvv-computed-mask-memory-route-family-plan.v1"
+# CMSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
+# CMSEG-DAG: "value": "vector-compare-rhs-load"
+# CMSEG-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# CMSEG-DAG: "value": "rvv-v1-e32m1-computed-mask-segment2-load-leaf-profile.v1"
+# CMSEG-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# CMSEG-DAG: "value": "provider_supported_mirror:rvv-computed-mask-segment2-load-plan-validated"
+# CMSEG-DAG: "key": "tcrv_rvv.required_header_declarations"
+# CMSEG-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
+# CMSEG-DAG: "key": "tcrv_rvv.c_type_mapping"
+# CMSEG-DAG: "value": "vl:size_t,compare/source/passthrough-fields:signed-e32m1,mask:b32,segment2:vint32m1x2,result:masked-segment2-load-store"
 # CMSEG-DAG: "key": "tcrv_rvv.masked_memory_layout"
 # CMSEG-DAG: "value": "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_role"
+# CMSEG-DAG: "value": "predicate-mask-produced-by-compare"
 # CMSEG-DAG: "key": "tcrv_rvv.mask_source"
 # CMSEG-DAG: "value": "compare-produced-mask-same-vl-scope"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_memory_form"
+# CMSEG-DAG: "value": "compare-produced-mask"
 # CMSEG-DAG: "key": "tcrv_rvv.source_memory_form"
 # CMSEG-DAG: "value": "segment2-interleaved-unit-stride-load"
+# CMSEG-DAG: "key": "tcrv_rvv.destination_memory_form"
+# CMSEG-DAG: "value": "unit-stride-store"
 # CMSEG-DAG: "key": "tcrv_rvv.segment_memory_layout"
 # CMSEG-DAG: "value": "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi"
+# CMSEG-DAG: "key": "tcrv_rvv.segment_count"
+# CMSEG-DAG: "value": "2"
 # CMSEG-DAG: "key": "tcrv_rvv.segment_load_intrinsic"
 # CMSEG-DAG: "value": "__riscv_vlseg2e32_v_i32m1x2_tumu"
-# CMSEG-DAG: "key": "tcrv_rvv.segment_store_intrinsic"
+# CMSEG-DAG: "key": "tcrv_rvv.segment_tuple_create_intrinsic"
 # CMSEG-DAG: "value": "__riscv_vcreate_v_i32m1x2"
+# CMSEG-DAG: "key": "tcrv_rvv.segment_field_extract_intrinsic"
+# CMSEG-DAG: "value": "__riscv_vget_v_i32m1x2_i32m1"
+# CMSEG-DAG: "key": "tcrv_rvv.segment_tuple_c_type"
+# CMSEG-DAG: "value": "vint32m1x2_t"
 # CMSEG-DAG: "key": "tcrv_rvv.field0_role"
 # CMSEG-DAG: "value": "segment-field0-output-buffer"
 # CMSEG-DAG: "key": "tcrv_rvv.field1_role"
 # CMSEG-DAG: "value": "segment-field1-output-buffer"
+# CMSEG-DAG: "key": "tcrv_rvv.field0_name"
+# CMSEG-DAG: "value": "masked_segment2_field0_vec"
+# CMSEG-DAG: "key": "tcrv_rvv.field1_name"
+# CMSEG-DAG: "value": "masked_segment2_field1_vec"
+# CMSEG-DAG: "key": "tcrv_rvv.field0_destination_memory_form"
+# CMSEG-DAG: "value": "unit-stride-store"
+# CMSEG-DAG: "key": "tcrv_rvv.field1_destination_memory_form"
+# CMSEG-DAG: "value": "unit-stride-store"
+# CMSEG-DAG: "key": "tcrv_rvv.inactive_lane_contract"
+# CMSEG-DAG: "value": "masked-off-lanes-preserve-old-destination"
+# CMSEG-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
+# CMSEG-DAG: "value": "old-destination-vector-preserves-inactive-lanes"
 # CMSEG-DAG: "mask_coverage_contract": "multi-lane computed_masked_segment2_load_unit_store cases require compare-produced active and inactive mask lanes"
 # CMSEG-DAG: "inactive_lane_contract": "compare-false lanes must preserve both old destination field passthrough vectors"
 # CMSEG-DAG: "field_order_contract": "active lanes load distinguishable even/odd interleaved segment fields into out0/out1 while source and tail slots preserve sentinels"
@@ -70,4 +106,4 @@
 # HARNESS: source_preserved tail_preserved
 # HARNESS: for (int pattern = 0; pattern < 2; ++pattern)
 # HARNESS: patterns=0,1
-# HARNESS: PASS op=computed_masked_segment2_load_unit_store counts=0,1,16,17,257
+# HARNESS: PASS op=computed_masked_segment2_load_unit_store counts=0,1,7,16,23,257
