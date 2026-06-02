@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV/RVV authority chain, Stage 2 typed RVV body boundary, and no descriptor/source-front-door authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, segment2 planning owner, statement-plan, and target export consumer contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned EmitC route, operand binding summary, header/type mirror validation, and route-family fact surface rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence policy and RVV ssh evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run, mask/tail evidence, and runtime evidence constraints."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Immediate provider-owned computed-mask memory validation pattern to adapt for segment2 routes."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-segment2-load-artifact-abi-boundary/prd.md", "reason": "Archived segment2 load ABI facts and ssh rvv evidence reuse boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-segment2-store-artifact-abi-boundary/prd.md", "reason": "Archived segment2 store ABI facts and ssh rvv evidence reuse boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-segment2-update-artifact-abi-boundary/prd.md", "reason": "Archived segment2 update ABI facts and ssh rvv evidence reuse boundary."}

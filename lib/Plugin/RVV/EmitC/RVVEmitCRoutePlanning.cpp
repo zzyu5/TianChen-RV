@@ -11099,6 +11099,22 @@ getRVVComputedMaskIndexedMemoryRuntimeABIParameters(
   }
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVComputedMaskSegment2MemoryRuntimeABIParameters(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return tcrv::rvv::
+        getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return tcrv::rvv::
+        getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
+  default:
+    return {};
+  }
+}
+
 RVVRouteOperandBindingPlan
 buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(
     const RVVComputedMaskIndexedMemoryRouteFacts &facts) {
@@ -11150,6 +11166,73 @@ buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(
     addRouteOperandBinding(
         plan, "n", parameter(5),
         {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+    break;
+  default:
+    break;
+  }
+
+  return plan;
+}
+
+RVVRouteOperandBindingPlan
+buildComputedMaskSegment2MemoryRouteOperandBindingPlanFromFacts(
+    const RVVComputedMaskSegment2MemoryRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  auto parameter =
+      [&](std::size_t index) -> const support::RuntimeABIParameter & {
+    return facts.runtimeABIParameters[index];
+  };
+
+  switch (facts.operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    addRouteOperandBinding(plan, "cmp_lhs", parameter(0),
+                           {"abi", "cmp-lhs-load", "lhs-call", "hdr"});
+    addRouteOperandBinding(plan, "cmp_rhs", parameter(1),
+                           {"abi", "cmp-rhs-load", "rhs-call", "hdr"});
+    addRouteOperandBinding(plan, "src", parameter(2),
+                           {"abi", "mseg-base", "mseg-call", "src-mem",
+                            "hdr"});
+    addRouteOperandBinding(plan, "out0", parameter(3),
+                           {"abi", "old0-load", "f0-pass", "f0-store",
+                            "f0-role", "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "out1", parameter(4),
+                           {"abi", "old1-load", "f1-pass", "f1-store",
+                            "f1-role", "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "n", parameter(5),
+                           {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    addRouteOperandBinding(plan, "cmp_lhs", parameter(0),
+                           {"abi", "cmp-lhs-load", "lhs-call", "hdr"});
+    addRouteOperandBinding(plan, "cmp_rhs", parameter(1),
+                           {"abi", "cmp-rhs-load", "rhs-call", "hdr"});
+    addRouteOperandBinding(plan, "src0", parameter(2),
+                           {"abi", "f0-load", "f0-payload", "tuple0",
+                            "f0-role", "src0-mem", "hdr"});
+    addRouteOperandBinding(plan, "src1", parameter(3),
+                           {"abi", "f1-load", "f1-payload", "tuple1",
+                            "f1-role", "src1-mem", "hdr"});
+    addRouteOperandBinding(plan, "dst", parameter(4),
+                           {"abi", "mseg-store", "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "n", parameter(5),
+                           {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    addRouteOperandBinding(plan, "cmp_lhs", parameter(0),
+                           {"abi", "cmp-lhs-load", "lhs-call", "hdr"});
+    addRouteOperandBinding(plan, "cmp_rhs", parameter(1),
+                           {"abi", "cmp-rhs-load", "rhs-call", "hdr"});
+    addRouteOperandBinding(plan, "src0", parameter(2),
+                           {"abi", "f0-load", "f0-payload", "add-lhs",
+                            "tuple0", "f0-role", "src0-mem", "hdr"});
+    addRouteOperandBinding(plan, "src1", parameter(3),
+                           {"abi", "f1-load", "f1-payload", "add-rhs",
+                            "tuple1", "f1-role", "src1-mem", "hdr"});
+    addRouteOperandBinding(plan, "dst", parameter(4),
+                           {"abi", "mseg-store", "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "n", parameter(5),
+                           {"abi", "setvl-avl", "loop-control", "hdr"});
     break;
   default:
     break;
@@ -18071,6 +18154,122 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
 
   RVVRouteOperandBindingPlan plan =
       buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(plan);
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    facts.logicalOperands.push_back(binding.logicalOperand);
+
+  return facts;
+}
+
+std::optional<RVVComputedMaskSegment2MemoryRouteFacts>
+getRVVComputedMaskSegment2MemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation) {
+  const bool isLoad =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isStore =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+  const bool isUpdate =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
+  const bool isStoreLike = isStore || isUpdate;
+  if (!isLoad && !isStoreLike)
+    return std::nullopt;
+
+  RVVComputedMaskSegment2MemoryRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
+  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = getComputedMaskMemoryRuntimeABIOrder(operation);
+  facts.targetLeafProfile = getComputedMaskMemoryTargetLeafProfile(operation);
+  facts.providerSupportedMirror =
+      getComputedMaskMemoryProviderSupportedMirror(operation);
+  facts.requiredHeaderDeclarations =
+      getComputedMaskMemoryRequiredHeaderDeclarations(operation);
+  facts.cTypeMappingSummary =
+      getComputedMaskMemoryCTypeMappingSummary(operation);
+  facts.routeOperandBindingPlanID =
+      getExpectedRVVRouteOperandBindingPlanID(operation);
+  facts.typedComputeOpName =
+      isLoad ? llvm::StringRef("tcrv_rvv.masked_segment2_load")
+      : isStore ? llvm::StringRef("tcrv_rvv.masked_segment2_store")
+                : llvm::StringRef("tcrv_rvv.binary");
+  facts.comparePredicateKind = getComputedMaskMemoryComparePredicateKind(operation);
+  facts.computedMaskMemoryRouteFamilyPlanID =
+      kRVVComputedMaskMemoryRouteFamilyPlanID;
+  facts.computedMaskMemoryMaskProducerSource =
+      getComputedMaskMemoryProducerSource(operation);
+  facts.maskTailPolicyRouteFamilyPlanID = kRVVMaskTailPolicyRouteFamilyPlanID;
+  facts.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
+  facts.maskRole = kRVVMaskedPredicateMaskRole;
+  facts.maskSource = kRVVMaskedCompareMaskSource;
+  facts.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  facts.inactiveLaneContract =
+      getComputedMaskMemoryInactiveLaneContract(operation);
+  facts.maskedPassthroughLayout =
+      getComputedMaskMemoryPassthroughLayout(operation);
+  facts.segmentMemoryLayout = getComputedMaskMemoryLayout(operation);
+  facts.sourceMemoryForm = getComputedMaskMemorySourceMemoryForm(operation);
+  facts.destinationMemoryForm =
+      getComputedMaskMemoryDestinationMemoryForm(operation);
+  facts.segmentCount = 2;
+  facts.segmentTupleCType =
+      getRVVSelectedBodySegmentTupleCType(facts.sew, facts.lmul,
+                                          facts.segmentCount);
+  facts.segmentLoadIntrinsic =
+      isLoad ? getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
+                   facts.sew, facts.lmul, facts.segmentCount)
+             : llvm::StringRef();
+  facts.segmentStoreIntrinsic =
+      isLoad ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                   facts.sew, facts.lmul, facts.segmentCount)
+      : isStoreLike ? getRVVSelectedBodyMaskedSegmentStoreIntrinsic(
+                          facts.sew, facts.lmul, facts.segmentCount)
+                    : llvm::StringRef();
+  facts.segmentFieldExtractIntrinsic =
+      isLoad ? getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                   facts.sew, facts.lmul, facts.segmentCount)
+             : getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                   facts.sew, facts.lmul, facts.segmentCount);
+  facts.segment2UpdateArithmeticKind = isUpdate ? llvm::StringRef("add")
+                                                : llvm::StringRef();
+  facts.segment2UpdateArithmeticIntrinsic =
+      isUpdate ? getRVVSelectedBodyArithmeticIntrinsic(operation, facts.sew,
+                                                       facts.lmul)
+               : llvm::StringRef();
+  facts.field0Role =
+      isLoad ? llvm::StringRef(kRVVSegment2Field0Role)
+             : llvm::StringRef(kRVVSegment2Field0InputRole);
+  facts.field1Role =
+      isLoad ? llvm::StringRef(kRVVSegment2Field1Role)
+             : llvm::StringRef(kRVVSegment2Field1InputRole);
+  facts.field0Name =
+      isLoad ? llvm::StringRef("masked_segment2_field0_vec")
+      : isUpdate ? llvm::StringRef("masked_segment2_update_field0_vec")
+                 : llvm::StringRef("masked_segment2_store_field0_vec");
+  facts.field1Name =
+      isLoad ? llvm::StringRef("masked_segment2_field1_vec")
+      : isUpdate ? llvm::StringRef("masked_segment2_update_field1_vec")
+                 : llvm::StringRef("masked_segment2_store_field1_vec");
+  facts.field0SourceMemoryForm =
+      isStoreLike ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                  : llvm::StringRef();
+  facts.field1SourceMemoryForm =
+      isStoreLike ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                  : llvm::StringRef();
+  facts.field0DestinationMemoryForm =
+      isLoad ? llvm::StringRef(kRVVDestinationMemoryForm) : llvm::StringRef();
+  facts.field1DestinationMemoryForm =
+      isLoad ? llvm::StringRef(kRVVDestinationMemoryForm) : llvm::StringRef();
+  facts.runtimeABIParameters =
+      getRVVComputedMaskSegment2MemoryRuntimeABIParameters(operation);
+
+  RVVRouteOperandBindingPlan plan =
+      buildComputedMaskSegment2MemoryRouteOperandBindingPlanFromFacts(facts);
   facts.routeOperandBindingSummary =
       stringifyRVVRouteOperandBindingPlan(plan);
   for (const RVVRouteOperandBinding &binding : plan.bindings)

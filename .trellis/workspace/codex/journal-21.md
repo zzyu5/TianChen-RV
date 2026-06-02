@@ -286,15 +286,32 @@ Added provider-owned computed-mask MAcc facts, rewired provider/target validatio
 
 ### Main Changes
 
-(Add details)
+- Added the `RVVComputedMaskSegment2MemoryRouteFacts` provider-owned fact
+  surface and accessor for computed-mask segment2 load, store, and update
+  routes.
+- Derived runtime ABI parameters, route operand binding plan/summary,
+  header/type summaries, mask facts, segment field facts, update arithmetic,
+  target profile, and provider mirror from the RVV provider layer.
+- Rewired segment2 target artifact validation to consume rebuilt provider
+  facts for computed-mask segment2 load/store/update instead of target-local
+  constants, while preserving plain segment2 validation.
+- Added the computed-mask segment2 memory fact-surface contract to
+  `.trellis/spec/lowering-runtime/emitc-route.md`.
+- Archived the Trellis task after the focused quality gate passed.
 
 ### Git Commits
 
-(No commits - planning session)
+- Included in this closeout commit.
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'computed-masked-segment2'` from `build/test`, passed 15/15 selected tests.
+- [OK] `rtk git diff --check`
+- [OK] bounded authority scan over touched production/spec/task files; hits
+  were limited to forbidden-pattern spec/PRD text, existing route-id mirror
+  diagnostics, and existing fail-closed legacy i32 checks.
 
 ### Status
 
@@ -778,3 +795,34 @@ for `dst[index[i]] = src[i]`.
 ### Next Steps
 
 - Archive task and create the coherent task commit.
+
+
+## Session 402: Stage2 RVV computed masked segment2 production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV computed masked segment2 production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Completed provider-owned computed-mask segment2 memory fact surface, rewired target artifact validation to consume rebuilt provider facts for load/store/update, preserved generated-bundle support, archived the Trellis task, and verified focused C++/lit checks plus git diff/authority scan.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
