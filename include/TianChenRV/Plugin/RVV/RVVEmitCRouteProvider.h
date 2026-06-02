@@ -331,6 +331,62 @@ std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
 getRVVRuntimeScalarComputedMaskMAccRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+struct RVVComputedMaskStridedInputWideningDotReduceRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef contractionRouteFamilyPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  std::int64_t accumulatorSEW = 0;
+  llvm::StringRef accumulatorLMUL;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef lhsStrideSource;
+  llvm::StringRef rhsStrideSource;
+  llvm::StringRef wideningDotProductAccumulatorLayout;
+  llvm::StringRef wideningDotProductResultLayout;
+  llvm::StringRef wideningDotProductRelation;
+  llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef maskedWideningProductIntrinsic;
+  llvm::StringRef scalarSeedSplatIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef compareVectorLoadIntrinsic;
+  llvm::StringRef reductionIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedMergeIntrinsic;
+  llvm::StringRef reductionStoreVL;
+  llvm::StringRef inactiveLaneZeroingRequirement;
+  llvm::StringRef vlCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  std::string routeOperandBindingSummary;
+};
+
+std::optional<RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
+getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+
 llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds();
 
 llvm::StringRef

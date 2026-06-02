@@ -7446,6 +7446,62 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskStridedWideningDotDescription))
     return false;
 
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
+      computedMaskStridedWideningDotFacts =
+          tianchenrv::plugin::rvv::
+              getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
+                  OperationKind::ComputedMaskStridedInputWideningDotReduceAdd);
+  if (!computedMaskStridedWideningDotFacts) {
+    llvm::errs() << "computed-mask strided widening-dot fixture did not have "
+                    "provider canonical route facts\n";
+    return false;
+  }
+  if (computedMaskStridedWideningDotDescription.runtimeABIOrder !=
+          computedMaskStridedWideningDotFacts->runtimeABIOrder ||
+      computedMaskStridedWideningDotDescription.routeOperandBindingPlanID !=
+          computedMaskStridedWideningDotFacts->routeOperandBindingPlanID ||
+      computedMaskStridedWideningDotDescription.routeOperandBindingSummary !=
+          computedMaskStridedWideningDotFacts->routeOperandBindingSummary ||
+      computedMaskStridedWideningDotDescription.targetLeafProfile !=
+          computedMaskStridedWideningDotFacts->targetLeafProfile ||
+      computedMaskStridedWideningDotDescription.providerSupportedMirror !=
+          computedMaskStridedWideningDotFacts->providerSupportedMirror ||
+      computedMaskStridedWideningDotDescription.requiredHeaderDeclarations !=
+          computedMaskStridedWideningDotFacts->requiredHeaderDeclarations ||
+      computedMaskStridedWideningDotDescription.cTypeMappingSummary !=
+          computedMaskStridedWideningDotFacts->cTypeMappingSummary ||
+      computedMaskStridedWideningDotDescription.contractionRouteFamilyPlanID !=
+          computedMaskStridedWideningDotFacts->contractionRouteFamilyPlanID ||
+      computedMaskStridedWideningDotDescription.typedComputeOpName !=
+          computedMaskStridedWideningDotFacts->typedComputeOpName ||
+      computedMaskStridedWideningDotDescription.maskSource !=
+          computedMaskStridedWideningDotFacts->maskSource ||
+      computedMaskStridedWideningDotDescription.stridedMemoryLayout !=
+          computedMaskStridedWideningDotFacts->stridedMemoryLayout ||
+      computedMaskStridedWideningDotDescription.lhsStrideSource !=
+          computedMaskStridedWideningDotFacts->lhsStrideSource ||
+      computedMaskStridedWideningDotDescription.rhsStrideSource !=
+          computedMaskStridedWideningDotFacts->rhsStrideSource ||
+      computedMaskStridedWideningDotDescription.sourceSEW !=
+          computedMaskStridedWideningDotFacts->sourceSEW ||
+      computedMaskStridedWideningDotDescription.sourceLMUL !=
+          computedMaskStridedWideningDotFacts->sourceLMUL ||
+      computedMaskStridedWideningDotDescription.sew !=
+          computedMaskStridedWideningDotFacts->resultSEW ||
+      computedMaskStridedWideningDotDescription.lmul !=
+          computedMaskStridedWideningDotFacts->resultLMUL ||
+      computedMaskStridedWideningDotDescription.wideningDotProductRelation !=
+          computedMaskStridedWideningDotFacts->wideningDotProductRelation ||
+      computedMaskStridedWideningDotDescription.stridedLoadIntrinsic !=
+          computedMaskStridedWideningDotFacts->stridedLoadIntrinsic ||
+      computedMaskStridedWideningDotDescription.maskedWideningProductIntrinsic !=
+          computedMaskStridedWideningDotFacts->maskedWideningProductIntrinsic) {
+    llvm::errs() << "computed-mask strided widening-dot description did not "
+                    "mirror provider canonical route facts\n";
+    return false;
+  }
+
   auto expectWideningDotProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -7773,6 +7829,32 @@ bool expectRVVTargetArtifactExporterShape(
           {"computed-mask widening dot-reduction",
            "provider route operand binding plan",
            "exact operand binding summary"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotTargetLeaf =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotTargetLeaf.targetLeafProfile =
+      "metadata-derived-contraction-profile";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotTargetLeaf,
+          "computed-mask strided widening-dot registry rejects stale target "
+          "leaf profile facts",
+          {"provider-owned canonical route facts"}))
+    return false;
+
+  RVVRouteDescription staleComputedMaskStridedDotHeaderFacts =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotHeaderFacts.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotHeaderFacts,
+          "computed-mask strided widening-dot registry rejects stale header "
+          "facts",
+          {"provider-owned canonical route facts"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotLHSRole =

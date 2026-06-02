@@ -2648,8 +2648,18 @@ llvm::Error validateRVVComputedMaskWideningDotReductionRuntimeABIFacts(
   const bool isStrided =
       isRVVStridedInputWideningDotReductionRouteFamilyOperation(
           description.operation);
+  const std::optional<
+      plugin::rvv::RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
+      computedMaskStridedFacts =
+          plugin::rvv::getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
+              description.operation);
+  if (isStrided && !computedMaskStridedFacts)
+    return makeRVVTargetRouteError(
+        "computed-mask strided widening dot-reduction target artifact "
+        "consumer requires provider-owned canonical route facts before "
+        "validating runtime ABI order");
   const llvm::StringRef expectedABIOrder =
-      isStrided ? kRVVComputedMaskStridedInputWideningDotRuntimeABIOrder
+      isStrided ? computedMaskStridedFacts->runtimeABIOrder
                 : kRVVComputedMaskWideningDotRuntimeABIOrder;
   if (description.runtimeABIOrder != expectedABIOrder)
     return makeRVVTargetRouteError(
@@ -2868,17 +2878,28 @@ llvm::Error validateRVVComputedMaskWideningDotReductionRoutePayloadFacts(
   const bool isStrided =
       isRVVStridedInputWideningDotReductionRouteFamilyOperation(
           description.operation);
+  const std::optional<
+      plugin::rvv::RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
+      computedMaskStridedFacts =
+          plugin::rvv::getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
+              description.operation);
+  if (isStrided && !computedMaskStridedFacts)
+    return makeRVVTargetRouteError(
+        "computed-mask strided widening dot-reduction target artifact "
+        "consumer requires provider-owned canonical route facts before "
+        "artifact export");
   const llvm::StringRef expectedBindingPlan =
-      isStrided ? kRVVComputedMaskStridedInputWideningDotRouteOperandBindingPlan
+      isStrided ? computedMaskStridedFacts->routeOperandBindingPlanID
                 : kRVVComputedMaskWideningDotRouteOperandBindingPlan;
   const llvm::StringRef expectedBindingSummary =
       isStrided
-          ? kRVVComputedMaskStridedInputWideningDotRouteOperandBindingSummary
-          : kRVVComputedMaskWideningDotRouteOperandBindingSummary;
+          ? llvm::StringRef(
+                computedMaskStridedFacts->routeOperandBindingSummary)
+          : llvm::StringRef(
+                kRVVComputedMaskWideningDotRouteOperandBindingSummary);
   const plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm =
       isStrided
-          ? plugin::rvv::RVVSelectedBodyMemoryForm::
-                ComputedMaskStridedInputWideningDotReduce
+          ? computedMaskStridedFacts->memoryForm
           : plugin::rvv::RVVSelectedBodyMemoryForm::
                 ComputedMaskUnitStrideWideningDotReduce;
 
@@ -2903,6 +2924,93 @@ llvm::Error validateRVVComputedMaskWideningDotReductionRoutePayloadFacts(
           consumerLabel, "C type mapping summary",
           description.cTypeMappingSummary))
     return error;
+  if (description.maskRole != kRVVComputedMaskRole ||
+      description.maskSource != kRVVComputedMaskSource ||
+      description.maskMemoryForm != kRVVComputedMaskMemoryForm)
+    return makeRVVTargetRouteError(
+        "computed-mask widening dot-reduction target artifact consumer "
+        "requires provider-derived computed-mask role/source/form facts "
+        "before artifact export");
+  if (computedMaskStridedFacts) {
+    if (description.runtimeABIOrder !=
+            computedMaskStridedFacts->runtimeABIOrder ||
+        description.targetLeafProfile !=
+            computedMaskStridedFacts->targetLeafProfile ||
+        description.providerSupportedMirror !=
+            computedMaskStridedFacts->providerSupportedMirror ||
+        description.requiredHeaderDeclarations !=
+            computedMaskStridedFacts->requiredHeaderDeclarations ||
+        description.cTypeMappingSummary !=
+            computedMaskStridedFacts->cTypeMappingSummary ||
+        description.contractionRouteFamilyPlanID !=
+            computedMaskStridedFacts->contractionRouteFamilyPlanID ||
+        description.typedComputeOpName !=
+            computedMaskStridedFacts->typedComputeOpName ||
+        description.comparePredicateKind !=
+            computedMaskStridedFacts->comparePredicateKind ||
+        description.maskRole != computedMaskStridedFacts->maskRole ||
+        description.maskSource != computedMaskStridedFacts->maskSource ||
+        description.maskMemoryForm != computedMaskStridedFacts->maskMemoryForm ||
+        description.sourceSEW != computedMaskStridedFacts->sourceSEW ||
+        description.sourceLMUL != computedMaskStridedFacts->sourceLMUL ||
+        description.sew != computedMaskStridedFacts->resultSEW ||
+        description.lmul != computedMaskStridedFacts->resultLMUL ||
+        description.sourceMemoryForm !=
+            computedMaskStridedFacts->sourceMemoryForm ||
+        description.destinationMemoryForm !=
+            computedMaskStridedFacts->destinationMemoryForm ||
+        description.stridedMemoryLayout !=
+            computedMaskStridedFacts->stridedMemoryLayout ||
+        description.lhsStrideSource !=
+            computedMaskStridedFacts->lhsStrideSource ||
+        description.rhsStrideSource !=
+            computedMaskStridedFacts->rhsStrideSource ||
+        description.wideningDotProductAccumulatorLayout !=
+            computedMaskStridedFacts->wideningDotProductAccumulatorLayout ||
+        description.wideningDotProductResultLayout !=
+            computedMaskStridedFacts->wideningDotProductResultLayout ||
+        description.wideningDotProductRelation !=
+            computedMaskStridedFacts->wideningDotProductRelation ||
+        description.wideningProductIntrinsic !=
+            computedMaskStridedFacts->wideningProductIntrinsic ||
+        description.maskedWideningProductIntrinsic !=
+            computedMaskStridedFacts->maskedWideningProductIntrinsic ||
+        description.scalarSeedSplatIntrinsic !=
+            computedMaskStridedFacts->scalarSeedSplatIntrinsic ||
+        description.stridedLoadIntrinsic !=
+            computedMaskStridedFacts->stridedLoadIntrinsic ||
+        description.sourceVectorLoadIntrinsic !=
+            computedMaskStridedFacts->sourceVectorLoadIntrinsic ||
+        description.vectorLoadIntrinsic !=
+            computedMaskStridedFacts->compareVectorLoadIntrinsic ||
+        description.intrinsic !=
+            computedMaskStridedFacts->reductionIntrinsic ||
+        description.storeIntrinsic != computedMaskStridedFacts->storeIntrinsic ||
+        description.setVLIntrinsic != computedMaskStridedFacts->setVLIntrinsic ||
+        description.compareIntrinsic !=
+            computedMaskStridedFacts->compareIntrinsic ||
+        description.maskedMergeIntrinsic !=
+            computedMaskStridedFacts->maskedMergeIntrinsic ||
+        description.reductionStoreVL !=
+            computedMaskStridedFacts->reductionStoreVL ||
+        description.inactiveLaneZeroingRequirement !=
+            computedMaskStridedFacts->inactiveLaneZeroingRequirement ||
+        description.vlCType != computedMaskStridedFacts->vlCType ||
+        description.sourceVectorTypeName !=
+            computedMaskStridedFacts->sourceVectorTypeName ||
+        description.sourceVectorCType !=
+            computedMaskStridedFacts->sourceVectorCType ||
+        description.vectorTypeName !=
+            computedMaskStridedFacts->resultVectorTypeName ||
+        description.vectorCType !=
+            computedMaskStridedFacts->resultVectorCType ||
+        description.maskTypeName != computedMaskStridedFacts->maskTypeName ||
+        description.maskCType != computedMaskStridedFacts->maskCType)
+      return makeRVVTargetRouteError(
+          "computed-mask strided widening dot-reduction target artifact "
+          "consumer requires provider-owned canonical route facts before "
+          "artifact export");
+  }
   if (description.routeOperandBindingPlanID != expectedBindingPlan ||
       description.routeOperandBindingSummary != expectedBindingSummary)
     return makeRVVTargetRouteError(
@@ -2926,13 +3034,6 @@ llvm::Error validateRVVComputedMaskWideningDotReductionRoutePayloadFacts(
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "mask policy", description.maskPolicy))
     return error;
-  if (description.maskRole != kRVVComputedMaskRole ||
-      description.maskSource != kRVVComputedMaskSource ||
-      description.maskMemoryForm != kRVVComputedMaskMemoryForm)
-    return makeRVVTargetRouteError(
-        "computed-mask widening dot-reduction target artifact consumer "
-        "requires provider-derived computed-mask role/source/form facts "
-        "before artifact export");
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "inactive-lane zeroing requirement",
           description.inactiveLaneZeroingRequirement))
