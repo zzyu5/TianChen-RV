@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-21.md`
-- **Total Sessions**: 387
+- **Total Sessions**: 388
 - **Last Active**: 2026-06-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-21.md` | ~93 | Active |
+| `journal-21.md` | ~183 | Active |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
@@ -49,6 +49,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 388 | 2026-06-02 | Stage2 RVV runtime-scalar cmp masked standalone reduce-add artifact ABI boundary | included-in-this-commit | `main` |
 | 387 | 2026-06-02 | Stage2 RVV computed-masked segment2 update artifact ABI boundary | included-in-this-commit | `main` |
 | 386 | 2026-06-02 | Stage2 RVV computed-masked segment2 store artifact ABI boundary | this commit | `main` |
 | 385 | 2026-06-02 | Stage2 RVV computed-masked segment2 load artifact ABI boundary | `de423987` | `main` |

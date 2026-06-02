@@ -990,6 +990,14 @@ scalarResultVectorCType
 sourceSplatIntrinsic
 ```
 
+The RVV provider also owns the operation-specific inactive neutral literal used
+before masked standalone horizontal reduction:
+
+```c++
+llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew);
+```
+
 #### 3. Contracts
 
 The RVV selected-body realization must preserve the source SEW/LMUL on the
@@ -1015,6 +1023,13 @@ provider-derived `sourceSplatIntrinsic`; scalar seed splats and scalar-result
 stores must use the scalar-result channel and lane-0 store VL. This remains
 true when the source LMUL is m2 and the scalar-result LMUL is m1.
 
+Target artifact validation must consume the RVV provider's inactive-neutral
+literal helper when checking the provider-built inactive neutral splat. It must
+not keep a target-local reduction-kind table that independently chooses `0`,
+`INT32_MAX`, `INT32_MIN`, or their SEW64 equivalents. The helper result is
+provider-owned route-family behavior; target validation only verifies that the
+rebuilt route statements match it.
+
 #### 4. Validation & Error Matrix
 
 - Missing scalar accumulator role/layout -> fail closed before provider route
@@ -1031,6 +1046,10 @@ true when the source LMUL is m2 and the scalar-result LMUL is m1.
 - Computed-mask inactive neutral splat uses the scalar-result vector channel,
   a stale neutral literal, or a stale mask/merge operand instead of the
   validated source/work channel and mask facts -> fail closed.
+- Target artifact validation derives the inactive neutral literal from a local
+  route id, operation string, artifact name, intrinsic spelling, or target-only
+  reduction-kind table instead of the RVV provider helper -> fail closed /
+  refactor before accepting the artifact.
 - Header/artifact metadata claims source or scalar-result types not present in
   the validated family plan -> fail closed as stale mirror metadata.
 - Header/artifact metadata omits or changes the scalar C type or source splat

@@ -6022,28 +6022,6 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteABIMappings(
   return llvm::Error::success();
 }
 
-llvm::StringRef getRVVStandaloneReductionInactiveNeutralLiteral(
-    plugin::rvv::RVVSelectedBodyOperationKind operation, int64_t sew) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceAdd:
-    return "0";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMin:
-    return sew == 64 ? llvm::StringRef("9223372036854775807")
-                     : llvm::StringRef("2147483647");
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMax:
-    return sew == 64 ? llvm::StringRef("(-9223372036854775807-1)")
-                     : llvm::StringRef("(-2147483647-1)");
-  default:
-    return {};
-  }
-}
-
 llvm::Error validateRVVStandaloneReductionPreLoopStatements(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
@@ -6252,8 +6230,8 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
     return error;
 
   const llvm::StringRef inactiveNeutral =
-      getRVVStandaloneReductionInactiveNeutralLiteral(description.operation,
-                                                     description.sew);
+      plugin::rvv::getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
+          description.operation, description.sew);
   if (inactiveNeutral.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -6395,8 +6373,8 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
     return error;
 
   const llvm::StringRef inactiveNeutral =
-      getRVVStandaloneReductionInactiveNeutralLiteral(description.operation,
-                                                     description.sew);
+      plugin::rvv::getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
+          description.operation, description.sew);
   if (inactiveNeutral.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +

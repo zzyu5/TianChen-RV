@@ -148,3 +148,36 @@ Tightened computed-mask segment2 update target provider fact validation, dry-run
 ### Next Steps
 
 - None - task complete
+
+
+## Session 388: Stage2 RVV runtime-scalar cmp masked standalone reduce-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar cmp masked standalone reduce-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Moved runtime-scalar computed-mask standalone reduce-add inactive neutral literal authority into the RVV provider API, tightened add provider/candidate fail-closed coverage and generated-bundle facts, proved dry-run and real ssh rvv correctness, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

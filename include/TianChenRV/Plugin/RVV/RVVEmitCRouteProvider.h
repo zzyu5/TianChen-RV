@@ -313,6 +313,9 @@ std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
 getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew);
+
 struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

@@ -17861,6 +17861,28 @@ llvm::Error verifySelectedRVVRoleSequence(
 
 } // namespace
 
+llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return "0";
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMin:
+    return sew == 64 ? llvm::StringRef("9223372036854775807")
+                     : llvm::StringRef("2147483647");
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMax:
+    return sew == 64 ? llvm::StringRef("(-9223372036854775807-1)")
+                     : llvm::StringRef("(-2147483647-1)");
+  default:
+    return {};
+  }
+}
+
 bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
