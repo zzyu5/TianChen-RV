@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify RVV plugin locality, typed body authority, runtime-scalar MAcc realization, and provider fact ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify provider-built route facts, operand binding summary contract, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify computed-mask MAcc generated-bundle evidence, fail-closed tests, and ssh rvv evidence claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final check must verify no common/core RVV semantic inference was added."}
+{"file": ".trellis/tasks/06-02-stage2-rvv-runtime-scalar-masked-macc-accumulation-artifact-abi-boundary/prd.md", "reason": "Final check must verify implementation, evidence, and task status against acceptance criteria."}
+{"file": "artifacts/tmp/06-02-runtime-scalar-macc-ssh-rvv/pre-realized-runtime-scalar-cmp-masked-macc-add/runtime_scalar_cmp_masked_macc_add/evidence.json", "reason": "Real ssh rvv evidence for counts 0,1,16,17,257; RHS scalars -37,91; patterns 0,1; active MACC, inactive accumulator passthrough, tail preservation, and runtime AVL."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir", "reason": "Manual REALIZED/PLAN/HEADER and stale provider/binding/ABI/header/type/scalar/layout FileCheck equivalents passed."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-macc-add-dry-run.test", "reason": "Manual ROOT/MACC/HARNESS FileCheck checks passed for pre-realized generated-bundle dry-run evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-macc-add-dry-run.test", "reason": "Manual ROOT/MACC/HARNESS FileCheck checks passed for explicit selected-body generated-bundle dry-run evidence."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused C++ target artifact export regression executable built and passed."}

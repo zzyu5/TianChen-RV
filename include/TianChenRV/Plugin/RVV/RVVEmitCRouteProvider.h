@@ -300,6 +300,37 @@ std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
 getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef accumulationRouteFamilyPlanID;
+  llvm::StringRef accumulationComputeSuffix;
+  llvm::StringRef accumulationMaskProducerSource;
+  llvm::StringRef accumulationAccumulatorContract;
+  llvm::StringRef accumulationResultContract;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef maccAccumulatorLayout;
+  llvm::StringRef maccResultLayout;
+  std::string routeOperandBindingSummary;
+};
+
+std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
+getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+
 llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds();
 
 llvm::StringRef

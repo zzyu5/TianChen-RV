@@ -3169,6 +3169,70 @@ bool expectRVVTargetArtifactExporterShape(
           "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
           "runtime-scalar standalone reduce_max canonical route facts"))
     return false;
+  auto expectRuntimeScalarMAccCanonicalFacts =
+      [](llvm::StringRef context) -> bool {
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVRuntimeScalarComputedMaskMAccRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::
+                getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+                    RVVOperationKind::RuntimeScalarComputedMaskedMAccAdd);
+    if (!routeFacts) {
+      llvm::errs() << context
+                   << ": missing runtime-scalar computed-mask MAcc canonical "
+                      "route facts\n";
+      return false;
+    }
+    if (routeFacts->operation !=
+            RVVOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
+        routeFacts->memoryForm !=
+            tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                RuntimeScalarComputedMaskUnitStrideMAcc ||
+        routeFacts->runtimeABIOrder !=
+            "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n" ||
+        routeFacts->routeOperandBindingPlanID !=
+            "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1" ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(
+                 "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr") ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(
+                 "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr") ||
+        routeFacts->targetLeafProfile !=
+            "rvv-v1-typed-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1" ||
+        routeFacts->providerSupportedMirror !=
+            "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-validated" ||
+        routeFacts->requiredHeaderDeclarations !=
+            "stddef.h,stdint.h,riscv_vector.h" ||
+        routeFacts->cTypeMappingSummary !=
+            "vl:size_t,cmp_lhs/lhs/rhs/acc:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:typed-vector" ||
+        routeFacts->accumulationRouteFamilyPlanID !=
+            "rvv-computed-mask-accumulation-route-family-plan.v1" ||
+        routeFacts->accumulationComputeSuffix != "vector-masked-macc-add" ||
+        routeFacts->accumulationMaskProducerSource !=
+            "runtime-scalar-splat-compare-rhs" ||
+        routeFacts->accumulationAccumulatorContract !=
+            "vector-accumulator-input-preserves-inactive-lanes" ||
+        routeFacts->accumulationResultContract !=
+            "vector-macc-result-stored-to-output-buffer" ||
+        routeFacts->inactiveLaneContract !=
+            "masked-macc-false-lanes-preserve-accumulator" ||
+        routeFacts->maskedPassthroughLayout !=
+            "accumulator-vector-preserves-inactive-lanes" ||
+        routeFacts->maccAccumulatorLayout !=
+            "separate-i32-vector-accumulator-input" ||
+        routeFacts->maccResultLayout !=
+            "store-multiply-accumulate-result-to-output-buffer") {
+      llvm::errs() << context
+                   << ": malformed runtime-scalar computed-mask MAcc "
+                      "canonical route facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectRuntimeScalarMAccCanonicalFacts(
+          "runtime-scalar computed-mask MAcc canonical route facts"))
+    return false;
   auto expectRouteFamilyValidationPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture) -> bool {
@@ -6854,6 +6918,65 @@ bool expectRVVTargetArtifactExporterShape(
                           runtimeScalarComputedMAccRoute,
                           runtimeScalarComputedMAccDescription))
     return false;
+  std::optional<
+      tianchenrv::plugin::rvv::RVVRuntimeScalarComputedMaskMAccRouteFacts>
+      runtimeScalarComputedMAccFacts =
+          tianchenrv::plugin::rvv::
+              getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+                  OperationKind::RuntimeScalarComputedMaskedMAccAdd);
+  if (!runtimeScalarComputedMAccFacts) {
+    llvm::errs() << "runtime-scalar computed-mask MAcc positive fixture "
+                    "requires canonical route facts\n";
+    return false;
+  }
+  if (runtimeScalarComputedMAccDescription.runtimeABIOrder !=
+          runtimeScalarComputedMAccFacts->runtimeABIOrder ||
+      runtimeScalarComputedMAccDescription.routeOperandBindingPlanID !=
+          runtimeScalarComputedMAccFacts->routeOperandBindingPlanID ||
+      runtimeScalarComputedMAccDescription.routeOperandBindingSummary !=
+          runtimeScalarComputedMAccFacts->routeOperandBindingSummary ||
+      runtimeScalarComputedMAccDescription.targetLeafProfile !=
+          runtimeScalarComputedMAccFacts->targetLeafProfile ||
+      runtimeScalarComputedMAccDescription.providerSupportedMirror !=
+          runtimeScalarComputedMAccFacts->providerSupportedMirror ||
+      runtimeScalarComputedMAccDescription.requiredHeaderDeclarations !=
+          runtimeScalarComputedMAccFacts->requiredHeaderDeclarations ||
+      runtimeScalarComputedMAccDescription.cTypeMappingSummary !=
+          runtimeScalarComputedMAccFacts->cTypeMappingSummary ||
+      runtimeScalarComputedMAccDescription.accumulationRouteFamilyPlanID !=
+          runtimeScalarComputedMAccFacts->accumulationRouteFamilyPlanID ||
+      runtimeScalarComputedMAccDescription.accumulationComputeSuffix !=
+          runtimeScalarComputedMAccFacts->accumulationComputeSuffix ||
+      runtimeScalarComputedMAccDescription.accumulationMaskProducerSource !=
+          runtimeScalarComputedMAccFacts->accumulationMaskProducerSource ||
+      runtimeScalarComputedMAccDescription.accumulationAccumulatorContract !=
+          runtimeScalarComputedMAccFacts->accumulationAccumulatorContract ||
+      runtimeScalarComputedMAccDescription.accumulationResultContract !=
+          runtimeScalarComputedMAccFacts->accumulationResultContract ||
+      runtimeScalarComputedMAccDescription.maskRole !=
+          runtimeScalarComputedMAccFacts->maskRole ||
+      runtimeScalarComputedMAccDescription.maskSource !=
+          runtimeScalarComputedMAccFacts->maskSource ||
+      runtimeScalarComputedMAccDescription.maskMemoryForm !=
+          runtimeScalarComputedMAccFacts->maskMemoryForm ||
+      runtimeScalarComputedMAccDescription.inactiveLaneContract !=
+          runtimeScalarComputedMAccFacts->inactiveLaneContract ||
+      runtimeScalarComputedMAccDescription.maskedPassthroughLayout !=
+          runtimeScalarComputedMAccFacts->maskedPassthroughLayout ||
+      runtimeScalarComputedMAccDescription.sourceMemoryForm !=
+          runtimeScalarComputedMAccFacts->sourceMemoryForm ||
+      runtimeScalarComputedMAccDescription.destinationMemoryForm !=
+          runtimeScalarComputedMAccFacts->destinationMemoryForm ||
+      runtimeScalarComputedMAccDescription.indexedMemoryLayout !=
+          runtimeScalarComputedMAccFacts->indexedMemoryLayout ||
+      runtimeScalarComputedMAccDescription.maccAccumulatorLayout !=
+          runtimeScalarComputedMAccFacts->maccAccumulatorLayout ||
+      runtimeScalarComputedMAccDescription.maccResultLayout !=
+          runtimeScalarComputedMAccFacts->maccResultLayout) {
+    llvm::errs() << "runtime-scalar computed-mask MAcc description did not "
+                    "mirror provider canonical route facts\n";
+    return false;
+  }
 
   RVVTargetArtifactCandidateFixture runtimeScalarComputedMAccM2Fixture(
       OperationKind::RuntimeScalarComputedMaskedMAccAdd,

@@ -33,6 +33,18 @@
 # MACC-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-validated"
 # MACC-DAG: "key": "tcrv_rvv.inactive_lane_contract"
 # MACC-DAG: "value": "masked-macc-false-lanes-preserve-accumulator"
+# MACC-DAG: "computed_masked_macc_boundary"
+# MACC-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask multiply-accumulate body/config/runtime facts"
+# MACC-DAG: "runtime_scalar_compare_rhs"
+# MACC-DAG: "runtime_abi_role": "rhs-scalar-value"
+# MACC-DAG: "realization_op": "tcrv_rvv.splat"
+# MACC-DAG: "compare_rhs_source": "runtime-scalar-splat-compare-rhs"
+# MACC-DAG: "route_operand_binding_plan": "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1"
+# MACC-DAG: "route_operand_binding_operands": "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# MACC-DAG: "active_lane_contract": "accumulator + lhs * rhs where compare mask is true"
+# MACC-DAG: "masked_passthrough_layout": "accumulator-vector-preserves-inactive-lanes"
+# MACC-DAG: "compare_operand_order": "cmp_lhs,rhs_scalar_splat,vl"
+# MACC-DAG: "runtime_counts_are_execution_cases_not_macc_or_mask_authority": true
 # MACC-DAG: "status": "dry_run_success"
 
 # HARNESS-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};

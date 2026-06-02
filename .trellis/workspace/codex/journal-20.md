@@ -60,6 +60,67 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 384: Stage2 RVV runtime-scalar masked MACC accumulation artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar masked MACC accumulation artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `runtime_scalar_cmp_masked_macc_add` production boundary:
+provider-owned canonical route facts now drive RVV provider planning and target
+artifact validation, dry-run evidence records the runtime-scalar MAcc boundary,
+and real `ssh rvv` correctness passes for the required counts, RHS scalar
+values, and data patterns.
+
+### Main Changes
+
+- Added `RVVRuntimeScalarComputedMaskMAccRouteFacts` and
+  `getRVVRuntimeScalarComputedMaskMAccRouteFacts()`.
+- Rewired computed-mask MAcc provider derivation/verification and RVV target
+  artifact validation to consume the same runtime-scalar MAcc fact surface.
+- Strengthened target artifact C++ tests with direct canonical-fact assertions
+  and stale binding/provider/mask/layout failure coverage.
+- Extended generated-bundle evidence extraction for runtime-scalar
+  computed-mask MAcc materialized and emitted C++ boundaries.
+- Tightened explicit and pre-realized runtime-scalar MAcc dry-run FileCheck
+  coverage.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Manual `tcrv-opt` / `tcrv-translate` / `FileCheck-20` REALIZED, PLAN,
+  HEADER, and stale provider/binding/ABI/header/type/scalar/layout checks for
+  `pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir`
+- [OK] Explicit and pre-realized generated-bundle dry-run ROOT/MACC/HARNESS
+  `FileCheck-20` checks
+- [OK] Real `ssh rvv` generated-bundle correctness for counts
+  `0,1,16,17,257`, RHS scalars `-37,91`, and patterns `0,1`
+- [OK] Diff-only bounded old-authority scan over touched files
+- [OK] `rtk git diff --check`
+
+### SSH RVV Evidence
+
+`artifacts/tmp/06-02-runtime-scalar-macc-ssh-rvv/pre-realized-runtime-scalar-cmp-masked-macc-add/runtime_scalar_cmp_masked_macc_add/evidence.json`
+records `status=success`, `ssh_evidence=true`, runtime counts
+`[0,1,16,17,257]`, RHS scalars `[-37,91]`, provider-derived
+runtime-scalar compare RHS via `tcrv_rvv.splat`, active-lane
+`accumulator + lhs * rhs`, inactive-lane accumulator passthrough, and tail
+sentinel preservation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 383: Stage2 RVV runtime-scalar reduce-min ABI boundary
 
 **Date**: 2026-06-02

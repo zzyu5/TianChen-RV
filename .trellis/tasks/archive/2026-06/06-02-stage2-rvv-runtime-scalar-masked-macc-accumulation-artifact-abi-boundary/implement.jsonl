@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 2 selected-body realization boundary, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, runtime-scalar computed-mask MAcc realization, provider facts, and route authority placement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding summary contract, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Computed-mask MAcc generated-bundle evidence, FileCheck, target validation, and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality review for RVV-owned route facts and avoiding common/core RVV semantic inference."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-standalone-reduction-route-fact-canonicalization/prd.md", "reason": "Previous canonical route-fact helper pattern to apply to runtime-scalar computed-mask MAcc."}
+{"file": ".trellis/tasks/06-02-stage2-rvv-runtime-scalar-masked-macc-accumulation-artifact-abi-boundary/prd.md", "reason": "This task's bounded requirements, acceptance criteria, non-goals, and evidence plan."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added the provider-visible runtime-scalar computed-mask MAcc canonical route-fact surface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMAccRouteFamilyPlanOwners.cpp", "reason": "Implemented the canonical facts and rewired provider plan derivation/verification for runtime_scalar_cmp_masked_macc_add."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Rewired target artifact MAcc validation to consume the same provider-owned runtime-scalar MAcc fact helper."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Tightened generated-bundle evidence extraction for runtime-scalar computed-mask MAcc materialized and emitted C++ boundaries."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added canonical fact assertions and target fail-closed regression coverage for runtime-scalar computed-mask MAcc."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-macc-add-dry-run.test", "reason": "Tightened pre-realized dry-run evidence checks for runtime-scalar MAcc boundary facts."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-macc-add-dry-run.test", "reason": "Tightened explicit selected-body dry-run evidence checks for runtime-scalar MAcc boundary facts."}
