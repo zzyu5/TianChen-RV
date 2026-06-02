@@ -22668,8 +22668,8 @@ module {
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
               staleProvider,
               "computed-mask strided contraction provider unit test"),
-          {"computed-mask contraction mirrors",
-           "validated family plan"}))
+          {"computed-mask strided widening dot-reduce mirrors",
+           "provider canonical route-fact surface"}))
     return result;
 
   staleProvider = *computedStridedAnalysis;
@@ -22898,8 +22898,9 @@ module {
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
               staleMAcc, "widening MAcc contraction provider unit test"),
-          {"widening MAcc contraction mirrors",
-           "validated family plan"}))
+          {"widening MAcc contraction provider facts",
+           "provider-owned canonical signed i16mf2 x i16mf2 plus i32m1 "
+           "route surface"}))
     return result;
 
   staleMAcc = *maccAnalysis;
@@ -26142,22 +26143,22 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "cmp_lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi", "cmp", "mask"});
+             {"abi", "cmp", "mask", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "cmp_rhs",
              makeTargetExportABIParameter(
                  "cmp_rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi", "cmp", "mask"});
+             {"abi", "cmp", "mask", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "dot_lhs",
              makeTargetExportABIParameter(
                  "lhs", "const int16_t *",
                  RuntimeABIParameterRole::DotLHSInputBuffer),
-             {"abi", "sld", "mlhs", "i16"});
+             {"abi", "sld", "mlhs", "i16", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "dot_rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int16_t *",
                  RuntimeABIParameterRole::DotRHSInputBuffer),
-             {"abi", "sld", "mrhs", "i16"});
+             {"abi", "sld", "mrhs", "i16", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
@@ -26176,12 +26177,12 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs_stride", "size_t",
                  RuntimeABIParameterRole::LHSInputStride),
-             {"abi", "str", "addr"});
+             {"abi", "str", "addr", "hdr"});
   addBinding(maskedStridedWideningDotPlan, "rhs_stride",
              makeTargetExportABIParameter(
                  "rhs_stride", "size_t",
                  RuntimeABIParameterRole::RHSInputStride),
-             {"abi", "str", "addr"});
+             {"abi", "str", "addr", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               maskedStridedWideningDotPlan,
@@ -27509,6 +27510,70 @@ int runRouteOperandBindingPlanValidationTest() {
                      maskedDotFacts->dotRHSABI->cName == "rhs",
                  "computed-mask widening dot math binding facts expose "
                  "compare producer and dot payload roles"))
+    return result;
+
+  auto maskedStridedDotAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::
+          ComputedMaskStridedInputWideningDotReduceAdd,
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+      maskedStridedWideningDotPlan);
+  maskedStridedDotAnalysis.contractionRouteFamilyPlan.emplace();
+  maskedStridedDotAnalysis.contractionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::
+          ComputedMaskStridedInputWideningDotReduceAdd;
+  maskedStridedDotAnalysis.contractionRouteFamilyPlan->usesDotReduction = true;
+  maskedStridedDotAnalysis.contractionRouteFamilyPlan->usesComputedMask = true;
+  maskedStridedDotAnalysis.contractionRouteFamilyPlan->usesStridedInputs = true;
+  auto maskedStridedDotFacts = getMathFacts(maskedStridedDotAnalysis);
+  if (!maskedStridedDotFacts)
+    return fail("computed-mask strided widening dot math binding facts: " +
+                llvm::toString(maskedStridedDotFacts.takeError()));
+  if (int result = expect(
+          maskedStridedDotFacts
+                  ->bindsComputedMaskStridedInputWideningDotReduction &&
+              maskedStridedDotFacts->lhsABI->cName == "cmp_lhs" &&
+              maskedStridedDotFacts->rhsABI->cName == "cmp_rhs" &&
+              maskedStridedDotFacts->dotLHSABI->cName == "lhs" &&
+              maskedStridedDotFacts->dotRHSABI->cName == "rhs" &&
+              maskedStridedDotFacts->lhsStrideABI->cName == "lhs_stride" &&
+              maskedStridedDotFacts->rhsStrideABI->cName == "rhs_stride",
+          "computed-mask strided widening dot math binding facts expose "
+          "compare, strided dot payload, stride, and scalar seed roles"))
+    return result;
+
+  RVVRouteOperandBindingPlan staleMaskedStridedDotHdr =
+      maskedStridedWideningDotPlan;
+  bool removedMaskedStridedLHSStrideHeader = false;
+  for (RVVRouteOperandBinding &binding :
+       staleMaskedStridedDotHdr.bindings) {
+    if (binding.logicalOperand != "lhs_stride")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "hdr")
+        continue;
+      binding.materializedUses.erase(it);
+      removedMaskedStridedLHSStrideHeader = true;
+      break;
+    }
+  }
+  if (int result = expect(
+          removedMaskedStridedLHSStrideHeader,
+          "test setup removes computed-mask strided widening dot lhs stride "
+          "header use"))
+    return result;
+  auto staleMaskedStridedDotAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::
+          ComputedMaskStridedInputWideningDotReduceAdd,
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+      staleMaskedStridedDotHdr);
+  staleMaskedStridedDotAnalysis.contractionRouteFamilyPlan =
+      maskedStridedDotAnalysis.contractionRouteFamilyPlan;
+  if (int result = expectErrorContains(
+          getMathFacts(staleMaskedStridedDotAnalysis).takeError(),
+          {"lhs_stride", "hdr",
+           "computed_masked_strided_input_widening_dot_reduce lhs stride "
+           "header mirror"}))
     return result;
 
   return 0;

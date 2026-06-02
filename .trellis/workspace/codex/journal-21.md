@@ -361,3 +361,59 @@ Finished runtime_scalar_dual_cmp_mask_and_select provider facts, target artifact
 ### Next Steps
 
 - None - task complete
+
+
+## Session 394: Stage2 RVV computed-masked strided-input widening dot-reduce artifact ABI boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV computed-masked strided-input widening dot-reduce artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Finished computed-mask strided-input widening dot-reduce provider binding facts, target artifact mirror validation evidence, generated-bundle dry-run checks, ssh rvv correctness, and Trellis archive.
+
+### Main Changes
+
+- Strengthened RVV math operand-binding facts so computed-mask strided widening dot compare inputs, dot source inputs, and stride inputs all require `hdr` when they participate in the generated header/prototype.
+- Updated explicit selected-body and generated-bundle dry-run expectations for the complete nine-parameter binding summary.
+- Added focused C++ fail-closed coverage for missing `hdr` on the exported lhs stride parameter.
+- Verified target artifact validation consumes provider-owned widening-dot route facts and exact candidate mirrors; no spec update was needed because the existing EmitC route and MLIR testing contracts already cover this rule.
+
+Checks:
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter computed-masked-strided-input-widening-dot-reduce` from `build/test` (5 passed, 472 excluded)
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] real `ssh rvv` generated-bundle run for `computed_masked_strided_input_widening_dot_reduce_add` with counts `0,1,16,17,257`, stride pairs `2:3,3:2`, mask patterns `0,1`, and input patterns `0,1`
+- [OK] `git diff --check`
+- [OK] bounded touched-diff old-authority scan
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] Build: `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] C++ tests: RVV extension plugin and target artifact export.
+- [OK] Focused lit filter `computed-masked-strided-input-widening-dot-reduce`:
+  5 passed, 472 excluded.
+- [OK] Script self-test and real `ssh rvv` generated-bundle evidence for
+  counts `0,1,16,17,257`, stride pairs `2:3,3:2`, mask patterns `0,1`, and
+  input patterns `0,1`.
+- [OK] `git diff --check` and bounded touched-diff old-authority scan.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

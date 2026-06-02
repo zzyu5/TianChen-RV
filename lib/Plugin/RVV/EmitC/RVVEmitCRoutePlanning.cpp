@@ -24954,12 +24954,10 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
               logicalOperand, "i16",
               (llvm::Twine(routeName) + " source width mirror").str()))
         return error;
-      if (!isComputedMask || !isStrided) {
-        if (llvm::Error error = requireOperandUse(
-                logicalOperand, "hdr",
-                (llvm::Twine(routeName) + " source header mirror").str()))
-          return error;
-      }
+      if (llvm::Error error = requireOperandUse(
+              logicalOperand, "hdr",
+              (llvm::Twine(routeName) + " source header mirror").str()))
+        return error;
       return llvm::Error::success();
     };
 
@@ -24972,12 +24970,10 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
               "cmp_lhs", "mask",
               "computed_masked_widening_dot_reduce mask lhs"))
         return std::move(error);
-      if (!isStrided) {
-        if (llvm::Error error = requireOperandUse(
-                "cmp_lhs", "hdr",
-                "computed_masked_widening_dot_reduce compare lhs header"))
-          return std::move(error);
-      }
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "hdr",
+              "computed_masked_widening_dot_reduce compare lhs header"))
+        return std::move(error);
       if (llvm::Error error = bindOperand(
               facts.rhsABI, "cmp_rhs", "cmp",
               "computed_masked_widening_dot_reduce compare rhs"))
@@ -24986,12 +24982,10 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
               "cmp_rhs", "mask",
               "computed_masked_widening_dot_reduce mask rhs"))
         return std::move(error);
-      if (!isStrided) {
-        if (llvm::Error error = requireOperandUse(
-                "cmp_rhs", "hdr",
-                "computed_masked_widening_dot_reduce compare rhs header"))
-          return std::move(error);
-      }
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "hdr",
+              "computed_masked_widening_dot_reduce compare rhs header"))
+        return std::move(error);
       if (llvm::Error error = bindDotInput(
               facts.dotLHSABI, "dot_lhs", isStrided ? "sld" : "ld", "mlhs",
               isStrided ? "computed_masked_strided_input_widening_dot_reduce "
@@ -25076,12 +25070,10 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
                                  " lhs address operand")
                                     .str()))
         return std::move(error);
-      if (!isComputedMask) {
-        if (llvm::Error error = requireOperandUse(
-                "lhs_stride", "hdr",
-                (llvm::Twine(routeName) + " lhs stride header mirror").str()))
-          return std::move(error);
-      }
+      if (llvm::Error error = requireOperandUse(
+              "lhs_stride", "hdr",
+              (llvm::Twine(routeName) + " lhs stride header mirror").str()))
+        return std::move(error);
       if (llvm::Error error =
               bindOperand(facts.rhsStrideABI, "rhs_stride", "str",
                           (llvm::Twine(routeName) + " rhs stride operand")
@@ -25093,12 +25085,10 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
                                  " rhs address operand")
                                     .str()))
         return std::move(error);
-      if (!isComputedMask) {
-        if (llvm::Error error = requireOperandUse(
-                "rhs_stride", "hdr",
-                (llvm::Twine(routeName) + " rhs stride header mirror").str()))
-          return std::move(error);
-      }
+      if (llvm::Error error = requireOperandUse(
+              "rhs_stride", "hdr",
+              (llvm::Twine(routeName) + " rhs stride header mirror").str()))
+        return std::move(error);
     }
     if (llvm::Error error = bindRuntimeCount("loop", "hdr", routeName))
       return std::move(error);
