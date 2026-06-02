@@ -606,3 +606,57 @@ indexed gather mirrors or accidental strided/unit-load residue.
 ### Next Steps
 
 - Archive task and create the coherent task commit.
+
+
+## Session 399: Stage2 RVV indexed scatter unit-load artifact ABI boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV indexed scatter unit-load artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `indexed_scatter_unit_load` artifact ABI boundary. The
+existing base memory movement provider-owned fact surface now has durable spec
+coverage for scatter facts, the target artifact tests fail closed on stale
+indexed scatter provider facts and candidate mirrors, and both explicit and
+pre-realized selected-body generated bundles pass real `ssh rvv` correctness
+for `dst[index[i]] = src[i]`.
+
+### Main Changes
+
+- Tightened the pre-realized indexed scatter selected-body target fixture so
+  PLAN/HEADER checks include base-memory route-family plan, target leaf
+  profile, provider mirror, required headers, and C type mapping facts.
+- Added indexed scatter C++ target artifact fail-closed coverage for stale ABI
+  order, route-family plan, index source, indexed layout, index EEW, offset
+  unit, index uniqueness, source/destination memory forms, indexed destination
+  form, gather residue, target profile, provider mirror, header/type facts,
+  binding summary, and candidate metadata mirrors.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable
+  indexed scatter/unit load base-memory fact-surface contract.
+- Created and completed the Trellis task PRD for this bounded Stage 2 owner.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter indexed-scatter-unit-load` from `build/test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit selected-body indexed scatter generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] pre-realized selected-body indexed scatter generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] direct pre-realized route-entry negative check exited 1 with the retired shortcut diagnostic
+- [OK] real `ssh rvv` explicit selected-body indexed scatter for counts `0,1,16,17,257` and two unique index patterns
+- [OK] real `ssh rvv` pre-realized selected-body indexed scatter for counts `0,1,16,17,257` and two unique index patterns
+- [OK] bounded touched-diff old-authority scan
+- [OK] `git diff --check`
+- [OK] Trellis task context validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and create the coherent task commit.

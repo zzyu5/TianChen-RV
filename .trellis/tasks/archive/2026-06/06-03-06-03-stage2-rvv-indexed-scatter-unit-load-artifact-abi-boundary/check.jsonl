@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the finished diff stays inside TianChen-RV global architecture and RVV Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, indexed base memory movement planning, fail-closed provider facts, and no legacy authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route summaries, header/type facts, target validation mirrors, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused FileCheck/script/runtime evidence quality, multi-pattern harness behavior, and ssh rvv claims."}

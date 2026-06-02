@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants, RVV stage order, and source-of-truth boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, base memory movement route-family, operand-binding facts, and provider-owned authority contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality plus provider operand/header/type summary and shared base memory route-family fact surface contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, generated-bundle, sentinel, multi-pattern, and real ssh rvv evidence requirements."}

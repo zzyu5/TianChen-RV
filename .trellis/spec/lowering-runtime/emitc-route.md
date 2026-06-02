@@ -536,6 +536,13 @@ Contracts:
   `element-indexed-data-index-unit-stride-output-runtime-abi`,
   indexed data memory form `indexed-load`, destination memory form
   `unit-stride-store`, and typed compute op `tcrv_rvv.move`.
+- Indexed scatter/unit load facts must include ABI order `src,index,dst,n`,
+  `index_eew = 32`, `offset_unit = element`, `index_source =
+  runtime_abi:index`, `index_uniqueness = unique`, indexed layout
+  `unit-stride-source-indexed-destination-index-runtime-abi`, source memory
+  form `unit-stride-load`, indexed destination memory form `indexed-store`,
+  destination memory form `indexed-store`, and typed compute op
+  `tcrv_rvv.move`.
 - Target artifact validation consumes the accessor and rejects missing or
   stale provider facts before accepting object/header/bundle artifacts.
   Candidate metadata may only mirror accessor facts after the provider route is
