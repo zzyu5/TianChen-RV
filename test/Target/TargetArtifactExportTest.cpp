@@ -6117,6 +6117,92 @@ bool expectRVVTargetArtifactExporterShape(
           {"inactive-lane requirement"}))
     return false;
 
+  RVVRouteDescription staleRuntimeScalarStandaloneMinResultBoundary =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinResultBoundary
+      .standaloneReductionScalarResultRuntimeBoundary =
+      "metadata-derived-scalar-result-boundary";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinResultBoundary,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale scalar-result runtime boundary",
+          {"scalar-result runtime boundary",
+           "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1",
+           "metadata-derived-scalar-result-boundary"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinAccumulatorLayout =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinAccumulatorLayout.reductionAccumulatorLayout =
+      "rhs-vector-seed-lane0-per-vl-chunk";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinAccumulatorLayout,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale scalar seed layout",
+          {"reduction accumulator layout",
+           "scalar-i32-seed-lane0-from-accumulator-input",
+           "rhs-vector-seed-lane0-per-vl-chunk"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinResultLayout =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinResultLayout.reductionResultLayout =
+      "store-reduction-lane0-to-output-chunk-base";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinResultLayout,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale scalar result layout",
+          {"reduction result layout",
+           "store-standalone-reduction-lane0-to-output-scalar",
+           "store-reduction-lane0-to-output-chunk-base"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinPredicate =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinPredicate.comparePredicateKind = "slt";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinPredicate,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale compare predicate",
+          {"compare predicate", "sle", "slt"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinMaskSource =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinMaskSource.maskSource =
+      "vector-compare-rhs-load";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinMaskSource,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale mask source",
+          {"mask source", "compare-produced-mask-same-vl-scope",
+           "vector-compare-rhs-load"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinMaskRole =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinMaskRole.maskRole =
+      "metadata-derived-mask-role";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinMaskRole,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale mask role",
+          {"mask role", "predicate-mask-produced-by-compare",
+           "metadata-derived-mask-role"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinMaskForm =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinMaskForm.maskMemoryForm =
+      "metadata-derived-mask-form";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinMaskForm,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale mask memory form",
+          {"mask memory form", "compare-produced-mask",
+           "metadata-derived-mask-form"}))
+    return false;
+
   RVVRouteDescription staleRuntimeScalarStandaloneMaxM2RHSBroadcast =
       runtimeScalarStandaloneReduceMaxM2Description;
   staleRuntimeScalarStandaloneMaxM2RHSBroadcast.rhsBroadcastIntrinsic =
@@ -6149,6 +6235,60 @@ bool expectRVVTargetArtifactExporterShape(
           "runtime-scalar computed-mask standalone reduce_min registry "
           "rejects missing mask producer source",
           {"runtime-scalar accumulation producer source"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinAccumulationPlan =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinAccumulationPlan
+      .accumulationRouteFamilyPlanID =
+      "metadata-derived-accumulation-plan";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinAccumulationPlan,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale accumulation route-family plan",
+          {"computed-mask accumulation route-family plan",
+           "rvv-computed-mask-accumulation-route-family-plan.v1",
+           "metadata-derived-accumulation-plan"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinAccumulationSuffix =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinAccumulationSuffix.accumulationComputeSuffix =
+      "metadata-derived-accumulation-suffix";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinAccumulationSuffix,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale accumulation compute suffix",
+          {"computed-mask accumulation compute suffix",
+           "scalar-horizontal-masked-standalone-reduction",
+           "metadata-derived-accumulation-suffix"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinAccumulationContract =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinAccumulationContract
+      .accumulationAccumulatorContract =
+      "metadata-derived-accumulator-contract";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinAccumulationContract,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale accumulation accumulator contract",
+          {"computed-mask accumulation accumulator contract",
+           "scalar-seed-input-feeds-masked-horizontal-reduction",
+           "metadata-derived-accumulator-contract"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMinScalarCarry =
+      runtimeScalarStandaloneReduceMinDescription;
+  staleRuntimeScalarStandaloneMinScalarCarry.accumulationScalarCarryContract =
+      "metadata-derived-scalar-carry";
+  if (!expectRuntimeScalarStandaloneReduceMinProviderFailure(
+          staleRuntimeScalarStandaloneMinScalarCarry,
+          "runtime-scalar computed-mask standalone reduce_min registry "
+          "rejects stale scalar carry contract",
+          {"computed-mask accumulation scalar-carry contract",
+           "scalar-result-carries-across-runtime-vl-chunks",
+           "metadata-derived-scalar-carry"}))
     return false;
 
   TargetArtifactCandidate staleRuntimeScalarStandaloneMinABIMirror =
@@ -6204,6 +6344,75 @@ bool expectRVVTargetArtifactExporterShape(
           "stale mask producer mirror",
           {"accumulation_mask_producer_source",
            "runtime-scalar-splat-compare-rhs", "vector-compare-rhs-load"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarStandaloneMinPredicateMirror =
+      runtimeScalarStandaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarStandaloneMinPredicateMirror,
+          "tcrv_rvv.compare_predicate_kind", "slt")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar standalone "
+                    "reduction compare predicate mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeScalarStandaloneReduceMinCandidateFailure(
+          staleRuntimeScalarStandaloneMinPredicateMirror,
+          "runtime-scalar computed-mask standalone reduce_min registry rejects "
+          "stale compare predicate mirror",
+          {"compare_predicate_kind", "sle", "slt"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarStandaloneMinHeaderMirror =
+      runtimeScalarStandaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarStandaloneMinHeaderMirror,
+          "tcrv_rvv.required_header_declarations", "stdint.h")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar standalone "
+                    "reduction header mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeScalarStandaloneReduceMinCandidateFailure(
+          staleRuntimeScalarStandaloneMinHeaderMirror,
+          "runtime-scalar computed-mask standalone reduce_min registry rejects "
+          "stale required header mirror",
+          {"required_header_declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stdint.h"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarStandaloneMinCTypeMappingMirror =
+      runtimeScalarStandaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarStandaloneMinCTypeMappingMirror,
+          "tcrv_rvv.c_type_mapping", "metadata-derived-type-map")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar standalone "
+                    "reduction C type mapping mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeScalarStandaloneReduceMinCandidateFailure(
+          staleRuntimeScalarStandaloneMinCTypeMappingMirror,
+          "runtime-scalar computed-mask standalone reduce_min registry rejects "
+          "stale C type mapping mirror",
+          {"c_type_mapping",
+           "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
+           "metadata-derived-type-map"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarStandaloneMinReductionMirror =
+      runtimeScalarStandaloneReduceMinFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarStandaloneMinReductionMirror,
+          "tcrv_rvv.reduction_intrinsic",
+          "__riscv_vredsum_vs_i32m1_i32m1")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar standalone "
+                    "reduction intrinsic mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeScalarStandaloneReduceMinCandidateFailure(
+          staleRuntimeScalarStandaloneMinReductionMirror,
+          "runtime-scalar computed-mask standalone reduce_min registry rejects "
+          "stale reduction intrinsic mirror",
+          {"reduction_intrinsic", "__riscv_vredmin_vs_i32m1_i32m1",
+           "__riscv_vredsum_vs_i32m1_i32m1"}))
     return false;
 
   TargetArtifactCandidate staleRuntimeScalarStandaloneMinScalarTypeMirror =

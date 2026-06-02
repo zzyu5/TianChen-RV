@@ -68,6 +68,21 @@ llvm::Error requireRVVProviderDerivedField(llvm::StringRef consumerLabel,
                                  " before artifact export");
 }
 
+llvm::Error requireRVVProviderCanonicalField(llvm::StringRef consumerLabel,
+                                             llvm::StringRef fieldLabel,
+                                             llvm::StringRef actual,
+                                             llvm::StringRef expected) {
+  if (llvm::Error error =
+          requireRVVProviderDerivedField(consumerLabel, fieldLabel, actual))
+    return error;
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVTargetRouteError(llvm::Twine(consumerLabel) +
+                                 " requires provider-derived " + fieldLabel +
+                                 " '" + expected + "' but was '" + actual +
+                                 "'");
+}
+
 llvm::Error requireRVVProviderDerivedCount(llvm::StringRef consumerLabel,
                                            llvm::StringRef fieldLabel,
                                            std::int64_t value) {
@@ -5017,6 +5032,13 @@ constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionRuntimeABIOrder
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder(
         "cmp_lhs,rhs_scalar,src,acc,out,n");
+constexpr llvm::StringLiteral kRVVStandaloneReductionI32AccumulatorLayout(
+    "scalar-i32-seed-lane0-from-accumulator-input");
+constexpr llvm::StringLiteral kRVVStandaloneReductionI64AccumulatorLayout(
+    "scalar-i64-seed-lane0-from-accumulator-input");
+constexpr llvm::StringLiteral kRVVStandaloneReductionResultLayout(
+    "store-standalone-reduction-lane0-to-output-scalar");
+constexpr llvm::StringLiteral kRVVStandaloneReductionStoreVL("1");
 
 llvm::StringRef getRVVPlainStandaloneReductionExpectedBindingPlanID(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
@@ -5030,6 +5052,15 @@ llvm::StringRef getRVVPlainStandaloneReductionExpectedBindingPlanID(
   default:
     return {};
   }
+}
+
+llvm::StringRef getRVVStandaloneReductionExpectedAccumulatorLayoutForSEW(
+    std::int64_t sew) {
+  if (sew == 64)
+    return kRVVStandaloneReductionI64AccumulatorLayout;
+  if (sew == 32)
+    return kRVVStandaloneReductionI32AccumulatorLayout;
+  return {};
 }
 
 std::string getRVVPlainStandaloneReductionExpectedBindingSummary(
@@ -5659,6 +5690,11 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
             description.operation) +
         " before artifact export");
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "scalar-result runtime boundary",
+          description.standaloneReductionScalarResultRuntimeBoundary,
+          routeFacts->scalarResultRuntimeBoundary))
+    return error;
 
   if (description.routeOperandBindingPlanID !=
           routeFacts->routeOperandBindingPlanID ||
@@ -5688,6 +5724,26 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "reduction store VL", description.reductionStoreVL))
+    return error;
+  llvm::StringRef expectedAccumulatorLayout =
+      getRVVStandaloneReductionExpectedAccumulatorLayoutForSEW(description.sew);
+  if (expectedAccumulatorLayout.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime-scalar computed-mask standalone reduction target "
+                    "artifact consumer requires canonical standalone "
+                    "reduction accumulator layout for SEW ") +
+        llvm::Twine(description.sew) + " before artifact export");
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "reduction accumulator layout",
+          description.reductionAccumulatorLayout, expectedAccumulatorLayout))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "reduction result layout",
+          description.reductionResultLayout, routeFacts->reductionResultLayout))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "reduction store VL", description.reductionStoreVL,
+          routeFacts->reductionStoreVL))
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "vector load intrinsic",
@@ -5743,6 +5799,22 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "compare predicate", description.comparePredicateKind))
     return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "compare predicate", description.comparePredicateKind,
+          routeFacts->comparePredicateKind))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "mask role", description.maskRole,
+          routeFacts->maskRole))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "mask source", description.maskSource,
+          routeFacts->maskSource))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "mask memory form", description.maskMemoryForm,
+          routeFacts->maskMemoryForm))
+    return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "computed-mask accumulation route-family plan",
           description.accumulationRouteFamilyPlanID))
@@ -5766,6 +5838,36 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "computed-mask accumulation scalar-carry contract",
           description.accumulationScalarCarryContract))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "computed-mask accumulation route-family plan",
+          description.accumulationRouteFamilyPlanID,
+          routeFacts->accumulationRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "computed-mask accumulation compute suffix",
+          description.accumulationComputeSuffix,
+          routeFacts->accumulationComputeSuffix))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "runtime-scalar accumulation producer source",
+          description.accumulationMaskProducerSource,
+          routeFacts->accumulationMaskProducerSource))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "computed-mask accumulation accumulator contract",
+          description.accumulationAccumulatorContract,
+          routeFacts->accumulationAccumulatorContract))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "computed-mask accumulation result contract",
+          description.accumulationResultContract,
+          routeFacts->accumulationResultContract))
+    return error;
+  if (llvm::Error error = requireRVVProviderCanonicalField(
+          consumerLabel, "computed-mask accumulation scalar-carry contract",
+          description.accumulationScalarCarryContract,
+          routeFacts->accumulationScalarCarryContract))
     return error;
 
   return llvm::Error::success();

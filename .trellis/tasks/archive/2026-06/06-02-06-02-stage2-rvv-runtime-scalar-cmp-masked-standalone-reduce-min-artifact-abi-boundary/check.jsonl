@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority boundaries and RVV-first Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify runtime-scalar computed-mask standalone reduction realization, provider, scalar-channel, and target export contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route operand binding, provider summaries, header/type mirrors, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused FileCheck/C++/generated-bundle/ssh rvv evidence coverage."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that extension-specific logic stays in RVV plugin/target validation boundaries."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed after adding reduce-min provider/candidate fail-closed regressions."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min-dry-run.test", "reason": "Focused lit filter pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min passed 2 tests from build/test."}
+{"file": "artifacts/tmp/stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-min/dry-run/evidence.json", "reason": "Generated-bundle dry-run evidence recorded provider-derived reduce-min facts."}
+{"file": "artifacts/tmp/stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-min/ssh-rvv/evidence.json", "reason": "Real ssh rvv generated-bundle correctness passed counts 0,1,16,23,257 with rhs -37,91, seeds -11,17, patterns 0,1, source and tail preservation."}

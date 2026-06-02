@@ -674,8 +674,28 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
   facts.cTypeMappingSummary =
       "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector";
   facts.routeOperandBindingPlanID = *planID;
+  facts.comparePredicateKind = "sle";
+  facts.maskRole = "predicate-mask-produced-by-compare";
+  facts.maskSource = "compare-produced-mask-same-vl-scope";
+  facts.maskMemoryForm = "compare-produced-mask";
+  facts.accumulationRouteFamilyPlanID =
+      "rvv-computed-mask-accumulation-route-family-plan.v1";
+  facts.accumulationComputeSuffix =
+      "scalar-horizontal-masked-standalone-reduction";
+  facts.accumulationMaskProducerSource = "runtime-scalar-splat-compare-rhs";
+  facts.accumulationAccumulatorContract =
+      "scalar-seed-input-feeds-masked-horizontal-reduction";
+  facts.accumulationResultContract =
+      "scalar-horizontal-reduction-lane0-stored-to-output";
+  facts.accumulationScalarCarryContract =
+      "scalar-result-carries-across-runtime-vl-chunks";
   facts.inactiveLaneUse = inactiveUse;
   facts.inactiveLaneRequirement = inactiveRequirement;
+  facts.reductionResultLayout =
+      "store-standalone-reduction-lane0-to-output-scalar";
+  facts.reductionStoreVL = "1";
+  facts.scalarResultRuntimeBoundary =
+      "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1";
   facts.routeOperandBindingSummary =
       (llvm::Twine(*planID) +
        ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"

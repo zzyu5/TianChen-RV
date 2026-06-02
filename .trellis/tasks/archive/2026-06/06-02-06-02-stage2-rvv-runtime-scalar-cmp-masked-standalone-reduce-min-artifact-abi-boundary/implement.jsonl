@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants and RVV-first Stage 2 authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, standalone reduction scalar-channel boundary, math binding facts, and provider contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, route operand binding, header/type mirrors, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "FileCheck, generated-bundle, and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts constrain legality and must not define RVV dtype/config/route."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV route/provider/target changes plugin-local and common EmitC neutral."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Confirm selected typed tcrv_rvv body owns hardware execution behavior, not tcrv.exec or a high-level frontend."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-segment2-update-artifact-abi-boundary/prd.md", "reason": "Adjacent completed artifact ABI boundary pattern and evidence shape."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Extended runtime-scalar computed-mask standalone reduction canonical fact surface for predicate, mask, accumulation, layout, and scalar-result runtime boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Populated reduce add/min/max runtime-scalar standalone reduction route facts from provider-owned typed body/config/runtime facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Made target artifact validation fail closed when reduce-min provider facts carry stale predicate, mask, accumulation, seed/result layout, or scalar-result boundary values."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added reduce-min provider and candidate mirror regressions for stale runtime ABI boundary, mask/predicate, accumulation, header/type, and intrinsic facts."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min-dry-run.test", "reason": "Tightened generated-bundle dry-run FileCheck over provider-derived reduce-min fact mirrors."}

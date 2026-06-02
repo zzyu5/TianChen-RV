@@ -291,8 +291,21 @@ struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef accumulationRouteFamilyPlanID;
+  llvm::StringRef accumulationComputeSuffix;
+  llvm::StringRef accumulationMaskProducerSource;
+  llvm::StringRef accumulationAccumulatorContract;
+  llvm::StringRef accumulationResultContract;
+  llvm::StringRef accumulationScalarCarryContract;
   llvm::StringRef inactiveLaneUse;
   llvm::StringRef inactiveLaneRequirement;
+  llvm::StringRef reductionResultLayout;
+  llvm::StringRef reductionStoreVL;
+  llvm::StringRef scalarResultRuntimeBoundary;
   std::string routeOperandBindingSummary;
 };
 
