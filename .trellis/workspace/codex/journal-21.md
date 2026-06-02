@@ -608,6 +608,65 @@ indexed gather mirrors or accidental strided/unit-load residue.
 - Archive task and create the coherent task commit.
 
 
+## Session 400: Stage2 RVV base-memory route-family production validation closeout
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV base-memory route-family production validation closeout
+**Branch**: `main`
+
+### Summary
+
+Closed out the indexed base-memory production validation surface that the
+previous gather/scatter artifact tasks depended on. The target validator no
+longer keeps a separate layer of duplicated base-memory expected-field
+accessors; it consumes the single provider-owned
+`RVVBaseMemoryMovementRouteFacts` object for payload/layout validation and now
+checks indexed gather/scatter typed compute facts and candidate mirrors as part
+of the production route-family validation boundary.
+
+### Main Changes
+
+- Removed target-local base-memory expected-field wrapper accessors from
+  `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Rewired base-memory layout/payload checks to use the canonical provider facts
+  snapshot for memory form, ABI order, route-family plan, binding plan, target
+  profile, provider mirror, headers, C type mapping, indexed layout, index EEW,
+  offset unit, index source, source/destination forms, and mask/stride fields.
+- Added indexed-only typed compute validation for provider descriptions and
+  `rvv_selected_body_typed_compute_op` candidate mirrors, leaving masked
+  base-memory routes outside this closeout.
+- Added C++ fail-closed coverage for stale indexed gather ABI order, stale
+  scatter uniqueness/destination residue on gather, stale indexed gather and
+  scatter typed compute facts, and stale typed-compute mirrors.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --overwrite --run-id stage2-base-memory-closeout-explicit --op-kind indexed_gather_unit_store --op-kind indexed_scatter_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --overwrite --run-id stage2-base-memory-closeout-pre-realized --op-kind indexed_gather_unit_store --op-kind indexed_scatter_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter indexed-gather-unit-store` from `build/test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter indexed-scatter-unit-load` from `build/test`
+- [OK] bounded touched-diff old-authority scan
+- [OK] `git diff --check`
+
+### Runtime Evidence
+
+Real `ssh rvv` was not rerun as the main deliverable for this closeout because
+the change is production validation/fact-boundary enforcement only. The
+immediately preceding archived gather and scatter tasks already recorded real
+RVV correctness for explicit and pre-realized indexed gather/scatter over
+counts `0,1,16,17,257` and route-specific index-pattern families.
+
+### Status
+
+[OK] **Completed pending archive/commit**
+
+### Next Steps
+
+- Archive task and create the coherent task commit.
+
+
 ## Session 399: Stage2 RVV indexed scatter unit-load artifact ABI boundary
 
 **Date**: 2026-06-03

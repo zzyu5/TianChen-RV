@@ -11907,6 +11907,15 @@ bool expectRVVTargetArtifactExporterShape(
           {"index source", "runtime_abi:index", "metadata-derived-index"}))
     return false;
 
+  RVVRouteDescription wrongIndexedGatherABIOrder = baseIndexedDescription;
+  wrongIndexedGatherABIOrder.runtimeABIOrder = "data,out,index,n";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherABIOrder,
+          "base-memory registry rejects stale indexed gather ABI order",
+          {"runtime ABI order", "data,index,out,n", "data,out,index,n"}))
+    return false;
+
   RVVRouteDescription wrongIndexedGatherLayout = baseIndexedDescription;
   wrongIndexedGatherLayout.indexedMemoryLayout =
       "unit-load-strided-residue";
@@ -11944,6 +11953,29 @@ bool expectRVVTargetArtifactExporterShape(
           wrongIndexedGatherDataForm,
           "base-memory registry rejects stale indexed gather data form",
           {"indexed data memory form", "indexed-load", "unit-load"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherScatterUniqueness =
+      baseIndexedDescription;
+  wrongIndexedGatherScatterUniqueness.indexUniqueness = "unique";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherScatterUniqueness,
+          "base-memory registry rejects indexed scatter uniqueness residue on "
+          "gather",
+          {"index uniqueness", "unique"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherScatterDestination =
+      baseIndexedDescription;
+  wrongIndexedGatherScatterDestination.indexedDestinationMemoryForm =
+      "indexed-store";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherScatterDestination,
+          "base-memory registry rejects indexed scatter destination residue "
+          "on gather",
+          {"indexed destination memory form", "indexed-store"}))
     return false;
 
   RVVRouteDescription wrongIndexedGatherSourceResidue = baseIndexedDescription;
@@ -12012,6 +12044,18 @@ bool expectRVVTargetArtifactExporterShape(
           {"C type mapping",
            "vl:size_t,data:signed-e32m1,index:u32m1,result:signed-e32m1",
            "vl:size_t,data:signed-e32m1,result:signed-e32m1"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherTypedCompute =
+      baseIndexedDescription;
+  wrongIndexedGatherTypedCompute.typedComputeOpName =
+      "tcrv_rvv.metadata_derived_scatter";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherTypedCompute,
+          "base-memory registry rejects stale indexed gather typed compute op",
+          {"typed compute op", "tcrv_rvv.move",
+           "metadata_derived_scatter"}))
     return false;
 
   RVVRouteDescription wrongIndexedScatterABIOrder =
@@ -12182,6 +12226,17 @@ bool expectRVVTargetArtifactExporterShape(
           {"C type mapping",
            "vl:size_t,source:signed-e32m1,index:u32m1,destination:indexed-e32m1",
            "vl:size_t,source:signed-e32m1,destination:indexed-e32m1"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedScatterTypedCompute =
+      baseIndexedScatterDescription;
+  wrongIndexedScatterTypedCompute.typedComputeOpName =
+      "tcrv_rvv.metadata_derived_gather";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedScatterFixture.candidate, baseIndexedScatterRoute,
+          wrongIndexedScatterTypedCompute,
+          "base-memory registry rejects stale indexed scatter typed compute op",
+          {"typed compute op", "tcrv_rvv.move", "metadata_derived_gather"}))
     return false;
 
   RVVRouteDescription staleIndexedGatherBindingSummary =
@@ -12737,6 +12792,39 @@ bool expectRVVTargetArtifactExporterShape(
            "rvv-unit-load-strided-store"}))
     return false;
 
+  TargetArtifactCandidate wrongIndexedGatherTypedComputeMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedGatherTypedComputeMirror,
+          "rvv_selected_body_typed_compute_op",
+          "tcrv_rvv.metadata_derived_scatter")) {
+    llvm::errs() << "base-memory gather test fixture did not contain typed "
+                    "compute metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherTypedComputeMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather typed compute "
+          "mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.move",
+           "metadata_derived_scatter"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedGatherUniquenessMirror =
+      baseIndexedFixture.candidate;
+  wrongIndexedGatherUniquenessMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.index_uniqueness", "unique"));
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherUniquenessMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed scatter uniqueness "
+          "mirror on gather",
+          {"index_uniqueness",
+           "selected typed RVV base-memory index uniqueness"}))
+    return false;
+
   TargetArtifactCandidate staleIndexedGatherBindingMirror =
       baseIndexedFixture.candidate;
   if (!rewriteArtifactMetadataValue(
@@ -12991,6 +13079,25 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider_supported_mirror",
            "provider_supported_mirror:rvv-indexed-scatter-unit-load-plan-validated",
            "rvv-indexed-gather-unit-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedScatterTypedComputeMirror =
+      baseIndexedScatterFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedScatterTypedComputeMirror,
+          "rvv_selected_body_typed_compute_op",
+          "tcrv_rvv.metadata_derived_gather")) {
+    llvm::errs() << "base-memory scatter test fixture did not contain typed "
+                    "compute metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedScatterTypedComputeMirror, baseIndexedScatterRoute,
+          baseIndexedScatterDescription,
+          "base-memory registry rejects stale indexed scatter typed compute "
+          "mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.move",
+           "metadata_derived_gather"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedScatterHeaderMirror =
