@@ -215,3 +215,34 @@ Validated runtime-scalar computed-mask standalone reduce-max provider facts, tar
 ### Next Steps
 
 - None - task complete
+
+
+## Session 390: Stage2 RVV runtime scalar masked macc add
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime scalar masked macc add
+**Branch**: `main`
+
+### Summary
+
+Validated runtime-scalar computed-mask MAcc add provider facts, target artifact fail-closed checks, generated bundle evidence, and ssh rvv correctness.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

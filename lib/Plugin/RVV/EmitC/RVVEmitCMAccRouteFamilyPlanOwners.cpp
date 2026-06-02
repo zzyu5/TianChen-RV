@@ -1050,6 +1050,8 @@ getRVVRuntimeScalarComputedMaskMAccRouteFacts(
       kRVVRuntimeScalarComputedMaskedMAccCTypeMappingSummary;
   facts.routeOperandBindingPlanID =
       kRVVRuntimeScalarComputedMaskedMAccOperandBindingPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.masked_macc";
+  facts.comparePredicateKind = "sle";
   facts.accumulationRouteFamilyPlanID =
       kRVVComputedMaskAccumulationRouteFamilyPlanID;
   facts.accumulationComputeSuffix =

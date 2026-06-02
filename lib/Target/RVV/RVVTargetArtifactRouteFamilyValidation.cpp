@@ -4236,6 +4236,56 @@ constexpr llvm::StringLiteral kRVVComputedMaskedMAccInactiveLaneContract(
     "masked-macc-false-lanes-preserve-accumulator");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccPassthroughLayout(
     "accumulator-vector-preserves-inactive-lanes");
+constexpr llvm::StringLiteral kRVVPlainMAccTypedComputeOp("tcrv_rvv.macc");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccTypedComputeOp(
+    "tcrv_rvv.masked_macc");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccComparePredicateKind("slt");
+constexpr llvm::StringLiteral kRVVMAccSourceMemoryForm("unit-stride-load");
+constexpr llvm::StringLiteral kRVVMAccDestinationMemoryForm(
+    "unit-stride-store");
+constexpr llvm::StringLiteral kRVVComputedMaskedMAccMemoryLayout(
+    "unit-stride-compare-lhs-rhs-accumulator-masked-macc-output-runtime-abi");
+constexpr llvm::StringLiteral kRVVRuntimeScalarComputedMaskedMAccMemoryLayout(
+    "unit-stride-compare-lhs-runtime-scalar-threshold-lhs-rhs-accumulator-masked-macc-output-runtime-abi");
+
+llvm::StringRef getRVVMAccExpectedTypedComputeOp(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
+    return kRVVPlainMAccTypedComputeOp;
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccTypedComputeOp;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd: {
+    std::optional<plugin::rvv::RVVRuntimeScalarComputedMaskMAccRouteFacts>
+        routeFacts =
+            plugin::rvv::getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+                operation);
+    return routeFacts ? routeFacts->typedComputeOpName : llvm::StringRef();
+  }
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVMAccExpectedComparePredicateKind(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return kRVVComputedMaskedMAccComparePredicateKind;
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskedMAccAdd: {
+    std::optional<plugin::rvv::RVVRuntimeScalarComputedMaskMAccRouteFacts>
+        routeFacts =
+            plugin::rvv::getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+                operation);
+    return routeFacts ? routeFacts->comparePredicateKind : llvm::StringRef();
+  }
+  default:
+    return {};
+  }
+}
 
 llvm::StringRef getRVVMAccExpectedRuntimeABIOrder(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
@@ -4650,13 +4700,38 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
       getRVVMAccExpectedProviderSupportedMirror(description.operation);
   const llvm::StringRef expectedCTypeMappingSummary =
       getRVVMAccExpectedCTypeMappingSummary(description.operation);
+  const llvm::StringRef expectedTypedComputeOp =
+      getRVVMAccExpectedTypedComputeOp(description.operation);
+  const llvm::StringRef expectedComparePredicateKind =
+      getRVVMAccExpectedComparePredicateKind(description.operation);
   if (expectedRuntimeABIOrder.empty() || expectedOperandBindingPlanID.empty() ||
       expectedTargetLeafProfile.empty() ||
       expectedProviderSupportedMirror.empty() ||
-      expectedCTypeMappingSummary.empty())
+      expectedCTypeMappingSummary.empty() || expectedTypedComputeOp.empty())
     return makeRVVTargetRouteError(
         "MAcc target artifact consumer requires a known provider MAcc route "
         "family before artifact export");
+  if (description.typedComputeOpName != expectedTypedComputeOp)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires typed compute op '") +
+        expectedTypedComputeOp + "' but was '" +
+        description.typedComputeOpName + "'");
+  if (!expectedComparePredicateKind.empty() &&
+      description.comparePredicateKind != expectedComparePredicateKind)
+    return makeRVVTargetRouteError(
+        llvm::Twine("computed-mask MAcc target artifact consumer requires "
+                    "provider-derived compare predicate '") +
+        expectedComparePredicateKind + "' but was '" +
+        description.comparePredicateKind + "'");
+  if (!description.accumulationScalarCarryContract.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.reductionAccumulatorLayout.empty() ||
+      !description.reductionResultLayout.empty() ||
+      !description.reductionStoreVL.empty() ||
+      !description.standaloneReductionScalarResultRuntimeBoundary.empty())
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer rejects stale standalone-reduction "
+        "or scalar-carry facts before artifact export");
   if (description.runtimeABIOrder != expectedRuntimeABIOrder)
     return makeRVVTargetRouteError(
         llvm::Twine("MAcc target artifact consumer requires provider-derived "
@@ -4816,6 +4891,17 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
         runtimeScalarMAccFacts
             ? runtimeScalarMAccFacts->maskedPassthroughLayout
             : llvm::StringRef(kRVVComputedMaskedMAccPassthroughLayout);
+    const llvm::StringRef expectedSourceMemoryForm =
+        runtimeScalarMAccFacts ? runtimeScalarMAccFacts->sourceMemoryForm
+                               : llvm::StringRef(kRVVMAccSourceMemoryForm);
+    const llvm::StringRef expectedDestinationMemoryForm =
+        runtimeScalarMAccFacts
+            ? runtimeScalarMAccFacts->destinationMemoryForm
+            : llvm::StringRef(kRVVMAccDestinationMemoryForm);
+    const llvm::StringRef expectedIndexedMemoryLayout =
+        runtimeScalarMAccFacts
+            ? runtimeScalarMAccFacts->indexedMemoryLayout
+            : llvm::StringRef(kRVVComputedMaskedMAccMemoryLayout);
     if (description.accumulationComputeSuffix !=
             expectedAccumulationComputeSuffix ||
         description.accumulationMaskProducerSource != expectedMaskProducer ||
@@ -4828,13 +4914,16 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
         description.maskMemoryForm != expectedMaskMemoryForm ||
         description.inactiveLaneContract != expectedInactiveLaneContract ||
         description.maskedPassthroughLayout != expectedMaskedPassthroughLayout ||
-        description.comparePredicateKind.empty() ||
+        description.sourceMemoryForm != expectedSourceMemoryForm ||
+        description.destinationMemoryForm != expectedDestinationMemoryForm ||
+        description.indexedMemoryLayout != expectedIndexedMemoryLayout ||
         description.compareIntrinsic.empty() ||
         description.maskedMergeIntrinsic.empty())
       return makeRVVTargetRouteError(
           "computed-mask MAcc target artifact consumer requires "
-          "provider-derived exact mask, passthrough, compare, accumulator, "
-          "and result facts before artifact export");
+          "provider-derived exact mask, passthrough, compare predicate, "
+          "source/destination memory, accumulator, and result facts before "
+          "artifact export");
     if (isRVVRuntimeScalarComputedMaskMAccRouteFamilyOperation(
             description.operation) &&
         description.rhsBroadcastIntrinsic.empty())
@@ -4896,6 +4985,11 @@ llvm::Error validateRVVMAccTargetArtifactCandidateMirrors(
       return error;
   } else if (isRVVComputedMaskMAccRouteFamilyOperation(description.operation)) {
     if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind",
+            description.comparePredicateKind,
+            "selected typed RVV computed-mask MAcc compare predicate"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.accumulation_route_family_plan",
             description.accumulationRouteFamilyPlanID,
             "selected typed RVV computed-mask MAcc route-family plan"))
@@ -4953,11 +5047,31 @@ llvm::Error validateRVVMAccTargetArtifactCandidateMirrors(
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.masked_passthrough_layout",
-                        description.maskedPassthroughLayout,
+            description.maskedPassthroughLayout,
             "selected typed RVV computed-mask MAcc passthrough layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.source_memory_form",
+            description.sourceMemoryForm,
+            "selected typed RVV computed-mask MAcc source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.destination_memory_form",
+            description.destinationMemoryForm,
+            "selected typed RVV computed-mask MAcc destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.indexed_memory_layout",
+            description.indexedMemoryLayout,
+            "selected typed RVV computed-mask MAcc memory layout"))
       return error;
   }
 
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "rvv_selected_body_typed_compute_op",
+          description.typedComputeOpName,
+          "selected typed RVV MAcc compute operation"))
+    return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.config_contract",
           description.configContractID,

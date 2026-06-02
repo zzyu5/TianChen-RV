@@ -3207,6 +3207,8 @@ bool expectRVVTargetArtifactExporterShape(
             "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n" ||
         routeFacts->routeOperandBindingPlanID !=
             "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1" ||
+        routeFacts->typedComputeOpName != "tcrv_rvv.masked_macc" ||
+        routeFacts->comparePredicateKind != "sle" ||
         !llvm::StringRef(routeFacts->routeOperandBindingSummary)
              .contains(
                  "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr") ||
@@ -7484,6 +7486,10 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccFacts->routeOperandBindingPlanID ||
       runtimeScalarComputedMAccDescription.routeOperandBindingSummary !=
           runtimeScalarComputedMAccFacts->routeOperandBindingSummary ||
+      runtimeScalarComputedMAccDescription.typedComputeOpName !=
+          runtimeScalarComputedMAccFacts->typedComputeOpName ||
+      runtimeScalarComputedMAccDescription.comparePredicateKind !=
+          runtimeScalarComputedMAccFacts->comparePredicateKind ||
       runtimeScalarComputedMAccDescription.targetLeafProfile !=
           runtimeScalarComputedMAccFacts->targetLeafProfile ||
       runtimeScalarComputedMAccDescription.providerSupportedMirror !=
@@ -7715,6 +7721,78 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider-derived exact mask", "passthrough"}))
     return false;
 
+  RVVRouteDescription staleRuntimeScalarMAccTypedCompute =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccTypedCompute.typedComputeOpName =
+      "tcrv_rvv.masked_standalone_reduce";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute,
+          staleRuntimeScalarMAccTypedCompute,
+          "MAcc registry rejects stale runtime-scalar typed compute op",
+          {"typed compute op", "tcrv_rvv.masked_macc",
+           "tcrv_rvv.masked_standalone_reduce"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMAccPredicate =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccPredicate.comparePredicateKind = "slt";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute, staleRuntimeScalarMAccPredicate,
+          "MAcc registry rejects stale runtime-scalar compare predicate",
+          {"compare predicate", "sle", "slt"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMAccStandaloneResidue =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccStandaloneResidue.standaloneReductionRouteFamilyPlanID =
+      "rvv-computed-mask-standalone-reduction-route-family-plan.v1";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute,
+          staleRuntimeScalarMAccStandaloneResidue,
+          "MAcc registry rejects stale standalone reduction residue",
+          {"stale standalone-reduction", "scalar-carry facts"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMAccScalarCarryResidue =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccScalarCarryResidue.accumulationScalarCarryContract =
+      "scalar-result-carries-across-runtime-vl-chunks";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute,
+          staleRuntimeScalarMAccScalarCarryResidue,
+          "MAcc registry rejects stale scalar carry residue",
+          {"stale standalone-reduction", "scalar-carry facts"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMAccSourceMemory =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccSourceMemory.sourceMemoryForm =
+      "metadata-derived-source-memory";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute, staleRuntimeScalarMAccSourceMemory,
+          "MAcc registry rejects stale runtime-scalar source memory form",
+          {"source/destination memory", "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarMAccAccumulatorLayout =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccAccumulatorLayout.maccAccumulatorLayout =
+      "metadata-derived-accumulator-layout";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute,
+          staleRuntimeScalarMAccAccumulatorLayout,
+          "MAcc registry rejects stale runtime-scalar accumulator layout",
+          {"accumulator layout",
+           "separate-i32-vector-accumulator-input",
+           "metadata-derived-accumulator-layout"}))
+    return false;
+
   TargetArtifactCandidate staleRuntimeScalarMAccM2LMULMirror =
       runtimeScalarComputedMAccM2Fixture.candidate;
   if (!rewriteArtifactMetadataValue(staleRuntimeScalarMAccM2LMULMirror,
@@ -7908,9 +7986,82 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-computed-mask-producer"}))
     return false;
 
-	  auto expectWideningDotPositive =
-	      [&](llvm::StringRef fixtureContext,
-	          const RVVTargetArtifactCandidateFixture &fixture,
+  TargetArtifactCandidate staleRuntimeScalarMAccTypedOpMirror =
+      runtimeScalarComputedMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeScalarMAccTypedOpMirror,
+                                    "rvv_selected_body_typed_compute_op",
+                                    "tcrv_rvv.masked_standalone_reduce")) {
+    llvm::errs() << "runtime-scalar MAcc test fixture did not contain typed "
+                    "compute op metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleRuntimeScalarMAccTypedOpMirror,
+          runtimeScalarComputedMAccRoute,
+          runtimeScalarComputedMAccDescription,
+          "MAcc registry rejects stale runtime-scalar typed compute mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.masked_macc",
+           "tcrv_rvv.masked_standalone_reduce"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarMAccPredicateMirror =
+      runtimeScalarComputedMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeScalarMAccPredicateMirror,
+                                    "tcrv_rvv.compare_predicate_kind",
+                                    "slt")) {
+    llvm::errs() << "runtime-scalar MAcc test fixture did not contain compare "
+                    "predicate metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleRuntimeScalarMAccPredicateMirror,
+          runtimeScalarComputedMAccRoute,
+          runtimeScalarComputedMAccDescription,
+          "MAcc registry rejects stale runtime-scalar predicate mirror",
+          {"tcrv_rvv.compare_predicate_kind", "sle", "slt"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarMAccSourceMemoryMirror =
+      runtimeScalarComputedMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeScalarMAccSourceMemoryMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "metadata-derived-source-memory")) {
+    llvm::errs() << "runtime-scalar MAcc test fixture did not contain source "
+                    "memory-form metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleRuntimeScalarMAccSourceMemoryMirror,
+          runtimeScalarComputedMAccRoute,
+          runtimeScalarComputedMAccDescription,
+          "MAcc registry rejects stale runtime-scalar source memory mirror",
+          {"tcrv_rvv.source_memory_form", "unit-stride-load",
+           "metadata-derived-source-memory"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarMAccPassthroughMirror =
+      runtimeScalarComputedMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarMAccPassthroughMirror,
+          "tcrv_rvv.masked_passthrough_layout",
+          "metadata-derived-passthrough-layout")) {
+    llvm::errs() << "runtime-scalar MAcc test fixture did not contain "
+                    "passthrough layout metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          staleRuntimeScalarMAccPassthroughMirror,
+          runtimeScalarComputedMAccRoute,
+          runtimeScalarComputedMAccDescription,
+          "MAcc registry rejects stale runtime-scalar passthrough mirror",
+          {"tcrv_rvv.masked_passthrough_layout",
+           "accumulator-vector-preserves-inactive-lanes",
+           "metadata-derived-passthrough-layout"}))
+    return false;
+
+  auto expectWideningDotPositive =
+      [&](llvm::StringRef fixtureContext,
+          const RVVTargetArtifactCandidateFixture &fixture,
           tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
           RVVRouteDescription &description) -> bool {
     if (!expectRVVTargetArtifactCandidateFixtureReady(fixture, fixtureContext))

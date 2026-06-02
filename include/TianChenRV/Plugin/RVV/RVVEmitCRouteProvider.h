@@ -327,6 +327,8 @@ struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef comparePredicateKind;
   llvm::StringRef accumulationRouteFamilyPlanID;
   llvm::StringRef accumulationComputeSuffix;
   llvm::StringRef accumulationMaskProducerSource;
