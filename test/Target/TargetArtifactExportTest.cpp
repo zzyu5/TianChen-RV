@@ -7167,7 +7167,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccBinding,
           "widening-MAcc registry rejects stale operand binding facts",
-          {"operand binding facts", "lhs/rhs i16 sources", "i32 "
+          {"operand binding facts", "lhs/rhs i16mf2 sources", "i32m1 "
            "accumulator"}))
     return false;
 

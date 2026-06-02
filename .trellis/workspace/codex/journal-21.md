@@ -277,3 +277,36 @@ Added provider-owned computed-mask MAcc facts, rewired provider/target validatio
 ### Next Steps
 
 - None - task complete
+
+
+## Session 392: Stage2 RVV signed widening macc-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV signed widening macc-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Validated signed widening MAcc provider facts, target artifact fail-closed checks, generated bundle dry-run evidence, and real ssh rvv correctness for counts 0,1,7,16,23,257 patterns 0,1.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

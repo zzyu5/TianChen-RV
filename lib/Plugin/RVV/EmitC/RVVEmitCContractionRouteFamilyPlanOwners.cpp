@@ -662,6 +662,61 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           analysis.routeOperandBindingPlan, analysis.description, context))
     return error;
 
+  const std::optional<RVVWideningMAccRouteFacts> wideningMAccFacts =
+      getRVVWideningMAccRouteFacts(operation);
+  if (wideningMAccFacts) {
+    const RVVSelectedBodyEmitCRouteDescription &description =
+        analysis.description;
+    if (description.memoryForm != wideningMAccFacts->memoryForm ||
+        description.runtimeABIOrder != wideningMAccFacts->runtimeABIOrder ||
+        description.targetLeafProfile !=
+            wideningMAccFacts->targetLeafProfile ||
+        description.providerSupportedMirror !=
+            wideningMAccFacts->providerSupportedMirror ||
+        description.requiredHeaderDeclarations !=
+            wideningMAccFacts->requiredHeaderDeclarations ||
+        description.cTypeMappingSummary !=
+            wideningMAccFacts->cTypeMappingSummary ||
+        description.routeOperandBindingPlanID !=
+            wideningMAccFacts->routeOperandBindingPlanID ||
+        description.routeOperandBindingSummary !=
+            wideningMAccFacts->routeOperandBindingSummary ||
+        description.contractionRouteFamilyPlanID !=
+            wideningMAccFacts->contractionRouteFamilyPlanID ||
+        description.typedComputeOpName !=
+            wideningMAccFacts->typedComputeOpName ||
+        description.sourceSEW != wideningMAccFacts->sourceSEW ||
+        description.sourceLMUL != wideningMAccFacts->sourceLMUL ||
+        description.sew != wideningMAccFacts->resultSEW ||
+        description.lmul != wideningMAccFacts->resultLMUL ||
+        description.wideningMAccAccumulatorLayout !=
+            wideningMAccFacts->wideningMAccAccumulatorLayout ||
+        description.wideningMAccResultLayout !=
+            wideningMAccFacts->wideningMAccResultLayout ||
+        description.wideningMAccRelation !=
+            wideningMAccFacts->wideningMAccRelation ||
+        description.sourceVectorLoadIntrinsic !=
+            wideningMAccFacts->sourceVectorLoadIntrinsic ||
+        description.vectorLoadIntrinsic !=
+            wideningMAccFacts->accumulatorVectorLoadIntrinsic ||
+        description.intrinsic != wideningMAccFacts->wideningMAccIntrinsic ||
+        description.storeIntrinsic != wideningMAccFacts->storeIntrinsic ||
+        description.setVLIntrinsic != wideningMAccFacts->setVLIntrinsic ||
+        description.vlCType != wideningMAccFacts->vlCType ||
+        description.sourceVectorTypeName !=
+            wideningMAccFacts->sourceVectorTypeName ||
+        description.sourceVectorCType !=
+            wideningMAccFacts->sourceVectorCType ||
+        description.vectorTypeName !=
+            wideningMAccFacts->resultVectorTypeName ||
+        description.vectorCType != wideningMAccFacts->resultVectorCType)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " widening MAcc contraction provider facts must match the "
+          "provider-owned canonical signed i16mf2 x i16mf2 plus i32m1 route "
+          "surface before route construction");
+  }
+
   const std::optional<
       RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
       computedMaskStridedFacts =
@@ -836,6 +891,70 @@ verifyRVVSelectedBodyWideningDotReductionContractionRouteFamilyProviderPlan(
 }
 
 } // namespace
+
+std::optional<RVVWideningMAccRouteFacts>
+getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
+  if (operation != RVVSelectedBodyOperationKind::WideningMAccAdd)
+    return std::nullopt;
+
+  constexpr std::int64_t kSourceSEW = 16;
+  constexpr std::int64_t kResultSEW = 32;
+  constexpr llvm::StringLiteral kSourceLMUL("mf2");
+  constexpr llvm::StringLiteral kResultLMUL("m1");
+  const llvm::StringRef relation = getContractionWideningMAccRelation(
+      kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL);
+
+  RVVWideningMAccRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  facts.runtimeABIOrder = kRVVWideningMAccRuntimeABIOrder;
+  facts.targetLeafProfile =
+      getContractionTargetLeafProfile(kSourceSEW, kSourceLMUL, kResultSEW,
+                                      kResultLMUL);
+  facts.providerSupportedMirror = kRVVContractionProviderSupportedMirror;
+  facts.requiredHeaderDeclarations = kRVVContractionRequiredHeaderDeclarations;
+  facts.cTypeMappingSummary =
+      getContractionCTypeMappingSummary(kSourceSEW, kSourceLMUL, kResultSEW,
+                                        kResultLMUL);
+  facts.routeOperandBindingPlanID = kRVVWideningMAccOperandBindingPlanID;
+  facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.widening_macc";
+  facts.sourceSEW = kSourceSEW;
+  facts.sourceLMUL = kSourceLMUL;
+  facts.accumulatorSEW = kResultSEW;
+  facts.accumulatorLMUL = kResultLMUL;
+  facts.resultSEW = kResultSEW;
+  facts.resultLMUL = kResultLMUL;
+  facts.wideningMAccAccumulatorLayout = kRVVWideningMAccAccumulatorLayout;
+  facts.wideningMAccResultLayout = kRVVWideningMAccResultLayout;
+  facts.wideningMAccRelation = relation;
+  facts.sourceVectorLoadIntrinsic =
+      getContractionVectorLoadIntrinsic(kSourceSEW, kSourceLMUL);
+  facts.accumulatorVectorLoadIntrinsic =
+      getContractionVectorLoadIntrinsic(kResultSEW, kResultLMUL);
+  facts.wideningMAccIntrinsic = getContractionWideningMAccIntrinsic(
+      kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
+  facts.storeIntrinsic = getContractionStoreIntrinsic(kResultSEW, kResultLMUL);
+  facts.setVLIntrinsic = getContractionSetVLIntrinsic(kResultSEW, kResultLMUL);
+  facts.vlCType = "size_t";
+  facts.sourceVectorTypeName =
+      getContractionVectorTypeName(kSourceSEW, kSourceLMUL);
+  facts.sourceVectorCType =
+      getContractionSignedVectorCType(kSourceSEW, kSourceLMUL);
+  facts.resultVectorTypeName =
+      getContractionVectorTypeName(kResultSEW, kResultLMUL);
+  facts.resultVectorCType =
+      getContractionSignedVectorCType(kResultSEW, kResultLMUL);
+  facts.routeOperandBindingSummary =
+      (llvm::Twine(facts.routeOperandBindingPlanID) +
+       ";lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr;"
+       "rhs=rhs-input-buffer:rhs:abi|src-load|wmacc-rhs|src-i16mf2|hdr;"
+       "acc=accumulator-input-buffer:acc:abi|acc-load|wmacc-acc|acc-i32m1|hdr;"
+       "out=output-buffer:out:abi|res-store|res-i32m1|hdr;"
+       "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+          .str();
+  return facts;
+}
 
 std::optional<RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
 getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(

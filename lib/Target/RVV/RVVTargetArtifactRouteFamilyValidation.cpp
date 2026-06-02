@@ -13072,32 +13072,26 @@ bool isRVVWideningMAccContractionTargetArtifactRouteFamilyConsumer(
              plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
 }
 
-constexpr llvm::StringLiteral kRVVWideningMAccRuntimeABIOrder(
-    "lhs,rhs,acc,out,n");
-constexpr llvm::StringLiteral kRVVWideningMAccRouteOperandBindingPlan(
-    "rvv-route-operand-binding:widening_macc_add.v1");
-constexpr llvm::StringLiteral kRVVWideningMAccContractionRouteFamilyPlan(
-    "rvv-contraction-route-family-plan.v1");
-constexpr llvm::StringLiteral kRVVWideningMAccProviderSupportedMirror(
-    "provider_supported_mirror:rvv-contraction-family-plan-validated");
-constexpr llvm::StringLiteral kRVVWideningMAccRequiredHeaders(
-    "stddef.h,stdint.h,riscv_vector.h");
-constexpr llvm::StringLiteral kRVVWideningMAccCTypeMapping(
-    "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32");
-constexpr llvm::StringLiteral kRVVWideningMAccAccumulatorLayout(
-    "separate-i32-vector-accumulator-input");
-constexpr llvm::StringLiteral kRVVWideningMAccResultLayout(
-    "store-widening-multiply-accumulate-result-to-output-buffer");
-constexpr llvm::StringLiteral kRVVWideningMAccRelation(
-    "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1");
+std::optional<plugin::rvv::RVVWideningMAccRouteFacts>
+getRVVWideningMAccTargetRouteFacts(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  return plugin::rvv::getRVVWideningMAccRouteFacts(operation);
+}
 
 llvm::Error validateRVVWideningMAccContractionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.runtimeABIOrder != kRVVWideningMAccRuntimeABIOrder)
+  std::optional<plugin::rvv::RVVWideningMAccRouteFacts> routeFacts =
+      getRVVWideningMAccTargetRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-owned canonical route facts before validating runtime ABI "
+        "order");
+  if (description.runtimeABIOrder != routeFacts->runtimeABIOrder)
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires provider-derived runtime ABI order '") +
-        kRVVWideningMAccRuntimeABIOrder + "' but was '" +
+        routeFacts->runtimeABIOrder + "' but was '" +
         description.runtimeABIOrder + "'");
   if (description.runtimeABIParameters.size() != 5)
     return makeRVVTargetRouteError(
@@ -13137,6 +13131,12 @@ llvm::Error validateRVVWideningMAccContractionRuntimeABIFacts(
 llvm::Error validateRVVWideningMAccContractionRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<plugin::rvv::RVVWideningMAccRouteFacts> routeFacts =
+      getRVVWideningMAccTargetRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-owned canonical route facts before validating type mappings");
   if (description.vlCType.empty() || description.vectorTypeName.empty() ||
       description.vectorCType.empty() ||
       description.sourceVectorTypeName.empty() ||
@@ -13145,31 +13145,39 @@ llvm::Error validateRVVWideningMAccContractionRouteTypeMappings(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived VL, source vector, and accumulator/result vector "
         "type facts before artifact export");
-  if (description.sourceSEW != 16 || description.sourceLMUL != "mf2" ||
-      description.sew != 32 || description.lmul != "m1")
+  if (description.sourceSEW != routeFacts->sourceSEW ||
+      description.sourceLMUL != routeFacts->sourceLMUL ||
+      description.sew != routeFacts->resultSEW ||
+      description.lmul != routeFacts->resultLMUL ||
+      description.sourceVectorTypeName != routeFacts->sourceVectorTypeName ||
+      description.sourceVectorCType != routeFacts->sourceVectorCType ||
+      description.vectorTypeName != routeFacts->resultVectorTypeName ||
+      description.vectorCType != routeFacts->resultVectorCType ||
+      description.vlCType != routeFacts->vlCType)
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived i16mf2 source and i32m1 accumulator/result facts "
         "before artifact export");
-  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
+  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", routeFacts->vlCType))
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires rebuilt provider route type mapping "
                     "'!tcrv_rvv.vl' -> '") +
-        description.vlCType + "'");
-  if (!routeHasTypeMapping(route, description.vectorTypeName,
-                           description.vectorCType))
+        routeFacts->vlCType + "'");
+  if (!routeHasTypeMapping(route, routeFacts->resultVectorTypeName,
+                           routeFacts->resultVectorCType))
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires rebuilt provider route type mapping '") +
-        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
-  if (!routeHasTypeMapping(route, description.sourceVectorTypeName,
-                           description.sourceVectorCType))
+        routeFacts->resultVectorTypeName + "' -> '" +
+        routeFacts->resultVectorCType + "'");
+  if (!routeHasTypeMapping(route, routeFacts->sourceVectorTypeName,
+                           routeFacts->sourceVectorCType))
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires rebuilt provider route type mapping '") +
-        description.sourceVectorTypeName + "' -> '" +
-        description.sourceVectorCType + "'");
+        routeFacts->sourceVectorTypeName + "' -> '" +
+        routeFacts->sourceVectorCType + "'");
   return llvm::Error::success();
 }
 
@@ -13332,6 +13340,12 @@ llvm::Error validateRVVWideningMAccContractionRouteStatementPlan(
 llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<plugin::rvv::RVVWideningMAccRouteFacts> routeFacts =
+      getRVVWideningMAccTargetRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-owned canonical route facts before artifact export");
   if (route.getRouteID() != description.emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
@@ -13347,12 +13361,12 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
         "provider support, binding, and contraction route-family facts before "
         "artifact export");
   if (description.providerSupportedMirror !=
-          kRVVWideningMAccProviderSupportedMirror ||
+          routeFacts->providerSupportedMirror ||
       description.contractionRouteFamilyPlanID !=
-          kRVVWideningMAccContractionRouteFamilyPlan ||
+          routeFacts->contractionRouteFamilyPlanID ||
       description.requiredHeaderDeclarations !=
-          kRVVWideningMAccRequiredHeaders ||
-      description.cTypeMappingSummary != kRVVWideningMAccCTypeMapping)
+          routeFacts->requiredHeaderDeclarations ||
+      description.cTypeMappingSummary != routeFacts->cTypeMappingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires provider-owned contraction support, header, "
@@ -13363,35 +13377,20 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
         description.requiredHeaderDeclarations + "', and C type mapping '" +
         description.cTypeMappingSummary + "'");
   if (description.routeOperandBindingPlanID !=
-      kRVVWideningMAccRouteOperandBindingPlan)
+      routeFacts->routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires provider route operand binding plan '") +
-        kRVVWideningMAccRouteOperandBindingPlan + "' but was '" +
+        routeFacts->routeOperandBindingPlanID + "' but was '" +
         description.routeOperandBindingPlanID + "'");
-  llvm::StringRef routeOperandBindingSummary(
-      description.routeOperandBindingSummary);
-  if (!routeOperandBindingSummary.starts_with(
-          kRVVWideningMAccRouteOperandBindingPlan) ||
-      !routeOperandBindingSummary.contains("lhs=lhs-input-buffer") ||
-      !routeOperandBindingSummary.contains("rhs=rhs-input-buffer") ||
-      !routeOperandBindingSummary.contains(
-          "acc=accumulator-input-buffer") ||
-      !routeOperandBindingSummary.contains("out=output-buffer") ||
-      !routeOperandBindingSummary.contains("n=runtime-element-count") ||
-      !routeOperandBindingSummary.contains("wmacc-lhs") ||
-      !routeOperandBindingSummary.contains("wmacc-rhs") ||
-      !routeOperandBindingSummary.contains("wmacc-acc") ||
-      !routeOperandBindingSummary.contains("src-i16mf2") ||
-      !routeOperandBindingSummary.contains("acc-i32m1") ||
-      !routeOperandBindingSummary.contains("res-i32m1"))
+  if (description.routeOperandBindingSummary !=
+      routeFacts->routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires "
-        "provider route operand binding facts for lhs/rhs i16 sources, i32 "
-        "accumulator, i32 output, and runtime n before artifact export");
-  if (description.memoryForm !=
-          plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad ||
-      description.typedComputeOpName != "tcrv_rvv.widening_macc")
+        "provider route operand binding facts for lhs/rhs i16mf2 sources, "
+        "i32m1 accumulator, i32m1 output, and runtime n before artifact export");
+  if (description.memoryForm != routeFacts->memoryForm ||
+      description.typedComputeOpName != routeFacts->typedComputeOpName)
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires a "
         "selected tcrv_rvv.widening_macc body with vector RHS-load memory "
@@ -13413,21 +13412,51 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived accumulator/result layout, relation, source load, "
         "widening MAcc, and store facts before artifact export");
+  if (description.sourceSEW != routeFacts->sourceSEW ||
+      description.sourceLMUL != routeFacts->sourceLMUL ||
+      description.sew != routeFacts->resultSEW ||
+      description.lmul != routeFacts->resultLMUL)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived i16mf2 source and i32m1 "
+                    "accumulator/result SEW/LMUL facts before artifact export "
+                    "but provider carried source ") +
+        llvm::Twine(description.sourceSEW) + "/" + description.sourceLMUL +
+        " and result " + llvm::Twine(description.sew) + "/" +
+        description.lmul);
   if (description.wideningMAccAccumulatorLayout !=
-          kRVVWideningMAccAccumulatorLayout ||
-      description.wideningMAccResultLayout != kRVVWideningMAccResultLayout ||
-      description.wideningMAccRelation != kRVVWideningMAccRelation)
+          routeFacts->wideningMAccAccumulatorLayout ||
+      description.wideningMAccResultLayout !=
+          routeFacts->wideningMAccResultLayout ||
+      description.wideningMAccRelation != routeFacts->wideningMAccRelation)
     return makeRVVTargetRouteError(
         llvm::Twine("widening MAcc contraction target artifact consumer "
                     "requires provider-derived widening MAcc layout and "
                     "relation facts accumulator '") +
-        kRVVWideningMAccAccumulatorLayout + "', result '" +
-        kRVVWideningMAccResultLayout + "', relation '" +
-        kRVVWideningMAccRelation +
+        routeFacts->wideningMAccAccumulatorLayout + "', result '" +
+        routeFacts->wideningMAccResultLayout + "', relation '" +
+        routeFacts->wideningMAccRelation +
         "' before artifact export but provider carried accumulator '" +
         description.wideningMAccAccumulatorLayout + "', result '" +
         description.wideningMAccResultLayout + "', and relation '" +
         description.wideningMAccRelation + "'");
+  if (description.sourceVectorLoadIntrinsic !=
+          routeFacts->sourceVectorLoadIntrinsic ||
+      description.vectorLoadIntrinsic !=
+          routeFacts->accumulatorVectorLoadIntrinsic ||
+      description.intrinsic != routeFacts->wideningMAccIntrinsic ||
+      description.storeIntrinsic != routeFacts->storeIntrinsic ||
+      description.setVLIntrinsic != routeFacts->setVLIntrinsic)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived source load, i32m1 "
+                    "accumulator load, widening MAcc, result store, and setvl "
+                    "intrinsic facts before artifact export but provider "
+                    "carried source load '") +
+        description.sourceVectorLoadIntrinsic + "', accumulator load '" +
+        description.vectorLoadIntrinsic + "', compute '" +
+        description.intrinsic + "', store '" + description.storeIntrinsic +
+        "', and setvl '" + description.setVLIntrinsic + "'");
   if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
       !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
@@ -13476,33 +13505,40 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
   const TargetArtifactCandidate &candidate = context.candidate;
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
-  const std::string sourceSEW = llvm::Twine(description.sourceSEW).str();
-  const std::string resultSEW = llvm::Twine(description.sew).str();
+  std::optional<plugin::rvv::RVVWideningMAccRouteFacts> routeFacts =
+      getRVVWideningMAccTargetRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-owned canonical route facts before validating candidate "
+        "mirrors");
+  const std::string sourceSEW = llvm::Twine(routeFacts->sourceSEW).str();
+  const std::string resultSEW = llvm::Twine(routeFacts->resultSEW).str();
 
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.route_operand_binding_plan",
-          description.routeOperandBindingPlanID,
+          routeFacts->routeOperandBindingPlanID,
           "selected typed RVV widening MAcc binding plan"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.route_operand_binding_operands",
-          description.routeOperandBindingSummary,
+          routeFacts->routeOperandBindingSummary,
           "selected typed RVV widening MAcc binding summary"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.provider_supported_mirror",
-          description.providerSupportedMirror,
+          routeFacts->providerSupportedMirror,
           "selected typed RVV widening MAcc provider support"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.contraction_route_family_plan",
-          description.contractionRouteFamilyPlanID,
+          routeFacts->contractionRouteFamilyPlanID,
           "selected typed RVV widening MAcc contraction route-family plan"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.memory_form",
           plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              description.memoryForm),
+              routeFacts->memoryForm),
           "selected typed RVV widening MAcc memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -13516,12 +13552,12 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",
-          description.requiredHeaderDeclarations,
+          routeFacts->requiredHeaderDeclarations,
           "selected typed RVV widening MAcc route header requirements"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.c_type_mapping",
-          description.cTypeMappingSummary,
+          routeFacts->cTypeMappingSummary,
           "selected typed RVV widening MAcc route type mapping summary"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -13529,7 +13565,7 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
           "selected typed RVV widening MAcc source SEW"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_lmul", description.sourceLMUL,
+          candidate, "tcrv_rvv.source_lmul", routeFacts->sourceLMUL,
           "selected typed RVV widening MAcc source LMUL"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -13537,7 +13573,7 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
           "selected typed RVV widening MAcc accumulator SEW"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.accumulator_lmul", description.lmul,
+          candidate, "tcrv_rvv.accumulator_lmul", routeFacts->accumulatorLMUL,
           "selected typed RVV widening MAcc accumulator LMUL"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -13545,22 +13581,22 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
           "selected typed RVV widening MAcc result SEW"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.result_lmul", description.lmul,
+          candidate, "tcrv_rvv.result_lmul", routeFacts->resultLMUL,
           "selected typed RVV widening MAcc result LMUL"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.widening_macc_accumulator_layout",
-          description.wideningMAccAccumulatorLayout,
+          routeFacts->wideningMAccAccumulatorLayout,
           "selected typed RVV widening MAcc accumulator layout"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.widening_macc_result_layout",
-          description.wideningMAccResultLayout,
+          routeFacts->wideningMAccResultLayout,
           "selected typed RVV widening MAcc result layout"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.widening_macc_relation",
-          description.wideningMAccRelation,
+          routeFacts->wideningMAccRelation,
           "selected typed RVV widening MAcc relation"))
     return error;
 

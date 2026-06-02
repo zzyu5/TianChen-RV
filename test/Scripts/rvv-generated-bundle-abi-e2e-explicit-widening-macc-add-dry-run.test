@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-widening-macc-add --overwrite --op-kind widening_macc_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-widening-macc-add --overwrite --op-kind widening_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/explicit-widening-macc-add/evidence.json
 # RUN: FileCheck %s --check-prefix=WMACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/explicit-widening-macc-add/widening_macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/explicit-widening-macc-add/widening_macc_add/rvv_generated_bundle_abi_widening_macc_add_harness.c
@@ -42,6 +42,32 @@
 # WMACC-DAG: "value": "rvv-route-operand-binding:widening_macc_add.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wmacc-rhs|src-i16mf2|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|wmacc-acc|acc-i32m1|hdr;out=output-buffer:out:abi|res-store|res-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # WMACC-DAG: "typed_compute_op": "tcrv_rvv.widening_macc"
 # WMACC-DAG: "memory_form": "vector-rhs-load"
+# WMACC-DAG: "widening_macc_boundary"
+# WMACC-DAG: "authority": "provider-derived typed tcrv_rvv widening-MAcc body/config/runtime facts"
+# WMACC-DAG: "target_artifact_validator": "target-owned widening-macc-contraction route-family validator"
+# WMACC-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# WMACC-DAG: "direct_pre_realized_route_entry_supported": false
+# WMACC-DAG: "selected_source_abi"
+# WMACC-DAG: "lhs": "lhs-input-buffer i16 source"
+# WMACC-DAG: "rhs": "rhs-input-buffer i16 source"
+# WMACC-DAG: "acc": "accumulator-input-buffer i32 seed vector"
+# WMACC-DAG: "out": "output-buffer i32 result vector"
+# WMACC-DAG: "provider_route_facts"
+# WMACC-DAG: "provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+# WMACC-DAG: "contraction_route_family_plan": "rvv-contraction-route-family-plan.v1"
+# WMACC-DAG: "required_header_declarations": "stddef.h,stdint.h,riscv_vector.h"
+# WMACC-DAG: "c_type_mapping": "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"
+# WMACC-DAG: "source_sew": "16"
+# WMACC-DAG: "source_lmul": "mf2"
+# WMACC-DAG: "accumulator_sew": "32"
+# WMACC-DAG: "accumulator_lmul": "m1"
+# WMACC-DAG: "result_sew": "32"
+# WMACC-DAG: "result_lmul": "m1"
+# WMACC-DAG: "widening_macc_relation": "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
+# WMACC-DAG: "macc_operand_order": "accumulator_vector,lhs_i16_vector,rhs_i16_vector,vl"
+# WMACC-DAG: "target_validator_consumed_facts"
+# WMACC-DAG: "source_and_result_type_mappings"
+# WMACC-DAG: "stale_non_widening_macc_fact_rejection"
 # WMACC-DAG: "status": "dry_run_success"
 
 # HARNESS: int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
@@ -50,6 +76,6 @@
 # HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
 # HARNESS: tcrv_emitc_explicit_selected_body_widening_macc_add_kernel_explicit_selected_body_rvv_widening_macc_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index]);
-# HARNESS: signed_widening_products accumulation tail_preserved widening_products=
-# HARNESS: tcrv_rvv_generated_bundle_abi_widening_macc_add_ok counts=7,16,23
-# HARNESS: PASS op=widening_macc_add counts=7,16,23
+# HARNESS: signed_widening_products accumulation source_preserved accumulator_preserved tail_preserved
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_macc_add_ok counts=0,1,7,16,23,257 patterns=0,1
+# HARNESS: PASS op=widening_macc_add counts=0,1,7,16,23,257 patterns=0,1

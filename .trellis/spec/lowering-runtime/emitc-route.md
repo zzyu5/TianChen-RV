@@ -318,6 +318,10 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation);
 - Binding summary, ABI order, predicate, mask source, layout, header, or type
   mapping differs from the provider facts -> fail before target artifact
   acceptance.
+- For `widening_macc_add`, stale source/result SEW/LMUL, accumulator/result
+  layout, route operand order, contraction family plan, header/type facts, or
+  provider mirror -> fail before target artifact acceptance with diagnostics
+  that name the missing `i16mf2` source and `i32m1` accumulator/result facts.
 
 ### 5. Good/Base/Bad Cases
 
@@ -325,10 +329,21 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation);
   `cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n`, `slt`, vector compare mask source,
   accumulator passthrough, binding summary, headers, and C type mapping; both
   provider and target validation consume those facts.
+- Good: `widening_macc_add` gets canonical facts for `lhs,rhs,acc,out,n`,
+  `tcrv_rvv.widening_macc`, `i16mf2` lhs/rhs sources, `i32m1` accumulator and
+  result vectors, `signed-i16mf2xi16mf2-plus-i32m1-to-i32m1`,
+  `separate-i32-vector-accumulator-input`,
+  `store-widening-multiply-accumulate-result-to-output-buffer`, contraction
+  route-family plan, route operand binding summary, header declarations, C
+  type mapping, and explicit `provider_supported_mirror`; provider and target
+  validation consume the same accessor surface.
 - Base: a route family with only one consumer may keep local constants until
   those facts are shared across provider, target, scripts, or evidence.
 - Bad: target validation defines its own `computed_masked_macc_add` ABI order
   and binding summary while the provider owns another copy.
+- Bad: target validation accepts `widening_macc_add` because the route id,
+  intrinsic spelling, generated artifact name, or C string looks like a
+  widening route while provider facts are missing or stale.
 
 ### 6. Tests Required
 
@@ -338,6 +353,8 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation);
 - C++ target tests should cover non-textual validator behavior when practical.
 - Generated-bundle dry-run must expose representative route facts and mirror
   fields in evidence JSON.
+- Widening MAcc generated-bundle evidence must include provider-derived
+  widening boundary facts and runtime counts that prove `n`/AVL is honored.
 - RVV runtime claims still require real `ssh rvv` execution after provider and
   target validation accept the route.
 

@@ -19709,7 +19709,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 5;
   if (alloc_n == 5 && n == 0)
@@ -19718,19 +19718,40 @@ static int run_case(size_t n) {{
   int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
   int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  if (!lhs || !rhs || !acc || !out) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+  int16_t *lhs_before = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int16_t *rhs_before = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int32_t *acc_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !acc || !out || !lhs_before || !rhs_before || !acc_before) {{
+    fprintf(stderr, "allocation failed for n=%zu pattern=%d\\n", n, pattern);
     free(lhs);
     free(rhs);
     free(acc);
     free(out);
+    free(lhs_before);
+    free(rhs_before);
+    free(acc_before);
     return 11;
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    lhs[index] = {expectation.lhs_initializer};
-    rhs[index] = {expectation.rhs_initializer};
-    acc[index] = {expectation.source_initializer};
+    if (pattern == 0) {{
+      lhs[index] = {expectation.lhs_initializer};
+      rhs[index] = {expectation.rhs_initializer};
+      acc[index] = {expectation.source_initializer};
+    }} else {{
+      lhs[index] = (int16_t)(((index % 3) == 0)
+                                ? ((int)(index % 157) + 240)
+                                : -((int)(index % 149) + 230));
+      rhs[index] = (int16_t)(((index % 4) < 2)
+                                ? -((int)(index % 181) + 180)
+                                : ((int)(index % 167) + 210));
+      acc[index] = (int32_t)(((index % 2) == 0)
+                                ? -700 - (int32_t)(index * 13)
+                                : 900 + (int32_t)(index * 17));
+    }}
+    lhs_before[index] = lhs[index];
+    rhs_before[index] = rhs[index];
+    acc_before[index] = acc[index];
     out[index] = {expectation.out_initializer};
   }}
 
@@ -19828,7 +19849,7 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 5;
   if (alloc_n == 5 && n == 0)
@@ -19837,19 +19858,40 @@ static int run_case(size_t n) {{
   int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
   int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  if (!lhs || !rhs || !acc || !out) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+  int16_t *lhs_before = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int16_t *rhs_before = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int32_t *acc_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !acc || !out || !lhs_before || !rhs_before || !acc_before) {{
+    fprintf(stderr, "allocation failed for n=%zu pattern=%d\\n", n, pattern);
     free(lhs);
     free(rhs);
     free(acc);
     free(out);
+    free(lhs_before);
+    free(rhs_before);
+    free(acc_before);
     return 11;
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    lhs[index] = {expectation.lhs_initializer};
-    rhs[index] = {expectation.rhs_initializer};
-    acc[index] = {expectation.source_initializer};
+    if (pattern == 0) {{
+      lhs[index] = {expectation.lhs_initializer};
+      rhs[index] = {expectation.rhs_initializer};
+      acc[index] = {expectation.source_initializer};
+    }} else {{
+      lhs[index] = (int16_t)(((index % 3) == 0)
+                                ? ((int)(index % 157) + 240)
+                                : -((int)(index % 149) + 230));
+      rhs[index] = (int16_t)(((index % 4) < 2)
+                                ? -((int)(index % 181) + 180)
+                                : ((int)(index % 167) + 210));
+      acc[index] = (int32_t)(((index % 2) == 0)
+                                ? -700 - (int32_t)(index * 13)
+                                : 900 + (int32_t)(index * 17));
+    }}
+    lhs_before[index] = lhs[index];
+    rhs_before[index] = rhs[index];
+    acc_before[index] = acc[index];
     out[index] = {expectation.out_initializer};
   }}
 
@@ -19872,26 +19914,50 @@ static int run_case(size_t n) {{
       ++nonzero_accumulators;
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d acc=%d product=%d\\n",
-              n, index, out[index], expected, lhs[index], rhs[index], acc[index], product);
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got=%d expected=%d lhs=%d rhs=%d acc=%d product=%d\\n",
+              n, pattern, index, out[index], expected, lhs[index], rhs[index], acc[index], product);
       free(lhs);
       free(rhs);
       free(acc);
       free(out);
+      free(lhs_before);
+      free(rhs_before);
+      free(acc_before);
       return 12;
+    }}
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (lhs[index] != lhs_before[index] ||
+        rhs[index] != rhs_before[index] ||
+        acc[index] != acc_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source or accumulator buffer mutated n=%zu pattern=%d index=%zu lhs=%d before_lhs=%d rhs=%d before_rhs=%d acc=%d before_acc=%d\\n",
+              n, pattern, index, lhs[index], lhs_before[index], rhs[index], rhs_before[index], acc[index], acc_before[index]);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      free(lhs_before);
+      free(rhs_before);
+      free(acc_before);
+      return 13;
     }}
   }}
 
   for (size_t index = n; index < alloc_n; ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, out[index], {expectation.out_initializer});
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, pattern, index, out[index], {expectation.out_initializer});
       free(lhs);
       free(rhs);
       free(acc);
       free(out);
-      return 13;
+      free(lhs_before);
+      free(rhs_before);
+      free(acc_before);
+      return 14;
     }}
   }}
 
@@ -19899,20 +19965,27 @@ static int run_case(size_t n) {{
                 widening_products == 0 ||
                 nonzero_accumulators == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu widening_products=%zu nonzero_accumulators=%zu\\n",
-            n, positive_products, negative_products, widening_products, nonzero_accumulators);
+            "{expectation.kind} coverage missing n=%zu pattern=%d positive_products=%zu negative_products=%zu widening_products=%zu nonzero_accumulators=%zu\\n",
+            n, pattern, positive_products, negative_products, widening_products, nonzero_accumulators);
     free(lhs);
     free(rhs);
     free(acc);
     free(out);
-    return 14;
+    free(lhs_before);
+    free(rhs_before);
+    free(acc_before);
+    return 15;
   }}
 
   free(lhs);
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok signed_widening_products accumulation tail_preserved widening_products=%zu\\n", n, widening_products);
+  free(lhs_before);
+  free(rhs_before);
+  free(acc_before);
+  printf("{expectation.kind} case n=%zu pattern=%d ok signed_widening_products accumulation source_preserved accumulator_preserved tail_preserved positive_products=%zu negative_products=%zu widening_products=%zu\\n",
+         n, pattern, positive_products, negative_products, widening_products);
   return 0;
 }}
 
@@ -19920,12 +19993,14 @@ int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -24334,10 +24409,11 @@ def run_one_op_e2e(
                 "be preserved"
             )
             evidence["harness"]["source_pattern_contract"] = (
-                "multi-lane cases include positive and negative products so "
-                "the oracle distinguishes signed widening multiply-accumulate "
-                "from add-only, non-widening, missing-accumulator, and wrong "
-                "sign-extension behavior"
+                "two signed i16 source patterns include positive and negative "
+                "products so the oracle distinguishes signed widening "
+                "multiply-accumulate from add-only, non-widening, "
+                "missing-accumulator, and wrong sign-extension behavior while "
+                "checking source and accumulator preservation"
             )
         if expectation.is_widening_dot_reduce_add:
             evidence["harness"]["dot_reduction_contract"] = (
@@ -25295,6 +25371,23 @@ def run_self_test() -> int:
                 widening_macc_metadata = widening_macc_metadata_from_bundle(
                     bundle_checks, expectation
                 )
+                widening_macc_boundary = widening_macc_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 23, 257],
+                )
+                selected_source_abi = widening_macc_boundary.get(
+                    "selected_source_abi", {}
+                )
+                provider_facts = widening_macc_boundary.get(
+                    "provider_route_facts", {}
+                )
+                statement_plan = widening_macc_boundary.get("statement_plan", {})
+                target_consumed = widening_macc_boundary.get(
+                    "target_validator_consumed_facts", []
+                )
                 if (
                     widening_macc_metadata.get(
                         "tcrv_rvv.widening_macc_relation"
@@ -25308,10 +25401,46 @@ def run_self_test() -> int:
                         "tcrv_rvv.provider_supported_mirror"
                     )
                     != CONTRACTION_PROVIDER_SUPPORTED_MIRROR
+                    or selected_source_abi.get("lhs")
+                    != "lhs-input-buffer i16 source"
+                    or selected_source_abi.get("rhs")
+                    != "rhs-input-buffer i16 source"
+                    or selected_source_abi.get("acc")
+                    != "accumulator-input-buffer i32 seed vector"
+                    or selected_source_abi.get("out")
+                    != "output-buffer i32 result vector"
+                    or selected_source_abi.get("n") != "runtime-element-count"
+                    or provider_facts.get("runtime_abi_order")
+                    != expectation.runtime_abi_order
+                    or provider_facts.get("route_operand_binding_plan")
+                    != WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN
+                    or provider_facts.get("route_operand_binding_operands")
+                    != WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                    or provider_facts.get("required_header_declarations")
+                    != CONTRACTION_REQUIRED_HEADER_DECLARATIONS
+                    or provider_facts.get("c_type_mapping")
+                    != CONTRACTION_C_TYPE_MAPPING
+                    or provider_facts.get("source_sew") != "16"
+                    or provider_facts.get("source_lmul") != "mf2"
+                    or provider_facts.get("accumulator_sew") != expectation.sew
+                    or provider_facts.get("accumulator_lmul")
+                    != expectation.lmul
+                    or provider_facts.get("result_sew") != expectation.sew
+                    or provider_facts.get("result_lmul") != expectation.lmul
+                    or provider_facts.get("widening_macc_relation")
+                    != WIDENING_MACC_RELATION
+                    or statement_plan.get("macc_operand_order")
+                    != "accumulator_vector,lhs_i16_vector,rhs_i16_vector,vl"
+                    or "source_and_result_type_mappings" not in target_consumed
+                    or "stale_non_widening_macc_fact_rejection"
+                    not in target_consumed
+                    or widening_macc_boundary.get("runtime_counts")
+                    != [0, 1, 16, 23, 257]
                 ):
                     raise AssertionError(
                         "self-test fake bundle generation lost widening-MAcc "
-                        "validator-backed metadata"
+                        "provider-backed ABI, operand-binding, target "
+                        "validator, or statement facts"
                     )
             if (
                 expectation.is_widening_dot_reduce_add

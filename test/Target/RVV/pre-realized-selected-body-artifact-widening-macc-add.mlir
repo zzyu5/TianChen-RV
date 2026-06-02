@@ -64,6 +64,10 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_macc_add.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_macc_add.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wmacc-rhs|src-i16mf2|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|wmacc-acc|acc-i32m1|hdr;out=output-buffer:out:abi|res-store|res-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-contraction-family-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"}
 // PLAN-SAME: {key = "tcrv_rvv.source_sew", value = "16"}
 // PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulator_sew", value = "32"}
@@ -92,4 +96,6 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_macc_add.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:widening_macc_add.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wmacc-rhs|src-i16mf2|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|wmacc-acc|acc-i32m1|hdr;out=output-buffer:out:abi|res-store|res-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32
 // HEADER: void tcrv_emitc_pre_realized_body_widening_macc_add_kernel_pre_realized_body_rvv_widening_macc_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);

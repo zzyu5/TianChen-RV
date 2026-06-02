@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-21.md`
-- **Total Sessions**: 391
+- **Total Sessions**: 392
 - **Last Active**: 2026-06-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-21.md` | ~279 | Active |
+| `journal-21.md` | ~312 | Active |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
@@ -49,6 +49,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 392 | 2026-06-02 | Stage2 RVV signed widening macc-add artifact ABI boundary | included-in-this-commit | `main` |
 | 391 | 2026-06-02 | Stage2 RVV computed-masked macc-add artifact ABI boundary | - | `main` |
 | 390 | 2026-06-02 | Stage2 RVV runtime scalar masked macc add | - | `main` |
 | 389 | 2026-06-02 | Stage2 RVV runtime-scalar reduce-max artifact facts | `999c875e`, `297e075e` | `main` |
