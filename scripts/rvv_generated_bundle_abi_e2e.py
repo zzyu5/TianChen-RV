@@ -17273,7 +17273,7 @@ static int run_case(size_t n, int pattern) {{
   free(data);
   free(indices);
   free(out);
-  printf("{expectation.kind} case n=%zu pattern=%d ok non_monotonic_indexed_gather output_order_distinguishing_lanes=%zu tail_preserved\\n",
+  printf("{expectation.kind} case n=%zu pattern=%d ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=%zu unit_store_output tail_preserved runtime_n_avl_honored\\n",
          n, pattern, output_order_distinguishing_lanes);
   return 0;
 }}
@@ -17292,8 +17292,8 @@ int main(void) {{
         return status;
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} index_patterns=2 tail_preserved\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} index_patterns=2 tail_preserved\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} index_patterns=2 element_offset_indices unit_store_output tail_preserved runtime_n_avl_honored\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} index_patterns=2 element_offset_indices unit_store_output tail_preserved runtime_n_avl_honored\\n");
   return 0;
 }}
 """.lstrip()

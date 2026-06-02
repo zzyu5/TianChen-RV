@@ -474,6 +474,119 @@ Required tests:
 - Runtime RVV correctness claims still require real `ssh rvv` execution after
   provider and target validators accept the route.
 
+### Base Memory Movement Fact Surface
+
+For selected-body base memory movement routes, provider and target shared facts
+must use the provider-owned surface:
+
+```c++
+struct RVVBaseMemoryMovementRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceStrideSource;
+  llvm::StringRef destinationStrideSource;
+  std::int64_t indexEEW;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+};
+
+std::optional<RVVBaseMemoryMovementRouteFacts>
+getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation);
+```
+
+Trigger: use this surface when base memory routes such as strided load/unit
+store, unit load/strided store, indexed gather/unit store, indexed
+scatter/unit load, masked unit load/store, or masked unit store share facts
+across provider planning, target artifact validation, and generated-bundle
+evidence.
+
+Contracts:
+
+- The accessor is implemented in the RVV provider layer and is the canonical
+  source for base memory operation, memory form, runtime ABI order, target leaf
+  profile, provider-supported mirror, header/type summaries, route operand
+  binding plan/summary, and route-family plan.
+- Indexed gather/unit store facts must include ABI order `data,index,out,n`,
+  `index_eew = 32`, `offset_unit = element`, `index_source =
+  runtime_abi:index`, indexed layout
+  `element-indexed-data-index-unit-stride-output-runtime-abi`,
+  indexed data memory form `indexed-load`, destination memory form
+  `unit-stride-store`, and typed compute op `tcrv_rvv.move`.
+- Target artifact validation consumes the accessor and rejects missing or
+  stale provider facts before accepting object/header/bundle artifacts.
+  Candidate metadata may only mirror accessor facts after the provider route is
+  rebuilt.
+- Common EmitC carries the provider-built route and metadata mirrors; it must
+  not infer base memory kind, index role, offset unit, header set, C type
+  mapping, or ABI order from artifact names, route ids, tests, scripts, C
+  strings, or mirror metadata.
+
+Validation and errors:
+
+- Missing accessor result for a supported base memory operation -> provider and
+  target validators fail before artifact export.
+- ABI order, memory form, indexed/strided/masked layout, index EEW, offset
+  unit, index source, route-family plan, target leaf profile, provider mirror,
+  header summary, C type mapping, or binding summary differs from accessor
+  facts -> fail before artifact acceptance.
+- Candidate artifact metadata carries stale strided, unit-load, indexed,
+  masked, or non-base route-family facts for the selected base memory route ->
+  fail before bundle acceptance.
+
+Good:
+
+```text
+typed indexed_gather_unit_store body/config/runtime facts
+  -> getRVVBaseMemoryMovementRouteFacts(IndexedGatherUnitStore)
+  -> base memory route-family plan and operand-binding summary
+  -> provider-built TCRVEmitCLowerableRoute
+  -> target validator consumes the same facts
+```
+
+Bad:
+
+```text
+target validator local table says index_eew=32 and offset_unit=element
+  -> accepts artifact while provider accessor is missing or route metadata is stale
+```
+
+Required tests:
+
+- C++ target artifact tests must mutate provider descriptions and candidate
+  metadata mirrors for stale ABI order, index EEW, offset unit, index source,
+  indexed layout, route-family plan, target profile, provider mirror, header
+  facts, type facts, binding summary, and accidental strided/unit-load
+  fallback.
+- Generated-bundle dry-run tests must assert representative accessor facts,
+  base memory boundary evidence, and provider-derived operand/header/type
+  summaries.
+- Runtime RVV correctness claims still require real `ssh rvv` execution after
+  provider and target validators accept the route.
+
 ## RVV Rules
 
 An RVV lowerable route is valid only when:

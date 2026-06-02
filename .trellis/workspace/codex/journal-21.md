@@ -547,3 +547,62 @@ Testing:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 398: Stage2 RVV indexed gather unit-store artifact ABI boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV indexed gather unit-store artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `indexed_gather_unit_store` provider-owned artifact ABI
+boundary. The base memory movement provider now exposes canonical route facts
+for data/index/out/n ABI order, index EEW, element-offset indexed load, route
+family, binding, header/type, target profile, and provider mirror facts; target
+artifact validation consumes the same provider surface and fails closed on stale
+indexed gather mirrors or accidental strided/unit-load residue.
+
+### Main Changes
+
+- Added `RVVBaseMemoryMovementRouteFacts` and
+  `getRVVBaseMemoryMovementRouteFacts(...)` as the provider-owned base memory
+  fact surface.
+- Rewired base memory target validation to consume provider-owned facts for
+  runtime ABI order, target leaf profile, provider mirror, route-family plan,
+  operand binding summary, header declarations, C type mapping, indexed layout,
+  index source, index EEW, offset unit, and memory forms.
+- Added C++ target artifact fail-closed coverage for stale indexed gather
+  layout, index EEW, offset unit, index source, target profile, provider mirror,
+  header/type facts, binding facts, and strided/unit-load residue.
+- Tightened pre-realized and generated-bundle indexed gather evidence around
+  provider-derived facts, base memory boundary summaries, runtime counts, two
+  index patterns, element offsets, unit-store output, tail sentinels, and
+  runtime n/AVL.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable
+  base memory movement fact-surface contract.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter indexed-gather-unit-store` from `build/test`
+- [OK] explicit selected-body indexed gather generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] pre-realized selected-body indexed gather generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] direct pre-realized route-entry negative check exited 1 with the retired shortcut diagnostic
+- [OK] real `ssh rvv` explicit selected-body indexed gather for counts `0,1,16,17,257` and two index patterns
+- [OK] real `ssh rvv` pre-realized selected-body indexed gather for counts `0,1,16,17,257` and two index patterns
+- [OK] `git diff --check`
+- [OK] bounded touched-diff old-authority scan
+- [OK] Trellis task context validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and create the coherent task commit.

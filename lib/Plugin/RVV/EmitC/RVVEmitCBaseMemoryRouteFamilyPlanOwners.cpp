@@ -664,6 +664,146 @@ llvm::StringRef getBaseMemoryMovementMaskName(
   }
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getBaseMemoryMovementRuntimeABIParameters(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return tcrv::rvv::getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return tcrv::rvv::getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return tcrv::rvv::getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return tcrv::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return tcrv::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+  default:
+    return {};
+  }
+}
+
+RVVRouteOperandBindingPlan buildBaseMemoryRouteOperandBindingPlanFromFacts(
+    const RVVBaseMemoryMovementRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  auto parameter = [&](std::size_t index) -> const support::RuntimeABIParameter & {
+    return facts.runtimeABIParameters[index];
+  };
+
+  switch (facts.operation) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    addBaseMemoryRouteOperandBinding(
+        plan, "src", parameter(0),
+        {"runtime-abi-mirror", "materialized-strided-load-base",
+         "move-source"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "out", parameter(1),
+        {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "n", parameter(2),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "stride_bytes", parameter(3),
+        {"runtime-abi-mirror", "materialized-strided-load-stride",
+         "materialized-byte-address", "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    addBaseMemoryRouteOperandBinding(
+        plan, "src", parameter(0),
+        {"runtime-abi-mirror", "materialized-load-base", "move-source"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "dst", parameter(1),
+        {"runtime-abi-mirror", "materialized-strided-store-base",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "n", parameter(2),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "dst_stride_bytes", parameter(3),
+        {"runtime-abi-mirror", "materialized-strided-store-stride",
+         "materialized-byte-address", "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    addBaseMemoryRouteOperandBinding(
+        plan, "data", parameter(0),
+        {"runtime-abi-mirror", "materialized-indexed-data-base",
+         "indexed-load-base", "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "index", parameter(1),
+        {"runtime-abi-mirror", "materialized-index-load-base",
+         "index-offset-scale", "index-source-mirror", "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "out", parameter(2),
+        {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "n", parameter(3),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    addBaseMemoryRouteOperandBinding(
+        plan, "src", parameter(0),
+        {"runtime-abi-mirror", "materialized-load-base", "move-source",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "index", parameter(1),
+        {"runtime-abi-mirror", "materialized-index-load-base",
+         "index-offset-scale", "index-source-mirror", "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "dst", parameter(2),
+        {"runtime-abi-mirror", "materialized-indexed-store-base",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "n", parameter(3),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    addBaseMemoryRouteOperandBinding(
+        plan, "src", parameter(0),
+        {"runtime-abi-mirror", "materialized-masked-load-base",
+         "masked-load-source-call", "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "mask", parameter(1),
+        {"runtime-abi-mirror", "materialized-mask-load-base",
+         "masked-load-mask-call"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "dst", parameter(2),
+        {"runtime-abi-mirror", "materialized-old-destination-load-base",
+         "masked-load-passthrough-call", "materialized-store-base",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "n", parameter(3),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    addBaseMemoryRouteOperandBinding(
+        plan, "src", parameter(0),
+        {"runtime-abi-mirror", "materialized-load-base",
+         "masked-store-source-call"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "mask", parameter(1),
+        {"runtime-abi-mirror", "materialized-mask-load-base",
+         "masked-store-mask-call"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "dst", parameter(2),
+        {"runtime-abi-mirror", "materialized-masked-store-base",
+         "header-mirror"});
+    addBaseMemoryRouteOperandBinding(
+        plan, "n", parameter(3),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    break;
+  default:
+    break;
+  }
+  return plan;
+}
+
 llvm::Expected<RVVRouteOperandBindingPlan>
 deriveBaseMemoryRouteOperandBindingPlanImpl(
     const RVVSelectedBodyRouteAnalysis &analysis) {
@@ -823,6 +963,89 @@ deriveBaseMemoryRouteOperandBindingPlanImpl(
 }
 
 } // namespace
+
+std::optional<RVVBaseMemoryMovementRouteFacts>
+getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
+  if (!isRVVSelectedBodyBaseMemoryMovementRouteOperation(operation))
+    return std::nullopt;
+
+  const bool isIndexedGather =
+      operation == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+  const bool isIndexedScatter =
+      operation == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isStaticMaskLoad =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
+  const bool isStaticMaskStore =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
+
+  RVVBaseMemoryMovementRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = getBaseMemoryMovementRouteFamilyMemoryForm(operation);
+  facts.runtimeABIOrder = getBaseMemoryMovementRuntimeABIOrder(operation);
+  facts.targetLeafProfile = getBaseMemoryMovementTargetLeafProfile(operation);
+  facts.providerSupportedMirror =
+      getBaseMemoryMovementProviderSupportedMirror(operation);
+  facts.requiredHeaderDeclarations =
+      kRVVBaseMemoryMovementRequiredHeaderDeclarations;
+  facts.cTypeMappingSummary = getBaseMemoryMovementCTypeMappingSummary(operation);
+  facts.routeOperandBindingPlanID =
+      *getExpectedRVVSelectedBodyBaseMemoryRouteOperandBindingPlanID(operation);
+  facts.routeFamilyPlanID = kRVVBaseMemoryMovementRouteFamilyPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.move";
+  facts.stridedMemoryLayout = getBaseMemoryMovementStridedLayout(operation);
+  facts.indexedMemoryLayout = getBaseMemoryMovementIndexedLayout(operation);
+  facts.sourceMemoryForm = getBaseMemoryMovementSourceMemoryForm(operation);
+  facts.destinationMemoryForm =
+      getBaseMemoryMovementDestinationMemoryForm(operation);
+  facts.sourceStrideSource =
+      operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore
+          ? llvm::StringRef(kRVVSourceStrideSource)
+          : llvm::StringRef();
+  facts.destinationStrideSource =
+      operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore
+          ? llvm::StringRef(kRVVDestinationByteStrideSource)
+          : llvm::StringRef();
+  facts.indexEEW = isIndexed ? 32 : 0;
+  facts.offsetUnit = isIndexed ? llvm::StringRef(kRVVIndexedGatherOffsetUnit)
+                               : llvm::StringRef();
+  facts.indexSource =
+      isIndexed ? llvm::StringRef(kRVVIndexSource) : llvm::StringRef();
+  facts.indexUniqueness =
+      isIndexedScatter ? llvm::StringRef(kRVVIndexedScatterIndexUniqueness)
+                       : llvm::StringRef();
+  facts.indexedDataMemoryForm =
+      isIndexedGather ? llvm::StringRef(kRVVIndexedDataMemoryForm)
+                      : llvm::StringRef();
+  facts.indexedDestinationMemoryForm =
+      isIndexedScatter ? llvm::StringRef(kRVVIndexedDestinationMemoryForm)
+                       : llvm::StringRef();
+  facts.maskRole = isMasked ? llvm::StringRef(kRVVMaskRole) : llvm::StringRef();
+  facts.maskSource =
+      isMasked ? llvm::StringRef(kRVVMaskSource) : llvm::StringRef();
+  facts.maskMemoryForm =
+      isMasked ? llvm::StringRef(kRVVMaskMemoryForm) : llvm::StringRef();
+  facts.inactiveLaneContract =
+      isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreInactiveLaneContract)
+      : isStaticMaskLoad ? llvm::StringRef(kRVVMaskedMemoryInactiveLaneContract)
+                         : llvm::StringRef();
+  facts.maskedPassthroughLayout =
+      isStaticMaskStore ? llvm::StringRef(kRVVMaskedStorePassthroughLayout)
+      : isStaticMaskLoad ? llvm::StringRef(kRVVMaskedMemoryPassthroughLayout)
+                         : llvm::StringRef();
+  facts.runtimeABIParameters =
+      getBaseMemoryMovementRuntimeABIParameters(operation);
+
+  RVVRouteOperandBindingPlan plan =
+      buildBaseMemoryRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(plan);
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    facts.logicalOperands.push_back(binding.logicalOperand);
+
+  return facts;
+}
 
 bool isRVVSelectedBodyBaseMemoryMovementRouteOperation(
     RVVSelectedBodyOperationKind op) {

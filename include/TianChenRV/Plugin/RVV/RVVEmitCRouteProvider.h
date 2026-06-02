@@ -282,6 +282,43 @@ struct RVVSelectedBodyEmitCRouteDescription {
       runtimeABIParameters;
 };
 
+struct RVVBaseMemoryMovementRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceStrideSource;
+  llvm::StringRef destinationStrideSource;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+};
+
+std::optional<RVVBaseMemoryMovementRouteFacts>
+getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation);
+
 struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

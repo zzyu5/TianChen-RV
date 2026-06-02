@@ -11907,6 +11907,113 @@ bool expectRVVTargetArtifactExporterShape(
           {"index source", "runtime_abi:index", "metadata-derived-index"}))
     return false;
 
+  RVVRouteDescription wrongIndexedGatherLayout = baseIndexedDescription;
+  wrongIndexedGatherLayout.indexedMemoryLayout =
+      "unit-load-strided-residue";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherLayout,
+          "base-memory registry rejects stale indexed gather layout",
+          {"indexed or masked memory layout",
+           "element-indexed-data-index-unit-stride-output-runtime-abi",
+           "unit-load-strided-residue"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherIndexEEW = baseIndexedDescription;
+  wrongIndexedGatherIndexEEW.indexEEW = 64;
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherIndexEEW,
+          "base-memory registry rejects stale indexed gather index EEW",
+          {"index EEW", "32", "64"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherOffsetUnit = baseIndexedDescription;
+  wrongIndexedGatherOffsetUnit.offsetUnit = "byte";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherOffsetUnit,
+          "base-memory registry rejects stale indexed gather offset unit",
+          {"offset unit", "element", "byte"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherDataForm = baseIndexedDescription;
+  wrongIndexedGatherDataForm.indexedDataMemoryForm = "unit-load";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherDataForm,
+          "base-memory registry rejects stale indexed gather data form",
+          {"indexed data memory form", "indexed-load", "unit-load"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherSourceResidue = baseIndexedDescription;
+  wrongIndexedGatherSourceResidue.sourceMemoryForm = "strided-load";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherSourceResidue,
+          "base-memory registry rejects stale indexed gather source residue",
+          {"source memory form", "strided-load"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherDestinationResidue =
+      baseIndexedDescription;
+  wrongIndexedGatherDestinationResidue.destinationMemoryForm = "strided-store";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherDestinationResidue,
+          "base-memory registry rejects stale indexed gather destination "
+          "residue",
+          {"destination memory form", "unit-stride-store", "strided-store"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherTargetProfile = baseIndexedDescription;
+  wrongIndexedGatherTargetProfile.targetLeafProfile =
+      "rvv-v1-e32m1-unit-load-strided-store-leaf-profile.v1";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherTargetProfile,
+          "base-memory registry rejects stale indexed gather target profile",
+          {"target leaf profile",
+           "rvv-v1-e32m1-indexed-gather-unit-store-leaf-profile.v1",
+           "unit-load-strided-store"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherProviderMirror =
+      baseIndexedDescription;
+  wrongIndexedGatherProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:rvv-unit-load-strided-store-plan-validated";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherProviderMirror,
+          "base-memory registry rejects stale indexed gather provider mirror",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-indexed-gather-unit-store-plan-validated",
+           "rvv-unit-load-strided-store"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherHeaderFacts = baseIndexedDescription;
+  wrongIndexedGatherHeaderFacts.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherHeaderFacts,
+          "base-memory registry rejects stale indexed gather header facts",
+          {"required_header_declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription wrongIndexedGatherTypeFacts = baseIndexedDescription;
+  wrongIndexedGatherTypeFacts.cTypeMappingSummary =
+      "vl:size_t,data:signed-e32m1,result:signed-e32m1";
+  if (!expectBaseMemoryProviderFailure(
+          baseIndexedFixture.candidate, baseIndexedRoute,
+          wrongIndexedGatherTypeFacts,
+          "base-memory registry rejects stale indexed gather type facts",
+          {"C type mapping",
+           "vl:size_t,data:signed-e32m1,index:u32m1,result:signed-e32m1",
+           "vl:size_t,data:signed-e32m1,result:signed-e32m1"}))
+    return false;
+
   RVVRouteDescription staleIndexedGatherBindingSummary =
       baseIndexedDescription;
   std::string staleIndexedGatherSummary =
@@ -11927,8 +12034,9 @@ bool expectRVVTargetArtifactExporterShape(
           baseIndexedFixture.candidate, baseIndexedRoute,
           staleIndexedGatherBindingSummary,
           "base-memory registry rejects stale indexed gather binding summary",
-          {"indexed_gather_unit_store", "logical operand 'data'", "abi",
-           "hdr"}))
+          {"provider route operand binding summary",
+           "rvv-route-operand-binding:indexed_gather_unit_store.v1",
+           "header-mirror"}))
     return false;
 
   RVVRouteDescription staleIndexedScatterBindingSummary =
@@ -11951,8 +12059,9 @@ bool expectRVVTargetArtifactExporterShape(
           baseIndexedScatterFixture.candidate, baseIndexedScatterRoute,
           staleIndexedScatterBindingSummary,
           "base-memory registry rejects stale indexed scatter binding summary",
-          {"indexed_scatter_unit_load", "logical operand 'src'", "abi",
-           "hdr"}))
+          {"provider route operand binding summary",
+           "rvv-route-operand-binding:indexed_scatter_unit_load.v1",
+           "header-mirror"}))
     return false;
 
   RVVRouteDescription wrongBaseMaskBinding = baseMaskedDescription;
@@ -12371,6 +12480,91 @@ bool expectRVVTargetArtifactExporterShape(
           wrongBaseIndexMirror, baseIndexedRoute, baseIndexedDescription,
           "base-memory registry rejects stale index mirror",
           {"index_source", "runtime_abi:index", "metadata-derived-index"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedGatherLayoutMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedGatherLayoutMirror, "tcrv_rvv.indexed_memory_layout",
+          "unit-load-strided-residue")) {
+    llvm::errs() << "base-memory test fixture did not contain indexed "
+                    "layout metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherLayoutMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather layout mirror",
+          {"indexed_memory_layout",
+           "element-indexed-data-index-unit-stride-output-runtime-abi",
+           "unit-load-strided-residue"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedGatherIndexEEWMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedGatherIndexEEWMirror,
+                                    "tcrv_rvv.index_eew", "64")) {
+    llvm::errs() << "base-memory test fixture did not contain index EEW "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherIndexEEWMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather index EEW mirror",
+          {"index_eew", "32", "64"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedGatherOffsetMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongIndexedGatherOffsetMirror,
+                                    "tcrv_rvv.offset_unit", "byte")) {
+    llvm::errs() << "base-memory test fixture did not contain offset unit "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherOffsetMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather offset mirror",
+          {"offset_unit", "element", "byte"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedGatherTargetMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedGatherTargetMirror, "tcrv_rvv.target_leaf_profile",
+          "rvv-v1-e32m1-unit-load-strided-store-leaf-profile.v1")) {
+    llvm::errs() << "base-memory test fixture did not contain target leaf "
+                    "profile metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherTargetMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather target mirror",
+          {"target_leaf_profile",
+           "rvv-v1-e32m1-indexed-gather-unit-store-leaf-profile.v1",
+           "unit-load-strided-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedGatherProviderCandidateMirror =
+      baseIndexedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongIndexedGatherProviderCandidateMirror,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:rvv-unit-load-strided-store-plan-validated")) {
+    llvm::errs() << "base-memory test fixture did not contain provider "
+                    "support metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongIndexedGatherProviderCandidateMirror, baseIndexedRoute,
+          baseIndexedDescription,
+          "base-memory registry rejects stale indexed gather provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-indexed-gather-unit-store-plan-validated",
+           "rvv-unit-load-strided-store"}))
     return false;
 
   TargetArtifactCandidate staleIndexedGatherBindingMirror =

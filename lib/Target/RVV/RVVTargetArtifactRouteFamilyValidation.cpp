@@ -492,227 +492,170 @@ bool isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
 plugin::rvv::RVVSelectedBodyMemoryForm
 getRVVBaseMemoryMovementExpectedMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::IndexedLoadUnitStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::UnitLoadIndexedStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::MaskedUnitLoadStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::MaskedUnitStore;
-  default:
-    llvm_unreachable("queried base memory movement memory form for non-base op");
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->memoryForm;
+  llvm_unreachable("queried base memory movement memory form for non-base op");
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedRuntimeABIOrder(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
-    return "src,out,n,stride_bytes";
-  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-    return "src,dst,n,dst_stride_bytes";
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
-    return "data,index,out,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-    return "src,index,dst,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return "src,mask,dst,n";
-  default:
-    return {};
-  }
-}
-
-llvm::StringRef getRVVBaseMemoryMovementOperationMnemonic(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return plugin::rvv::stringifyRVVSelectedBodyOperationKind(operation);
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->runtimeABIOrder;
+  return {};
 }
 
 std::string getRVVBaseMemoryMovementExpectedRouteOperandBindingPlan(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return (llvm::Twine("rvv-route-operand-binding:") +
-          getRVVBaseMemoryMovementOperationMnemonic(operation) + ".v1")
-      .str();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->routeOperandBindingPlanID.str();
+  return {};
 }
 
 std::string getRVVBaseMemoryMovementExpectedProviderSupportedMirror(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  llvm::StringRef mnemonic = getRVVBaseMemoryMovementOperationMnemonic(operation);
-  std::string hyphenated = mnemonic.str();
-  for (char &character : hyphenated)
-    if (character == '_')
-      character = '-';
-  return (llvm::Twine("provider_supported_mirror:rvv-") + hyphenated +
-          "-plan-validated")
-      .str();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->providerSupportedMirror.str();
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedStridedLayout(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
-    return "byte-strided-source-unit-stride-output-runtime-abi";
-  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-    return "unit-stride-source-byte-strided-destination-runtime-abi";
-  default:
-    return {};
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->stridedMemoryLayout;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedIndexedOrMaskedLayout(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
-    return "element-indexed-data-index-unit-stride-output-runtime-abi";
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-    return "unit-stride-source-indexed-destination-index-runtime-abi";
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-    return "unit-stride-source-mask-old-destination-runtime-abi";
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return "unit-stride-source-mask-destination-masked-store-runtime-abi";
-  default:
-    return {};
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->indexedMemoryLayout;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedSourceStrideSource(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore)
-    return "runtime_abi:stride_bytes";
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->sourceStrideSource;
   return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedDestinationStrideSource(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore)
-    return "runtime_abi:dst_stride_bytes";
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->destinationStrideSource;
   return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedSourceMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore:
-    return "strided-load";
-  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return "unit-stride-load";
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
-  default:
-    return {};
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->sourceMemoryForm;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedDestinationMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
-    return "indexed-store";
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return "masked-unit-store";
-  case plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore:
-    return "strided-store";
-  default:
-    return "unit-stride-store";
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->destinationMemoryForm;
+  return {};
 }
 
 int64_t getRVVBaseMemoryMovementExpectedIndexEEW(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVIndexedBaseMemoryMovementRouteFamilyOperation(operation) ? 32 : 0;
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->indexEEW;
+  return 0;
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedIndexSource(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVIndexedBaseMemoryMovementRouteFamilyOperation(operation)
-             ? llvm::StringRef("runtime_abi:index")
-             : llvm::StringRef();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->indexSource;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedOffsetUnit(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVIndexedBaseMemoryMovementRouteFamilyOperation(operation)
-             ? llvm::StringRef("element")
-             : llvm::StringRef();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->offsetUnit;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedIndexUniqueness(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad)
-    return "unique";
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->indexUniqueness;
   return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedIndexedDataMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::IndexedGatherUnitStore)
-    return "indexed-load";
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->indexedDataMemoryForm;
   return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedIndexedDestinationMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad)
-    return "indexed-store";
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->indexedDestinationMemoryForm;
   return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedMaskRole(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVMaskedBaseMemoryMovementRouteFamilyOperation(operation)
-             ? llvm::StringRef("predicate-mask-input-buffer")
-             : llvm::StringRef();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->maskRole;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedMaskSource(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVMaskedBaseMemoryMovementRouteFamilyOperation(operation)
-             ? llvm::StringRef("runtime_abi:mask")
-             : llvm::StringRef();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->maskSource;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedMaskMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVMaskedBaseMemoryMovementRouteFamilyOperation(operation)
-             ? llvm::StringRef("unit-stride-mask-load")
-             : llvm::StringRef();
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->maskMemoryForm;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedInactiveLaneContract(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-    return "masked-off-lanes-preserve-old-destination";
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return "masked-store-false-lanes-preserve-output-buffer";
-  default:
-    return {};
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->inactiveLaneContract;
+  return {};
 }
 
 llvm::StringRef getRVVBaseMemoryMovementExpectedMaskedPassthroughLayout(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-    return "old-destination-vector-preserves-inactive-lanes";
-  case plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
-    return "masked-store-has-no-passthrough-load";
-  default:
-    return {};
-  }
+  if (std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> facts =
+          plugin::rvv::getRVVBaseMemoryMovementRouteFacts(operation))
+    return facts->maskedPassthroughLayout;
+  return {};
 }
 
 llvm::Error requireRVVBaseMemoryMovementProviderField(
@@ -1309,32 +1252,51 @@ llvm::Error validateIndexedBaseMemoryHeaderBindingSummary(
   if (description.operation != OperationKind::IndexedGatherUnitStore &&
       description.operation != OperationKind::IndexedScatterUnitLoad)
     return llvm::Error::success();
+  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
+      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "indexed base-memory target artifact consumer requires "
+        "provider-owned base-memory route facts before artifact export");
+
   const llvm::StringRef operationMnemonic =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
+  if (description.routeOperandBindingPlanID !=
+      routeFacts->routeOperandBindingPlanID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires provider plan '" +
+        routeFacts->routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
-  constexpr llvm::StringLiteral gatherLogicalOperands[] = {"data", "index",
-                                                           "out", "n"};
-  constexpr llvm::StringLiteral scatterLogicalOperands[] = {"src", "index",
-                                                            "dst", "n"};
-  llvm::ArrayRef<llvm::StringLiteral> logicalOperands =
-      description.operation == OperationKind::IndexedGatherUnitStore
-          ? llvm::ArrayRef<llvm::StringLiteral>(gatherLogicalOperands)
-          : llvm::ArrayRef<llvm::StringLiteral>(scatterLogicalOperands);
-  constexpr std::size_t logicalOperandCount =
-      sizeof(gatherLogicalOperands) / sizeof(gatherLogicalOperands[0]);
-  if (description.runtimeABIParameters.size() != logicalOperandCount)
+  if (!llvm::StringRef(description.routeOperandBindingSummary)
+           .starts_with(routeFacts->routeOperandBindingPlanID))
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must start with provider plan '" +
+        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+  if (description.runtimeABIParameters.size() !=
+          routeFacts->runtimeABIParameters.size() ||
+      routeFacts->logicalOperands.size() != routeFacts->runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order before artifact export");
-  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
+       ++index)
     if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, logicalOperands[index],
+            description, operationMnemonic, routeFacts->logicalOperands[index],
             description.runtimeABIParameters[index]))
       return error;
+  if (description.routeOperandBindingSummary !=
+      routeFacts->routeOperandBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must mirror provider-owned "
+        "base-memory binding summary '" + routeFacts->routeOperandBindingSummary +
+        "' before artifact export");
   return llvm::Error::success();
 }
 
@@ -1813,86 +1775,37 @@ llvm::Error validateRVVBaseMemoryMovementRouteABIMappings(
 
 llvm::Error validateRVVBaseMemoryMovementRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  struct ExpectedRuntimeABIParameterRole {
-    llvm::StringRef cName;
-    support::RuntimeABIParameterRole role;
-  };
+  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
+      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-owned canonical route facts before artifact export");
 
-  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  const ExpectedRuntimeABIParameterRole stridedLoadRoles[] = {
-      {"src", support::RuntimeABIParameterRole::SourceInputBuffer},
-      {"out", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-      {"stride_bytes", support::RuntimeABIParameterRole::SourceByteStride},
-  };
-  const ExpectedRuntimeABIParameterRole unitLoadStridedStoreRoles[] = {
-      {"src", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"dst", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-      {"dst_stride_bytes",
-       support::RuntimeABIParameterRole::DestinationByteStride},
-  };
-  const ExpectedRuntimeABIParameterRole indexedRoles[] = {
-      {"data", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"index", support::RuntimeABIParameterRole::IndexInputBuffer},
-      {"out", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-  };
-  const ExpectedRuntimeABIParameterRole indexedScatterRoles[] = {
-      {"src", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"index", support::RuntimeABIParameterRole::IndexInputBuffer},
-      {"dst", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-  };
-  const ExpectedRuntimeABIParameterRole maskedRoles[] = {
-      {"src", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"mask", support::RuntimeABIParameterRole::MaskInputBuffer},
-      {"dst", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-  };
-
-  llvm::ArrayRef<ExpectedRuntimeABIParameterRole> expectedRoles;
-  switch (description.operation) {
-  case OperationKind::StridedLoadUnitStore:
-    expectedRoles = stridedLoadRoles;
-    break;
-  case OperationKind::UnitLoadStridedStore:
-    expectedRoles = unitLoadStridedStoreRoles;
-    break;
-  case OperationKind::IndexedGatherUnitStore:
-    expectedRoles = indexedRoles;
-    break;
-  case OperationKind::IndexedScatterUnitLoad:
-    expectedRoles = indexedScatterRoles;
-    break;
-  case OperationKind::MaskedUnitLoadStore:
-  case OperationKind::MaskedUnitStore:
-    expectedRoles = maskedRoles;
-    break;
-  default:
-    llvm_unreachable("validated non-base-memory operation as base memory");
-  }
-
-  if (description.runtimeABIParameters.size() != expectedRoles.size())
+  if (description.runtimeABIParameters.size() !=
+      routeFacts->runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine("base-memory-movement target artifact consumer requires "
                     "provider-derived runtime ABI parameter count ") +
-        llvm::Twine(expectedRoles.size()) + " for operation '" +
+        llvm::Twine(routeFacts->runtimeABIParameters.size()) +
+        " for operation '" +
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
             description.operation) +
         "' but saw " + llvm::Twine(description.runtimeABIParameters.size()));
 
-  for (std::size_t index = 0; index < expectedRoles.size(); ++index) {
+  for (std::size_t index = 0; index < routeFacts->runtimeABIParameters.size();
+       ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
-    if (actual.cName != expectedRoles[index].cName ||
-        actual.role != expectedRoles[index].role)
+    const support::RuntimeABIParameter &expected =
+        routeFacts->runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
           llvm::Twine("base-memory-movement target artifact consumer requires "
                       "provider-derived runtime ABI parameter[") +
-          llvm::Twine(index) + "] to bind '" + expectedRoles[index].cName +
+          llvm::Twine(index) + "] to bind '" + expected.cName +
           "' as " +
-          support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
+          support::stringifyRuntimeABIParameterRole(expected.role) +
           " before validating route statements");
   }
 
@@ -2350,6 +2263,13 @@ llvm::Error validateRVVBaseMemoryMovementRouteLayoutFacts(
 llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
+      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-owned canonical route facts before artifact export");
+
   if (route.getRouteID() != description.emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine("base-memory-movement target artifact consumer requires "
@@ -2382,9 +2302,13 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
           expectedProviderSupportedMirror))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "target leaf profile", description.targetLeafProfile,
+          routeFacts->targetLeafProfile))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "route-family plan",
           description.baseMemoryMovementRouteFamilyPlanID,
-          "rvv-base-memory-movement-route-family-plan.v1"))
+          routeFacts->routeFamilyPlanID))
     return error;
   const std::string expectedRouteOperandBindingPlan =
       getRVVBaseMemoryMovementExpectedRouteOperandBindingPlan(
@@ -2400,6 +2324,13 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
                     "route operand binding summary to mirror provider binding "
                     "plan '") +
         description.routeOperandBindingPlanID + "' but was '" +
+        description.routeOperandBindingSummary + "'");
+  if (description.routeOperandBindingSummary !=
+      routeFacts->routeOperandBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("base-memory-movement target artifact consumer requires "
+                    "provider route operand binding summary '") +
+        routeFacts->routeOperandBindingSummary + "' but was '" +
         description.routeOperandBindingSummary + "'");
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "runtime AVL/VL control plan", description.runtimeControlPlanID,
@@ -2421,6 +2352,15 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
         "base-memory-movement target artifact consumer requires "
         "provider-derived dtype, policy, setvl, and result facts before "
         "artifact export");
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "required_header_declarations",
+          description.requiredHeaderDeclarations,
+          routeFacts->requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "C type mapping", description.cTypeMappingSummary,
+          routeFacts->cTypeMappingSummary))
+    return error;
   if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
       !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
@@ -2472,36 +2412,43 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
   const TargetArtifactCandidate &candidate = context.candidate;
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
+  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
+      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "base-memory-movement target artifact consumer requires "
+        "provider-owned canonical route facts before checking candidate "
+        "metadata mirrors");
 
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.route_operand_binding_plan",
-          description.routeOperandBindingPlanID,
+          routeFacts->routeOperandBindingPlanID,
           "selected typed RVV base-memory binding plan"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.route_operand_binding_operands",
-          description.routeOperandBindingSummary,
+          routeFacts->routeOperandBindingSummary,
           "selected typed RVV base-memory binding summary"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.provider_supported_mirror",
-          description.providerSupportedMirror,
+          routeFacts->providerSupportedMirror,
           "selected typed RVV base-memory provider support"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.base_memory_movement_route_family_plan",
-          description.baseMemoryMovementRouteFamilyPlanID,
+          routeFacts->routeFamilyPlanID,
           "selected typed RVV base-memory route-family plan"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.memory_form",
           plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              description.memoryForm),
+              routeFacts->memoryForm),
           "selected typed RVV base-memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.target_leaf_profile",
-          description.targetLeafProfile,
+          routeFacts->targetLeafProfile,
           "selected typed RVV base-memory target leaf profile"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -2511,57 +2458,57 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_abi_order",
-          description.runtimeABIOrder,
+          routeFacts->runtimeABIOrder,
           "selected typed RVV base-memory runtime ABI order"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",
-          description.requiredHeaderDeclarations,
+          routeFacts->requiredHeaderDeclarations,
           "selected typed RVV base-memory route header requirements"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.c_type_mapping",
-          description.cTypeMappingSummary,
+          routeFacts->cTypeMappingSummary,
           "selected typed RVV base-memory route type mapping summary"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.source_memory_form",
-          description.sourceMemoryForm,
+          routeFacts->sourceMemoryForm,
           "selected typed RVV base-memory source memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.destination_memory_form",
-          description.destinationMemoryForm,
+          routeFacts->destinationMemoryForm,
           "selected typed RVV base-memory destination memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.strided_memory_layout",
-          description.stridedMemoryLayout,
+          routeFacts->stridedMemoryLayout,
           "selected typed RVV base-memory strided layout"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.source_stride_source",
-          description.sourceStrideSource,
+          routeFacts->sourceStrideSource,
           "selected typed RVV base-memory source stride binding"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.destination_stride_source",
-          description.outStrideSource,
+          routeFacts->destinationStrideSource,
           "selected typed RVV base-memory destination stride binding"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.indexed_memory_layout",
           isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
               description.operation)
-              ? description.indexedMemoryLayout
+              ? routeFacts->indexedMemoryLayout
               : llvm::StringRef(),
           "selected typed RVV base-memory indexed layout"))
     return error;
 
   std::string indexEEWMirror =
-      description.indexEEW == 0 ? "" : llvm::Twine(description.indexEEW).str();
+      routeFacts->indexEEW == 0 ? "" : llvm::Twine(routeFacts->indexEEW).str();
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.index_source", description.indexSource,
+          candidate, "tcrv_rvv.index_source", routeFacts->indexSource,
           "selected typed RVV base-memory index source"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -2569,53 +2516,53 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
           "selected typed RVV base-memory index EEW"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.offset_unit", description.offsetUnit,
+          candidate, "tcrv_rvv.offset_unit", routeFacts->offsetUnit,
           "selected typed RVV base-memory offset unit"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.index_uniqueness",
-          description.indexUniqueness,
+          routeFacts->indexUniqueness,
           "selected typed RVV base-memory index uniqueness"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.indexed_data_memory_form",
-          description.indexedDataMemoryForm,
+          routeFacts->indexedDataMemoryForm,
           "selected typed RVV base-memory indexed data memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.indexed_destination_memory_form",
-          description.indexedDestinationMemoryForm,
+          routeFacts->indexedDestinationMemoryForm,
           "selected typed RVV base-memory indexed destination memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.masked_memory_layout",
           isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
               description.operation)
-              ? description.indexedMemoryLayout
+              ? routeFacts->indexedMemoryLayout
               : llvm::StringRef(),
           "selected typed RVV base-memory masked layout"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_role", description.maskRole,
+          candidate, "tcrv_rvv.mask_role", routeFacts->maskRole,
           "selected typed RVV base-memory mask role"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_source", description.maskSource,
+          candidate, "tcrv_rvv.mask_source", routeFacts->maskSource,
           "selected typed RVV base-memory mask source"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.mask_memory_form",
-          description.maskMemoryForm,
+          routeFacts->maskMemoryForm,
           "selected typed RVV base-memory mask memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.inactive_lane_contract",
-          description.inactiveLaneContract,
+          routeFacts->inactiveLaneContract,
           "selected typed RVV base-memory inactive lane contract"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.masked_passthrough_layout",
-          description.maskedPassthroughLayout,
+          routeFacts->maskedPassthroughLayout,
           "selected typed RVV base-memory masked passthrough layout"))
     return error;
 
