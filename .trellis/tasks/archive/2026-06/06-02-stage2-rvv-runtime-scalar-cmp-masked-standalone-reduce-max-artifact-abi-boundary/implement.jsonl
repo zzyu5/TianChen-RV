@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants and RVV-first Stage 2 authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, standalone reduction scalar-channel boundary, inactive neutral literal ownership, and provider contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, route operand binding, header/type mirrors, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "FileCheck, generated-bundle, and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts constrain legality and must not define RVV dtype/config/route."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV route/provider/target changes plugin-local and common EmitC neutral."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Confirm selected typed tcrv_rvv body owns hardware execution behavior, not tcrv.exec or a high-level frontend."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-artifact-abi-boundary/prd.md", "reason": "Immediately preceding runtime-scalar computed-mask standalone reduce-add production/evidence pattern to adapt without copying add semantics."}
