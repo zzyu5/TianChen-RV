@@ -9523,16 +9523,15 @@ module {
                          "lhs,rhs_scalar,out,n" &&
                      routeDescription->routeOperandBindingSummary ==
                          "rvv-route-operand-binding:scalar_broadcast_add.v1;"
-                         "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|"
+                         "lhs=lhs-input-buffer:lhs:abi|"
                          "materialized-load-base|scalar-broadcast-lhs-call|"
-                         "header-mirror;"
-                         "rhs_scalar=rhs-scalar-value:rhs_scalar:"
-                         "runtime-abi-mirror|scalar-broadcast-rhs-call|"
-                         "header-mirror;"
-                         "out=output-buffer:out:runtime-abi-mirror|"
-                         "materialized-store-base|header-mirror;"
-                         "n=runtime-element-count:n:runtime-abi-mirror|"
-                         "setvl-avl|loop-control|header-mirror" &&
+                         "hdr;"
+                         "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|"
+                         "scalar-broadcast-rhs-call|hdr;"
+                         "out=output-buffer:out:abi|materialized-store-base|"
+                         "hdr;"
+                         "n=runtime-element-count:n:abi|setvl-avl|"
+                         "loop-control|hdr" &&
                      routeDescription->rhsBroadcastIntrinsic ==
                          "__riscv_vmv_v_x_i32m1" &&
                      routeDescription->intrinsic ==
@@ -9593,9 +9592,13 @@ module {
 
   stale = *routeDescription;
   stale.runtimeABIOrder = "lhs,rhs,out,n";
-  return expectStaleFieldRejected(
-      stale, {"runtime ABI order", "lhs,rhs_scalar,out,n",
-              "lhs,rhs,out,n"});
+  if (int result =
+          expectStaleFieldRejected(stale, {"runtime ABI order",
+                                           "lhs,rhs_scalar,out,n",
+                                           "lhs,rhs,out,n"}))
+    return result;
+
+  return 0;
 }
 
 int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
@@ -26526,24 +26529,21 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base",
-              "scalar-broadcast-lhs-call", "header-mirror"});
+             {"abi", "materialized-load-base", "scalar-broadcast-lhs-call",
+              "hdr"});
   addBinding(scalarBroadcastPlan, "rhs_scalar",
              makeTargetExportABIParameter("rhs_scalar", "int32_t",
                                           RuntimeABIParameterRole::RHSScalarValue),
-             {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
-              "header-mirror"});
+             {"abi", "scalar-broadcast-rhs-call", "hdr"});
   addBinding(scalarBroadcastPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"runtime-abi-mirror", "materialized-store-base",
-              "header-mirror"});
+             {"abi", "materialized-store-base", "hdr"});
   addBinding(scalarBroadcastPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"runtime-abi-mirror", "setvl-avl", "loop-control",
-              "header-mirror"});
+             {"abi", "setvl-avl", "loop-control", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               scalarBroadcastPlan,
@@ -26553,26 +26553,24 @@ int runRouteOperandBindingPlanValidationTest() {
     return result;
   auto scalarBroadcastRHSHeader =
       tianchenrv::plugin::rvv::getRVVRouteOperandBindingParameter(
-          scalarBroadcastPlan, "rhs_scalar", "header-mirror",
-          "scalar broadcast RHS scalar header mirror lookup");
+          scalarBroadcastPlan, "rhs_scalar", "hdr",
+          "scalar broadcast RHS scalar header lookup");
   if (!scalarBroadcastRHSHeader)
-    return fail(llvm::Twine("valid scalar broadcast RHS scalar header mirror "
-                            "lookup: ") +
+    return fail(llvm::Twine("valid scalar broadcast RHS scalar header lookup: ") +
                 llvm::toString(scalarBroadcastRHSHeader.takeError()));
 
   RVVRouteOperandBindingPlan missingScalarHeader = scalarBroadcastPlan;
   missingScalarHeader.bindings[1].materializedUses.pop_back();
   auto missingScalarHeaderLookup =
       tianchenrv::plugin::rvv::getRVVRouteOperandBindingParameter(
-          missingScalarHeader, "rhs_scalar", "header-mirror",
-          "scalar broadcast RHS scalar header mirror lookup");
+          missingScalarHeader, "rhs_scalar", "hdr",
+          "scalar broadcast RHS scalar header lookup");
   if (missingScalarHeaderLookup)
-    return fail("expected missing scalar broadcast RHS scalar header mirror "
-                "lookup to fail");
+    return fail("expected missing scalar broadcast RHS scalar header lookup to "
+                "fail");
   if (int result = expectErrorContains(
           missingScalarHeaderLookup.takeError(),
-          {"requires logical operand 'rhs_scalar'",
-           "materialized use 'header-mirror'"}))
+          {"requires logical operand 'rhs_scalar'", "materialized use 'hdr'"}))
     return result;
 
   RVVRouteOperandBindingPlan badScalarRole = scalarBroadcastPlan;

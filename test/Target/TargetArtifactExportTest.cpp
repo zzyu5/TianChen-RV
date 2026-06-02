@@ -733,6 +733,45 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
+  if (op ==
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+          ScalarBroadcastAdd) {
+    std::string vectorType =
+        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+            ? "!tcrv_rvv.vector<i32, \"m2\">"
+            : "!tcrv_rvv.vector<i32, \"m1\">";
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-0:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "source-arg-1:rhs_scalar", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-2:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "source-arg-3:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir"
+       << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir"
+       << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+        %result = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "add"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   if (isRVVTestStandaloneReductionOperation(op)) {
     std::string vectorType =
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
@@ -3098,6 +3137,103 @@ bool expectRVVTargetArtifactExporterShape(
           RVVTargetArtifactRouteFamilyValidationContext;
   using RVVOperationKind =
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+
+  RVVTargetArtifactCandidateFixture scalarBroadcastAddFixture(
+      RVVOperationKind::ScalarBroadcastAdd);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          scalarBroadcastAddFixture,
+          "build valid RVV scalar-broadcast add target artifact fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         scalarBroadcastAddFixture.candidate, *exporter),
+                     "validate RVV scalar-broadcast add target artifact "
+                     "candidate through exporter"))
+    return false;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      scalarBroadcastAddRoute;
+  RVVRouteDescription scalarBroadcastAddDescription;
+  if (!buildRVVRouteValidationInputs(
+          scalarBroadcastAddFixture, scalarBroadcastAddRoute,
+          scalarBroadcastAddDescription,
+          "rebuild RVV scalar-broadcast add route validator inputs"))
+    return false;
+  RVVRouteValidationContext scalarBroadcastAddContext{
+      scalarBroadcastAddFixture.candidate, scalarBroadcastAddRoute,
+      scalarBroadcastAddDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  scalarBroadcastAddContext),
+          "scalar-broadcast add registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  scalarBroadcastAddContext),
+          "scalar-broadcast add registry accepts candidate mirrors"))
+    return false;
+
+  auto expectScalarBroadcastAddProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        scalarBroadcastAddFixture.candidate, scalarBroadcastAddRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectScalarBroadcastAddCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, scalarBroadcastAddRoute, scalarBroadcastAddDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  const char *staleScalarBroadcastAddBindingSummary =
+      "rvv-route-operand-binding:scalar_broadcast_add.v1;"
+      "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|"
+      "scalar-broadcast-lhs-call|header-mirror;"
+      "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|"
+      "scalar-broadcast-rhs-call|header-mirror;"
+      "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|"
+      "header-mirror;"
+      "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|"
+      "header-mirror";
+  RVVRouteDescription staleScalarBroadcastAddBinding =
+      scalarBroadcastAddDescription;
+  staleScalarBroadcastAddBinding.routeOperandBindingSummary =
+      staleScalarBroadcastAddBindingSummary;
+  if (!expectScalarBroadcastAddProviderFailure(
+          staleScalarBroadcastAddBinding,
+          "scalar-broadcast add registry rejects stale binding summary "
+          "provider facts",
+          {"scalar_broadcast_add", "route operand binding summary",
+           "provider ABI marker 'abi'", "'hdr'"}))
+    return false;
+
+  TargetArtifactCandidate staleScalarBroadcastAddBindingMirror =
+      scalarBroadcastAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleScalarBroadcastAddBindingMirror,
+                                    "tcrv_rvv.route_operand_binding_operands",
+                                    staleScalarBroadcastAddBindingSummary)) {
+    llvm::errs() << "scalar-broadcast add test fixture did not contain route "
+                    "operand binding metadata\n";
+    return false;
+  }
+  if (!expectScalarBroadcastAddCandidateFailure(
+          staleScalarBroadcastAddBindingMirror,
+          "scalar-broadcast add registry rejects stale binding mirror",
+          {"route_operand_binding_operands",
+           "selected typed RVV elementwise binding summary",
+           "header-mirror"}))
+    return false;
+
   auto expectRuntimeScalarStandaloneReductionCanonicalFacts =
       [](RVVOperationKind op, llvm::StringRef expectedPlanID,
          llvm::StringRef expectedInactiveUse,

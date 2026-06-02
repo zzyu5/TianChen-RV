@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV Stage 2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned scalar-broadcast realization/provider facts and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type mirror, and route-family fact surface contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle scalar-broadcast evidence, runtime ssh rvv requirements, and FileCheck/C++ testing contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widen-i32-to-i64-conversion-artifact-abi-boundary/prd.md", "reason": "Closest completed provider fact -> target validation -> generated bundle -> ssh rvv task shape."}

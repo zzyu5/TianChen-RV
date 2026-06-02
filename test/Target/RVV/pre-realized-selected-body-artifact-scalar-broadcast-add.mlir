@@ -5,6 +5,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs_scalar,out,n/s//lhs,out,rhs_scalar,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-ABI
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated/s//provider_supported_mirror:rvv-script-derived-scalar-broadcast/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-PROVIDER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rhs_scalar:typed-scalar/s//rhs_scalar:stale-scalar/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs=lhs-input-buffer:lhs:abi|materialized-load-base|scalar-broadcast-lhs-call|hdr/s//lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SB-BINDING
 
 // Pre-realized selected-body input for one bounded Stage2 vector-scalar add.
 // The RVV plugin must realize the explicit RHS scalar ABI value into generic
@@ -54,7 +55,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs_scalar,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:scalar_broadcast_add.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:abi|materialized-load-base|scalar-broadcast-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|scalar-broadcast-rhs-call|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan", value = "rvv-scalar-broadcast-elementwise-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew32-lmul-m1"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-scalar-broadcast-elementwise-leaf-profile.v1"}
@@ -76,7 +77,7 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs_scalar,out,n
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:scalar_broadcast_add.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:abi|materialized-load-base|scalar-broadcast-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|scalar-broadcast-rhs-call|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr
 // HEADER: tianchenrv.rvv.scalar_broadcast_elementwise_route_family_plan: rvv-scalar-broadcast-elementwise-route-family-plan.v1
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,result:typed-vector
@@ -101,3 +102,8 @@ module {
 // STALE-SB-TYPE: tcrv_rvv.c_type_mapping
 // STALE-SB-TYPE-SAME: must mirror
 // STALE-SB-TYPE-SAME: rhs_scalar:stale-scalar
+
+// STALE-SB-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-SB-BINDING: tcrv_rvv.route_operand_binding_operands
+// STALE-SB-BINDING-SAME: must mirror
+// STALE-SB-BINDING-SAME: header-mirror

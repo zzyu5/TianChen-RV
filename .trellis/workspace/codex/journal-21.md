@@ -238,15 +238,32 @@ Validated runtime-scalar computed-mask MAcc add provider facts, target artifact 
 
 ### Main Changes
 
-(Add details)
+- Added scalar_broadcast_add provider operand binding entries with explicit
+  `abi` and `hdr` participation markers for `lhs`, `rhs_scalar`, `out`, and
+  `n`.
+- Updated scalar-broadcast add route binding facts, target artifact validation,
+  generated-bundle evidence constants, MLIR/FileCheck fixtures, and C++ provider
+  and target validation tests.
+- Preserved scalar-broadcast sub/mul as out of scope for this bounded task.
 
 ### Git Commits
 
-(No commits - planning session)
+included-in-this-commit
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Built `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Ran `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Ran `./build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Ran lit filter `scalar-broadcast-add` over 6 focused tests.
+- [OK] Ran `scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Ran real `ssh rvv` generated-bundle correctness for explicit and
+  pre-realized scalar_broadcast_add with counts `0,1,16,23,257` and
+  rhs scalars `-37,91`.
+- [OK] Ran `git diff --check` and bounded old-authority scan over touched
+  diff lines.
 
 ### Status
 
@@ -428,6 +445,37 @@ Checks:
 ### Summary
 
 Added provider-owned widening conversion facts, rewired target validation to consume them, verified generated bundle dry-run and real ssh rvv correctness for widen_i32_to_i64.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 396: Stage2 RVV scalar-broadcast add ABI
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV scalar-broadcast add ABI
+**Branch**: `main`
+
+### Summary
+
+Implemented scalar_broadcast_add ABI/header binding facts, target validation, focused tests, and ssh rvv generated-bundle evidence.
 
 ### Main Changes
 

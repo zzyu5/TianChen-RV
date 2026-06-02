@@ -1929,19 +1929,38 @@ deriveRVVSelectedBodyElementwiseRouteOperandBindingPlan(
         (stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind) + " route")
             .str();
     context = dynamicContext;
-    addElementwiseRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"runtime-abi-mirror", "materialized-load-base",
-         "scalar-broadcast-lhs-call", "header-mirror"});
-    addElementwiseRouteOperandBinding(
-        plan, "rhs_scalar", slice.rhsABI,
-        {"runtime-abi-mirror", "scalar-broadcast-rhs-call", "header-mirror"});
-    addElementwiseRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
-    addElementwiseRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+    if (slice.arithmeticKind ==
+        RVVSelectedBodyOperationKind::ScalarBroadcastAdd) {
+      addElementwiseRouteOperandBinding(
+          plan, "lhs", slice.lhsABI,
+          {"abi", "materialized-load-base", "scalar-broadcast-lhs-call",
+           "hdr"});
+      addElementwiseRouteOperandBinding(
+          plan, "rhs_scalar", slice.rhsABI,
+          {"abi", "scalar-broadcast-rhs-call", "hdr"});
+      addElementwiseRouteOperandBinding(
+          plan, "out", slice.outABI,
+          {"abi", "materialized-store-base", "hdr"});
+      addElementwiseRouteOperandBinding(
+          plan, "n", slice.runtimeElementCountABI,
+          {"abi", "setvl-avl", "loop-control", "hdr"});
+    } else {
+      addElementwiseRouteOperandBinding(
+          plan, "lhs", slice.lhsABI,
+          {"runtime-abi-mirror", "materialized-load-base",
+           "scalar-broadcast-lhs-call", "header-mirror"});
+      addElementwiseRouteOperandBinding(
+          plan, "rhs_scalar", slice.rhsABI,
+          {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
+           "header-mirror"});
+      addElementwiseRouteOperandBinding(
+          plan, "out", slice.outABI,
+          {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
+      addElementwiseRouteOperandBinding(
+          plan, "n", slice.runtimeElementCountABI,
+          {"runtime-abi-mirror", "setvl-avl", "loop-control",
+           "header-mirror"});
+    }
   }
 
   if (llvm::Error error = verifyRVVRouteOperandBindingPlan(

@@ -22908,12 +22908,16 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
 
   case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
   case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
-  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul: {
     if (llvm::Error error = requireFamilyPlan(
             analysis.scalarBroadcastElementwiseRouteFamilyPlan.has_value(),
             "scalar-broadcast elementwise"))
       return std::move(error);
     facts.bindsScalarBroadcastElementwise = true;
+    const llvm::StringRef scalarBroadcastHeaderUse =
+        description.operation == RVVSelectedBodyOperationKind::ScalarBroadcastAdd
+            ? "hdr"
+            : "header-mirror";
     if (llvm::Error error = bindOperand(
             facts.lhsABI, "lhs", "materialized-load-base",
             "scalar-broadcast elementwise lhs load operand"))
@@ -22922,9 +22926,9 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
             "lhs", "scalar-broadcast-lhs-call",
             "scalar-broadcast elementwise lhs compute operand"))
       return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("lhs", "header-mirror",
-                              "scalar-broadcast elementwise lhs header mirror"))
+    if (llvm::Error error = requireOperandUse(
+            "lhs", scalarBroadcastHeaderUse,
+            "scalar-broadcast elementwise lhs header mirror"))
       return std::move(error);
     if (llvm::Error error =
             bindOperand(facts.rhsABI, "rhs_scalar",
@@ -22932,7 +22936,7 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
                         "scalar-broadcast elementwise RHS scalar operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "rhs_scalar", "header-mirror",
+            "rhs_scalar", scalarBroadcastHeaderUse,
             "scalar-broadcast elementwise RHS scalar header mirror"))
       return std::move(error);
     if (llvm::Error error = bindOperand(
@@ -22940,7 +22944,7 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
             "scalar-broadcast elementwise output store operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "out", "header-mirror",
+            "out", scalarBroadcastHeaderUse,
             "scalar-broadcast elementwise output header mirror"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
@@ -22948,10 +22952,11 @@ getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
             "scalar-broadcast elementwise runtime loop-control operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "n", "header-mirror",
+            "n", scalarBroadcastHeaderUse,
             "scalar-broadcast elementwise runtime header mirror"))
       return std::move(error);
     return facts;
+  }
 
   case RVVSelectedBodyOperationKind::CmpSelect:
     if (llvm::Error error = requireFamilyPlan(
