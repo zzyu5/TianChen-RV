@@ -4034,9 +4034,13 @@ Statement-plan checks are family-specific:
   statements; it must not be rejected for lacking ordinary vector loads.
 - Plain segment2 interleave validates ordinary field loads plus tuple creation
   and segment-store statements.
+- Computed-mask segment2 store validates compare/mask construction, field
+  payload loads, tuple creation, and masked segment-store statements. It must
+  reject stale segment-load or field-extract facts before artifact export.
 - Computed-mask segment2 update validates compare/mask construction, field
   payload loads, update arithmetic, tuple creation, and masked segment-store
-  statements.
+  statements. It must reject stale segment-load or field-extract facts before
+  artifact export.
 
 Wrong vs correct:
 

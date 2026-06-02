@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global RVV authority and corrected typed route-supported evidence gate"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "computed-mask segment2 store provider/target fail-closed matrix and authority constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider operand binding, header, and type mirror validation"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused checks, dry-run FileCheck, and ssh rvv correctness evidence"}
