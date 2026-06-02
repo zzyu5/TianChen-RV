@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV computed-mask memory route facts and provider/statement-plan ownership"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check route operand binding summary and common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run versus real ssh rvv evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-indexed-gather-load-unit-store-artifact-abi/prd.md", "reason": "Compare current validation against the archived completed task"}

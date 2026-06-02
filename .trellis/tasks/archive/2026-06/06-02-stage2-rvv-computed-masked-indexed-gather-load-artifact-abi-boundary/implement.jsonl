@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth and RVV stage ordering for stale/duplicate direction validation"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin/provider ownership, computed-mask memory statement-plan, and memory operand-binding rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and route operand binding summary contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, generated-bundle, and ssh rvv runtime evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-indexed-gather-load-unit-store-artifact-abi/prd.md", "reason": "Archived duplicate task proving this direction was previously completed on current main"}
