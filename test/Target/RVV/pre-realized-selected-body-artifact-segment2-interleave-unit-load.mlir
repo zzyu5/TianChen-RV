@@ -112,5 +112,5 @@ module {
 // STALE-SEGMENT2-PLAN-SAME: rvv-script-derived-plain-segment2-plan.v1
 
 // STALE-DEST-MEM: RVV materialized EmitC target artifact bridge failed
-// STALE-DEST-MEM: candidate tcrv_rvv.destination_memory_form provenance must mirror selected typed RVV segment2 destination memory form
+// STALE-DEST-MEM: candidate tcrv_rvv.destination_memory_form provenance must mirror selected typed RVV plain segment2 destination memory form
 // STALE-DEST-MEM-SAME: script-derived-segment2-destination

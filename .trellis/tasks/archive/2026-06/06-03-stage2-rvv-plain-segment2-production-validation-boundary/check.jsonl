@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check plain segment2 validation remains RVV plugin/provider-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned facts, operand binding, header/type, and target mirror validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/script evidence and ssh rvv reuse boundary."}
+{"file": ".trellis/tasks/06-03-stage2-rvv-plain-segment2-production-validation-boundary/prd.md", "reason": "Check implementation against current bounded PRD acceptance criteria."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Check the public plain segment2 fact surface and route description API."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check provider facts are built from typed route planning facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Check target artifact validation consumes provider facts and rejects stale mirrors/fallbacks."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Check focused fail-closed C++ coverage for plain segment2 provider facts."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Check plain segment2 interleave explicit selected-body target artifact expectations."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Check plain segment2 interleave pre-realized target artifact expectations."}
+{"file": "test/Target/RVV/explicit-selected-body-segment2-interleave-negative.mlir", "reason": "Check plain segment2 interleave negative selected-body expectations."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-segment2-deinterleave-unit-store.mlir", "reason": "Check plain segment2 deinterleave explicit selected-body target artifact expectations."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-deinterleave-unit-store.mlir", "reason": "Check plain segment2 deinterleave pre-realized target artifact expectations."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-interleave-unit-load-dry-run.test", "reason": "Check generated-bundle dry-run expectations for plain segment2 interleave."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-segment2-interleave-unit-load-fail-closed.test", "reason": "Check generated-bundle fail-closed expectations for plain segment2 interleave direct pre-realized path."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-deinterleave-unit-store-dry-run.test", "reason": "Check generated-bundle dry-run expectations for plain segment2 deinterleave."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-segment2-deinterleave-unit-store-fail-closed.test", "reason": "Check generated-bundle fail-closed expectations for plain segment2 deinterleave direct pre-realized path."}

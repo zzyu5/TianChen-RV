@@ -363,6 +363,50 @@ std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
 getRVVComputedMaskIndexedMemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+struct RVVPlainSegment2MemoryRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef segment2MemoryRouteFamilyPlanID;
+  llvm::StringRef segment2Direction;
+  bool usesDeinterleaveLoad = false;
+  bool usesInterleaveStore = false;
+  llvm::StringRef segmentMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  std::int64_t segmentCount = 0;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef field0Role;
+  llvm::StringRef field1Role;
+  llvm::StringRef field0Name;
+  llvm::StringRef field1Name;
+  llvm::StringRef field0SourceMemoryForm;
+  llvm::StringRef field1SourceMemoryForm;
+  llvm::StringRef field0DestinationMemoryForm;
+  llvm::StringRef field1DestinationMemoryForm;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+};
+
+std::optional<RVVPlainSegment2MemoryRouteFacts>
+getRVVPlainSegment2MemoryRouteFacts(RVVSelectedBodyOperationKind operation);
+
 struct RVVComputedMaskSegment2MemoryRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

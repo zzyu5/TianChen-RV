@@ -1,0 +1,21 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage order, and source-of-truth boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, provider route facts, and segment2 planning boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned EmitC route, operand binding summary, header/type mirror validation, and route-family fact surface rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused testing and RVV evidence policy."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, C++ API testing, generated-bundle dry-run, and ssh rvv evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-segment2-production-validation-boundary/prd.md", "reason": "Closest provider-owned segment2 route facts and target-validation consumption pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-segment2-interleave-unit-load-artifact-abi/prd.md", "reason": "Archived plain segment2 interleave ABI facts and ssh rvv evidence reuse boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-segment2-deinterleave-unit-store-artifact-abi/prd.md", "reason": "Archived plain segment2 deinterleave ABI facts and ssh rvv evidence reuse boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider route description and public route fact surfaces."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider planning implementation that builds segment2 route descriptions and facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact validation consumer for provider route facts and candidate mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused C++ fail-closed route artifact validation tests."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Plain segment2 interleave explicit selected-body target artifact fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Plain segment2 interleave pre-realized target artifact fixture."}
+{"file": "test/Target/RVV/explicit-selected-body-segment2-interleave-negative.mlir", "reason": "Plain segment2 interleave negative selected-body fixture."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-segment2-deinterleave-unit-store.mlir", "reason": "Plain segment2 deinterleave explicit selected-body target artifact fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-deinterleave-unit-store.mlir", "reason": "Plain segment2 deinterleave pre-realized target artifact fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-interleave-unit-load-dry-run.test", "reason": "Generated-bundle dry-run check for plain segment2 interleave."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-segment2-interleave-unit-load-fail-closed.test", "reason": "Generated-bundle fail-closed check for plain segment2 interleave direct pre-realized path."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-deinterleave-unit-store-dry-run.test", "reason": "Generated-bundle dry-run check for plain segment2 deinterleave."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-segment2-deinterleave-unit-store-fail-closed.test", "reason": "Generated-bundle fail-closed check for plain segment2 deinterleave direct pre-realized path."}

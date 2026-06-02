@@ -9426,6 +9426,63 @@ bool expectRVVTargetArtifactExporterShape(
                                     segment2InterleaveDescription))
     return false;
 
+  auto expectPlainSegment2ProviderFactsMatch =
+      [](OperationKind operation, const RVVRouteDescription &description,
+         llvm::StringRef context) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVPlainSegment2MemoryRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVPlainSegment2MemoryRouteFacts(
+                operation);
+    if (!routeFacts) {
+      llvm::errs() << context << " did not expose provider-owned plain "
+                   << "segment2 route facts\n";
+      return false;
+    }
+    if (routeFacts->operation != operation ||
+        routeFacts->memoryForm != description.memoryForm ||
+        routeFacts->runtimeABIOrder != description.runtimeABIOrder ||
+        routeFacts->routeOperandBindingPlanID !=
+            description.routeOperandBindingPlanID ||
+        routeFacts->routeOperandBindingSummary !=
+            description.routeOperandBindingSummary ||
+        routeFacts->segment2MemoryRouteFamilyPlanID !=
+            description.segment2MemoryRouteFamilyPlanID ||
+        routeFacts->targetLeafProfile != description.targetLeafProfile ||
+        routeFacts->providerSupportedMirror !=
+            description.providerSupportedMirror ||
+        routeFacts->requiredHeaderDeclarations !=
+            description.requiredHeaderDeclarations ||
+        routeFacts->cTypeMappingSummary != description.cTypeMappingSummary ||
+        routeFacts->segmentMemoryLayout != description.segmentMemoryLayout ||
+        routeFacts->sourceMemoryForm != description.sourceMemoryForm ||
+        routeFacts->destinationMemoryForm !=
+            description.destinationMemoryForm ||
+        routeFacts->segmentCount != description.segmentCount ||
+        routeFacts->segmentTupleCType != description.segmentTupleCType ||
+        routeFacts->field0Role != description.field0Role ||
+        routeFacts->field1Role != description.field1Role ||
+        routeFacts->field0Name != description.field0Name ||
+        routeFacts->field1Name != description.field1Name ||
+        routeFacts->runtimeABIParameters.size() !=
+            description.runtimeABIParameters.size()) {
+      llvm::errs() << context << " provider-owned facts did not match the "
+                   << "rebuilt plain segment2 route description\n";
+      return false;
+    }
+    return true;
+  };
+
+  if (!expectPlainSegment2ProviderFactsMatch(
+          OperationKind::Segment2DeinterleaveUnitStore,
+          segment2DeinterleaveDescription,
+          "plain segment2 deinterleave facts accessor"))
+    return false;
+  if (!expectPlainSegment2ProviderFactsMatch(
+          OperationKind::Segment2InterleaveUnitLoad,
+          segment2InterleaveDescription,
+          "plain segment2 interleave facts accessor"))
+    return false;
+
   auto expectSegment2ProviderFailure =
       [&](const RVVTargetArtifactCandidateFixture &fixture,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -9623,6 +9680,63 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider-supported mirror",
            "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated",
            "metadata-only-segment2-deinterleave"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveTargetLeaf =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveTargetLeaf.targetLeafProfile =
+      "metadata-derived-segment2-deinterleave-leaf";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveTargetLeaf,
+          "plain segment2 deinterleave validator rejects wrong target leaf",
+          {"target leaf profile",
+           "rvv-v1-e32m1-segment2-deinterleave-leaf-profile.v1",
+           "metadata-derived-segment2-deinterleave-leaf"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveHeaders =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveHeaders.requiredHeaderDeclarations = "stddef.h,stdint.h";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveHeaders,
+          "plain segment2 deinterleave validator rejects wrong route headers",
+          {"required header declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveTypeMapping =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveTypeMapping.cTypeMappingSummary =
+      "metadata-only-segment2-type-map";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveTypeMapping,
+          "plain segment2 deinterleave validator rejects wrong C type mapping",
+          {"C type mapping", "field-outputs:signed-e32m1",
+           "metadata-only-segment2-type-map"}))
+    return false;
+
+  RVVRouteDescription wrongDeinterleaveRouteFamilyPlan =
+      segment2DeinterleaveDescription;
+  wrongDeinterleaveRouteFamilyPlan.segment2MemoryRouteFamilyPlanID =
+      "metadata-derived-plain-segment2";
+  if (!expectPlainDeinterleaveProviderFailure(
+          wrongDeinterleaveRouteFamilyPlan,
+          "plain segment2 deinterleave validator rejects wrong route-family "
+          "plan",
+          {"plain segment2 route-family plan",
+           "rvv-segment2-memory-route-family-plan.v1",
+           "metadata-derived-plain-segment2"}))
+    return false;
+
+  RVVRouteDescription staleDeinterleaveComputedMaskFamily =
+      segment2DeinterleaveDescription;
+  staleDeinterleaveComputedMaskFamily.computedMaskMemoryRouteFamilyPlanID =
+      "rvv-computed-mask-memory-route-family-plan.v1";
+  if (!expectPlainDeinterleaveProviderFailure(
+          staleDeinterleaveComputedMaskFamily,
+          "plain segment2 deinterleave validator rejects stale computed-mask "
+          "route-family facts",
+          {"stale computed-mask route-family facts"}))
     return false;
 
   RVVRouteDescription wrongDeinterleaveRouteOperandBinding =
@@ -9889,6 +10003,61 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider-supported mirror",
            "provider_supported_mirror:rvv-segment2-interleave-plan-validated",
            "metadata-only-segment2-interleave"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveTargetLeaf = segment2InterleaveDescription;
+  wrongInterleaveTargetLeaf.targetLeafProfile =
+      "metadata-derived-segment2-interleave-leaf";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveTargetLeaf,
+          "plain segment2 interleave validator rejects wrong target leaf",
+          {"target leaf profile",
+           "rvv-v1-e32m1-segment2-interleave-leaf-profile.v1",
+           "metadata-derived-segment2-interleave-leaf"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveHeaders = segment2InterleaveDescription;
+  wrongInterleaveHeaders.requiredHeaderDeclarations = "stddef.h,stdint.h";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveHeaders,
+          "plain segment2 interleave validator rejects wrong route headers",
+          {"required header declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveTypeMapping =
+      segment2InterleaveDescription;
+  wrongInterleaveTypeMapping.cTypeMappingSummary =
+      "metadata-only-segment2-type-map";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveTypeMapping,
+          "plain segment2 interleave validator rejects wrong C type mapping",
+          {"C type mapping", "field-inputs:signed-e32m1",
+           "metadata-only-segment2-type-map"}))
+    return false;
+
+  RVVRouteDescription wrongInterleaveRouteFamilyPlan =
+      segment2InterleaveDescription;
+  wrongInterleaveRouteFamilyPlan.segment2MemoryRouteFamilyPlanID =
+      "metadata-derived-plain-segment2";
+  if (!expectPlainInterleaveProviderFailure(
+          wrongInterleaveRouteFamilyPlan,
+          "plain segment2 interleave validator rejects wrong route-family "
+          "plan",
+          {"plain segment2 route-family plan",
+           "rvv-segment2-memory-route-family-plan.v1",
+           "metadata-derived-plain-segment2"}))
+    return false;
+
+  RVVRouteDescription staleInterleaveComputedMaskFamily =
+      segment2InterleaveDescription;
+  staleInterleaveComputedMaskFamily.computedMaskMemoryRouteFamilyPlanID =
+      "rvv-computed-mask-memory-route-family-plan.v1";
+  if (!expectPlainInterleaveProviderFailure(
+          staleInterleaveComputedMaskFamily,
+          "plain segment2 interleave validator rejects stale computed-mask "
+          "route-family facts",
+          {"stale computed-mask route-family facts"}))
     return false;
 
   RVVRouteDescription wrongInterleaveRouteOperandBinding =

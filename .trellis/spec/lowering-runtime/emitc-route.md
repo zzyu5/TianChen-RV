@@ -498,6 +498,167 @@ Tests required:
   prior runtime evidence and must state that no generated runtime semantics
   changed.
 
+### Plain Segment2 Memory Fact Surface
+
+#### 1. Scope / Trigger
+
+For `segment2_interleave_unit_load` and
+`segment2_deinterleave_unit_store`, provider/target shared constants must use
+a provider-owned fact surface. Target artifact validation consumes that surface
+after rebuilding the provider route; it must not reconstruct segment2 lane,
+direction, ABI, header/type, target-profile, provider-support, or route-family
+facts from route ids, artifact names, fixture names, candidate metadata
+mirrors, descriptors, common EmitC, scripts, or exact RVV intrinsic spellings.
+
+#### 2. Signatures
+
+The durable provider-owned surface is:
+
+```c++
+struct RVVPlainSegment2MemoryRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef segment2MemoryRouteFamilyPlanID;
+  llvm::StringRef segment2Direction;
+  bool usesDeinterleaveLoad;
+  bool usesInterleaveStore;
+  llvm::StringRef segmentMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  std::int64_t segmentCount;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef field0Role;
+  llvm::StringRef field1Role;
+  llvm::StringRef field0Name;
+  llvm::StringRef field1Name;
+  llvm::StringRef field0SourceMemoryForm;
+  llvm::StringRef field1SourceMemoryForm;
+  llvm::StringRef field0DestinationMemoryForm;
+  llvm::StringRef field1DestinationMemoryForm;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+};
+
+std::optional<RVVPlainSegment2MemoryRouteFacts>
+getRVVPlainSegment2MemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+```
+
+#### 3. Contracts
+
+- The accessor is implemented in the RVV plugin/provider layer and derives
+  facts from the same typed body/config/runtime authority used to construct
+  the route.
+- Deinterleave uses runtime ABI order `src,out0,out1,n`, typed compute op
+  `tcrv_rvv.move`, memory form `segment2-load-unit-store`, interleaved
+  segment2 source memory, unit-stride field destinations, segment-load,
+  field-extract, field-store, and no tuple-create/segment-store facts.
+- Interleave uses runtime ABI order `src0,src1,dst,n`, typed compute op
+  `tcrv_rvv.segment2_store`, memory form `unit-load-segment2-store`,
+  unit-stride field source loads, an interleaved segment2 destination,
+  tuple-create, segment-store, and no segment-load/field-extract facts.
+- Both routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`, segment count
+  `2`, segment tuple C type, field roles/names, source/destination memory
+  forms, target leaf profile, provider-supported mirror, required headers, C
+  type summary, runtime ABI parameters, route operand binding plan, and exact
+  route operand binding summary.
+- Common EmitC/export may carry the provider-built payload and metadata mirrors
+  unchanged. It must not infer segment2 direction, lane roles, ABI order,
+  headers, C types, or route support.
+
+#### 4. Validation & Error Matrix
+
+- Missing accessor result for either supported plain segment2 operation -> fail
+  before target artifact export.
+- Deinterleave facts applied to interleave, or interleave facts applied to
+  deinterleave -> fail on memory form, typed compute op, direction booleans,
+  runtime ABI order, field roles, source/destination memory forms,
+  segment-load/store/tuple/extract facts, target profile, provider mirror, or
+  binding summary.
+- Missing or stale segment lane facts, typed compute facts, route-family plan,
+  runtime control plan, header/type summary, target profile, provider mirror,
+  runtime ABI order/parameters, or binding summary -> fail before target
+  artifact acceptance.
+- Candidate metadata mirrors must match the provider-owned facts exactly.
+  Stale mirrors for lane, field, segment, ABI, header/type, provider, target
+  profile, runtime control, route-family, or binding facts fail closed.
+- Plain segment2 routes must reject computed-mask memory route-family plan,
+  computed-mask producer, mask role/source/form, compare predicate, masked
+  layout, scalar/unit/strided/indexed fallback, descriptor/direct-C/source-
+  export/source-front-door residue, and legacy `i32m1` route authority.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: typed plain segment2 interleave body -> plain segment2 family facts ->
+  provider-built `TCRVEmitCLowerableRoute` -> target validator consumes the
+  same fact surface -> generated-bundle evidence mirrors those facts.
+- Good: deinterleave accepts one segment2 load, two field extracts, and two
+  unit field stores, and rejects tuple-create/segment-store residue.
+- Good: interleave accepts two unit field loads, tuple create, and one
+  segment2 store, and rejects segment-load/field-extract residue.
+- Base: computed-mask segment2 load/store/update consume their own
+  computed-mask segment2 fact surface and must not consume plain facts.
+- Bad: target validation accepts an artifact because the route id or artifact
+  filename says `segment2_interleave_unit_load`.
+- Bad: target validation duplicates ABI/order/header/type/field constants that
+  disagree with provider facts but still accepts candidate metadata.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must mutate provider route descriptions for stale
+  interleave/deinterleave cross-contamination, segment lane facts, typed
+  compute facts, source/destination facts, route-family plan, binding summary,
+  runtime ABI parameters, header/type facts, target profile, provider mirror,
+  and computed-mask residue.
+- C++ target artifact tests must mutate candidate metadata mirrors for the same
+  fields and prove mirror-only metadata cannot become route authority.
+- Generated-bundle dry-run FileCheck tests must keep explicit and pre-realized
+  interleave/deinterleave coverage and expose representative operation, memory
+  form, binding summary, segment facts, provider mirror, target profile,
+  header/type facts, and no descriptor/direct-C/source-export/source-front-door
+  residue.
+- Runtime `ssh rvv` evidence is required only when the task changes generated
+  runtime semantics or claims new runtime/correctness/performance behavior.
+  Pure validation tightening may reuse prior runtime evidence and must state
+  that no runtime semantics changed.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  switch operation name or route id
+  -> rebuild ABI/header/type/segment constants locally
+  -> accept candidate mirrors when the strings look plausible
+```
+
+Correct:
+
+```text
+typed tcrv_rvv body/config/runtime facts
+  -> RVV provider fact accessor
+  -> provider plan and TCRVEmitCLowerableRoute
+  -> target validator consumes the same fact surface
+  -> artifact/evidence mirrors match exactly
+```
+
 ### Computed-Mask Segment2 Memory Fact Surface
 
 #### 1. Scope / Trigger

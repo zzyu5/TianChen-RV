@@ -11115,6 +11115,21 @@ getRVVComputedMaskSegment2MemoryRuntimeABIParameters(
   }
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVPlainSegment2MemoryRuntimeABIParameters(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return tcrv::rvv::
+        getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return tcrv::rvv::
+        getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
+  default:
+    return {};
+  }
+}
+
 RVVRouteOperandBindingPlan
 buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(
     const RVVComputedMaskIndexedMemoryRouteFacts &facts) {
@@ -11166,6 +11181,47 @@ buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(
     addRouteOperandBinding(
         plan, "n", parameter(5),
         {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+    break;
+  default:
+    break;
+  }
+
+  return plan;
+}
+
+RVVRouteOperandBindingPlan buildPlainSegment2MemoryRouteOperandBindingPlanFromFacts(
+    const RVVPlainSegment2MemoryRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  auto parameter =
+      [&](std::size_t index) -> const support::RuntimeABIParameter & {
+    return facts.runtimeABIParameters[index];
+  };
+
+  switch (facts.operation) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    addRouteOperandBinding(plan, "src", parameter(0),
+                           {"abi", "seg-load-base", "src-mem", "hdr"});
+    addRouteOperandBinding(plan, "out0", parameter(1),
+                           {"abi", "field0-store-base", "field0-role",
+                            "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "out1", parameter(2),
+                           {"abi", "field1-store-base", "field1-role",
+                            "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "n", parameter(3),
+                           {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    addRouteOperandBinding(plan, "src0", parameter(0),
+                           {"abi", "field0-load-base", "field0-role",
+                            "src0-mem", "tuple-field0", "hdr"});
+    addRouteOperandBinding(plan, "src1", parameter(1),
+                           {"abi", "field1-load-base", "field1-role",
+                            "src1-mem", "tuple-field1", "hdr"});
+    addRouteOperandBinding(plan, "dst", parameter(2),
+                           {"abi", "seg-store-base", "dst-mem", "hdr"});
+    addRouteOperandBinding(plan, "n", parameter(3),
+                           {"abi", "setvl-avl", "loop-control", "hdr"});
     break;
   default:
     break;
@@ -18154,6 +18210,97 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
 
   RVVRouteOperandBindingPlan plan =
       buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(plan);
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    facts.logicalOperands.push_back(binding.logicalOperand);
+
+  return facts;
+}
+
+std::optional<RVVPlainSegment2MemoryRouteFacts>
+getRVVPlainSegment2MemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
+  const bool isDeinterleave =
+      operation == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  const bool isInterleave =
+      operation == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+  if (!isDeinterleave && !isInterleave)
+    return std::nullopt;
+
+  RVVPlainSegment2MemoryRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = getSegment2MemoryRouteFamilyMemoryForm(operation);
+  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = getSegment2MemoryRuntimeABIOrder(operation);
+  facts.targetLeafProfile = getSegment2MemoryTargetLeafProfile(operation);
+  facts.providerSupportedMirror =
+      getSegment2MemoryProviderSupportedMirror(operation);
+  facts.requiredHeaderDeclarations = kRVVSegment2RequiredHeaderDeclarations;
+  facts.cTypeMappingSummary = getSegment2MemoryCTypeMappingSummary(operation);
+  facts.routeOperandBindingPlanID =
+      getExpectedRVVRouteOperandBindingPlanID(operation);
+  facts.typedComputeOpName =
+      isDeinterleave ? llvm::StringRef("tcrv_rvv.move")
+                     : llvm::StringRef("tcrv_rvv.segment2_store");
+  facts.segment2MemoryRouteFamilyPlanID = kRVVSegment2MemoryRouteFamilyPlanID;
+  facts.segment2Direction =
+      isDeinterleave ? llvm::StringRef("deinterleave-load")
+                     : llvm::StringRef("interleave-store");
+  facts.usesDeinterleaveLoad = isDeinterleave;
+  facts.usesInterleaveStore = isInterleave;
+  facts.segmentMemoryLayout = getSegment2MemoryLayout(operation);
+  facts.sourceMemoryForm =
+      isDeinterleave ? llvm::StringRef(kRVVSegment2SourceMemoryForm)
+                     : llvm::StringRef(kRVVUnitStrideSourceMemoryForm);
+  facts.destinationMemoryForm =
+      isInterleave ? llvm::StringRef(kRVVSegment2InterleavedDestinationMemoryForm)
+                   : llvm::StringRef(kRVVDestinationMemoryForm);
+  facts.segmentCount = 2;
+  facts.segmentTupleCType =
+      getRVVSelectedBodySegmentTupleCType(facts.sew, facts.lmul,
+                                          facts.segmentCount);
+  facts.segmentLoadIntrinsic =
+      isDeinterleave ? getRVVSelectedBodySegmentLoadIntrinsic(
+                           facts.sew, facts.lmul, facts.segmentCount)
+                     : llvm::StringRef();
+  facts.segmentStoreIntrinsic =
+      isInterleave ? getRVVSelectedBodySegmentStoreIntrinsic(
+                         facts.sew, facts.lmul, facts.segmentCount)
+                   : llvm::StringRef();
+  facts.segmentFieldExtractIntrinsic =
+      isInterleave ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
+                         facts.sew, facts.lmul, facts.segmentCount)
+                   : getRVVSelectedBodySegmentFieldExtractIntrinsic(
+                         facts.sew, facts.lmul, facts.segmentCount);
+  facts.field0Role =
+      isInterleave ? llvm::StringRef(kRVVSegment2Field0InputRole)
+                   : llvm::StringRef(kRVVSegment2Field0Role);
+  facts.field1Role =
+      isInterleave ? llvm::StringRef(kRVVSegment2Field1InputRole)
+                   : llvm::StringRef(kRVVSegment2Field1Role);
+  facts.field0Name = "field0_vec";
+  facts.field1Name = "field1_vec";
+  facts.field0SourceMemoryForm =
+      isInterleave ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                   : llvm::StringRef();
+  facts.field1SourceMemoryForm =
+      isInterleave ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                   : llvm::StringRef();
+  facts.field0DestinationMemoryForm =
+      isDeinterleave ? llvm::StringRef(kRVVDestinationMemoryForm)
+                     : llvm::StringRef();
+  facts.field1DestinationMemoryForm =
+      isDeinterleave ? llvm::StringRef(kRVVDestinationMemoryForm)
+                     : llvm::StringRef();
+  facts.runtimeABIParameters =
+      getRVVPlainSegment2MemoryRuntimeABIParameters(operation);
+
+  RVVRouteOperandBindingPlan plan =
+      buildPlainSegment2MemoryRouteOperandBindingPlanFromFacts(facts);
   facts.routeOperandBindingSummary =
       stringifyRVVRouteOperandBindingPlan(plan);
   for (const RVVRouteOperandBinding &binding : plan.bindings)

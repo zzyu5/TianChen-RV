@@ -457,6 +457,10 @@ bool isRVVPlainSegment2MemoryRouteFamilyOperation(
                  Segment2InterleaveUnitLoad;
 }
 
+std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts>
+getRVVPlainSegment2MemoryFactsForDescription(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description);
+
 bool isRVVBaseMemoryMovementRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -1412,39 +1416,45 @@ llvm::Error validatePlainSegment2DeinterleaveHeaderBindingSummary(
   if (description.operation != OperationKind::Segment2DeinterleaveUnitStore)
     return llvm::Error::success();
 
-  constexpr llvm::StringLiteral kExpectedPlan(
-      "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1");
+  std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+      getRVVPlainSegment2MemoryFactsForDescription(description);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "plain segment2-memory target artifact consumer requires "
+        "provider-owned deinterleave route facts before artifact export");
+
   const llvm::StringRef operationMnemonic =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
-  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+  if (llvm::StringRef(description.routeOperandBindingPlanID) !=
+      routeFacts->routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        kExpectedPlan + "' before artifact export");
+        routeFacts->routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
   if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(kExpectedPlan))
+           .starts_with(routeFacts->routeOperandBindingPlanID))
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        kExpectedPlan + "' before artifact export");
+        routeFacts->routeOperandBindingPlanID + "' before artifact export");
 
-  constexpr llvm::StringLiteral logicalOperands[] = {"src", "out0", "out1",
-                                                     "n"};
-  constexpr std::size_t logicalOperandCount =
-      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
-  if (description.runtimeABIParameters.size() != logicalOperandCount)
+  if (description.runtimeABIParameters.size() !=
+          routeFacts->logicalOperands.size() ||
+      routeFacts->runtimeABIParameters.size() !=
+          routeFacts->logicalOperands.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order for src/out0/out1/n before artifact export");
 
-  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
+       ++index)
     if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, logicalOperands[index],
+            description, operationMnemonic, routeFacts->logicalOperands[index],
             description.runtimeABIParameters[index]))
       return error;
   return llvm::Error::success();
@@ -1456,39 +1466,45 @@ llvm::Error validatePlainSegment2InterleaveHeaderBindingSummary(
   if (description.operation != OperationKind::Segment2InterleaveUnitLoad)
     return llvm::Error::success();
 
-  constexpr llvm::StringLiteral kExpectedPlan(
-      "rvv-route-operand-binding:segment2_interleave_unit_load.v1");
+  std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+      getRVVPlainSegment2MemoryFactsForDescription(description);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "plain segment2-memory target artifact consumer requires "
+        "provider-owned interleave route facts before artifact export");
+
   const llvm::StringRef operationMnemonic =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
-  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+  if (llvm::StringRef(description.routeOperandBindingPlanID) !=
+      routeFacts->routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        kExpectedPlan + "' before artifact export");
+        routeFacts->routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
   if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(kExpectedPlan))
+           .starts_with(routeFacts->routeOperandBindingPlanID))
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        kExpectedPlan + "' before artifact export");
+        routeFacts->routeOperandBindingPlanID + "' before artifact export");
 
-  constexpr llvm::StringLiteral logicalOperands[] = {"src0", "src1", "dst",
-                                                     "n"};
-  constexpr std::size_t logicalOperandCount =
-      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
-  if (description.runtimeABIParameters.size() != logicalOperandCount)
+  if (description.runtimeABIParameters.size() !=
+          routeFacts->logicalOperands.size() ||
+      routeFacts->runtimeABIParameters.size() !=
+          routeFacts->logicalOperands.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order for src0/src1/dst/n before artifact export");
 
-  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
+       ++index)
     if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, logicalOperands[index],
+            description, operationMnemonic, routeFacts->logicalOperands[index],
             description.runtimeABIParameters[index]))
       return error;
   return llvm::Error::success();
@@ -7174,6 +7190,13 @@ getRVVComputedMaskSegment2MemoryFactsForDescription(
       description.operation);
 }
 
+std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts>
+getRVVPlainSegment2MemoryFactsForDescription(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return plugin::rvv::getRVVPlainSegment2MemoryRouteFacts(
+      description.operation);
+}
+
 struct RVVExpectedCompareSelectMaskRuntimeABIParameter {
   std::string cName;
   std::string cType;
@@ -10206,245 +10229,6 @@ llvm::Error validateRVVSegment2MemoryRouteABIMappings(
   return llvm::Error::success();
 }
 
-constexpr llvm::StringLiteral kRVVComputedMaskMemoryRouteFamilyPlanID(
-    "rvv-computed-mask-memory-route-family-plan.v1");
-constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskProducerSource(
-    "vector-compare-rhs-load");
-constexpr llvm::StringLiteral kRVVSegment2RequiredHeaders(
-    "stddef.h,stdint.h,riscv_vector.h");
-constexpr llvm::StringLiteral kRVVSegment2TupleCType("vint32m1x2_t");
-constexpr llvm::StringLiteral kRVVSegment2MemoryRouteFamilyPlanID(
-    "rvv-segment2-memory-route-family-plan.v1");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
-    "src,out0,out1,n");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
-    "src0,src1,dst,n");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRouteOperandPlan(
-    "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveRouteOperandPlan(
-    "rvv-route-operand-binding:segment2_interleave_unit_load.v1");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRouteOperandSummary(
-    "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;"
-    "src=lhs-input-buffer:src:abi|seg-load-base|src-mem|hdr;"
-    "out0=segment-field0-output-buffer:out0:abi|field0-store-base|field0-role|dst-mem|hdr;"
-    "out1=segment-field1-output-buffer:out1:abi|field1-store-base|field1-role|dst-mem|hdr;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveRouteOperandSummary(
-    "rvv-route-operand-binding:segment2_interleave_unit_load.v1;"
-    "src0=segment-field0-input-buffer:src0:abi|field0-load-base|field0-role|src0-mem|tuple-field0|hdr;"
-    "src1=segment-field1-input-buffer:src1:abi|field1-load-base|field1-role|src1-mem|tuple-field1|hdr;"
-    "dst=segment-interleaved-output-buffer:dst:abi|seg-store-base|dst-mem|hdr;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveTargetLeafProfile(
-    "rvv-v1-e32m1-segment2-deinterleave-leaf-profile.v1");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveTargetLeafProfile(
-    "rvv-v1-e32m1-segment2-interleave-leaf-profile.v1");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveProviderMirror(
-    "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveProviderMirror(
-    "provider_supported_mirror:rvv-segment2-interleave-plan-validated");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveCTypeMapping(
-    "vl:size_t,segment2:vint32m1x2,field-outputs:signed-e32m1");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveCTypeMapping(
-    "vl:size_t,field-inputs:signed-e32m1,segment2:vint32m1x2");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveMemoryLayout(
-    "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveMemoryLayout(
-    "dual-unit-stride-source-segment2-interleaved-destination-runtime-abi");
-constexpr llvm::StringLiteral kRVVSegment2DeinterleaveTypedComputeOp(
-    "tcrv_rvv.move");
-constexpr llvm::StringLiteral kRVVSegment2InterleaveTypedComputeOp(
-    "tcrv_rvv.segment2_store");
-constexpr llvm::StringLiteral kRVVSegment2Field0Name("field0_vec");
-constexpr llvm::StringLiteral kRVVSegment2Field1Name("field1_vec");
-constexpr llvm::StringLiteral kRVVSegment2Field0OutputRole(
-    "segment-field0-output-buffer");
-constexpr llvm::StringLiteral kRVVSegment2Field1OutputRole(
-    "segment-field1-output-buffer");
-constexpr llvm::StringLiteral kRVVSegment2Field0InputRole(
-    "segment-field0-input-buffer");
-constexpr llvm::StringLiteral kRVVSegment2Field1InputRole(
-    "segment-field1-input-buffer");
-constexpr llvm::StringLiteral kRVVSegment2UnitStrideMemoryForm(
-    "unit-stride-load");
-constexpr llvm::StringLiteral kRVVSegment2UnitStrideStoreMemoryForm(
-    "unit-stride-store");
-constexpr llvm::StringLiteral kRVVSegment2InterleavedLoadMemoryForm(
-    "segment2-interleaved-unit-stride-load");
-constexpr llvm::StringLiteral kRVVSegment2InterleavedStoreMemoryForm(
-    "segment2-interleaved-unit-stride-store");
-
-plugin::rvv::RVVSelectedBodyMemoryForm
-getRVVSegment2MemoryExpectedMemoryForm(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2LoadUnitStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::
-        ComputedMaskSegment2LoadUnitStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2StoreUnitLoad:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2UpdateUnitLoad:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::
-        ComputedMaskUnitLoadSegment2Store;
-  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
-  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    return plugin::rvv::RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
-  default:
-    llvm_unreachable("queried segment2 memory form for non-segment2 operation");
-  }
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedTypedComputeOp(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveTypedComputeOp;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveTypedComputeOp;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedRuntimeABIOrder(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveRuntimeABIOrder;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveRuntimeABIOrder;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedRouteOperandPlan(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveRouteOperandPlan;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveRouteOperandPlan;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedRouteOperandSummary(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveRouteOperandSummary;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveRouteOperandSummary;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedTargetLeafProfile(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveTargetLeafProfile;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveTargetLeafProfile;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedProviderMirror(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveProviderMirror;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveProviderMirror;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedCTypeMapping(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveCTypeMapping;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveCTypeMapping;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedSegmentMemoryLayout(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2DeinterleaveMemoryLayout;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleaveMemoryLayout;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedSourceMemoryForm(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2InterleavedLoadMemoryForm;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2UnitStrideMemoryForm;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedDestinationMemoryForm(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2UnitStrideStoreMemoryForm;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2InterleavedStoreMemoryForm;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedField0Role(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2Field0OutputRole;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2Field0InputRole;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedField1Role(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2Field1OutputRole;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2Field1InputRole;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedFieldSourceMemoryForm(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2InterleaveUnitLoad)
-    return kRVVSegment2UnitStrideMemoryForm;
-  return {};
-}
-
-llvm::StringRef getRVVPlainSegment2ExpectedFieldDestinationMemoryForm(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       Segment2DeinterleaveUnitStore)
-    return kRVVSegment2UnitStrideStoreMemoryForm;
-  return {};
-}
-
 llvm::Error requireRVVSegment2MemoryProviderField(
     llvm::StringRef label, llvm::StringRef actual, llvm::StringRef expected) {
   if (actual == expected)
@@ -10692,106 +10476,163 @@ llvm::Error validateRVVPlainSegment2MemoryProviderFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   const plugin::rvv::RVVSelectedBodyOperationKind operation =
       description.operation;
-  const plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm =
-      getRVVSegment2MemoryExpectedMemoryForm(operation);
-  if (description.memoryForm != expectedMemoryForm)
+  std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+      getRVVPlainSegment2MemoryFactsForDescription(description);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "plain segment2-memory target artifact consumer requires "
+        "provider-owned canonical route facts before artifact export");
+
+  const bool expectsDeinterleave =
+      operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       Segment2DeinterleaveUnitStore;
+  const bool expectsInterleave =
+      operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       Segment2InterleaveUnitLoad;
+  if (routeFacts->usesDeinterleaveLoad != expectsDeinterleave ||
+      routeFacts->usesInterleaveStore != expectsInterleave ||
+      routeFacts->usesDeinterleaveLoad == routeFacts->usesInterleaveStore)
+    return makeRVVTargetRouteError(
+        "plain segment2-memory target artifact consumer requires "
+        "provider-owned segment2 direction facts to match the selected "
+        "interleave/deinterleave route before artifact export");
+
+  if (description.memoryForm != routeFacts->memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine("plain segment2-memory target artifact consumer requires "
                     "selected typed RVV memory form '") +
-        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(expectedMemoryForm) +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            routeFacts->memoryForm) +
         "' before artifact export but saw '" +
         plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
             description.memoryForm) +
         "'");
 
+  if (description.sew != routeFacts->sew)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain segment2-memory target artifact consumer requires "
+                    "provider-derived SEW '") +
+        llvm::Twine(routeFacts->sew) + "' but was '" +
+        llvm::Twine(description.sew) + "'");
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "LMUL", description.lmul, routeFacts->lmul))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "tail policy", description.tailPolicy, routeFacts->tailPolicy))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask policy", description.maskPolicy, routeFacts->maskPolicy))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "runtime AVL/VL control plan", description.runtimeControlPlanID,
+          routeFacts->runtimeControlPlanID))
+    return error;
+
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "typed compute op", description.typedComputeOpName,
-          getRVVPlainSegment2ExpectedTypedComputeOp(operation)))
+          routeFacts->typedComputeOpName))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "runtime ABI order", description.runtimeABIOrder,
-          getRVVPlainSegment2ExpectedRuntimeABIOrder(operation)))
+          routeFacts->runtimeABIOrder))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "route operand binding plan", description.routeOperandBindingPlanID,
-          getRVVPlainSegment2ExpectedRouteOperandPlan(operation)))
+          routeFacts->routeOperandBindingPlanID))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "route operand binding summary", description.routeOperandBindingSummary,
-          getRVVPlainSegment2ExpectedRouteOperandSummary(operation)))
+          "route operand binding summary",
+          description.routeOperandBindingSummary,
+          llvm::StringRef(routeFacts->routeOperandBindingSummary)))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "target leaf profile", description.targetLeafProfile,
-          getRVVPlainSegment2ExpectedTargetLeafProfile(operation)))
+          routeFacts->targetLeafProfile))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "provider-supported mirror", description.providerSupportedMirror,
-          getRVVPlainSegment2ExpectedProviderMirror(operation)))
+          routeFacts->providerSupportedMirror))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "required header declarations", description.requiredHeaderDeclarations,
-          kRVVSegment2RequiredHeaders))
+          routeFacts->requiredHeaderDeclarations))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "C type mapping", description.cTypeMappingSummary,
-          getRVVPlainSegment2ExpectedCTypeMapping(operation)))
+          routeFacts->cTypeMappingSummary))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "plain segment2 route-family plan",
           description.segment2MemoryRouteFamilyPlanID,
-          kRVVSegment2MemoryRouteFamilyPlanID))
+          routeFacts->segment2MemoryRouteFamilyPlanID))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "segment memory layout", description.segmentMemoryLayout,
-          getRVVPlainSegment2ExpectedSegmentMemoryLayout(operation)))
+          routeFacts->segmentMemoryLayout))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "source memory form", description.sourceMemoryForm,
-          getRVVPlainSegment2ExpectedSourceMemoryForm(operation)))
+          routeFacts->sourceMemoryForm))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "destination memory form", description.destinationMemoryForm,
-          getRVVPlainSegment2ExpectedDestinationMemoryForm(operation)))
+          routeFacts->destinationMemoryForm))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "segment tuple C type", description.segmentTupleCType,
-          kRVVSegment2TupleCType))
+          routeFacts->segmentTupleCType))
     return error;
-  if (description.segmentCount != 2)
+  if (description.segmentCount != routeFacts->segmentCount)
     return makeRVVTargetRouteError(
-        "plain segment2-memory target artifact consumer requires "
-        "provider-derived segment_count 2 before artifact export");
+        llvm::Twine("plain segment2-memory target artifact consumer requires "
+                    "provider-derived segment-count facts '") +
+        llvm::Twine(routeFacts->segmentCount) + "' but was '" +
+        llvm::Twine(description.segmentCount) + "'");
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment load callee", description.segmentLoadIntrinsic,
+          routeFacts->segmentLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment store callee", description.segmentStoreIntrinsic,
+          routeFacts->segmentStoreIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          expectsInterleave ? "segment tuple create callee"
+                            : "segment field extract callee",
+          description.segmentFieldExtractIntrinsic,
+          routeFacts->segmentFieldExtractIntrinsic))
+    return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field0 role", description.field0Role,
-          getRVVPlainSegment2ExpectedField0Role(operation)))
+          routeFacts->field0Role))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field1 role", description.field1Role,
-          getRVVPlainSegment2ExpectedField1Role(operation)))
+          routeFacts->field1Role))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "field0 name", description.field0Name, kRVVSegment2Field0Name))
+          "field0 name", description.field0Name, routeFacts->field0Name))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "field1 name", description.field1Name, kRVVSegment2Field1Name))
+          "field1 name", description.field1Name, routeFacts->field1Name))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field0 source memory form", description.field0SourceMemoryForm,
-          getRVVPlainSegment2ExpectedFieldSourceMemoryForm(operation)))
+          routeFacts->field0SourceMemoryForm))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field1 source memory form", description.field1SourceMemoryForm,
-          getRVVPlainSegment2ExpectedFieldSourceMemoryForm(operation)))
+          routeFacts->field1SourceMemoryForm))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field0 destination memory form",
           description.field0DestinationMemoryForm,
-          getRVVPlainSegment2ExpectedFieldDestinationMemoryForm(operation)))
+          routeFacts->field0DestinationMemoryForm))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field1 destination memory form",
           description.field1DestinationMemoryForm,
-          getRVVPlainSegment2ExpectedFieldDestinationMemoryForm(operation)))
+          routeFacts->field1DestinationMemoryForm))
     return error;
 
   return llvm::Error::success();
@@ -10811,15 +10652,17 @@ llvm::StringRef getRVVSegment2MemoryExpectedRuntimeABIOrder(
             plugin::rvv::getRVVComputedMaskSegment2MemoryRouteFacts(operation);
     return routeFacts ? routeFacts->runtimeABIOrder : llvm::StringRef();
   }
-  if (isRVVPlainSegment2MemoryRouteFamilyOperation(operation))
-    return getRVVPlainSegment2ExpectedRuntimeABIOrder(operation);
+  if (isRVVPlainSegment2MemoryRouteFamilyOperation(operation)) {
+    std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+        plugin::rvv::getRVVPlainSegment2MemoryRouteFacts(operation);
+    return routeFacts ? routeFacts->runtimeABIOrder : llvm::StringRef();
+  }
   return {};
 }
 
 llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6>
 getRVVSegment2MemoryExpectedRuntimeABIParameters(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  using support::RuntimeABIParameterRole;
   llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6> expected;
   if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation)) {
     std::optional<plugin::rvv::RVVComputedMaskSegment2MemoryRouteFacts>
@@ -10833,35 +10676,18 @@ getRVVSegment2MemoryExpectedRuntimeABIParameters(
           parameter.cName, parameter.cType, parameter.role});
     return expected;
   }
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "src", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer});
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "out0", "int32_t *",
-        RuntimeABIParameterRole::SegmentField0OutputBuffer});
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "out1", "int32_t *",
-        RuntimeABIParameterRole::SegmentField1OutputBuffer});
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount});
-    return expected;
-  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "src0", "const int32_t *",
-        RuntimeABIParameterRole::SegmentField0InputBuffer});
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "src1", "const int32_t *",
-        RuntimeABIParameterRole::SegmentField1InputBuffer});
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "dst", "int32_t *",
-        RuntimeABIParameterRole::SegmentInterleavedOutputBuffer});
-    expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
-        "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount});
-    return expected;
-  default:
-    return expected;
+  if (isRVVPlainSegment2MemoryRouteFamilyOperation(operation)) {
+    std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+        plugin::rvv::getRVVPlainSegment2MemoryRouteFacts(operation);
+    if (!routeFacts)
+      return expected;
+    for (const support::RuntimeABIParameter &parameter :
+         routeFacts->runtimeABIParameters)
+      expected.emplace_back(RVVExpectedSegment2RuntimeABIParameter{
+          parameter.cName, parameter.cType, parameter.role});
   }
+
+  return expected;
 }
 
 llvm::Error validateRVVSegment2MemoryRuntimeABIFacts(
@@ -11431,88 +11257,104 @@ llvm::Error requireEmptySegment2MemoryStaleMirror(
 llvm::Error validateRVVPlainSegment2MemoryTargetArtifactCandidateMirrors(
     const TargetArtifactCandidate &candidate,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+      getRVVPlainSegment2MemoryFactsForDescription(description);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "plain segment2-memory target artifact consumer requires "
+        "provider-owned canonical route facts before checking candidate "
+        "mirrors");
+
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.segment_tuple_c_type",
-          description.segmentTupleCType,
+          routeFacts->segmentTupleCType,
           "selected typed RVV plain segment2 tuple C type"))
     return error;
 
-  if (description.operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::
-          Segment2DeinterleaveUnitStore) {
+  if (routeFacts->usesDeinterleaveLoad) {
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.segment_load_intrinsic",
-            description.segmentLoadIntrinsic,
-            "selected typed RVV plain segment2 load callee"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_store_intrinsic", "",
-            "selected typed RVV plain segment2 store callee"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_field_extract_intrinsic",
-            description.segmentFieldExtractIntrinsic,
-            "selected typed RVV plain segment2 field extract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_tuple_create_intrinsic", "",
-            "selected typed RVV plain segment2 tuple create"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_destination_memory_form",
-            description.field0DestinationMemoryForm,
-            "selected typed RVV plain segment2 field0 destination memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_destination_memory_form",
-            description.field1DestinationMemoryForm,
-            "selected typed RVV plain segment2 field1 destination memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_source_memory_form", "",
-            "selected typed RVV plain segment2 field0 source memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_source_memory_form", "",
-            "selected typed RVV plain segment2 field1 source memory form"))
-      return error;
-  } else if (description.operation ==
-             plugin::rvv::RVVSelectedBodyOperationKind::
-                 Segment2InterleaveUnitLoad) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_load_intrinsic", "",
+            routeFacts->segmentLoadIntrinsic,
             "selected typed RVV plain segment2 load callee"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.segment_store_intrinsic",
-            description.segmentStoreIntrinsic,
+            routeFacts->segmentStoreIntrinsic,
             "selected typed RVV plain segment2 store callee"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_field_extract_intrinsic", "",
+            candidate, "tcrv_rvv.segment_field_extract_intrinsic",
+            routeFacts->segmentFieldExtractIntrinsic,
             "selected typed RVV plain segment2 field extract"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
-            description.segmentFieldExtractIntrinsic,
+            routeFacts->usesInterleaveStore
+                ? routeFacts->segmentFieldExtractIntrinsic
+                : llvm::StringRef(),
             "selected typed RVV plain segment2 tuple create"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_destination_memory_form",
+            routeFacts->field0DestinationMemoryForm,
+            "selected typed RVV plain segment2 field0 destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_destination_memory_form",
+            routeFacts->field1DestinationMemoryForm,
+            "selected typed RVV plain segment2 field1 destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.field0_source_memory_form",
-            description.field0SourceMemoryForm,
+            routeFacts->field0SourceMemoryForm,
             "selected typed RVV plain segment2 field0 source memory form"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.field1_source_memory_form",
-            description.field1SourceMemoryForm,
+            routeFacts->field1SourceMemoryForm,
+            "selected typed RVV plain segment2 field1 source memory form"))
+      return error;
+  } else if (routeFacts->usesInterleaveStore) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_load_intrinsic",
+            routeFacts->segmentLoadIntrinsic,
+            "selected typed RVV plain segment2 load callee"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_store_intrinsic",
+            routeFacts->segmentStoreIntrinsic,
+            "selected typed RVV plain segment2 store callee"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_field_extract_intrinsic",
+            routeFacts->usesDeinterleaveLoad
+                ? routeFacts->segmentFieldExtractIntrinsic
+                : llvm::StringRef(),
+            "selected typed RVV plain segment2 field extract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
+            routeFacts->segmentFieldExtractIntrinsic,
+            "selected typed RVV plain segment2 tuple create"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_source_memory_form",
+            routeFacts->field0SourceMemoryForm,
+            "selected typed RVV plain segment2 field0 source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_source_memory_form",
+            routeFacts->field1SourceMemoryForm,
             "selected typed RVV plain segment2 field1 source memory form"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_destination_memory_form", "",
+            candidate, "tcrv_rvv.field0_destination_memory_form",
+            routeFacts->field0DestinationMemoryForm,
             "selected typed RVV plain segment2 field0 destination memory form"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_destination_memory_form", "",
+            candidate, "tcrv_rvv.field1_destination_memory_form",
+            routeFacts->field1DestinationMemoryForm,
             "selected typed RVV plain segment2 field1 destination memory form"))
       return error;
   } else {
@@ -11520,19 +11362,19 @@ llvm::Error validateRVVPlainSegment2MemoryTargetArtifactCandidateMirrors(
   }
 
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field0_role", description.field0Role,
+          candidate, "tcrv_rvv.field0_role", routeFacts->field0Role,
           "selected typed RVV plain segment2 field0 role"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field1_role", description.field1Role,
+          candidate, "tcrv_rvv.field1_role", routeFacts->field1Role,
           "selected typed RVV plain segment2 field1 role"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field0_name", description.field0Name,
+          candidate, "tcrv_rvv.field0_name", routeFacts->field0Name,
           "selected typed RVV plain segment2 field0 binding"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field1_name", description.field1Name,
+          candidate, "tcrv_rvv.field1_name", routeFacts->field1Name,
           "selected typed RVV plain segment2 field1 binding"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -11575,14 +11417,87 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
     return error;
 
   if (isRVVPlainSegment2MemoryRouteFamilyOperation(description.operation)) {
+    std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
+        getRVVPlainSegment2MemoryFactsForDescription(description);
+    if (!routeFacts)
+      return makeRVVTargetRouteError(
+          "plain segment2-memory target artifact consumer requires "
+          "provider-owned canonical route facts before checking candidate "
+          "mirrors");
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.route_operand_binding_plan",
+            routeFacts->routeOperandBindingPlanID,
+            "selected typed RVV plain segment2 binding plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.route_operand_binding_operands",
+            routeFacts->routeOperandBindingSummary,
+            "selected typed RVV plain segment2 binding summary"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.provider_supported_mirror",
+            routeFacts->providerSupportedMirror,
+            "selected typed RVV plain segment2 provider support"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.target_leaf_profile",
+            routeFacts->targetLeafProfile,
+            "selected typed RVV plain segment2 target leaf profile"))
+      return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.segment2_memory_route_family_plan",
-            description.segment2MemoryRouteFamilyPlanID,
+            routeFacts->segment2MemoryRouteFamilyPlanID,
             "selected typed RVV segment2 route-family plan"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
             "selected typed RVV computed-mask segment2 route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.memory_form",
+            plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+                routeFacts->memoryForm),
+            "selected typed RVV plain segment2-memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_control_plan",
+            routeFacts->runtimeControlPlanID,
+            "selected typed RVV plain segment2 runtime AVL/VL control plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.runtime_abi_order",
+            routeFacts->runtimeABIOrder,
+            "selected typed RVV plain segment2 runtime ABI order"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.required_header_declarations",
+            routeFacts->requiredHeaderDeclarations,
+            "selected typed RVV plain segment2 route header requirements"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.c_type_mapping",
+            routeFacts->cTypeMappingSummary,
+            "selected typed RVV plain segment2 route type mapping summary"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_memory_layout",
+            routeFacts->segmentMemoryLayout,
+            "selected typed RVV plain segment2 memory layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.source_memory_form",
+            routeFacts->sourceMemoryForm,
+            "selected typed RVV plain segment2 source memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.destination_memory_form",
+            routeFacts->destinationMemoryForm,
+            "selected typed RVV plain segment2 destination memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_count",
+            llvm::Twine(routeFacts->segmentCount).str(),
+            "selected typed RVV plain segment2 count"))
       return error;
   } else if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
                  description.operation)) {
