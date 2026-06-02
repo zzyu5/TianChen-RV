@@ -4022,6 +4022,13 @@ constexpr llvm::StringLiteral kRVVRuntimeScalarComputedMaskedMAccRuntimeABIOrder
     "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
+constexpr llvm::StringLiteral kRVVPlainMAccOperandBindingSummary(
+    "rvv-route-operand-binding:macc_add.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_macc_add.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingSummary(
@@ -4492,6 +4499,14 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
                     "operand binding plan '") +
         expectedOperandBindingPlanID + "' but was '" +
         description.routeOperandBindingPlanID + "'");
+  if (description.operation ==
+          plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd &&
+      description.routeOperandBindingSummary != kRVVPlainMAccOperandBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("plain MAcc target artifact consumer requires provider "
+                    "route operand binding summary '") +
+        kRVVPlainMAccOperandBindingSummary + "' but was '" +
+        description.routeOperandBindingSummary + "'");
   if (isRVVScalarBroadcastMAccRouteFamilyOperation(description.operation) &&
       description.routeOperandBindingSummary !=
           kRVVScalarBroadcastMAccOperandBindingSummary)

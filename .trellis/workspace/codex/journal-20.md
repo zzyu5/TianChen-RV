@@ -60,6 +60,62 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 382: Stage2 RVV plain macc-add vector-vector artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV plain macc-add vector-vector artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded Stage 2 plain vector-vector `macc_add` artifact/runtime
+ABI boundary. The route now carries structural provider operand-binding facts
+for `lhs`, `rhs`, `acc`, `out`, and `n`, exposes provider route facts in the
+generated bundle, validates stale plain MAcc summaries fail-closed at target
+artifact acceptance, and proves explicit plus pre-realized generated bundles on
+real `ssh rvv` for counts `0`, `1`, `16`, `17`, and `257` with patterns `0,1`.
+
+### Main Changes
+
+- Replaced old plain MAcc operand-binding summary tokens with compact
+  `abi`/`hdr` structural facts for loads, MAcc operands, accumulator pass,
+  store, setvl-AVL, and loop ownership.
+- Added route-planning and target-artifact validation for the updated plain
+  MAcc operand-binding summary and provider route facts.
+- Extended `rvv_generated_bundle_abi_e2e.py` to report plain MAcc provider
+  route facts and to generate a two-pattern harness that checks vector-vector
+  multiply, accumulator contribution, source preservation, tail sentinel
+  preservation, and runtime `n` behavior.
+- Updated focused plugin, Target/RVV, and Scripts tests for explicit,
+  pre-realized, dry-run, and direct pre-realized fail-closed evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Direct `tcrv-opt` / `tcrv-translate` / `FileCheck-20` checks for explicit and pre-realized MAcc target fixtures
+- [OK] Explicit and pre-realized generated-bundle dry-run `FileCheck-20` checks
+- [OK] Direct pre-realized shortcut fail-closed script reproduction
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Explicit and pre-realized real `ssh rvv` compile/run correctness for counts `0`, `1`, `16`, `17`, `257` and patterns `0,1`
+- [OK] Added-line old-authority scan over touched files found no new legacy route-authority residue
+- [OK] `git diff --check`
+
+### Status
+
+[OK] Completed; archived and committed after this journal entry.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 375: Stage2 RVV indexed gather unit-store artifact ABI boundary
 
 **Date**: 2026-06-02

@@ -24302,39 +24302,50 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
   case RVVSelectedBodyOperationKind::MAccAdd:
     facts.bindsPlainMAcc = true;
     if (llvm::Error error =
-            bindOperand(facts.lhsABI, "lhs", "materialized-load-base",
+            bindOperand(facts.lhsABI, "lhs", "lhs-load",
                         "macc lhs load operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("lhs", "macc-lhs-call",
+            requireOperandUse("lhs", "macc-lhs",
                               "macc lhs compute operand"))
       return std::move(error);
     if (llvm::Error error =
-            bindOperand(facts.rhsABI, "rhs", "materialized-load-base",
+            requireOperandUse("lhs", "hdr", "macc lhs header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.rhsABI, "rhs", "rhs-load",
                         "macc rhs load operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("rhs", "macc-rhs-call",
+            requireOperandUse("rhs", "macc-rhs",
                               "macc rhs compute operand"))
       return std::move(error);
-    if (llvm::Error error = bindOperand(
-            facts.accumulatorABI, "acc", "materialized-accumulator-load-base",
-            "macc accumulator load operand"))
+    if (llvm::Error error =
+            requireOperandUse("rhs", "hdr", "macc rhs header mirror"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("acc", "macc-accumulator-call",
+            bindOperand(facts.accumulatorABI, "acc", "acc-load",
+                        "macc accumulator load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "macc-acc",
                               "macc accumulator compute operand"))
       return std::move(error);
     if (llvm::Error error =
-            bindOperand(facts.outABI, "out", "materialized-store-base",
+            requireOperandUse("acc", "macc-pass",
+                              "macc accumulator passthrough operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("acc", "hdr", "macc accumulator header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "store",
                         "macc output store operand"))
       return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("out", "header-mirror",
-                              "macc output header mirror"))
+    if (llvm::Error error = requireOperandUse("out", "hdr",
+                                              "macc output header mirror"))
       return std::move(error);
-    if (llvm::Error error =
-            bindRuntimeCount("loop-control", "header-mirror", "macc"))
+    if (llvm::Error error = bindRuntimeCount("loop", "hdr", "macc"))
       return std::move(error);
     return facts;
 

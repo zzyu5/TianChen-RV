@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the change stays within RVV Stage 2 typed route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-owned realization/provider facts and no metadata/string authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route operand-binding and common EmitC/target handoff contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused checks and real RVV evidence satisfy the testing contract."}

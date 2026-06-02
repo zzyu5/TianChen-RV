@@ -25581,31 +25581,26 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base",
-              "macc-lhs-call"});
+             {"abi", "lhs-load", "macc-lhs", "hdr"});
   addBinding(plan, "rhs",
              makeTargetExportABIParameter(
                  "rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base",
-              "macc-rhs-call"});
+             {"abi", "rhs-load", "macc-rhs", "hdr"});
   addBinding(plan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"runtime-abi-mirror", "materialized-accumulator-load-base",
-              "macc-accumulator-call"});
+             {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
   addBinding(plan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"runtime-abi-mirror", "materialized-store-base",
-              "header-mirror"});
+             {"abi", "store", "hdr"});
   addBinding(plan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"runtime-abi-mirror", "setvl-avl", "loop-control",
-              "header-mirror"});
+             {"abi", "setvl-avl", "loop", "hdr"});
 
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
@@ -27271,6 +27266,31 @@ int runRouteOperandBindingPlanValidationTest() {
                      maccFacts->outABI->cName == "out",
                  "MAcc math binding facts expose lhs, rhs, accumulator, and "
                  "output operands"))
+    return result;
+
+  RVVRouteOperandBindingPlan stalePlainMAccHdr = plan;
+  bool removedPlainRhsHeader = false;
+  for (RVVRouteOperandBinding &binding : stalePlainMAccHdr.bindings) {
+    if (binding.logicalOperand != "rhs")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "hdr")
+        continue;
+      binding.materializedUses.erase(it);
+      removedPlainRhsHeader = true;
+      break;
+    }
+  }
+  if (int result = expect(removedPlainRhsHeader,
+                          "test setup removes plain MAcc RHS header use"))
+    return result;
+  auto stalePlainMAccAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::MAccAdd, "lhs,rhs,acc,out,n",
+      stalePlainMAccHdr);
+  if (int result = expectErrorContains(
+          getMathFacts(stalePlainMAccAnalysis).takeError(),
+          {"rhs", "hdr", "macc rhs header mirror"}))
     return result;
 
   auto scalarBroadcastMAccAnalysis = makeMathAnalysis(

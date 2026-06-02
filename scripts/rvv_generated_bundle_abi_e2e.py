@@ -386,11 +386,11 @@ UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride_bytes"
 MACC_ROUTE_OPERAND_BINDING_PLAN = "rvv-route-operand-binding:macc_add.v1"
 MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:macc_add.v1;"
-    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;"
-    "rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-load-base|macc-rhs-call;"
-    "acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;"
-    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
 SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:scalar_broadcast_macc_add.v1"
@@ -19222,7 +19222,31 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int32_t init_lhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  return (int32_t)(((index % 3) == 0)
+                       ? -((int32_t)(index % 11) + 3)
+                       : ((int32_t)(index % 11) + 3));
+}}
+
+static int32_t init_rhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.rhs_initializer};
+  return (int32_t)(((index % 4) == 0)
+                       ? ((int32_t)(index % 13) + 2)
+                       : -((int32_t)(index % 13) + 2));
+}}
+
+static int32_t init_acc(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.source_initializer};
+  return (int32_t)(((index % 5) == 0)
+                       ? (23 - (int32_t)(index % 17))
+                       : -(23 - (int32_t)(index % 17)));
+}}
+
+static int run_case(size_t n, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 5;
   if (alloc_n == 5 && n == 0)
@@ -19232,7 +19256,7 @@ static int run_case(size_t n) {{
   int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   if (!lhs || !rhs || !acc || !out) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    fprintf(stderr, "allocation failed for n=%zu pattern=%d\\n", n, pattern);
     free(lhs);
     free(rhs);
     free(acc);
@@ -19241,9 +19265,9 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    lhs[index] = {expectation.lhs_initializer};
-    rhs[index] = {expectation.rhs_initializer};
-    acc[index] = {expectation.source_initializer};
+    lhs[index] = init_lhs(index, pattern);
+    rhs[index] = init_rhs(index, pattern);
+    acc[index] = init_acc(index, pattern);
     out[index] = {expectation.out_initializer};
   }}
 
@@ -19281,8 +19305,8 @@ static int run_case(size_t n) {{
       ++nonzero_accumulators;
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d acc=%d product=%d\\n",
-              n, index, out[index], expected, lhs[index], rhs[index], acc[index], product);
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got=%d expected=%d lhs=%d rhs=%d acc=%d product=%d\\n",
+              n, pattern, index, out[index], expected, lhs[index], rhs[index], acc[index], product);
       free(lhs);
       free(rhs);
       free(acc);
@@ -19294,8 +19318,8 @@ static int run_case(size_t n) {{
   for (size_t index = n; index < alloc_n; ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
-              n, index, out[index], {expectation.out_initializer});
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, pattern, index, out[index], {expectation.out_initializer});
       free(lhs);
       free(rhs);
       free(acc);
@@ -19321,11 +19345,29 @@ static int run_case(size_t n) {{
     return 14;
   }}
 
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (lhs[index] != init_lhs(index, pattern) ||
+        rhs[index] != init_rhs(index, pattern) ||
+        acc[index] != init_acc(index, pattern)) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu pattern=%d index=%zu lhs=%d expected_lhs=%d rhs=%d expected_rhs=%d acc=%d expected_acc=%d\\n",
+              n, pattern, index, lhs[index], init_lhs(index, pattern),
+              rhs[index], init_rhs(index, pattern), acc[index],
+              init_acc(index, pattern));
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 15;
+    }}
+  }}
+
   free(lhs);
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok explicit_accumulator signed_products tail_preserved\\n", n);
+  printf("{expectation.kind} case n=%zu pattern=%d ok explicit_accumulator signed_products source_preserved tail_preserved\\n",
+         n, pattern);
   return 0;
 }}
 
@@ -19333,12 +19375,14 @@ int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -22568,6 +22612,9 @@ def multiply_accumulate_boundary_summary(
 ) -> dict[str, Any]:
     if not (expectation.is_macc_add or expectation.is_scalar_broadcast_macc_add):
         return {}
+    route_metadata = multiply_accumulate_metadata_from_bundle(
+        bundle_checks, expectation
+    )
     rhs_source = (
         "runtime scalar tcrv_rvv.splat"
         if expectation.is_scalar_broadcast_macc_add
@@ -22651,9 +22698,33 @@ def multiply_accumulate_boundary_summary(
         "emitted_cpp": emitted_cpp_checks.get(
             "multiply_accumulate_boundary", {}
         ),
-        "route_metadata": multiply_accumulate_metadata_from_bundle(
-            bundle_checks, expectation
-        ),
+        "provider_route_facts": {
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "route_operand_binding_plan": route_metadata.get(
+                "tcrv_rvv.route_operand_binding_plan"
+            ),
+            "route_operand_binding_operands": route_metadata.get(
+                "tcrv_rvv.route_operand_binding_operands"
+            ),
+            "runtime_control_plan": route_metadata.get(
+                "tcrv_rvv.runtime_control_plan"
+            ),
+            "target_leaf_profile": route_metadata.get(
+                "tcrv_rvv.target_leaf_profile"
+            ),
+            "provider_supported_mirror": route_metadata.get(
+                "tcrv_rvv.provider_supported_mirror"
+            ),
+            "required_header_declarations": route_metadata.get(
+                "tcrv_rvv.required_header_declarations"
+            ),
+            "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+            "accumulator_layout": route_metadata.get(
+                "tcrv_rvv.macc_accumulator_layout"
+            ),
+            "result_layout": route_metadata.get("tcrv_rvv.macc_result_layout"),
+        },
+        "route_metadata": route_metadata,
         "artifact_abi": {
             "prototype": bundle_checks["header"]["prototype"],
             "runtime_abi_order": expectation.runtime_abi_order,
@@ -24803,6 +24874,58 @@ def run_self_test() -> int:
                         "conversion provider-backed source/result/statement "
                         "facts"
                     )
+            if expectation.is_macc_add:
+                macc_metadata = multiply_accumulate_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                macc_boundary = multiply_accumulate_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 23, 257],
+                )
+                selected_source_abi = macc_boundary.get(
+                    "selected_source_abi", {}
+                )
+                provider_facts = macc_boundary.get("provider_route_facts", {})
+                statement_plan = macc_boundary.get("statement_plan", {})
+                if (
+                    macc_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    != MACC_ROUTE_OPERAND_BINDING_PLAN
+                    or macc_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                    or macc_metadata.get("tcrv_rvv.provider_supported_mirror")
+                    != PLAIN_MACC_PROVIDER_SUPPORTED_MIRROR
+                    or selected_source_abi.get("lhs") != "lhs-input-buffer"
+                    or selected_source_abi.get("rhs") != "rhs-input-buffer"
+                    or selected_source_abi.get("acc")
+                    != "accumulator-input-buffer"
+                    or selected_source_abi.get("out") != "output-buffer"
+                    or selected_source_abi.get("n") != "runtime-element-count"
+                    or provider_facts.get("runtime_abi_order")
+                    != MACC_ADD_RUNTIME_ABI_ORDER
+                    or provider_facts.get("route_operand_binding_plan")
+                    != MACC_ROUTE_OPERAND_BINDING_PLAN
+                    or provider_facts.get("route_operand_binding_operands")
+                    != MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                    or provider_facts.get("required_header_declarations")
+                    != PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS
+                    or provider_facts.get("c_type_mapping")
+                    != PLAIN_MACC_C_TYPE_MAPPING
+                    or statement_plan.get("rhs_source") != "typed RHS vector load"
+                    or statement_plan.get("macc_operand_order")
+                    != "acc,lhs,rhs,vl"
+                    or macc_boundary.get("runtime_counts")
+                    != [0, 1, 16, 23, 257]
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost plain MAcc "
+                        "provider-backed ABI, operand-binding, or statement "
+                        "facts"
+                    )
             if expectation.is_widening_macc_add:
                 widening_macc_metadata = widening_macc_metadata_from_bundle(
                     bundle_checks, expectation
@@ -25403,6 +25526,23 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask macc "
                     "mask, accumulator passthrough, or arithmetic coverage"
+                )
+            if expectation.is_macc_add and (
+                "static int32_t init_lhs(size_t index, int pattern)" not in harness
+                or "static int32_t init_rhs(size_t index, int pattern)"
+                not in harness
+                or "static int32_t init_acc(size_t index, int pattern)"
+                not in harness
+                or "for (int pattern = 0; pattern < 2; ++pattern)"
+                not in harness
+                or "run_case(counts[index], pattern)" not in harness
+                or "source buffer mutated" not in harness
+                or "source_preserved tail_preserved" not in harness
+                or "patterns=0,1" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost plain MAcc two-pattern "
+                    "source-preservation, accumulator, or arithmetic coverage"
                 )
             if expectation.is_scalar_broadcast_macc_add and (
                 "scalar_broadcast_macc" not in harness

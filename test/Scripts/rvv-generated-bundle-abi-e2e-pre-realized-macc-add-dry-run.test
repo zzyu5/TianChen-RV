@@ -40,6 +40,22 @@
 # MACC-DAG: "value": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "key": "tcrv_rvv.macc_result_layout"
 # MACC-DAG: "value": "store-multiply-accumulate-result-to-output-buffer"
+# MACC-DAG: "selected_source_abi": {
+# MACC-DAG: "lhs": "lhs-input-buffer"
+# MACC-DAG: "rhs": "rhs-input-buffer"
+# MACC-DAG: "acc": "accumulator-input-buffer"
+# MACC-DAG: "out": "output-buffer"
+# MACC-DAG: "n": "runtime-element-count"
+# MACC-DAG: "provider_route_facts": {
+# MACC-DAG: "runtime_abi_order": "lhs,rhs,acc,out,n"
+# MACC-DAG: "route_operand_binding_plan": "rvv-route-operand-binding:macc_add.v1"
+# MACC-DAG: "route_operand_binding_operands": "rvv-route-operand-binding:macc_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# MACC-DAG: "target_leaf_profile": "rvv-v1-typed-plain-macc-add-leaf-profile.v1"
+# MACC-DAG: "provider_supported_mirror": "provider_supported_mirror:rvv-plain-macc-add-plan-validated"
+# MACC-DAG: "required_header_declarations": "stddef.h,stdint.h,riscv_vector.h"
+# MACC-DAG: "c_type_mapping": "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector"
+# MACC-DAG: "accumulator_layout": "separate-i32-vector-accumulator-input"
+# MACC-DAG: "result_layout": "store-multiply-accumulate-result-to-output-buffer"
 # MACC-DAG: "multiply_accumulate_boundary": {
 # MACC-DAG: "authority": "provider-derived typed tcrv_rvv multiply-accumulate body/config/runtime facts"
 # MACC-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
@@ -54,8 +70,12 @@
 # MACC-DAG: "typed_compute_op": "tcrv_rvv.macc"
 # MACC-DAG: "status": "dry_run_success"
 
-# HARNESS: lhs[index] = (int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 1) : -((int32_t)(index % 7) + 1));
-# HARNESS: rhs[index] = (int32_t)(((index % 3) == 0) ? -((int32_t)(index % 5) + 2) : ((int32_t)(index % 5) + 2));
-# HARNESS: acc[index] = (int32_t)(((index % 2) == 0) ? (17 - (int32_t)(index % 9)) : -(17 - (int32_t)(index % 9)));
+# HARNESS: static int32_t init_lhs(size_t index, int pattern)
+# HARNESS: static int32_t init_rhs(size_t index, int pattern)
+# HARNESS: static int32_t init_acc(size_t index, int pattern)
 # HARNESS: tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]));
+# HARNESS: source_preserved tail_preserved
+# HARNESS: for (int pattern = 0; pattern < 2; ++pattern)
+# HARNESS: int status = run_case(counts[index], pattern);
+# HARNESS: patterns=0,1
