@@ -181,3 +181,37 @@ Moved runtime-scalar computed-mask standalone reduce-add inactive neutral litera
 ### Next Steps
 
 - None - task complete
+
+
+## Session 389: Stage2 RVV runtime-scalar reduce-max artifact facts
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar reduce-max artifact facts
+**Branch**: `main`
+
+### Summary
+
+Validated runtime-scalar computed-mask standalone reduce-max provider facts, target artifact fail-closed checks, generated-bundle dry-run, and ssh rvv correctness evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `999c875e` | (see git log) |
+| `297e075e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
