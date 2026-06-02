@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth and RVV Stage 2 boundary rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local realization/provider authority and standalone reduction boundary requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and operand binding/header summary contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/FileCheck, generated-bundle, mask/tail, and real ssh rvv evidence requirements."}

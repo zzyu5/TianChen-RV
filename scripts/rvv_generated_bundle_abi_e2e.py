@@ -586,7 +586,7 @@ COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE = (
     "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
     "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
     "src=source-input-buffer:src:abi|src-load|masked-reduce-input|{inactive_use}|hdr;"
-    "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+    "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
     "out=output-buffer:out:abi|acc-state|store-base|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
@@ -17756,19 +17756,40 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int32_t make_cmp_lhs_value(size_t index) {{
-  return {expectation.lhs_initializer};
+static int32_t make_cmp_lhs_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  return (int32_t)(((index % 7) == 0) ? -80 :
+                   ((index % 7) == 1) ? -4 :
+                   ((index % 7) == 2) ? 0 :
+                   ((index % 7) == 3) ? 14 :
+                   ((index % 7) == 4) ? 31 :
+                   ((index % 7) == 5) ? -22 : 65);
 }}
 
-static int32_t make_cmp_rhs_value(size_t index) {{
-  return {expectation.rhs_initializer};
+static int32_t make_cmp_rhs_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.rhs_initializer};
+  return (int32_t)(((index % 7) == 0) ? -70 :
+                   ((index % 7) == 1) ? -6 :
+                   ((index % 7) == 2) ? 9 :
+                   ((index % 7) == 3) ? 10 :
+                   ((index % 7) == 4) ? 31 :
+                   ((index % 7) == 5) ? -30 : 12);
 }}
 
-static int32_t make_src_value(size_t index) {{
-  return {expectation.source_initializer};
+static int32_t make_src_value(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.source_initializer};
+  return (int32_t)(((index % 6) == 0) ? (int32_t)(101 + (int32_t)index) :
+                   ((index % 6) == 1) ? (int32_t)(-55 - (int32_t)index) :
+                   ((index % 6) == 2) ? (int32_t)(17 + (int32_t)(index * 2)) :
+                   ((index % 6) == 3) ? (int32_t)(-120 + (int32_t)index) :
+                   ((index % 6) == 4) ? (int32_t)9 :
+                                         (int32_t)(-7 - (int32_t)index));
 }}
 
-static int run_case(size_t n, int32_t seed) {{
+static int run_case(size_t n, int32_t seed, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
@@ -17788,9 +17809,9 @@ static int run_case(size_t n, int32_t seed) {{
   size_t active_lanes = 0;
   size_t inactive_lanes = 0;
   for (size_t index = 0; index < alloc_n; ++index) {{
-    cmp_lhs[index] = make_cmp_lhs_value(index);
-    cmp_rhs[index] = make_cmp_rhs_value(index);
-    src[index] = make_src_value(index);
+    cmp_lhs[index] = make_cmp_lhs_value(index, pattern);
+    cmp_rhs[index] = make_cmp_rhs_value(index, pattern);
+    src[index] = make_src_value(index, pattern);
     if (index < n) {{
       int active = {active_expression};
       if (active) {{
@@ -17809,8 +17830,8 @@ static int run_case(size_t n, int32_t seed) {{
 
   if (out[0] != expected) {{
     fprintf(stderr,
-            "{expectation.kind} mismatch n=%zu seed=%d got=%d expected=%d active_lanes=%zu inactive_lanes=%zu\\n",
-            n, seed, out[0], expected, active_lanes, inactive_lanes);
+            "{expectation.kind} mismatch n=%zu seed=%d pattern=%d got=%d expected=%d active_lanes=%zu inactive_lanes=%zu\\n",
+            n, seed, pattern, out[0], expected, active_lanes, inactive_lanes);
     free(cmp_lhs);
     free(cmp_rhs);
     free(src);
@@ -17818,43 +17839,56 @@ static int run_case(size_t n, int32_t seed) {{
   }}
   if (acc[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} mutated seed input n=%zu got=%d expected=%d\\n",
-            n, acc[0], seed);
+            "{expectation.kind} mutated seed input n=%zu pattern=%d got=%d expected=%d\\n",
+            n, pattern, acc[0], seed);
     free(cmp_lhs);
     free(cmp_rhs);
     free(src);
     return 13;
   }}
-  for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
-    if (out[index] != {expectation.out_initializer}) {{
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (cmp_lhs[index] != make_cmp_lhs_value(index, pattern) ||
+        cmp_rhs[index] != make_cmp_rhs_value(index, pattern) ||
+        src[index] != make_src_value(index, pattern)) {{
       fprintf(stderr,
-              "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
-              n, seed, index, out[index], {OUT_SENTINEL});
+              "{expectation.kind} source buffer mutated n=%zu seed=%d pattern=%d index=%zu\\n",
+              n, seed, pattern, index);
       free(cmp_lhs);
       free(cmp_rhs);
       free(src);
       return 14;
     }}
   }}
+  for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d pattern=%d index=%zu got=%d sentinel=%d\\n",
+              n, seed, pattern, index, out[index], {OUT_SENTINEL});
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      return 15;
+    }}
+  }}
   if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} compare mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
-            n, active_lanes, inactive_lanes);
+            "{expectation.kind} compare mask coverage missing n=%zu pattern=%d active_lanes=%zu inactive_lanes=%zu\\n",
+            n, pattern, active_lanes, inactive_lanes);
     free(cmp_lhs);
     free(cmp_rhs);
     free(src);
-    return 15;
+    return 16;
   }}
 
   free(cmp_lhs);
   free(cmp_rhs);
   free(src);
-  printf("{expectation.kind} case n=%zu seed=%d ok scalar_out=%d active_lanes=%zu inactive_lanes=%zu tail_preserved\\n",
-         n, seed, out[0], active_lanes, inactive_lanes);
+  printf("{expectation.kind} case n=%zu seed=%d pattern=%d ok scalar_out=%d active_lanes=%zu inactive_lanes=%zu source_preserved tail_preserved\\n",
+         n, seed, pattern, out[0], active_lanes, inactive_lanes);
   return 0;
 }}
 
-static int run_all_inactive_case(size_t n, int32_t seed) {{
+static int run_all_inactive_case(size_t n, int32_t seed, int pattern) {{
   /* all-inactive mask oracle: compare is false for every runtime lane. */
   size_t alloc_n = n == 0 ? 1 : n;
   int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
@@ -17873,7 +17907,8 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
   for (size_t index = 0; index < alloc_n; ++index) {{
     cmp_lhs[index] = (int32_t)(1000 + (int32_t)index);
     cmp_rhs[index] = (int32_t)(-1000 - (int32_t)index);
-    src[index] = (int32_t)(77 + (int32_t)(index * 9));
+    src[index] = pattern == 0 ? (int32_t)(77 + (int32_t)(index * 9))
+                              : (int32_t)(-91 - (int32_t)(index * 13));
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
@@ -17883,8 +17918,8 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
 
   if (out[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} all_inactive_mask changed scalar seed n=%zu seed=%d got=%d\\n",
-            n, seed, out[0]);
+            "{expectation.kind} all_inactive_mask changed scalar seed n=%zu seed=%d pattern=%d got=%d\\n",
+            n, seed, pattern, out[0]);
     free(cmp_lhs);
     free(cmp_rhs);
     free(src);
@@ -17892,8 +17927,8 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
   }}
   if (acc[0] != seed) {{
     fprintf(stderr,
-            "{expectation.kind} all_inactive_mask mutated seed input n=%zu got=%d expected=%d\\n",
-            n, acc[0], seed);
+            "{expectation.kind} all_inactive_mask mutated seed input n=%zu pattern=%d got=%d expected=%d\\n",
+            n, pattern, acc[0], seed);
     free(cmp_lhs);
     free(cmp_rhs);
     free(src);
@@ -17902,8 +17937,8 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
   for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} all_inactive_mask touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
-              n, seed, index, out[index], {OUT_SENTINEL});
+              "{expectation.kind} all_inactive_mask touched scalar-output sentinel n=%zu seed=%d pattern=%d index=%zu got=%d sentinel=%d\\n",
+              n, seed, pattern, index, out[index], {OUT_SENTINEL});
       free(cmp_lhs);
       free(cmp_rhs);
       free(src);
@@ -17914,28 +17949,35 @@ static int run_all_inactive_case(size_t n, int32_t seed) {{
   free(cmp_lhs);
   free(cmp_rhs);
   free(src);
-  printf("{expectation.kind} all_inactive_mask case n=%zu seed=%d ok scalar_out=%d tail_preserved\\n",
-         n, seed, seed);
+  printf("{expectation.kind} all_inactive_mask case n=%zu seed=%d pattern=%d ok scalar_out=%d tail_preserved\\n",
+         n, seed, pattern, seed);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const int32_t seeds[] = {{(int32_t)-11, (int32_t)17}};
+  const int patterns[] = {{0, 1}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t seed_count = sizeof(seeds) / sizeof(seeds[0]);
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
   for (size_t seed_index = 0; seed_index < seed_count; ++seed_index) {{
-    for (size_t count_index = 0; count_index < count_count; ++count_index) {{
-      int status = run_case(counts[count_index], seeds[seed_index]);
-      if (status != 0)
-        return status;
-      status = run_all_inactive_case(counts[count_index], seeds[seed_index]);
-      if (status != 0)
-        return status;
+    for (size_t pattern_index = 0; pattern_index < pattern_count;
+         ++pattern_index) {{
+      for (size_t count_index = 0; count_index < count_count; ++count_index) {{
+        int status = run_case(counts[count_index], seeds[seed_index],
+                              patterns[pattern_index]);
+        if (status != 0)
+          return status;
+        status = run_all_inactive_case(counts[count_index], seeds[seed_index],
+                                       patterns[pattern_index]);
+        if (status != 0)
+          return status;
+      }}
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17 patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17 patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -22622,6 +22664,8 @@ def reduction_accumulation_boundary_summary(
                 "all compare-false lanes are replaced with the operation "
                 "neutral element before reduction, so out[0] remains the seed"
             ),
+            "compare_source_patterns_required_minimum": 2,
+            "seed_values_required_minimum": 2,
             "runtime_counts": runtime_counts,
             "runtime_counts_are_execution_cases_not_reduction_authority": True,
         }
@@ -24048,6 +24092,11 @@ def run_one_op_e2e(
                 f"multi-lane {expectation.kind} cases require "
                 "compare-produced active and inactive mask lanes plus an "
                 "all-inactive-mask oracle"
+            )
+            evidence["harness"]["source_pattern_contract"] = (
+                "two compare/source input patterns and two scalar seeds prove "
+                "active-lane source contribution, source preservation, seed "
+                "preservation, and multi-VL runtime n behavior"
             )
             evidence["harness"]["reduction_contract"] = (
                 f"active lanes contribute signed i32 source values to the signed "
@@ -25735,10 +25784,15 @@ def run_self_test() -> int:
                 or "inactive_lanes" not in harness
                 or "all_inactive_mask" not in harness
                 or "acc[0] != seed" not in harness
+                or "make_cmp_lhs_value(size_t index, int pattern)" not in harness
+                or "make_src_value(size_t index, int pattern)" not in harness
+                or "source_preserved" not in harness
+                or "patterns=0,1" not in harness
             ):
                 raise AssertionError(
                     "self-test harness generation lost computed-mask "
-                    "standalone reduction seed and mask coverage"
+                    "standalone reduction seed, mask, pattern, or source "
+                    "preservation coverage"
                 )
             if expectation.is_computed_mask_select and (
                 "compare_pattern_count" not in harness

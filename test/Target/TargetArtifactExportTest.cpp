@@ -4716,6 +4716,25 @@ bool expectRVVTargetArtifactExporterShape(
            "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1"}))
     return false;
 
+  RVVRouteDescription staleComputedMaskStandaloneAddAccumulatorHeaderBinding =
+      computedMaskStandaloneReduceAddDescription;
+  staleComputedMaskStandaloneAddAccumulatorHeaderBinding
+      .routeOperandBindingSummary =
+      "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+      "out=output-buffer:out:abi|acc-state|store-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectComputedMaskStandaloneReduceAddProviderFailure(
+          staleComputedMaskStandaloneAddAccumulatorHeaderBinding,
+          "computed-mask standalone reduce_add registry rejects missing "
+          "accumulator header binding",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"}))
+    return false;
+
   RVVRouteDescription staleComputedMaskStandaloneAddInactiveLane =
       computedMaskStandaloneReduceAddDescription;
   staleComputedMaskStandaloneAddInactiveLane.inactiveLaneZeroingRequirement = "";

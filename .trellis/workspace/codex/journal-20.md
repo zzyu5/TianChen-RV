@@ -60,6 +60,74 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 384: Stage2 RVV computed-mask standalone reduce-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-mask standalone reduce-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded Stage 2 `computed_mask_standalone_reduce_add` artifact/runtime
+ABI boundary. The provider and target artifact validator now require the
+exported `acc` scalar seed binding to carry `hdr`; generated-bundle evidence
+runs counts `0,1,16,17,257` with seeds `-11,17` and compare/source patterns
+`0,1`; explicit and pre-realized bundles both pass real `ssh rvv` correctness.
+
+### Main Changes
+
+- Added vector computed-mask standalone reduction `acc` `hdr` participation in
+  provider route operand binding facts.
+- Added provider-side and target artifact fail-closed validation for stale
+  `computed_mask_standalone_reduce_add` accumulator header binding.
+- Updated explicit/pre-realized add fixtures and shared vector computed-mask
+  standalone min/max fixtures to the exact strengthened provider summary.
+- Strengthened generated-bundle harness generation to run two compare/source
+  patterns, verify source preservation, preserve all-inactive seed behavior,
+  and print `patterns=0,1`.
+- Captured explicit and pre-realized `ssh rvv` evidence under
+  `artifacts/tmp/06-02-computed-mask-standalone-reduce-add-ssh-rvv/`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Direct `tcrv-opt` / `tcrv-translate` / `FileCheck-20` checks for explicit/pre-realized computed-mask standalone reduce-add.
+- [OK] Direct FileCheck checks for changed vector computed-mask standalone min/max fixtures.
+- [OK] Generated-bundle dry-run and FileCheck for explicit/pre-realized `computed_mask_standalone_reduce_add`.
+- [OK] Generated-bundle dry-run and FileCheck for shared vector computed-mask standalone min/max expectations.
+- [OK] Direct pre-realized route-entry fail-closed reproduction for `computed_mask_standalone_reduce_add`.
+- [OK] Real `ssh rvv` explicit/pre-realized correctness for counts `0,1,16,17,257`, seeds `-11,17`, patterns `0,1`.
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Added-line old-authority scan over touched files found no new legacy route-authority residue.
+- [OK] `rtk git diff --check`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-stage2-rvv-computed-mask-standalone-reduce-add-artifact-abi`
+
+### Spec Update
+
+No `.trellis/spec` update was needed. Existing RVV plugin, EmitC route, and
+testing specs already require provider-owned route operand-binding summaries,
+`hdr` participation for exported header/prototype parameters, fail-closed target
+artifact validation, and real `ssh rvv` evidence for runtime correctness claims.
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 384: Stage2 RVV standalone reduce-add scalar artifact ABI boundary
 
 **Date**: 2026-06-02

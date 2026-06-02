@@ -1,7 +1,7 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-standalone-reduce-add --overwrite --op-kind computed_mask_standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-computed-mask-standalone-reduce-add --overwrite --op-kind computed_mask_standalone_reduce_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-standalone-reduce-add --overwrite --op-kind computed_mask_standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-computed-mask-standalone-reduce-add --overwrite --op-kind computed_mask_standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/computed-mask-standalone-reduce-add/computed_mask_standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=PREADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-computed-mask-standalone-reduce-add/computed_mask_standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/computed-mask-standalone-reduce-add/computed_mask_standalone_reduce_add/rvv_generated_bundle_abi_computed_mask_standalone_reduce_add_harness.c
@@ -17,7 +17,7 @@
 # ADD-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # ADD-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"
 # ADD-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# ADD-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# ADD-DAG: "value": "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # ADD-DAG: "value": "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
 # ADD-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary"
 # ADD-DAG: "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
@@ -25,8 +25,11 @@
 # ADD-DAG: "external_mask": false
 # ADD-DAG: "producer": "tcrv_rvv.compare"
 # ADD-DAG: "all_inactive_mask_behavior": "all compare-false lanes are replaced with the operation neutral element before reduction, so out[0] remains the seed"
+# ADD-DAG: "source_pattern_contract": "two compare/source input patterns and two scalar seeds prove active-lane source contribution, source preservation, seed preservation, and multi-VL runtime n behavior"
 # ADD-DAG: "reduction_accumulation_boundary"
 # ADD-DAG: "reduction_kind": "add"
+# ADD-DAG: "compare_source_patterns_required_minimum": 2
+# ADD-DAG: "seed_values_required_minimum": 2
 # ADD-DAG: "scalar_slot": "out[0]"
 # ADD-DAG: "runtime_counts": [
 # ADD-DAG: 0,
@@ -41,8 +44,11 @@
 # PREADD-DAG: "mask_tail_policy_boundary"
 # PREADD-DAG: "reduction_accumulation_boundary"
 # PREADD-DAG: "all_inactive_mask_behavior"
+# PREADD-DAG: "compare_source_patterns_required_minimum": 2
 # PREADD-DAG: "status": "dry_run_success"
 
+# HARNESS: make_cmp_lhs_value(size_t index, int pattern)
+# HARNESS: make_src_value(size_t index, int pattern)
 # HARNESS: int32_t expected = seed;
 # HARNESS: expected = (int32_t)(expected + src[index]);
 # HARNESS: active_lanes
@@ -50,9 +56,13 @@
 # HARNESS: acc[0] = seed;
 # HARNESS: tcrv_emitc_explicit_cm_standalone_reduce_kernel_rvv_cm_standalone_reduce(cmp_lhs, cmp_rhs, src, acc, out, n);
 # HARNESS: out[0] != expected
+# HARNESS: source_preserved
 # HARNESS: run_all_inactive_case
 # HARNESS: out[0] != seed
 # HARNESS: all_inactive_mask
 # HARNESS: tail_preserved
-# HARNESS: counts=0,7,16,23
+# HARNESS: run_case(counts[count_index], seeds[seed_index],
+# HARNESS: patterns[pattern_index]
+# HARNESS: counts=0,1,16,17,257
 # HARNESS: seeds=-11,17
+# HARNESS: patterns=0,1

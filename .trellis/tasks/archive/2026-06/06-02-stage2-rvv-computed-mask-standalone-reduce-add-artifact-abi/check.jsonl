@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global TianChen-RV and RVV Stage ordering invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check computed-mask standalone reduction authority stays RVV plugin-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check route operand binding summaries and target artifacts mirror provider facts exactly."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and ssh rvv runtime evidence satisfy masked generated-bundle policy."}
