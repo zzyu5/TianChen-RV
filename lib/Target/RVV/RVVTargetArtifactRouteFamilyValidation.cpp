@@ -9357,15 +9357,15 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRouteOperandSummary(
     "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRouteOperandPlan(
-    "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1");
+    "rvv-route-operand-binding:cmseg2_update_unit_load.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRouteOperandSummary(
-    "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+    "rvv-route-operand-binding:cmseg2_update_unit_load.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
     "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|"
-    "add-lhs|tuple0|f0-role|src0-mem;"
+    "add-lhs|tuple0|f0-role|src0-mem|hdr;"
     "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|"
-    "add-rhs|tuple1|f1-role|src1-mem;"
+    "add-rhs|tuple1|f1-role|src1-mem|hdr;"
     "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadTargetLeafProfile(

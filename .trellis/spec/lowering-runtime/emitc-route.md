@@ -100,6 +100,11 @@ for runtime ABI parameters exported through the generated header/prototype.
   example, a computed-mask plus strided-input contraction route must bind
   compare operands, dot source operands, accumulator/result operands, runtime
   count, and stride operands in the same provider summary.
+- The summary is mirrored as target artifact metadata and must fit the target
+  export bounded single-line metadata contract. When a route family needs many
+  structural use tokens, shorten only the provider plan label (for example, an
+  abbreviated family label) rather than dropping logical operands, provider
+  `abi` markers, exported `hdr` markers, or required use tokens.
 
 ### 4. Validation & Error Matrix
 
@@ -111,6 +116,9 @@ for runtime ABI parameters exported through the generated header/prototype.
   provider route description -> fail before target artifact acceptance.
 - Candidate artifact metadata carries a stale binding summary that does not
   exactly match provider facts -> fail before target artifact acceptance.
+- Binding summary exceeds the target artifact bounded metadata limit -> fail
+  during export; repair by shortening the provider plan label while keeping
+  every provider-derived operand fact intact.
 
 ### 5. Good/Base/Bad Cases
 
@@ -129,6 +137,9 @@ for runtime ABI parameters exported through the generated header/prototype.
 - Bad: a combined route omits header/prototype markers on compare, dot source,
   or stride runtime ABI entries while still emitting those parameters in the C
   prototype.
+- Bad: a route deletes field-role, arithmetic, tuple, memory, `abi`, or `hdr`
+  use tokens just to fit artifact metadata length; the structural contract was
+  weakened even if the string became shorter.
 
 ### 6. Tests Required
 
@@ -136,6 +147,9 @@ for runtime ABI parameters exported through the generated header/prototype.
   the route family.
 - C++ target artifact tests must mutate route descriptions or candidate
   mirrors and prove stale/missing operand-binding summaries fail closed.
+- When a provider plan label is abbreviated to satisfy bounded metadata, tests
+  must check the abbreviated plan id and the full operand summary, proving the
+  abbreviation did not remove logical operands or `abi`/`hdr` participation.
 - Runtime evidence must not be used to define the binding contract; it only
   proves executable behavior after the provider and target validators accept
   the route.

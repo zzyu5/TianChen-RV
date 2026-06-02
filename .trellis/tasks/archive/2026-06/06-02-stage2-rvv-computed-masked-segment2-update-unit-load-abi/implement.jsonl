@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 boundaries, and descriptor/source-front-door red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned selected-body realization/provider, computed-mask memory, segment2 planning owner, segment2 statement-plan, and target export contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider operand-binding summary, hdr marker, common EmitC neutrality, and target artifact handoff contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, mask/tail, multi-pattern harness, and ssh rvv evidence contracts"}
+{"file": ".trellis/tasks/06-02-stage2-rvv-computed-masked-segment2-update-unit-load-abi/prd.md", "reason": "Current task goal, non-goals, acceptance criteria, and bounded owner files"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-segment2-load-unit-store-artifact-abi/prd.md", "reason": "Closest computed-mask segment2 load ABI/header/target validation and runtime evidence pattern"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-segment2-store-unit-load-artifact-abi/prd.md", "reason": "Immediately previous store-unit-load ABI/header/target validation and harness pattern for cmp_lhs,cmp_rhs,src0,src1,dst,n"}

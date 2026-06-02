@@ -25302,7 +25302,7 @@ int runRouteOperandBindingPlanValidationTest() {
         }
         if (expectedPlanID ==
             "rvv-route-operand-binding:"
-            "computed_masked_segment2_update_unit_load.v1") {
+            "cmseg2_update_unit_load.v1") {
           std::string updateLhsContext =
               (llvm::Twine(label) + " owner-derived segment2 update lhs")
                   .str();
@@ -25522,7 +25522,7 @@ int runRouteOperandBindingPlanValidationTest() {
     return result;
   if (int result = expectSegment2OwnerPlanID(
           RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad,
-          "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+          "rvv-route-operand-binding:cmseg2_update_unit_load.v1",
           "segment2 owner supplies computed-mask segment2 update operand-binding "
           "plan identity"))
     return result;
@@ -25551,7 +25551,7 @@ int runRouteOperandBindingPlanValidationTest() {
           "segment2 owner maps computed-mask compare RHS to RHS ABI role"))
     return result;
   if (int result = expectSegment2OwnerRole(
-          "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+          "rvv-route-operand-binding:cmseg2_update_unit_load.v1",
           "src1", RuntimeABIParameterRole::SegmentField1InputBuffer,
           "segment2 owner maps computed-mask update field1 to segment-field1 "
           "ABI role"))
@@ -26523,7 +26523,7 @@ int runRouteOperandBindingPlanValidationTest() {
   if (int result = expectSegment2OwnerDerivedPlan(
           computedMaskSegment2Analysis,
           "rvv-route-operand-binding:"
-          "computed_masked_segment2_update_unit_load.v1",
+          "cmseg2_update_unit_load.v1",
           "cmp_lhs,cmp_rhs,src0,src1,dst,n",
           "computed-mask segment2 owner-derived update binding"))
     return result;

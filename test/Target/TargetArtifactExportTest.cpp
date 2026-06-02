@@ -8933,8 +8933,29 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 registry rejects wrong update route operand "
           "binding summary",
           {"route operand binding summary",
-           "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+           "rvv-route-operand-binding:cmseg2_update_unit_load.v1",
            "metadata-derived-binding"}))
+    return false;
+
+  RVVRouteDescription staleSegment2HeaderBinding =
+      computedMaskSegment2UpdateDescription;
+  staleSegment2HeaderBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:cmseg2_update_unit_load.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+      "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+      "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|"
+      "add-lhs|tuple0|f0-role|src0-mem;"
+      "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|"
+      "add-rhs|tuple1|f1-role|src1-mem;"
+      "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          staleSegment2HeaderBinding,
+          "computed-mask segment2 registry rejects stale update ABI/header "
+          "binding markers",
+          {"route operand binding summary",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
   RVVRouteDescription wrongSegment2Passthrough =
@@ -9242,8 +9263,27 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 registry rejects stale update binding "
           "mirror",
           {"route_operand_binding_operands",
-           "rvv-route-operand-binding:computed_masked_segment2_update_unit_load.v1",
+           "rvv-route-operand-binding:cmseg2_update_unit_load.v1",
            "metadata-derived-binding"}))
+    return false;
+
+  TargetArtifactCandidate staleSegment2HeaderBindingMirror =
+      computedMaskSegment2UpdateFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleSegment2HeaderBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          staleSegment2HeaderBinding.routeOperandBindingSummary)) {
+    llvm::errs() << "computed-mask segment2 test fixture did not contain "
+                    "route operand binding metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2CandidateFailure(
+          staleSegment2HeaderBindingMirror,
+          "computed-mask segment2 registry rejects stale update ABI/header "
+          "binding mirror",
+          {"route_operand_binding_operands",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr",
+           "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
   TargetArtifactCandidate wrongSegment2SourceMirror =

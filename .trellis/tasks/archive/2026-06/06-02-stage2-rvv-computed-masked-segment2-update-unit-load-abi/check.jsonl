@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final work against RVV-first authority chain and Stage 2 route-supported typed body rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body owner, computed-mask memory, segment2 planning owner, statement-plan, and target export fail-closed contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider operand-binding summary and common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/script and ssh rvv evidence quality"}
+{"file": ".trellis/tasks/06-02-stage2-rvv-computed-masked-segment2-update-unit-load-abi/prd.md", "reason": "Check all task acceptance criteria and non-goals"}
