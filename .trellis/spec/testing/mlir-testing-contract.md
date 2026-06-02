@@ -287,6 +287,11 @@ The per-op evidence JSON should expose a bounded summary key such as:
   runtime scalar values, route-operand binding for `rhs_scalar` as
   `abi|splat|cmp-rhs`, and the generated harness call that passes the scalar
   ABI argument into the same generated artifact.
+- Runtime-scalar computed-mask MAcc runtime and dry-run harnesses must exercise
+  at least two runtime scalar values and at least two lhs/rhs/accumulator data
+  patterns. The scalar loop proves the scalar/splat compare boundary; the data
+  pattern loop proves vector-vector MAcc payload and accumulator behavior are
+  not inferred from one fixed harness convention.
 - Target artifact tests must check provider-owned predicate, mask role/source,
   accumulator/result layout, runtime AVL/VL, typed config, ABI roles, and
   provider-supported mirror fields before relying on generated artifacts.

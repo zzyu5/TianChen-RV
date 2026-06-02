@@ -1,7 +1,8 @@
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-macc-add --overwrite --op-kind runtime_scalar_cmp_masked_macc_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-macc-add --overwrite --op-kind runtime_scalar_cmp_masked_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add/runtime_scalar_cmp_masked_macc_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-macc-add/runtime_scalar_cmp_masked_macc_add/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_macc_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
@@ -33,3 +34,10 @@
 # MACC-DAG: "key": "tcrv_rvv.inactive_lane_contract"
 # MACC-DAG: "value": "masked-macc-false-lanes-preserve-accumulator"
 # MACC-DAG: "status": "dry_run_success"
+
+# HARNESS-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS-DAG: const int patterns[] = {0, 1};
+# HARNESS-DAG: tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc(cmp_lhs, rhs_scalar, lhs, rhs, acc, out, n);
+# HARNESS-DAG: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index])) : acc[index]);
+# HARNESS-DAG: runtime_scalar_cmp_masked_macc_add_ok counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1
+# HARNESS-DAG: PASS op=runtime_scalar_cmp_masked_macc_add counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1

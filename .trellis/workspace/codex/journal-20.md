@@ -1457,3 +1457,34 @@ and real `ssh rvv` evidence for runtime correctness claims.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 382: Stage2 RVV runtime-scalar MAcc ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar MAcc ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed runtime_scalar_cmp_masked_macc_add artifact ABI evidence: added rhs_scalar binding-summary regression, added scalar/data-pattern generated-bundle harness coverage, updated focused dry-runs, captured ssh rvv explicit/pre-realized correctness, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

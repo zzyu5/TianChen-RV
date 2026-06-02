@@ -16198,7 +16198,39 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n, int32_t rhs_scalar) {{
+static int32_t init_cmp_lhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  return (int32_t)(((index % 6) < 3)
+                       ? (int32_t)(-80 + (int32_t)(index % 11))
+                       : (int32_t)(120 + (int32_t)(index % 17)));
+}}
+
+static int32_t init_lhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.true_value_initializer};
+  return (int32_t)(((index % 3) == 0)
+                       ? -((int32_t)(index % 13) + 4)
+                       : ((int32_t)(index % 13) + 5));
+}}
+
+static int32_t init_rhs(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.false_value_initializer};
+  return (int32_t)(((index % 4) < 2)
+                       ? ((int32_t)(index % 17) + 6)
+                       : -((int32_t)(index % 17) + 7));
+}}
+
+static int32_t init_acc(size_t index, int pattern) {{
+  if (pattern == 0)
+    return {expectation.source_initializer};
+  return (int32_t)(((index % 2) == 0)
+                       ? (31 - (int32_t)(index % 17))
+                       : -(29 + (int32_t)(index % 17)));
+}}
+
+static int run_case(size_t n, int32_t rhs_scalar, int pattern) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n + 8;
   if (alloc_n == 8 && n == 0)
@@ -16209,7 +16241,8 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
   if (!cmp_lhs || !lhs || !rhs || !acc || !out) {{
-    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d\\n", n, rhs_scalar);
+    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d pattern=%d\\n",
+            n, rhs_scalar, pattern);
     free(cmp_lhs);
     free(lhs);
     free(rhs);
@@ -16219,10 +16252,10 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   }}
 
   for (size_t index = 0; index < alloc_n; ++index) {{
-    cmp_lhs[index] = {expectation.lhs_initializer};
-    lhs[index] = {expectation.true_value_initializer};
-    rhs[index] = {expectation.false_value_initializer};
-    acc[index] = {expectation.source_initializer};
+    cmp_lhs[index] = init_cmp_lhs(index, pattern);
+    lhs[index] = init_lhs(index, pattern);
+    rhs[index] = init_rhs(index, pattern);
+    acc[index] = init_acc(index, pattern);
     out[index] = {expectation.out_initializer};
   }}
 
@@ -16254,9 +16287,10 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
       ++signed_product_lanes;
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu rhs_scalar=%d index=%zu got=%d expected=%d cmp_lhs=%d lhs=%d rhs=%d acc=%d predicate=%d product=%d\\n",
-              n, rhs_scalar, index, out[index], expected, cmp_lhs[index],
-              lhs[index], rhs[index], acc[index], predicate, product);
+              "{expectation.kind} mismatch n=%zu rhs_scalar=%d pattern=%d index=%zu got=%d expected=%d cmp_lhs=%d lhs=%d rhs=%d acc=%d predicate=%d product=%d\\n",
+              n, rhs_scalar, pattern, index, out[index], expected,
+              cmp_lhs[index], lhs[index], rhs[index], acc[index], predicate,
+              product);
       free(cmp_lhs);
       free(lhs);
       free(rhs);
@@ -16269,8 +16303,9 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   for (size_t index = n; index < alloc_n; ++index) {{
     if (out[index] != {expectation.out_initializer}) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu rhs_scalar=%d raw_index=%zu got=%d sentinel=%d\\n",
-              n, rhs_scalar, index, out[index], {expectation.out_initializer});
+              "{expectation.kind} touched tail sentinel n=%zu rhs_scalar=%d pattern=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, rhs_scalar, pattern, index, out[index],
+              {expectation.out_initializer});
       free(cmp_lhs);
       free(lhs);
       free(rhs);
@@ -16286,8 +16321,8 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
                 mul_only_distinguishing == 0 ||
                 signed_product_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} coverage missing n=%zu rhs_scalar=%d active=%zu inactive=%zu inactive_preserved=%zu add_dist=%zu mul_dist=%zu signed_products=%zu\\n",
-            n, rhs_scalar, active_lanes, inactive_lanes,
+            "{expectation.kind} coverage missing n=%zu rhs_scalar=%d pattern=%d active=%zu inactive=%zu inactive_preserved=%zu add_dist=%zu mul_dist=%zu signed_products=%zu\\n",
+            n, rhs_scalar, pattern, active_lanes, inactive_lanes,
             inactive_acc_preserved, add_only_distinguishing,
             mul_only_distinguishing, signed_product_lanes);
     free(cmp_lhs);
@@ -16303,8 +16338,8 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu rhs_scalar=%d ok runtime_scalar_computed_mask_macc active_lanes=%zu inactive_lanes=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu tail_preserved\\n",
-         n, rhs_scalar, active_lanes, inactive_lanes,
+  printf("{expectation.kind} case n=%zu rhs_scalar=%d pattern=%d ok runtime_scalar_computed_mask_macc active_lanes=%zu inactive_lanes=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu tail_preserved\\n",
+         n, rhs_scalar, pattern, active_lanes, inactive_lanes,
          inactive_acc_preserved, add_only_distinguishing,
          mul_only_distinguishing);
   return 0;
@@ -16313,17 +16348,23 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const int patterns[] = {{0, 1}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
   const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
   for (size_t index = 0; index < count_count; ++index) {{
     for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
-      int status = run_case(counts[index], rhs_scalar_values[scalar_index]);
-      if (status != 0)
-        return status;
+      for (size_t pattern_index = 0; pattern_index < pattern_count; ++pattern_index) {{
+        int status =
+            run_case(counts[index], rhs_scalar_values[scalar_index],
+                     patterns[pattern_index]);
+        if (status != 0)
+          return status;
+      }}
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()

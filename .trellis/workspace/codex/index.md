@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-20.md`
-- **Total Sessions**: 381
+- **Total Sessions**: 382
 - **Last Active**: 2026-06-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-20.md` | ~1336 | Active |
+| `journal-20.md` | ~1490 | Active |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
 | `journal-17.md` | ~1948 | Archived |
@@ -48,6 +48,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 382 | 2026-06-02 | Stage2 RVV runtime-scalar MAcc ABI boundary | - | `main` |
 | 381 | 2026-06-02 | Stage2 RVV scalar-broadcast macc-add artifact ABI boundary | created-after-journal-entry | `main` |
 | 380 | 2026-06-02 | Stage2 RVV computed-masked segment2 store artifact ABI | HEAD | `main` |
 | 377 | 2026-06-02 | Stage2 RVV segment2 deinterleave artifact ABI | `HEAD` | `main` |

@@ -6830,6 +6830,28 @@ bool expectRVVTargetArtifactExporterShape(
            "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call;"}))
     return false;
 
+  RVVRouteDescription staleRuntimeScalarMAccBindingSummary =
+      runtimeScalarComputedMAccDescription;
+  staleRuntimeScalarMAccBindingSummary.routeOperandBindingSummary =
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1;"
+      "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+      "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs;"
+      "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+      "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+      "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+      "out=output-buffer:out:abi|store|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectMAccProviderFailure(
+          runtimeScalarComputedMAccFixture.candidate,
+          runtimeScalarComputedMAccRoute,
+          staleRuntimeScalarMAccBindingSummary,
+          "MAcc registry rejects stale runtime-scalar binding summary",
+          {"runtime-scalar computed-mask MAcc target artifact consumer "
+           "requires provider route operand binding summary",
+           "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr",
+           "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs;"}))
+    return false;
+
   RVVRouteDescription staleRuntimeScalarMAccMaskProducer =
       runtimeScalarComputedMAccDescription;
   staleRuntimeScalarMAccMaskProducer.accumulationMaskProducerSource =
