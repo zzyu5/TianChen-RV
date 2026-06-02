@@ -9958,7 +9958,8 @@ bool expectRVVTargetArtifactExporterShape(
           wrongStoreSegmentStore,
           "computed-mask segment2 store validator rejects wrong segment-store "
           "callee",
-          {"masked segment2 store", "__metadata_vsseg2"}))
+          {"segment store callee", "__riscv_vsseg2e32_v_i32m1x2_m",
+           "__metadata_vsseg2"}))
     return false;
 
   if (!expectComputedMaskSegment2StoreRouteFailure(
@@ -10313,6 +10314,19 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-only-segment2-update"}))
     return false;
 
+  RVVRouteDescription wrongSegment2TargetLeaf =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2TargetLeaf.targetLeafProfile =
+      "metadata-derived-segment2-update-leaf";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2TargetLeaf,
+          "computed-mask segment2 registry rejects wrong update target leaf "
+          "profile",
+          {"target leaf profile",
+           "rvv-v1-e32m1-computed-mask-segment2-update-add-leaf-profile.v1",
+           "metadata-derived-segment2-update-leaf"}))
+    return false;
+
   RVVRouteDescription wrongSegment2Headers =
       computedMaskSegment2UpdateDescription;
   wrongSegment2Headers.requiredHeaderDeclarations = "stddef.h,stdint.h";
@@ -10345,6 +10359,39 @@ bool expectRVVTargetArtifactExporterShape(
            "full_chunk_vl"}))
     return false;
 
+  RVVRouteDescription wrongSegment2ComputedMaskPlan =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2ComputedMaskPlan.computedMaskMemoryRouteFamilyPlanID =
+      "metadata-derived-computed-mask-plan";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2ComputedMaskPlan,
+          "computed-mask segment2 registry rejects wrong update computed-mask "
+          "route-family plan",
+          {"computed-mask route-family plan",
+           "rvv-computed-mask-memory-route-family-plan.v1",
+           "metadata-derived-computed-mask-plan"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2MaskRole =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2MaskRole.maskRole = "metadata-derived-mask-role";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2MaskRole,
+          "computed-mask segment2 registry rejects wrong update mask role",
+          {"mask role", "predicate-mask-produced-by-compare",
+           "metadata-derived-mask-role"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2MaskForm =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2MaskForm.maskMemoryForm = "metadata-derived-mask-form";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2MaskForm,
+          "computed-mask segment2 registry rejects wrong update mask form",
+          {"mask memory form", "compare-produced-mask",
+           "metadata-derived-mask-form"}))
+    return false;
+
   RVVRouteDescription wrongSegment2RuntimeRole =
       computedMaskSegment2UpdateDescription;
   wrongSegment2RuntimeRole.runtimeABIParameters[2].role =
@@ -10354,6 +10401,15 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 registry rejects wrong runtime ABI role",
           {"runtime ABI parameter[2]", "segment-field0-input-buffer",
            "source-input-buffer"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2SegmentCount =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2SegmentCount.segmentCount = 3;
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2SegmentCount,
+          "computed-mask segment2 registry rejects wrong update segment count",
+          {"segment-count facts"}))
     return false;
 
   RVVRouteDescription wrongSegment2Layout =
@@ -10366,6 +10422,51 @@ bool expectRVVTargetArtifactExporterShape(
           {"segment memory layout",
            "unit-stride-compare-field-payloads-arithmetic-segment2-masked-destination-runtime-abi",
            "metadata-derived-segment2-layout"}))
+    return false;
+
+  RVVRouteDescription staleSegment2LoadFact =
+      computedMaskSegment2UpdateDescription;
+  staleSegment2LoadFact.segmentLoadIntrinsic = "__metadata_vlseg2";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          staleSegment2LoadFact,
+          "computed-mask segment2 registry rejects stale update segment-load "
+          "fact",
+          {"segment load callee", "__metadata_vlseg2"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2SegmentStore =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2SegmentStore.segmentStoreIntrinsic = "__metadata_vsseg2";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2SegmentStore,
+          "computed-mask segment2 registry rejects wrong update masked "
+          "segment-store callee",
+          {"segment store callee", "__riscv_vsseg2e32_v_i32m1x2_m",
+           "__metadata_vsseg2"}))
+    return false;
+
+  RVVRouteDescription staleSegment2FieldExtractFact =
+      computedMaskSegment2UpdateDescription;
+  staleSegment2FieldExtractFact.segmentFieldExtractIntrinsic =
+      "__riscv_vget_v_i32m1x2_i32m1";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          staleSegment2FieldExtractFact,
+          "computed-mask segment2 registry rejects stale update field-extract "
+          "callee fact",
+          {"segment tuple create callee", "__riscv_vcreate_v_i32m1x2",
+           "__riscv_vget_v_i32m1x2_i32m1"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2UpdateArithmeticCallee =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2UpdateArithmeticCallee.segment2UpdateArithmeticIntrinsic =
+      "__metadata_vsub";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2UpdateArithmeticCallee,
+          "computed-mask segment2 registry rejects stale update arithmetic "
+          "callee",
+          {"segment2 update arithmetic callee", "__riscv_vadd_vv_i32m1",
+           "__metadata_vsub"}))
     return false;
 
   if (!expectComputedMaskSegment2RouteFailure(

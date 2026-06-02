@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority boundaries and RVV-first Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV segment2 update provider, realization, statement-plan, and target export contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route operand binding, provider summaries, header/type mirrors, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused FileCheck/C++/generated-bundle/ssh rvv evidence coverage."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that extension-specific logic stays in RVV plugin/target validation boundaries."}

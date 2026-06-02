@@ -58,3 +58,36 @@ Tightened computed-mask segment2 store target artifact provider/candidate valida
 ### Next Steps
 
 - None - task complete
+
+
+## Session 387: Stage2 RVV computed-masked segment2 update artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked segment2 update artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Tightened computed-mask segment2 update target provider fact validation, dry-run evidence checks, ssh rvv generated-bundle correctness, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -9720,6 +9720,16 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateField0Name(
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateField1Name(
     "masked_segment2_update_field1_vec");
 constexpr llvm::StringLiteral kRVVSegment2UpdateArithmeticKind("add");
+constexpr llvm::StringLiteral kRVVSegment2UpdateArithmeticIntrinsic(
+    "__riscv_vadd_vv_i32m1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadIntrinsic(
+    "__riscv_vlseg2e32_v_i32m1x2_tumu");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2MaskedStoreIntrinsic(
+    "__riscv_vsseg2e32_v_i32m1x2_m");
+constexpr llvm::StringLiteral kRVVSegment2TupleCreateIntrinsic(
+    "__riscv_vcreate_v_i32m1x2");
+constexpr llvm::StringLiteral kRVVSegment2FieldExtractIntrinsic(
+    "__riscv_vget_v_i32m1x2_i32m1");
 
 plugin::rvv::RVVSelectedBodyMemoryForm
 getRVVSegment2MemoryExpectedMemoryForm(
@@ -9990,6 +10000,47 @@ llvm::StringRef getRVVComputedMaskSegment2ExpectedUpdateArithmeticKind(
   if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
                        ComputedMaskSegment2UpdateUnitLoad)
     return kRVVSegment2UpdateArithmeticKind;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedUpdateArithmeticIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2UpdateUnitLoad)
+    return kRVVSegment2UpdateArithmeticIntrinsic;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedSegmentLoadIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVComputedMaskSegment2LoadIntrinsic;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedSegmentStoreIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2StoreUnitLoad ||
+      operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2UpdateUnitLoad)
+    return kRVVComputedMaskSegment2MaskedStoreIntrinsic;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedTupleCreateIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation))
+    return kRVVSegment2TupleCreateIntrinsic;
+  return {};
+}
+
+llvm::StringRef getRVVComputedMaskSegment2ExpectedFieldExtractIntrinsic(
+    plugin::rvv::RVVSelectedBodyOperationKind operation) {
+  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    return kRVVSegment2FieldExtractIntrinsic;
   return {};
 }
 
@@ -10271,16 +10322,34 @@ llvm::Error validateRVVComputedMaskSegment2MemoryProviderFacts(
           "segment tuple C type", description.segmentTupleCType,
           kRVVSegment2TupleCType))
     return error;
-  if ((operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                        ComputedMaskSegment2StoreUnitLoad ||
-       operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                        ComputedMaskSegment2UpdateUnitLoad) &&
-      !description.segmentLoadIntrinsic.empty())
-    return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer rejects stale "
-                    "provider-derived segment load callee fact '") +
-        description.segmentLoadIntrinsic +
-        "' for computed-mask segment2 store/update before artifact export");
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment load callee", description.segmentLoadIntrinsic,
+          getRVVComputedMaskSegment2ExpectedSegmentLoadIntrinsic(operation)))
+    return error;
+  if (operation != plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore)
+    if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+            "segment store callee", description.segmentStoreIntrinsic,
+            getRVVComputedMaskSegment2ExpectedSegmentStoreIntrinsic(operation)))
+      return error;
+  llvm::StringRef tupleCreateIntrinsic =
+      operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore
+          ? description.segmentStoreIntrinsic
+          : description.segmentFieldExtractIntrinsic;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment tuple create callee", tupleCreateIntrinsic,
+          getRVVComputedMaskSegment2ExpectedTupleCreateIntrinsic(operation)))
+    return error;
+  llvm::StringRef fieldExtractIntrinsic =
+      operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                       ComputedMaskSegment2LoadUnitStore
+          ? description.segmentFieldExtractIntrinsic
+          : llvm::StringRef();
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment field extract callee", fieldExtractIntrinsic,
+          getRVVComputedMaskSegment2ExpectedFieldExtractIntrinsic(operation)))
+    return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "field0 role", description.field0Role,
           getRVVComputedMaskSegment2ExpectedField0Role(operation)))
@@ -10322,18 +10391,12 @@ llvm::Error validateRVVComputedMaskSegment2MemoryProviderFacts(
           description.segment2UpdateArithmeticKind,
           getRVVComputedMaskSegment2ExpectedUpdateArithmeticKind(operation)))
     return error;
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       ComputedMaskSegment2UpdateUnitLoad) {
-    if (description.segment2UpdateArithmeticIntrinsic.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask segment2 update target artifact consumer requires "
-          "provider-derived update arithmetic callee before artifact export");
-  } else if (!description.segment2UpdateArithmeticIntrinsic.empty()) {
-    return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer rejects stale "
-                    "provider-derived segment2 update arithmetic callee fact '") +
-        description.segment2UpdateArithmeticIntrinsic + "'");
-  }
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment2 update arithmetic callee",
+          description.segment2UpdateArithmeticIntrinsic,
+          getRVVComputedMaskSegment2ExpectedUpdateArithmeticIntrinsic(
+              operation)))
+    return error;
 
   return llvm::Error::success();
 }
