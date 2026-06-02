@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "verify global RVV-first authority and Stage 2 scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify provider-owned MAcc facts and plugin-locality requirements"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify target validation consumes provider facts and common EmitC stays neutral"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused C++/lit/script evidence and no legacy positive route authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "verify no common/core RVV semantic branch drift"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "verify no high-level compute or descriptor-driven MAcc route authority"}

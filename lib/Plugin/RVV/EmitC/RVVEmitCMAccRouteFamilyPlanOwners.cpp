@@ -170,6 +170,32 @@ void addMAccRouteOperandBinding(
   plan.bindings.push_back(std::move(binding));
 }
 
+RVVRouteOperandBindingPlan buildUnitStrideMAccRouteOperandBindingPlanFromFacts(
+    const RVVUnitStrideMAccRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  if (facts.runtimeABIParameters.size() != 5)
+    return plan;
+
+  addMAccRouteOperandBinding(plan, "lhs", facts.runtimeABIParameters[0],
+                             {"abi", "lhs-load", "macc-lhs", "hdr"});
+  if (facts.usesScalarBroadcastRHS)
+    addMAccRouteOperandBinding(plan, "rhs_scalar",
+                               facts.runtimeABIParameters[1],
+                               {"abi", "splat", "macc-rhs", "hdr"});
+  else
+    addMAccRouteOperandBinding(plan, "rhs", facts.runtimeABIParameters[1],
+                               {"abi", "rhs-load", "macc-rhs", "hdr"});
+  addMAccRouteOperandBinding(plan, "acc", facts.runtimeABIParameters[2],
+                             {"abi", "acc-load", "macc-acc", "macc-pass",
+                              "hdr"});
+  addMAccRouteOperandBinding(plan, "out", facts.runtimeABIParameters[3],
+                             {"abi", "store", "hdr"});
+  addMAccRouteOperandBinding(plan, "n", facts.runtimeABIParameters[4],
+                             {"abi", "setvl-avl", "loop", "hdr"});
+  return plan;
+}
+
 void applyMAccRuntimeAVLVLControlPlanToDescription(
     const RVVRuntimeAVLVLControlPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
@@ -1031,6 +1057,93 @@ getExpectedRVVSelectedBodyMAccRuntimeABIOrder(
   default:
     return std::nullopt;
   }
+}
+
+std::optional<RVVUnitStrideMAccRouteFacts>
+getRVVUnitStrideMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
+  const bool isPlain = operation == RVVSelectedBodyOperationKind::MAccAdd;
+  const bool isScalarBroadcast =
+      operation == RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd;
+  if (!isPlain && !isScalarBroadcast)
+    return std::nullopt;
+
+  RVVUnitStrideMAccRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = isPlain ? RVVSelectedBodyMemoryForm::VectorRHSLoad
+                             : RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc;
+  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder =
+      isPlain ? kRVVMAccRuntimeABIOrder
+              : kRVVScalarBroadcastMAccRuntimeABIOrder;
+  facts.targetLeafProfile =
+      isPlain ? kRVVPlainMAccTargetLeafProfile
+              : kRVVScalarBroadcastMAccTargetLeafProfile;
+  facts.providerSupportedMirror =
+      isPlain ? kRVVPlainMAccProviderSupportedMirror
+              : kRVVScalarBroadcastMAccProviderSupportedMirror;
+  facts.requiredHeaderDeclarations =
+      isPlain ? kRVVPlainMAccRequiredHeaderDeclarations
+              : kRVVScalarBroadcastMAccRequiredHeaderDeclarations;
+  facts.cTypeMappingSummary =
+      isPlain ? kRVVPlainMAccCTypeMappingSummary
+              : kRVVScalarBroadcastMAccCTypeMappingSummary;
+  facts.routeOperandBindingPlanID =
+      isPlain ? kRVVMAccOperandBindingPlanID
+              : kRVVScalarBroadcastMAccOperandBindingPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.macc";
+  facts.routeFamilyPlanID =
+      isPlain ? kRVVPlainMAccRouteFamilyPlanID
+              : kRVVScalarBroadcastMAccRouteFamilyPlanID;
+  facts.arithmeticKind = "add";
+  facts.lhsRole = "lhs-input-buffer";
+  facts.rhsRole = isPlain ? llvm::StringRef("rhs-input-buffer")
+                          : llvm::StringRef("rhs-scalar-value");
+  facts.accumulatorRole = "accumulator-input-buffer";
+  facts.outputRole = "output-buffer";
+  facts.runtimeCountRole = "runtime-element-count";
+  facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.rhsMemoryForm =
+      isPlain ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+              : llvm::StringRef("rhs-scalar-broadcast");
+  facts.accumulatorMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.destinationMemoryForm = kRVVDestinationMemoryForm;
+  facts.usesVectorRHSLoad = isPlain;
+  facts.usesScalarBroadcastRHS = isScalarBroadcast;
+  facts.maccAccumulatorLayout = kRVVMAccAccumulatorLayout;
+  facts.maccResultLayout = kRVVMAccResultLayout;
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "lhs", "const int32_t *", support::RuntimeABIParameterRole::LHSInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  if (isPlain)
+    facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+        "rhs", "const int32_t *",
+        support::RuntimeABIParameterRole::RHSInputBuffer,
+        support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  else
+    facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+        "rhs_scalar", "int32_t",
+        support::RuntimeABIParameterRole::RHSScalarValue,
+        support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+
+  RVVRouteOperandBindingPlan plan =
+      buildUnitStrideMAccRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(plan);
+  return facts;
 }
 
 std::optional<RVVComputedMaskMAccRouteFacts>

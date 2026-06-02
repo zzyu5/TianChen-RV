@@ -469,7 +469,7 @@ Added provider-owned widening conversion facts, rewired target validation to con
 
 ### Git Commits
 
-(No commits - planning session)
+- included-in-this-commit
 
 ### Testing
 
@@ -806,6 +806,37 @@ for `dst[index[i]] = src[i]`.
 ### Summary
 
 Completed provider-owned computed-mask segment2 memory fact surface, rewired target artifact validation to consume rebuilt provider facts for load/store/update, preserved generated-bundle support, archived the Trellis task, and verified focused C++/lit checks plus git diff/authority scan.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 403: Stage2 RVV unit-stride MAcc production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV unit-stride MAcc production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Added provider-owned unit-stride MAcc route facts, rewired target validation to consume them, added focused fail-closed coverage, fixed adjacent computed-mask MAcc dry-run metadata assertion, archived the completed Trellis task.
 
 ### Main Changes
 

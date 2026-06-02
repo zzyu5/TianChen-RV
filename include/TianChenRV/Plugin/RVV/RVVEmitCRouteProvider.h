@@ -540,6 +540,44 @@ getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
     RVVSelectedBodyOperationKind operation, std::int64_t sew,
     llvm::StringRef lmul);
 
+struct RVVUnitStrideMAccRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef arithmeticKind;
+  llvm::StringRef lhsRole;
+  llvm::StringRef rhsRole;
+  llvm::StringRef accumulatorRole;
+  llvm::StringRef outputRole;
+  llvm::StringRef runtimeCountRole;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef rhsMemoryForm;
+  llvm::StringRef accumulatorMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  bool usesVectorRHSLoad = false;
+  bool usesScalarBroadcastRHS = false;
+  llvm::StringRef maccAccumulatorLayout;
+  llvm::StringRef maccResultLayout;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+      runtimeABIParameters;
+};
+
+std::optional<RVVUnitStrideMAccRouteFacts>
+getRVVUnitStrideMAccRouteFacts(RVVSelectedBodyOperationKind operation);
+
 struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

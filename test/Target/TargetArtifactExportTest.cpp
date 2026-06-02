@@ -3377,6 +3377,104 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectRuntimeScalarMAccCanonicalFacts(
           "runtime-scalar computed-mask MAcc canonical route facts"))
     return false;
+  auto expectUnitStrideMAccCanonicalFacts =
+      [](RVVOperationKind operation, llvm::StringRef context,
+         llvm::StringRef expectedRuntimeABIOrder,
+         llvm::StringRef expectedRouteFamilyPlanID,
+         llvm::StringRef expectedTargetLeafProfile,
+         llvm::StringRef expectedProviderMirror,
+         llvm::StringRef expectedCTypeMapping,
+         llvm::StringRef requiredRHSBindingToken,
+         bool expectedScalarBroadcast) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVUnitStrideMAccRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVUnitStrideMAccRouteFacts(operation);
+    if (!routeFacts) {
+      llvm::errs() << context << ": missing unit-stride MAcc canonical route "
+                   << "facts\n";
+      return false;
+    }
+    const bool expectedVectorRHS = !expectedScalarBroadcast;
+    if (routeFacts->operation != operation ||
+        routeFacts->runtimeABIOrder != expectedRuntimeABIOrder ||
+        routeFacts->routeFamilyPlanID != expectedRouteFamilyPlanID ||
+        routeFacts->targetLeafProfile != expectedTargetLeafProfile ||
+        routeFacts->providerSupportedMirror != expectedProviderMirror ||
+        routeFacts->requiredHeaderDeclarations !=
+            "stddef.h,stdint.h,riscv_vector.h" ||
+        routeFacts->cTypeMappingSummary != expectedCTypeMapping ||
+        routeFacts->typedComputeOpName != "tcrv_rvv.macc" ||
+        routeFacts->arithmeticKind != "add" ||
+        routeFacts->lhsRole != "lhs-input-buffer" ||
+        routeFacts->accumulatorRole != "accumulator-input-buffer" ||
+        routeFacts->outputRole != "output-buffer" ||
+        routeFacts->runtimeCountRole != "runtime-element-count" ||
+        routeFacts->sourceMemoryForm != "unit-stride-load" ||
+        routeFacts->accumulatorMemoryForm != "unit-stride-load" ||
+        routeFacts->destinationMemoryForm != "unit-stride-store" ||
+        routeFacts->usesVectorRHSLoad != expectedVectorRHS ||
+        routeFacts->usesScalarBroadcastRHS != expectedScalarBroadcast ||
+        routeFacts->runtimeABIParameters.size() != 5 ||
+        routeFacts->runtimeABIParameters[0].cName != "lhs" ||
+        routeFacts->runtimeABIParameters[2].cName != "acc" ||
+        routeFacts->runtimeABIParameters[3].cName != "out" ||
+        routeFacts->runtimeABIParameters[4].cName != "n" ||
+        routeFacts->maccAccumulatorLayout !=
+            "separate-i32-vector-accumulator-input" ||
+        routeFacts->maccResultLayout !=
+            "store-multiply-accumulate-result-to-output-buffer" ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(requiredRHSBindingToken) ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(
+                 "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr")) {
+      llvm::errs() << context
+                   << ": malformed unit-stride MAcc canonical route facts\n";
+      return false;
+    }
+    if (expectedScalarBroadcast) {
+      if (routeFacts->memoryForm !=
+              tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                  RHSScalarBroadcastMAcc ||
+          routeFacts->rhsRole != "rhs-scalar-value" ||
+          routeFacts->rhsMemoryForm != "rhs-scalar-broadcast" ||
+          routeFacts->runtimeABIParameters[1].cName != "rhs_scalar" ||
+          routeFacts->runtimeABIParameters[1].role !=
+              tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue)
+        return false;
+    } else if (routeFacts->memoryForm !=
+                   tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                       VectorRHSLoad ||
+               routeFacts->rhsRole != "rhs-input-buffer" ||
+               routeFacts->rhsMemoryForm != "unit-stride-load" ||
+               routeFacts->runtimeABIParameters[1].cName != "rhs" ||
+               routeFacts->runtimeABIParameters[1].role !=
+                   tianchenrv::support::RuntimeABIParameterRole::
+                       RHSInputBuffer) {
+      return false;
+    }
+    return true;
+  };
+  if (!expectUnitStrideMAccCanonicalFacts(
+          RVVOperationKind::MAccAdd, "plain MAcc canonical route facts",
+          "lhs,rhs,acc,out,n", "rvv-plain-macc-route-family-plan.v1",
+          "rvv-v1-typed-plain-macc-add-leaf-profile.v1",
+          "provider_supported_mirror:rvv-plain-macc-add-plan-validated",
+          "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector",
+          "rhs=rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr",
+          /*expectedScalarBroadcast=*/false))
+    return false;
+  if (!expectUnitStrideMAccCanonicalFacts(
+          RVVOperationKind::ScalarBroadcastMAccAdd,
+          "scalar-broadcast MAcc canonical route facts",
+          "lhs,rhs_scalar,acc,out,n",
+          "rvv-scalar-broadcast-macc-route-family-plan.v1",
+          "rvv-v1-typed-scalar-broadcast-macc-add-leaf-profile.v1",
+          "provider_supported_mirror:rvv-scalar-broadcast-macc-add-composition-plan-validated",
+          "vl:size_t,lhs/acc:typed-vector,rhs_scalar:typed-scalar,result:typed-vector",
+          "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr",
+          /*expectedScalarBroadcast=*/true))
+    return false;
   auto expectRouteFamilyValidationPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture) -> bool {
@@ -7635,6 +7733,63 @@ bool expectRVVTargetArtifactExporterShape(
                           scalarBroadcastMAccRoute,
                           scalarBroadcastMAccDescription))
     return false;
+  auto expectUnitStrideMAccDescriptionMirrorsFacts =
+      [](const RVVRouteDescription &description,
+         llvm::StringRef context) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVUnitStrideMAccRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVUnitStrideMAccRouteFacts(
+                description.operation);
+    if (!routeFacts) {
+      llvm::errs() << context
+                   << ": missing provider-owned unit-stride MAcc facts\n";
+      return false;
+    }
+    const llvm::StringRef routeFamilyPlan =
+        description.operation == RVVOperationKind::MAccAdd
+            ? description.plainMAccRouteFamilyPlanID
+            : description.scalarBroadcastMAccRouteFamilyPlanID;
+    if (description.operation != routeFacts->operation ||
+        description.memoryForm != routeFacts->memoryForm ||
+        description.sew != routeFacts->sew ||
+        description.lmul != routeFacts->lmul ||
+        description.tailPolicy != routeFacts->tailPolicy ||
+        description.maskPolicy != routeFacts->maskPolicy ||
+        description.runtimeControlPlanID !=
+            routeFacts->runtimeControlPlanID ||
+        description.runtimeABIOrder != routeFacts->runtimeABIOrder ||
+        description.routeOperandBindingPlanID !=
+            routeFacts->routeOperandBindingPlanID ||
+        description.routeOperandBindingSummary !=
+            routeFacts->routeOperandBindingSummary ||
+        routeFamilyPlan != routeFacts->routeFamilyPlanID ||
+        description.typedComputeOpName != routeFacts->typedComputeOpName ||
+        description.targetLeafProfile != routeFacts->targetLeafProfile ||
+        description.providerSupportedMirror !=
+            routeFacts->providerSupportedMirror ||
+        description.requiredHeaderDeclarations !=
+            routeFacts->requiredHeaderDeclarations ||
+        description.cTypeMappingSummary != routeFacts->cTypeMappingSummary ||
+        description.maccAccumulatorLayout !=
+            routeFacts->maccAccumulatorLayout ||
+        description.maccResultLayout != routeFacts->maccResultLayout ||
+        !tianchenrv::support::runtimeABIParametersEqual(
+            description.runtimeABIParameters,
+            routeFacts->runtimeABIParameters)) {
+      llvm::errs() << context
+                   << ": route description did not mirror provider-owned "
+                      "unit-stride MAcc facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectUnitStrideMAccDescriptionMirrorsFacts(
+          maccDescription, "plain macc_add provider facts mirror"))
+    return false;
+  if (!expectUnitStrideMAccDescriptionMirrorsFacts(
+          scalarBroadcastMAccDescription,
+          "scalar_broadcast_macc_add provider facts mirror"))
+    return false;
 
   RVVTargetArtifactCandidateFixture computedMaskedMAccFixture(
       OperationKind::ComputedMaskedMAccAdd);
@@ -7798,6 +7953,20 @@ bool expectRVVTargetArtifactExporterShape(
         mutationContext, fragments);
   };
 
+  const std::optional<tianchenrv::plugin::rvv::RVVUnitStrideMAccRouteFacts>
+      plainMAccFacts =
+          tianchenrv::plugin::rvv::getRVVUnitStrideMAccRouteFacts(
+              OperationKind::MAccAdd);
+  const std::optional<tianchenrv::plugin::rvv::RVVUnitStrideMAccRouteFacts>
+      scalarBroadcastMAccFacts =
+          tianchenrv::plugin::rvv::getRVVUnitStrideMAccRouteFacts(
+              OperationKind::ScalarBroadcastMAccAdd);
+  if (!plainMAccFacts || !scalarBroadcastMAccFacts) {
+    llvm::errs() << "MAcc negative coverage requires provider-owned plain and "
+                    "scalar-broadcast route facts\n";
+    return false;
+  }
+
   RVVRouteDescription staleMAccProviderMirror = maccDescription;
   staleMAccProviderMirror.providerSupportedMirror =
       "provider_supported_mirror:metadata-only-macc";
@@ -7807,6 +7976,79 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider-supported mirror",
            "provider_supported_mirror:rvv-plain-macc-add-plan-validated",
            "metadata-only-macc"}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccScalarBinding = maccDescription;
+  stalePlainMAccScalarBinding.routeOperandBindingSummary =
+      scalarBroadcastMAccFacts->routeOperandBindingSummary;
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccScalarBinding,
+          "MAcc registry rejects stale scalar-broadcast binding summary on "
+          "plain MAcc",
+          {"unit-stride MAcc target artifact consumer requires provider route "
+           "operand binding summary",
+           plainMAccFacts->routeOperandBindingSummary,
+           scalarBroadcastMAccFacts->routeOperandBindingSummary}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccScalarRouteFamily = maccDescription;
+  stalePlainMAccScalarRouteFamily.scalarBroadcastMAccRouteFamilyPlanID =
+      scalarBroadcastMAccFacts->routeFamilyPlanID;
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccScalarRouteFamily,
+          "MAcc registry rejects stale scalar-broadcast route facts on plain "
+          "MAcc",
+          {"stale scalar-broadcast MAcc route facts"}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccTargetProfile = maccDescription;
+  stalePlainMAccTargetProfile.targetLeafProfile =
+      scalarBroadcastMAccFacts->targetLeafProfile;
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccTargetProfile,
+          "MAcc registry rejects stale scalar-broadcast target profile on "
+          "plain MAcc",
+          {"target leaf profile", plainMAccFacts->targetLeafProfile,
+           scalarBroadcastMAccFacts->targetLeafProfile}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccHeaderFacts = maccDescription;
+  stalePlainMAccHeaderFacts.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccHeaderFacts,
+          "MAcc registry rejects stale plain MAcc header facts",
+          {"required header declarations",
+           plainMAccFacts->requiredHeaderDeclarations, "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccTypeFacts = maccDescription;
+  stalePlainMAccTypeFacts.cTypeMappingSummary =
+      scalarBroadcastMAccFacts->cTypeMappingSummary;
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccTypeFacts,
+          "MAcc registry rejects stale scalar-broadcast type facts on plain "
+          "MAcc",
+          {"C type mapping summary", plainMAccFacts->cTypeMappingSummary,
+           scalarBroadcastMAccFacts->cTypeMappingSummary}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccAccumulatorRole = maccDescription;
+  stalePlainMAccAccumulatorRole.runtimeABIParameters[2].role =
+      tianchenrv::support::RuntimeABIParameterRole::OutputBuffer;
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccAccumulatorRole,
+          "MAcc registry rejects stale plain MAcc accumulator ABI role",
+          {"runtime ABI parameter roles", "C bindings"}))
+    return false;
+
+  RVVRouteDescription stalePlainMAccComputedMaskResidue = maccDescription;
+  stalePlainMAccComputedMaskResidue.accumulationRouteFamilyPlanID =
+      "rvv-computed-mask-accumulation-route-family-plan.v1";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, stalePlainMAccComputedMaskResidue,
+          "MAcc registry rejects stale computed-mask residue on plain MAcc",
+          {"stale computed-mask", "route-family facts"}))
     return false;
 
   RVVRouteDescription staleScalarBroadcastMAccBinding =
@@ -7838,6 +8080,30 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider route operand binding summary",
            "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr",
            "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs;"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastPlainRouteFamily =
+      scalarBroadcastMAccDescription;
+  staleScalarBroadcastPlainRouteFamily.plainMAccRouteFamilyPlanID =
+      plainMAccFacts->routeFamilyPlanID;
+  if (!expectMAccProviderFailure(
+          scalarBroadcastMAccFixture.candidate, scalarBroadcastMAccRoute,
+          staleScalarBroadcastPlainRouteFamily,
+          "MAcc registry rejects stale plain route facts on scalar-broadcast "
+          "MAcc",
+          {"stale plain MAcc route facts"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastVectorRHSFacts =
+      scalarBroadcastMAccDescription;
+  staleScalarBroadcastVectorRHSFacts.memoryForm =
+      tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (!expectMAccProviderFailure(
+          scalarBroadcastMAccFixture.candidate, scalarBroadcastMAccRoute,
+          staleScalarBroadcastVectorRHSFacts,
+          "MAcc registry rejects stale vector-RHS memory form on "
+          "scalar-broadcast MAcc",
+          {"memory form", "vector-RHS", "scalar-broadcast"}))
     return false;
 
   RVVRouteDescription staleComputedMaskedMAccAccumulation =
