@@ -60,6 +60,69 @@ Added focused RVV plugin C++ evidence that pre-realized widening conversion bodi
 - None - task complete
 
 
+## Session 383: Stage2 RVV runtime-scalar reduce-min ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar masked standalone reduce-min op-kind artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `runtime_scalar_cmp_masked_standalone_reduce_min`
+owner through Trellis task creation, PRD/context setup, focused dry-run and
+fail-closed script tests, pre-realized min fixture checks, target artifact
+validator coverage confirmation, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Created the Trellis task and PRD for the reduce-min owner, with explicit
+  min-only scope and non-goals for max, LMUL m2 ownership, i64, frontend
+  lowering, source-front-door routes, and common EmitC RVV semantic inference.
+- Added a focused pre-realized generated-bundle dry-run test for
+  `runtime_scalar_cmp_masked_standalone_reduce_min`, checking provider-derived
+  min route facts, `rhs_scalar` splat compare RHS, neutral inactive-lane
+  handling, scalar seed/result ABI, `vredmin`, pattern coverage, and harness
+  behavior.
+- Added a direct pre-realized route-entry fail-closed test for the reduce-min
+  owner.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Direct `tcrv-opt` / `tcrv-translate` / `FileCheck-20` checks for the pre-realized reduce-min fixture: `REALIZED`, `PLAN`, `HEADER`
+- [OK] Generated-bundle dry-run for pre-realized `runtime_scalar_cmp_masked_standalone_reduce_min`
+- [OK] Manual `FileCheck-20` equivalents for new dry-run test prefixes: `STDOUT`, `ROOT`, `MIN`, `HARNESS`
+- [OK] Direct pre-realized route-entry fail-closed check for `runtime_scalar_cmp_masked_standalone_reduce_min`
+- [OK] Real `ssh rvv` correctness for counts `0`, `1`, `16`, `23`, `257`, rhs scalars `-37,91`, seeds `-11,17`, and patterns `0,1`
+- [OK] Bounded old-authority scan over touched files; exact intrinsic hits are provider-derived generated-output assertions, not route authority
+- [OK] `rtk git diff --check`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-06-02-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-min-artifact-abi`
+
+### Spec Update
+
+No `.trellis/spec` update was needed. Existing RVV plugin, EmitC route, and
+testing specs already cover plugin-owned selected-body realization,
+provider-derived operand binding summaries, neutral inactive-lane handling,
+target artifact fail-closed validation, and real `ssh rvv` evidence for
+runtime correctness claims.
+
+### Status
+
+[OK] Completed; archive and commit follow this journal entry.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 383: Stage2 RVV runtime-scalar masked standalone reduce-add artifact ABI boundary
 
 **Date**: 2026-06-02

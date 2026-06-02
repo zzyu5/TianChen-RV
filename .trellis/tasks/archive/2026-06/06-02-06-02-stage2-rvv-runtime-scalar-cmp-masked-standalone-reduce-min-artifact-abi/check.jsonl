@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve global RVV-first authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected-body realization, runtime-scalar mask producer, provider facts, and min standalone reduction scalar channel compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify exact provider binding summaries and hdr participation for exported runtime ABI parameters."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/FileCheck, generated bundle, and ssh rvv evidence meet the changed behavior."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-artifact-abi/prd.md", "reason": "Verify min task follows the previous add boundary shape without inheriting add semantics as authority."}

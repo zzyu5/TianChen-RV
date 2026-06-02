@@ -1,0 +1,95 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_min --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min/evidence.json
+# RUN: FileCheck %s --check-prefix=MIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min/runtime_scalar_cmp_masked_standalone_reduce_min/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-min/runtime_scalar_cmp_masked_standalone_reduce_min/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_min_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_min"
+# ROOT-DAG: "rhs_scalar_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# MIN-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_min"
+# MIN-DAG: "input_mode": "pre-realized-selected-body"
+# MIN-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-min.mlir"
+# MIN-DAG: "prototype": "void tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
+# MIN-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min"
+# MIN-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1"
+# MIN-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce_min"
+# MIN-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# MIN-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# MIN-DAG: "route_entry_realization": false
+# MIN-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# MIN-DAG: --tcrv-materialize-selected-lowering-boundaries
+# MIN-DAG: "pre_realized_body_consumed": true
+# MIN-DAG: "key": "rvv_emitc_lowerable_route"
+# MIN-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-emitc-route"
+# MIN-DAG: "key": "rvv_selected_body_operation"
+# MIN-DAG: "value": "runtime_scalar_cmp_masked_standalone_reduce_min"
+# MIN-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MIN-DAG: "value": "tcrv_rvv.masked_standalone_reduce"
+# MIN-DAG: "typed_compute_op": "tcrv_rvv.masked_standalone_reduce"
+# MIN-DAG: "memory_form": "runtime-scalar-computed-mask-unit-stride-standalone-reduction"
+# MIN-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# MIN-DAG: "value": "cmp_lhs,rhs_scalar,src,acc,out,n"
+# MIN-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# MIN-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1"
+# MIN-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# MIN-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# MIN-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# MIN-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
+# MIN-DAG: "key": "tcrv_rvv.accumulation_mask_producer_source"
+# MIN-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# MIN-DAG: "key": "tcrv_rvv.inactive_lane_zeroing_requirement"
+# MIN-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MIN-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary"
+# MIN-DAG: "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
+# MIN-DAG: "mask_tail_policy_boundary": {
+# MIN-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar mask/reduction body/config/runtime facts"
+# MIN-DAG: "compare_producer": "tcrv_rvv.compare"
+# MIN-DAG: "runtime_scalar_operand": "rhs_scalar"
+# MIN-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# MIN-DAG: "inactive_lane_contract": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MIN-DAG: "all_inactive_mask_behavior": "all compare-false lanes are replaced with the operation neutral element before reduction, so out[0] remains the seed"
+# MIN-DAG: "active_lane_contract": "runtime scalar compare-true source lanes contribute to the scalar min reduction"
+# MIN-DAG: "reduction_kind": "min"
+# MIN-DAG: "mask_false_lane_source": "operation-specific neutral"
+# MIN-DAG: "compare_operand_order": "cmp_lhs,rhs_scalar_splat,vl"
+# MIN-DAG: "__riscv_vmsle_vv_i32m1_b32"
+# MIN-DAG: "__riscv_vmv_v_x_i32m1"
+# MIN-DAG: "__riscv_vmerge_vvm_i32m1"
+# MIN-DAG: "__riscv_vredmin_vs_i32m1_i32m1"
+# MIN-DAG: "__riscv_vse32_v_i32m1"
+# MIN-DAG: "source_pattern_contract": "two compare/source input patterns, two runtime scalar threshold values, and two scalar seeds prove active-lane source contribution, source preservation, seed preservation, and multi-VL runtime n behavior"
+# MIN-DAG: "artifact_abi": {
+# MIN-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,src,acc,out,n"
+# MIN-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
+# MIN-DAG: "compare_source_patterns_required_minimum": 2
+# MIN-DAG: "seed_values_required_minimum": 2
+# MIN-DAG: "status": "dry_run_success"
+
+# HARNESS-DAG: make_cmp_lhs_value(size_t index, int pattern)
+# HARNESS-DAG: make_src_value(size_t index, int pattern)
+# HARNESS-DAG: runtime_scalar_computed_mask_standalone_reduce
+# HARNESS-DAG: inactive_nonzero
+# HARNESS-DAG: source_preserved
+# HARNESS-DAG: tail_preserved
+# HARNESS-DAG: int32_t expected = seed;
+# HARNESS-DAG: if (src[index] < expected)
+# HARNESS-DAG: expected = src[index];
+# HARNESS-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESS-DAG: runtime_scalar_cmp_masked_standalone_reduce_min all-inactive mismatch
+# HARNESS-DAG: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESS-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS-DAG: const int32_t seeds[] = {(int32_t)-11, (int32_t)17};
+# HARNESS-DAG: const int patterns[] = {0, 1};
+# HARNESS-DAG: patterns[pattern_index]
+# HARNESS-DAG: seeds=-11,17 patterns=0,1

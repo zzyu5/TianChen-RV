@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV Stage 1/2 authority chain for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, runtime scalar computed-mask standalone reduction, and provider-owned fact boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider operand binding summary contract, hdr participation, and common EmitC neutrality rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, generated-bundle, mask/tail, runtime-scalar, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-artifact-abi/prd.md", "reason": "Immediately previous runtime-scalar reduce-add boundary and evidence pattern to adapt only for min op-kind."}
