@@ -25660,31 +25660,26 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base",
-              "macc-lhs-call"});
+             {"abi", "lhs-load", "macc-lhs", "hdr"});
   addBinding(scalarBroadcastMAccPlan, "rhs_scalar",
              makeTargetExportABIParameter(
                  "rhs_scalar", "int32_t",
                  RuntimeABIParameterRole::RHSScalarValue),
-             {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
-              "macc-rhs-call"});
+             {"abi", "splat", "macc-rhs", "hdr"});
   addBinding(scalarBroadcastMAccPlan, "acc",
              makeTargetExportABIParameter(
                  "acc", "const int32_t *",
                  RuntimeABIParameterRole::AccumulatorInputBuffer),
-             {"runtime-abi-mirror", "materialized-accumulator-load-base",
-              "macc-accumulator-call"});
+             {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
   addBinding(scalarBroadcastMAccPlan, "out",
              makeTargetExportABIParameter("out", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"runtime-abi-mirror", "materialized-store-base",
-              "header-mirror"});
+             {"abi", "store", "hdr"});
   addBinding(scalarBroadcastMAccPlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"runtime-abi-mirror", "setvl-avl", "loop-control",
-              "header-mirror"});
+             {"abi", "setvl-avl", "loop", "hdr"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               scalarBroadcastMAccPlan,
@@ -27276,6 +27271,55 @@ int runRouteOperandBindingPlanValidationTest() {
                      maccFacts->outABI->cName == "out",
                  "MAcc math binding facts expose lhs, rhs, accumulator, and "
                  "output operands"))
+    return result;
+
+  auto scalarBroadcastMAccAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
+      "lhs,rhs_scalar,acc,out,n", scalarBroadcastMAccPlan);
+  auto scalarBroadcastMAccFacts = getMathFacts(scalarBroadcastMAccAnalysis);
+  if (!scalarBroadcastMAccFacts)
+    return fail("scalar-broadcast MAcc math binding facts: " +
+                llvm::toString(scalarBroadcastMAccFacts.takeError()));
+  if (int result = expect(scalarBroadcastMAccFacts->bindsPlainMAcc &&
+                              scalarBroadcastMAccFacts->lhsABI->cName ==
+                                  "lhs" &&
+                              scalarBroadcastMAccFacts->rhsABI->cName ==
+                                  "rhs_scalar" &&
+                              scalarBroadcastMAccFacts->accumulatorABI->cName ==
+                                  "acc" &&
+                              scalarBroadcastMAccFacts->outABI->cName == "out",
+                          "scalar-broadcast MAcc math binding facts expose "
+                          "lhs, rhs scalar splat, accumulator, output, and "
+                          "runtime count operands"))
+    return result;
+
+  RVVRouteOperandBindingPlan staleScalarBroadcastMAccHdr =
+      scalarBroadcastMAccPlan;
+  bool removedScalarBroadcastRhsHeader = false;
+  for (RVVRouteOperandBinding &binding :
+       staleScalarBroadcastMAccHdr.bindings) {
+    if (binding.logicalOperand != "rhs_scalar")
+      continue;
+    for (auto it = binding.materializedUses.begin();
+         it != binding.materializedUses.end(); ++it) {
+      if (*it != "hdr")
+        continue;
+      binding.materializedUses.erase(it);
+      removedScalarBroadcastRhsHeader = true;
+      break;
+    }
+  }
+  if (int result = expect(removedScalarBroadcastRhsHeader,
+                          "test setup removes scalar-broadcast MAcc RHS "
+                          "scalar header use"))
+    return result;
+  auto staleScalarBroadcastMAccAnalysis = makeMathAnalysis(
+      RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
+      "lhs,rhs_scalar,acc,out,n", staleScalarBroadcastMAccHdr);
+  if (int result = expectErrorContains(
+          getMathFacts(staleScalarBroadcastMAccAnalysis).takeError(),
+          {"rhs_scalar", "hdr",
+           "scalar_broadcast_macc_add RHS scalar header mirror"}))
     return result;
 
   RVVRouteOperandBindingPlan computedMAccPlan;

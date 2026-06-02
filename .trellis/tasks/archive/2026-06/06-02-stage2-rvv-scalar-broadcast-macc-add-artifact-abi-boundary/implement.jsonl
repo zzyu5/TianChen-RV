@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 boundaries, and descriptor/source-front-door red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned selected-body realization/provider, scalar-broadcast macc ownership, ABI/runtime binding, and fail-closed contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider operand-binding summary, hdr marker, common EmitC neutrality, and target artifact handoff contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, multi-pattern harness, tail sentinel, and ssh rvv evidence contracts"}
+{"file": ".trellis/tasks/06-02-stage2-rvv-scalar-broadcast-macc-add-artifact-abi-boundary/prd.md", "reason": "Current task goal, non-goals, acceptance criteria, and bounded owner files"}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-segment2-update-unit-load-abi/prd.md", "reason": "Closest completed ABI/header/target validation and ssh rvv evidence pattern"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMAccRouteFamilyPlanOwners.cpp", "reason": "Updated scalar_broadcast_macc_add route operand-binding owner to emit compact abi/hdr-bearing lhs/rhs_scalar/acc/out/n facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Updated math operand-binding consumer to require scalar-broadcast MAcc splat, macc, accumulator passthrough, store, runtime loop, and hdr facts"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Added target artifact provider-facts rejection for stale scalar-broadcast MAcc route operand-binding summary"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Updated generated-bundle expected scalar-broadcast MAcc operand-binding summary"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added scalar-broadcast MAcc math operand-binding facts positive coverage and missing hdr regression"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added provider-facts regression for stale scalar-broadcast MAcc binding summary"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-scalar-broadcast-macc-add.mlir", "reason": "Updated explicit selected-body artifact checks to the provider compact abi/hdr summary"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-macc-add.mlir", "reason": "Updated pre-realized artifact checks and stale binding negative case"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-scalar-broadcast-macc-add-dry-run.test", "reason": "Updated dry-run expected summary and runtime count coverage"}

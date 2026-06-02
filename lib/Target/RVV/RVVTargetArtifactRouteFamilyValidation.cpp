@@ -4024,6 +4024,13 @@ constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_macc_add.v1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastMAccOperandBindingSummary(
+    "rvv-route-operand-binding:scalar_broadcast_macc_add.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr");
 constexpr llvm::StringLiteral kRVVComputedMaskedMAccOperandBindingPlanID(
     "rvv-route-operand-binding:computed_masked_macc_add.v1");
 constexpr llvm::StringLiteral
@@ -4485,6 +4492,14 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
                     "operand binding plan '") +
         expectedOperandBindingPlanID + "' but was '" +
         description.routeOperandBindingPlanID + "'");
+  if (isRVVScalarBroadcastMAccRouteFamilyOperation(description.operation) &&
+      description.routeOperandBindingSummary !=
+          kRVVScalarBroadcastMAccOperandBindingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("scalar-broadcast MAcc target artifact consumer requires "
+                    "provider route operand binding summary '") +
+        kRVVScalarBroadcastMAccOperandBindingSummary + "' but was '" +
+        description.routeOperandBindingSummary + "'");
   if (description.targetLeafProfile != expectedTargetLeafProfile)
     return makeRVVTargetRouteError(
         llvm::Twine("MAcc target artifact consumer requires target leaf profile "

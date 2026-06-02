@@ -2321,23 +2321,18 @@ deriveRVVSelectedBodyMAccRouteOperandBindingPlan(
     expectedRuntimeABIOrder = kRVVScalarBroadcastMAccRuntimeABIOrder;
     context = "scalar_broadcast_macc_add route";
     addMAccRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"runtime-abi-mirror", "materialized-load-base", "macc-lhs-call"});
+        plan, "lhs", slice.lhsABI, {"abi", "lhs-load", "macc-lhs", "hdr"});
     addMAccRouteOperandBinding(
         plan, "rhs_scalar", slice.rhsABI,
-        {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
-         "macc-rhs-call"});
+        {"abi", "splat", "macc-rhs", "hdr"});
     addMAccRouteOperandBinding(
         plan, "acc", slice.accumulatorABI,
-        {"runtime-abi-mirror", "materialized-accumulator-load-base",
-         "macc-accumulator-call"});
+        {"abi", "acc-load", "macc-acc", "macc-pass", "hdr"});
     addMAccRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
+        plan, "out", slice.outABI, {"abi", "store", "hdr"});
     addMAccRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
-        {"runtime-abi-mirror", "setvl-avl", "loop-control",
-         "header-mirror"});
+        {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.arithmeticKind ==
              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
     plan.planID = kRVVComputedMaskedMAccOperandBindingPlanID.str();

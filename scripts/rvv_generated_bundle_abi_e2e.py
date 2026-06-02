@@ -397,11 +397,11 @@ SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_PLAN = (
 )
 SCALAR_BROADCAST_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:scalar_broadcast_macc_add.v1;"
-    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;"
-    "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|macc-rhs-call;"
-    "acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;"
-    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
-    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
 COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_macc_add.v1"

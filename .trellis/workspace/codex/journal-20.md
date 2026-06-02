@@ -1301,3 +1301,36 @@ target validation, generated-bundle two-pattern harness evidence, and real
 ### Next Steps
 
 - None - task complete
+
+
+## Session 381: Stage2 RVV scalar-broadcast macc-add artifact ABI boundary
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV scalar-broadcast macc-add artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Archived scalar_broadcast_macc_add Stage2 ABI boundary: compact abi/hdr operand-binding facts, math/target fail-closed validation, generated-bundle dry-run, and explicit/pre-realized ssh rvv correctness for counts 0,1,16,17,257 with rhs scalars -37,91.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

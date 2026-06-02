@@ -6778,6 +6778,24 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-only-scalar-macc"}))
     return false;
 
+  RVVRouteDescription staleScalarBroadcastMAccBindingSummary =
+      scalarBroadcastMAccDescription;
+  staleScalarBroadcastMAccBindingSummary.routeOperandBindingSummary =
+      "rvv-route-operand-binding:scalar_broadcast_macc_add.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+      "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs;"
+      "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+      "out=output-buffer:out:abi|store|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop|hdr";
+  if (!expectMAccProviderFailure(
+          scalarBroadcastMAccFixture.candidate, scalarBroadcastMAccRoute,
+          staleScalarBroadcastMAccBindingSummary,
+          "MAcc registry rejects stale scalar-broadcast binding summary",
+          {"provider route operand binding summary",
+           "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr",
+           "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs;"}))
+    return false;
+
   RVVRouteDescription staleComputedMaskedMAccAccumulation =
       computedMaskedMAccDescription;
   staleComputedMaskedMAccAccumulation.accumulationRouteFamilyPlanID =

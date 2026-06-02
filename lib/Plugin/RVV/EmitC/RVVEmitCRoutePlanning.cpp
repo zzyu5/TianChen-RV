@@ -24341,40 +24341,55 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
   case RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
     facts.bindsPlainMAcc = true;
     if (llvm::Error error =
-            bindOperand(facts.lhsABI, "lhs", "materialized-load-base",
+            bindOperand(facts.lhsABI, "lhs", "lhs-load",
                         "scalar_broadcast_macc_add lhs load operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "lhs", "macc-lhs-call",
+            "lhs", "macc-lhs",
             "scalar_broadcast_macc_add lhs compute operand"))
       return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              "scalar_broadcast_macc_add lhs header mirror"))
+      return std::move(error);
     if (llvm::Error error = bindOperand(
-            facts.rhsABI, "rhs_scalar", "scalar-broadcast-rhs-call",
+            facts.rhsABI, "rhs_scalar", "splat",
             "scalar_broadcast_macc_add RHS scalar splat operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "rhs_scalar", "macc-rhs-call",
+            "rhs_scalar", "macc-rhs",
             "scalar_broadcast_macc_add RHS splat compute operand"))
       return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "rhs_scalar", "hdr",
+            "scalar_broadcast_macc_add RHS scalar header mirror"))
+      return std::move(error);
     if (llvm::Error error = bindOperand(
-            facts.accumulatorABI, "acc",
-            "materialized-accumulator-load-base",
+            facts.accumulatorABI, "acc", "acc-load",
             "scalar_broadcast_macc_add accumulator load operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "acc", "macc-accumulator-call",
+            "acc", "macc-acc",
             "scalar_broadcast_macc_add accumulator compute operand"))
       return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "acc", "macc-pass",
+            "scalar_broadcast_macc_add inactive-lane passthrough operand"))
+      return std::move(error);
+    if (llvm::Error error = requireOperandUse(
+            "acc", "hdr",
+            "scalar_broadcast_macc_add accumulator header mirror"))
+      return std::move(error);
     if (llvm::Error error =
-            bindOperand(facts.outABI, "out", "materialized-store-base",
+            bindOperand(facts.outABI, "out", "store",
                         "scalar_broadcast_macc_add output store operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
-            "out", "header-mirror",
+            "out", "hdr",
             "scalar_broadcast_macc_add output header mirror"))
       return std::move(error);
-    if (llvm::Error error = bindRuntimeCount(
-            "loop-control", "header-mirror", "scalar_broadcast_macc_add"))
+    if (llvm::Error error =
+            bindRuntimeCount("loop", "hdr", "scalar_broadcast_macc_add"))
       return std::move(error);
     return facts;
 
