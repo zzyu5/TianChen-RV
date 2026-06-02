@@ -1802,3 +1802,49 @@ Completed runtime_scalar_cmp_masked_macc_add artifact ABI evidence: added rhs_sc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 383: Stage2 RVV runtime-scalar standalone reduction route-fact canonicalization
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV runtime-scalar standalone reduction route-fact canonicalization
+**Branch**: `main`
+
+### Summary
+
+Canonicalized RVV plugin-owned route facts for existing runtime-scalar computed-mask standalone reduction add/min/max and rewired provider/target validation to consume one fact surface.
+
+### Main Changes
+
+- Added `RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts` plus the canonical helper for existing runtime-scalar computed-mask standalone reduction add/min/max.
+- Rewired RVV provider planning/validation to derive runtime ABI order, route operand binding plan/summary, inactive-lane policy, provider mirror, target leaf profile, required headers, and C type mapping from the canonical helper.
+- Rewired RVV target artifact validation to consume the same helper and fail closed on stale binding, provider mirror, header/type mapping, runtime ABI, and inactive-lane facts.
+- Added direct C++ artifact-export assertions for add/min/max canonical facts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual `tcrv-opt` / `tcrv-translate` / `FileCheck-20` REALIZED, PLAN, and HEADER checks for runtime-scalar computed-mask standalone reduce add/min/max fixtures
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body ... --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --op-kind runtime_scalar_cmp_masked_standalone_reduce_min --op-kind runtime_scalar_cmp_masked_standalone_reduce_max ...`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk git diff --check`
+- [OK] Bounded changed-line old-authority scan found no new legacy i32m1, descriptor, source-front-door, direct-C/source-export, or exact-intrinsic route-authority markers
+
+### SSH RVV Evidence
+
+No new `ssh rvv` run was needed because generated runtime artifact behavior did not change. This round canonicalized provider/target route-fact ownership and validation; generated-bundle dry-run evidence still records the same provider-derived ABI, route binding, provider mirror, header, and inactive-lane facts. Prior add/min `ssh rvv` correctness evidence remains the runtime basis for this fact-plumbing round.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

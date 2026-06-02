@@ -11,6 +11,7 @@
 #include "llvm/Support/Error.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace tianchenrv::conversion::emitc {
@@ -280,6 +281,24 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
       runtimeABIParameters;
 };
+
+struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef inactiveLaneUse;
+  llvm::StringRef inactiveLaneRequirement;
+  std::string routeOperandBindingSummary;
+};
+
+std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+    RVVSelectedBodyOperationKind operation);
 
 llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds();
 

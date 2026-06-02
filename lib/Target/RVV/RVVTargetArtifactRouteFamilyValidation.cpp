@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace tianchenrv::target::rvv {
@@ -4907,49 +4908,6 @@ std::string getRVVComputedMaskStandaloneReductionExpectedBindingSummary(
       .str();
 }
 
-llvm::StringRef
-getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingPlanID(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceAdd:
-    return "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMin:
-    return "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMax:
-    return "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1";
-  default:
-    return {};
-  }
-}
-
-std::string
-getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingSummary(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  llvm::StringRef planID =
-      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingPlanID(
-          operation);
-  if (planID.empty())
-    return {};
-  const llvm::StringRef inactiveUse =
-      operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       RuntimeScalarComputedMaskStandaloneReduceAdd
-          ? llvm::StringRef("zero-inactive")
-          : llvm::StringRef("neutral-inactive");
-  return (llvm::Twine(planID) +
-          ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
-          "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;"
-          "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
-          inactiveUse +
-          "|hdr;"
-          "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
-          "out=output-buffer:out:abi|acc-state|store-base|hdr;"
-          "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
-      .str();
-}
-
 llvm::Error validateRVVPlainStandaloneReductionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (description.runtimeABIOrder != kRVVStandaloneReductionRuntimeABIOrder)
@@ -5039,14 +4997,24 @@ llvm::Error validateRVVComputedMaskStandaloneReductionRuntimeABIFacts(
 llvm::Error
 validateRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.runtimeABIOrder !=
-      kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder)
+  std::optional<
+      plugin::rvv::RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+      routeFacts =
+          plugin::rvv::
+              getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+                  description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "runtime-scalar computed-mask standalone reduction target artifact "
+        "consumer requires add/min/max canonical route facts before artifact "
+        "export");
+  if (description.runtimeABIOrder != routeFacts->runtimeABIOrder)
     return makeRVVTargetRouteError(
         llvm::Twine(
             "runtime-scalar computed-mask standalone reduction target artifact "
             "consumer requires provider-derived runtime ABI order '") +
-        kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder +
-        "' but was '" + description.runtimeABIOrder + "'");
+        routeFacts->runtimeABIOrder + "' but was '" +
+        description.runtimeABIOrder + "'");
   if (description.runtimeABIParameters.size() != 6)
     return makeRVVTargetRouteError(
         "runtime-scalar computed-mask standalone reduction target artifact "
@@ -5422,6 +5390,17 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
   constexpr llvm::StringLiteral consumerLabel(
       "runtime-scalar computed-mask standalone reduction target artifact "
       "consumer");
+  std::optional<
+      plugin::rvv::RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+      routeFacts =
+          plugin::rvv::
+              getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+                  description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        "runtime-scalar computed-mask standalone reduction target artifact "
+        "consumer requires add/min/max canonical route facts before artifact "
+        "export");
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "element type", description.elementTypeName))
     return error;
@@ -5492,20 +5471,28 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
           consumerLabel, "C type mapping summary",
           description.cTypeMappingSummary))
     return error;
+  if (description.providerSupportedMirror !=
+          routeFacts->providerSupportedMirror ||
+      description.targetLeafProfile != routeFacts->targetLeafProfile ||
+      description.requiredHeaderDeclarations !=
+          routeFacts->requiredHeaderDeclarations ||
+      description.cTypeMappingSummary != routeFacts->cTypeMappingSummary)
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime-scalar computed-mask standalone reduction target "
+                    "artifact consumer requires canonical route facts for ") +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            description.operation) +
+        " before artifact export");
 
-  llvm::StringRef expectedBindingPlan =
-      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingPlanID(
-          description.operation);
-  std::string expectedBindingSummary =
-      getRVVRuntimeScalarComputedMaskStandaloneReductionExpectedBindingSummary(
-          description.operation);
-  if (description.routeOperandBindingPlanID != expectedBindingPlan ||
-      description.routeOperandBindingSummary != expectedBindingSummary)
+  if (description.routeOperandBindingPlanID !=
+          routeFacts->routeOperandBindingPlanID ||
+      description.routeOperandBindingSummary !=
+          routeFacts->routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine("runtime-scalar computed-mask standalone reduction target "
                     "artifact consumer requires provider-derived route operand "
                     "binding plan '") +
-        expectedBindingPlan +
+        routeFacts->routeOperandBindingPlanID +
         "' with cmp_lhs, rhs_scalar, src, acc seed, out scalar result, and n "
         "bindings but provider carried plan '" +
         description.routeOperandBindingPlanID + "'");
@@ -5569,6 +5556,14 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
           consumerLabel, "inactive-lane requirement",
           description.inactiveLaneZeroingRequirement))
     return error;
+  if (description.inactiveLaneZeroingRequirement !=
+      routeFacts->inactiveLaneRequirement)
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime-scalar computed-mask standalone reduction target "
+                    "artifact consumer requires canonical inactive-lane "
+                    "contract '") +
+        routeFacts->inactiveLaneRequirement + "' but provider carried '" +
+        description.inactiveLaneZeroingRequirement + "'");
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "compare predicate", description.comparePredicateKind))
     return error;

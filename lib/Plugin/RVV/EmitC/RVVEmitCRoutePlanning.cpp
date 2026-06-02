@@ -624,6 +624,72 @@ constexpr llvm::StringLiteral kRVVComputedMaskSelectOperandBindingPlanID(
 constexpr llvm::StringLiteral kRVVReduceAddOperandBindingPlanID(
     "rvv-route-operand-binding:reduce_add.v1");
 
+std::optional<llvm::StringRef>
+getRVVRuntimeScalarComputedMaskStandaloneReductionRouteOperandBindingPlanID(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return kRVVRuntimeScalarComputedMaskStandaloneReductionOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceMin:
+    return kRVVRuntimeScalarComputedMaskStandaloneReductionMinOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceMax:
+    return kRVVRuntimeScalarComputedMaskStandaloneReductionMaxOperandBindingPlanID;
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+    RVVSelectedBodyOperationKind operation) {
+  std::optional<llvm::StringRef> planID =
+      getRVVRuntimeScalarComputedMaskStandaloneReductionRouteOperandBindingPlanID(
+          operation);
+  if (!planID)
+    return std::nullopt;
+
+  const bool isAdd =
+      operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd;
+  const llvm::StringRef inactiveUse =
+      isAdd ? llvm::StringRef("zero-inactive")
+            : llvm::StringRef("neutral-inactive");
+  const llvm::StringRef inactiveRequirement =
+      isAdd
+          ? llvm::StringRef(
+                "masked-standalone-reduction-zero-inactive-lanes-before-reduction")
+          : llvm::StringRef(
+                "masked-standalone-reduction-neutral-inactive-lanes-before-reduction");
+
+  RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = RVVSelectedBodyMemoryForm::
+      RuntimeScalarComputedMaskUnitStrideStandaloneReduction;
+  facts.runtimeABIOrder = "cmp_lhs,rhs_scalar,src,acc,out,n";
+  facts.targetLeafProfile =
+      "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1";
+  facts.providerSupportedMirror =
+      "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated";
+  facts.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
+  facts.cTypeMappingSummary =
+      "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector";
+  facts.routeOperandBindingPlanID = *planID;
+  facts.inactiveLaneUse = inactiveUse;
+  facts.inactiveLaneRequirement = inactiveRequirement;
+  facts.routeOperandBindingSummary =
+      (llvm::Twine(*planID) +
+       ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+       "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;"
+       "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
+       inactiveUse +
+       "|hdr;"
+       "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
+       "out=output-buffer:out:abi|acc-state|store-base|hdr;"
+       "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+          .str();
+  return facts;
+}
+
 bool isRVVFourOperandPlanID(llvm::StringRef planID) {
   return planID == kRVVCmpSelectOperandBindingPlanID ||
          planID == kRVVReduceAddOperandBindingPlanID;
@@ -679,11 +745,13 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
     return kRVVComputedMaskStandaloneReductionMaxOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd:
-    return kRVVRuntimeScalarComputedMaskStandaloneReductionOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceMin:
-    return kRVVRuntimeScalarComputedMaskStandaloneReductionMinOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceMax:
-    return kRVVRuntimeScalarComputedMaskStandaloneReductionMaxOperandBindingPlanID;
+    if (std::optional<llvm::StringRef> planID =
+            getRVVRuntimeScalarComputedMaskStandaloneReductionRouteOperandBindingPlanID(
+                operation))
+      return *planID;
+    break;
   case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
     return kRVVComputedMaskUnitLoadStoreOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
@@ -7348,34 +7416,55 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   const bool isRuntimeScalarComputedMask =
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
           plan.operation);
+  std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+      runtimeScalarRouteFacts =
+          getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+              plan.operation);
+  if (isRuntimeScalarComputedMask && !runtimeScalarRouteFacts)
+    return makeRVVEmitCRouteProviderError(
+        "standalone reduction route-family plan requires runtime-scalar "
+        "computed-mask standalone reduction add/min/max canonical route facts");
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
       isRuntimeScalarComputedMask
-          ? RVVSelectedBodyMemoryForm::
-                RuntimeScalarComputedMaskUnitStrideStandaloneReduction
+          ? runtimeScalarRouteFacts->memoryForm
       : isComputedMask
           ? RVVSelectedBodyMemoryForm::
                 ComputedMaskUnitStrideStandaloneReduction
           : RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
+  const llvm::StringRef standaloneRuntimeABIOrder =
+      isComputedMask
+          ? llvm::StringRef(kRVVComputedMaskStandaloneReductionRuntimeABIOrder)
+          : llvm::StringRef(kRVVStandaloneReductionRuntimeABIOrder);
   llvm::StringRef expectedRuntimeABIOrder =
-      isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionRuntimeABIOrder
-                     : kRVVStandaloneReductionRuntimeABIOrder;
+      isRuntimeScalarComputedMask ? runtimeScalarRouteFacts->runtimeABIOrder
+                                  : standaloneRuntimeABIOrder;
+  const llvm::StringRef standaloneTargetLeafProfile =
+      isComputedMask
+          ? llvm::StringRef(kRVVComputedMaskStandaloneReductionTargetLeafProfile)
+          : llvm::StringRef(kRVVStandaloneReductionTargetLeafProfile);
   llvm::StringRef expectedTargetLeafProfile =
-      isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionTargetLeafProfile
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionTargetLeafProfile
-                     : kRVVStandaloneReductionTargetLeafProfile;
+      isRuntimeScalarComputedMask ? runtimeScalarRouteFacts->targetLeafProfile
+                                  : standaloneTargetLeafProfile;
+  const llvm::StringRef standaloneProviderSupportedMirror =
+      isComputedMask
+          ? llvm::StringRef(
+                kRVVComputedMaskStandaloneReductionProviderSupportedMirror)
+          : llvm::StringRef(kRVVStandaloneReductionProviderSupportedMirror);
   llvm::StringRef expectedProviderSupportedMirror =
       isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionProviderSupportedMirror
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionProviderSupportedMirror
-                     : kRVVStandaloneReductionProviderSupportedMirror;
-  llvm::StringRef expectedCTypeMappingSummary =
+          ? runtimeScalarRouteFacts->providerSupportedMirror
+          : standaloneProviderSupportedMirror;
+  const llvm::StringRef expectedRequiredHeaderDeclarations =
       isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionCTypeMappingSummary
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionCTypeMappingSummary
-                     : kRVVStandaloneReductionCTypeMappingSummary;
+          ? runtimeScalarRouteFacts->requiredHeaderDeclarations
+          : llvm::StringRef(kRVVStandaloneReductionRequiredHeaderDeclarations);
+  const llvm::StringRef standaloneCTypeMappingSummary =
+      isComputedMask
+          ? llvm::StringRef(kRVVComputedMaskStandaloneReductionCTypeMappingSummary)
+          : llvm::StringRef(kRVVStandaloneReductionCTypeMappingSummary);
+  llvm::StringRef expectedCTypeMappingSummary =
+      isRuntimeScalarComputedMask ? runtimeScalarRouteFacts->cTypeMappingSummary
+                                  : standaloneCTypeMappingSummary;
   llvm::StringRef expectedResultName =
       getRVVSelectedBodyOperationProfile(plan.operation).resultName;
   RVVSelectedBodyEmitCRouteDescription expectedConfigDescription;
@@ -7443,7 +7532,7 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "header declarations", plan.requiredHeaderDeclarations,
-          kRVVStandaloneReductionRequiredHeaderDeclarations))
+          expectedRequiredHeaderDeclarations))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "C type mapping summary", plan.cTypeMappingSummary,
@@ -7533,8 +7622,10 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return error;
   if (isComputedMask) {
     llvm::StringRef expectedInactiveLaneRequirement =
-        getRVVSelectedBodyStandaloneReductionInactiveLaneRequirement(
-            plan.operation);
+        isRuntimeScalarComputedMask
+            ? runtimeScalarRouteFacts->inactiveLaneRequirement
+            : getRVVSelectedBodyStandaloneReductionInactiveLaneRequirement(
+                  plan.operation);
     if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
             plan, "compare leaf", plan.compareIntrinsic,
             expectedCompareIntrinsic))
@@ -7638,10 +7729,17 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   const bool isRuntimeScalarComputedMask =
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
           analysis.slice.arithmeticKind);
+  std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+      runtimeScalarRouteFacts =
+          getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+              analysis.slice.arithmeticKind);
+  if (isRuntimeScalarComputedMask && !runtimeScalarRouteFacts)
+    return makeRVVEmitCRouteProviderError(
+        "standalone reduction route-family plan requires runtime-scalar "
+        "computed-mask standalone reduction add/min/max canonical route facts");
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
       isRuntimeScalarComputedMask
-          ? RVVSelectedBodyMemoryForm::
-                RuntimeScalarComputedMaskUnitStrideStandaloneReduction
+          ? runtimeScalarRouteFacts->memoryForm
       : isComputedMask
           ? RVVSelectedBodyMemoryForm::
                 ComputedMaskUnitStrideStandaloneReduction
@@ -7716,14 +7814,17 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
         "computed-mask rhs/source buffers, accumulator seed buffer, output "
         "buffer, and runtime element-count ABI roles");
 
+  const llvm::StringRef standaloneRuntimeABIOrder =
+      isComputedMask
+          ? llvm::StringRef(kRVVComputedMaskStandaloneReductionRuntimeABIOrder)
+          : llvm::StringRef(kRVVStandaloneReductionRuntimeABIOrder);
+  const llvm::StringRef selectedRuntimeABIOrder =
+      isRuntimeScalarComputedMask ? runtimeScalarRouteFacts->runtimeABIOrder
+                                  : standaloneRuntimeABIOrder;
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
           analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
-          analysis.slice.setvl, analysis.slice.withVL,
-          isRuntimeScalarComputedMask
-              ? kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder
-          : isComputedMask ? kRVVComputedMaskStandaloneReductionRuntimeABIOrder
-                           : kRVVStandaloneReductionRuntimeABIOrder,
+          analysis.slice.setvl, analysis.slice.withVL, selectedRuntimeABIOrder,
           "standalone reduction route-family plan");
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
@@ -7736,26 +7837,36 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
   plan.familyPlanID = kRVVStandaloneReductionRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  const llvm::StringRef standaloneTargetLeafProfile =
+      isComputedMask
+          ? llvm::StringRef(kRVVComputedMaskStandaloneReductionTargetLeafProfile)
+          : llvm::StringRef(kRVVStandaloneReductionTargetLeafProfile);
   plan.targetLeafProfile =
-      isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionTargetLeafProfile
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionTargetLeafProfile
-                     : kRVVStandaloneReductionTargetLeafProfile;
+      isRuntimeScalarComputedMask ? runtimeScalarRouteFacts->targetLeafProfile
+                                  : standaloneTargetLeafProfile;
+  const llvm::StringRef standaloneProviderSupportedMirror =
+      isComputedMask
+          ? llvm::StringRef(
+                kRVVComputedMaskStandaloneReductionProviderSupportedMirror)
+          : llvm::StringRef(kRVVStandaloneReductionProviderSupportedMirror);
   plan.providerSupportedMirror =
       isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionProviderSupportedMirror
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionProviderSupportedMirror
-                     : kRVVStandaloneReductionProviderSupportedMirror;
+          ? runtimeScalarRouteFacts->providerSupportedMirror
+          : standaloneProviderSupportedMirror;
   plan.requiredHeaders.push_back("stddef.h");
   plan.requiredHeaders.push_back("stdint.h");
   plan.requiredHeaders.push_back("riscv_vector.h");
   plan.requiredHeaderDeclarations =
-      kRVVStandaloneReductionRequiredHeaderDeclarations;
-  plan.cTypeMappingSummary =
       isRuntimeScalarComputedMask
-          ? kRVVRuntimeScalarComputedMaskStandaloneReductionCTypeMappingSummary
-      : isComputedMask ? kRVVComputedMaskStandaloneReductionCTypeMappingSummary
-                     : kRVVStandaloneReductionCTypeMappingSummary;
+          ? runtimeScalarRouteFacts->requiredHeaderDeclarations
+          : llvm::StringRef(kRVVStandaloneReductionRequiredHeaderDeclarations);
+  const llvm::StringRef standaloneCTypeMappingSummary =
+      isComputedMask
+          ? llvm::StringRef(kRVVComputedMaskStandaloneReductionCTypeMappingSummary)
+          : llvm::StringRef(kRVVStandaloneReductionCTypeMappingSummary);
+  plan.cTypeMappingSummary =
+      isRuntimeScalarComputedMask ? runtimeScalarRouteFacts->cTypeMappingSummary
+                                  : standaloneCTypeMappingSummary;
   plan.vlCType = configProfile.vlCType;
   plan.vectorTypeName = configProfile.vectorTypeName;
   plan.vectorCType = configProfile.vectorCType;
@@ -7794,8 +7905,10 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       kRVVStandaloneReductionScalarResultRuntimeBoundary;
   if (isComputedMask) {
     plan.inactiveLaneZeroingRequirement =
-        getRVVSelectedBodyStandaloneReductionInactiveLaneRequirement(
-            plan.operation);
+        isRuntimeScalarComputedMask
+            ? runtimeScalarRouteFacts->inactiveLaneRequirement
+            : getRVVSelectedBodyStandaloneReductionInactiveLaneRequirement(
+                  plan.operation);
     plan.maskRole = analysis.slice.maskedStandaloneReduceOp.getMaskRole();
     plan.maskSource = analysis.slice.maskedStandaloneReduceOp.getMaskSource();
     plan.maskMemoryForm =
@@ -11136,19 +11249,21 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::
                  RuntimeScalarComputedMaskUnitStrideStandaloneReduction) {
-    plan.planID = getExpectedRVVRouteOperandBindingPlanID(slice.arithmeticKind)
-                      .str();
-    expectedRuntimeABIOrder =
-        kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder;
+    std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+        routeFacts =
+            getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+                slice.arithmeticKind);
+    if (!routeFacts)
+      return makeRVVEmitCRouteProviderError(
+          "runtime-scalar computed-mask standalone reduction route operand "
+          "binding requires a supported add/min/max canonical route-fact "
+          "surface");
+    plan.planID = routeFacts->routeOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = routeFacts->runtimeABIOrder;
     dynamicContext =
         (stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind) + " route")
             .str();
     context = dynamicContext;
-    llvm::StringRef inactiveUse =
-        slice.arithmeticKind == RVVSelectedBodyOperationKind::
-                                    RuntimeScalarComputedMaskStandaloneReduceAdd
-            ? "zero-inactive"
-            : "neutral-inactive";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
         {"abi", "cmp-lhs-load", "cmp-lhs-call", "hdr"});
@@ -11157,7 +11272,8 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         {"abi", "splat", "cmp-rhs-call", "hdr"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
-        {"abi", "src-load", "masked-reduce-input", inactiveUse, "hdr"});
+        {"abi", "src-load", "masked-reduce-input",
+         routeFacts->inactiveLaneUse.str(), "hdr"});
     addRouteOperandBinding(
         plan, "acc", slice.accumulatorABI,
         {"abi", "initial-seed", "acc-state", "masked-reduce-acc", "hdr"});

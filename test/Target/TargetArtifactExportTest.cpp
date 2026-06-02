@@ -43,6 +43,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -3107,6 +3108,67 @@ bool expectRVVTargetArtifactExporterShape(
   using RVVRouteValidationContext =
       tianchenrv::target::rvv::
           RVVTargetArtifactRouteFamilyValidationContext;
+  using RVVOperationKind =
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  auto expectRuntimeScalarStandaloneReductionCanonicalFacts =
+      [](RVVOperationKind op, llvm::StringRef expectedPlanID,
+         llvm::StringRef expectedInactiveUse,
+         llvm::StringRef expectedInactiveRequirement,
+         llvm::StringRef context) -> bool {
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+        routeFacts = tianchenrv::plugin::rvv::
+            getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(op);
+    if (!routeFacts) {
+      llvm::errs() << context
+                   << ": missing runtime-scalar standalone reduction canonical "
+                      "route facts\n";
+      return false;
+    }
+    if (routeFacts->operation != op ||
+        routeFacts->memoryForm !=
+            tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                RuntimeScalarComputedMaskUnitStrideStandaloneReduction ||
+        routeFacts->runtimeABIOrder != "cmp_lhs,rhs_scalar,src,acc,out,n" ||
+        routeFacts->routeOperandBindingPlanID != expectedPlanID ||
+        routeFacts->inactiveLaneUse != expectedInactiveUse ||
+        routeFacts->inactiveLaneRequirement != expectedInactiveRequirement ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(expectedInactiveUse) ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(expectedPlanID) ||
+        routeFacts->providerSupportedMirror !=
+            "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated" ||
+        routeFacts->requiredHeaderDeclarations !=
+            "stddef.h,stdint.h,riscv_vector.h") {
+      llvm::errs() << context
+                   << ": malformed runtime-scalar standalone reduction "
+                      "canonical route facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectRuntimeScalarStandaloneReductionCanonicalFacts(
+          RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd,
+          "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1",
+          "zero-inactive",
+          "masked-standalone-reduction-zero-inactive-lanes-before-reduction",
+          "runtime-scalar standalone reduce_add canonical route facts"))
+    return false;
+  if (!expectRuntimeScalarStandaloneReductionCanonicalFacts(
+          RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceMin,
+          "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1",
+          "neutral-inactive",
+          "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
+          "runtime-scalar standalone reduce_min canonical route facts"))
+    return false;
+  if (!expectRuntimeScalarStandaloneReductionCanonicalFacts(
+          RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceMax,
+          "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1",
+          "neutral-inactive",
+          "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
+          "runtime-scalar standalone reduce_max canonical route facts"))
+    return false;
   auto expectRouteFamilyValidationPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture) -> bool {
