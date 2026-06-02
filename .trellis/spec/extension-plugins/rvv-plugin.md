@@ -998,6 +998,16 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
     RVVSelectedBodyOperationKind operation, std::int64_t sew);
 ```
 
+For runtime-scalar computed-mask standalone reductions, the provider-owned
+canonical route facts must also expose the per-SEW inactive neutral literals
+that target artifact validation consumes when checking provider-built loop
+statements:
+
+```c++
+llvm::StringRef inactiveNeutralLiteralSEW32;
+llvm::StringRef inactiveNeutralLiteralSEW64;
+```
+
 #### 3. Contracts
 
 The RVV selected-body realization must preserve the source SEW/LMUL on the
@@ -1029,6 +1039,13 @@ not keep a target-local reduction-kind table that independently chooses `0`,
 `INT32_MAX`, `INT32_MIN`, or their SEW64 equivalents. The helper result is
 provider-owned route-family behavior; target validation only verifies that the
 rebuilt route statements match it.
+
+For the runtime-scalar computed-mask standalone reduction path, target
+statement validation consumes the canonical route fact fields
+`inactiveNeutralLiteralSEW32` / `inactiveNeutralLiteralSEW64` rather than a
+target-local table. This makes stale add/min/max neutral literals fail closed
+at the same provider-fact boundary as ABI order, mask source, accumulator
+layout, and scalar-result boundary facts.
 
 #### 4. Validation & Error Matrix
 

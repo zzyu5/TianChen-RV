@@ -691,6 +691,10 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
       "scalar-result-carries-across-runtime-vl-chunks";
   facts.inactiveLaneUse = inactiveUse;
   facts.inactiveLaneRequirement = inactiveRequirement;
+  facts.inactiveNeutralLiteralSEW32 =
+      getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(operation, 32);
+  facts.inactiveNeutralLiteralSEW64 =
+      getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(operation, 64);
   facts.reductionResultLayout =
       "store-standalone-reduction-lane0-to-output-scalar";
   facts.reductionStoreVL = "1";

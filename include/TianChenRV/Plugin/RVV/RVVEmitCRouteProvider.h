@@ -303,6 +303,8 @@ struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
   llvm::StringRef accumulationScalarCarryContract;
   llvm::StringRef inactiveLaneUse;
   llvm::StringRef inactiveLaneRequirement;
+  llvm::StringRef inactiveNeutralLiteralSEW32;
+  llvm::StringRef inactiveNeutralLiteralSEW64;
   llvm::StringRef reductionResultLayout;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef scalarResultRuntimeBoundary;

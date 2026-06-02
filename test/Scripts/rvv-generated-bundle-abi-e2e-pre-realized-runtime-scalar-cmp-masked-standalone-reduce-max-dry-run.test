@@ -1,0 +1,155 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-standalone-reduce-max --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-max/evidence.json
+# RUN: FileCheck %s --check-prefix=MAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-max/runtime_scalar_cmp_masked_standalone_reduce_max/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-standalone-reduce-max/runtime_scalar_cmp_masked_standalone_reduce_max/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_max_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_standalone_reduce_max"
+# ROOT-DAG: "rhs_scalar_values": [
+# ROOT-DAG: -37
+# ROOT-DAG: 91
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# MAX-DAG: "op_kind": "runtime_scalar_cmp_masked_standalone_reduce_max"
+# MAX-DAG: "input_mode": "pre-realized-selected-body"
+# MAX-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-max.mlir"
+# MAX-DAG: "prototype": "void tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);"
+# MAX-DAG: "expected_function": "tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max"
+# MAX-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1"
+# MAX-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce_max"
+# MAX-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# MAX-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# MAX-DAG: "route_entry_realization": false
+# MAX-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# MAX-DAG: --tcrv-materialize-selected-lowering-boundaries
+# MAX-DAG: "pre_realized_body_consumed": true
+# MAX-DAG: "key": "rvv_emitc_lowerable_route"
+# MAX-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-emitc-route"
+# MAX-DAG: "key": "rvv_selected_body_operation"
+# MAX-DAG: "value": "runtime_scalar_cmp_masked_standalone_reduce_max"
+# MAX-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MAX-DAG: "value": "tcrv_rvv.masked_standalone_reduce"
+# MAX-DAG: "typed_compute_op": "tcrv_rvv.masked_standalone_reduce"
+# MAX-DAG: "memory_form": "runtime-scalar-computed-mask-unit-stride-standalone-reduction"
+# MAX-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# MAX-DAG: "value": "cmp_lhs,rhs_scalar,src,acc,out,n"
+# MAX-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# MAX-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1"
+# MAX-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# MAX-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# MAX-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# MAX-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
+# MAX-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# MAX-DAG: "value": "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
+# MAX-DAG: "key": "tcrv_rvv.required_header_declarations"
+# MAX-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
+# MAX-DAG: "key": "tcrv_rvv.c_type_mapping"
+# MAX-DAG: "value": "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"
+# MAX-DAG: "key": "tcrv_rvv.compare_predicate_kind"
+# MAX-DAG: "value": "sle"
+# MAX-DAG: "key": "tcrv_rvv.mask_role"
+# MAX-DAG: "value": "predicate-mask-produced-by-compare"
+# MAX-DAG: "key": "tcrv_rvv.mask_source"
+# MAX-DAG: "value": "compare-produced-mask-same-vl-scope"
+# MAX-DAG: "key": "tcrv_rvv.mask_memory_form"
+# MAX-DAG: "value": "compare-produced-mask"
+# MAX-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_type"
+# MAX-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# MAX-DAG: "key": "tcrv_rvv.standalone_reduction_source_vector_c_type"
+# MAX-DAG: "value": "vint32m1_t"
+# MAX-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_c_type"
+# MAX-DAG: "value": "int32_t"
+# MAX-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type"
+# MAX-DAG: "value": "!tcrv_rvv.vector<i32, \"m1\">"
+# MAX-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type"
+# MAX-DAG: "value": "vint32m1_t"
+# MAX-DAG: "key": "tcrv_rvv.reduction_accumulator_layout"
+# MAX-DAG: "value": "scalar-i32-seed-lane0-from-accumulator-input"
+# MAX-DAG: "key": "tcrv_rvv.reduction_result_layout"
+# MAX-DAG: "value": "store-standalone-reduction-lane0-to-output-scalar"
+# MAX-DAG: "key": "tcrv_rvv.reduction_store_vl"
+# MAX-DAG: "value": "1"
+# MAX-DAG: "key": "tcrv_rvv.vector_load_intrinsic"
+# MAX-DAG: "value": "__riscv_vle32_v_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.source_splat_intrinsic"
+# MAX-DAG: "value": "__riscv_vmv_v_x_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.scalar_seed_splat_intrinsic"
+# MAX-DAG: "value": "__riscv_vmv_v_x_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.reduction_intrinsic"
+# MAX-DAG: "value": "__riscv_vredmax_vs_i32m1_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.scalar_result_store_intrinsic"
+# MAX-DAG: "value": "__riscv_vse32_v_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.rhs_broadcast_intrinsic"
+# MAX-DAG: "value": "__riscv_vmv_v_x_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.compare_intrinsic"
+# MAX-DAG: "value": "__riscv_vmsle_vv_i32m1_b32"
+# MAX-DAG: "key": "tcrv_rvv.masked_merge_intrinsic"
+# MAX-DAG: "value": "__riscv_vmerge_vvm_i32m1"
+# MAX-DAG: "key": "tcrv_rvv.accumulation_route_family_plan"
+# MAX-DAG: "value": "rvv-computed-mask-accumulation-route-family-plan.v1"
+# MAX-DAG: "key": "tcrv_rvv.accumulation_compute_suffix"
+# MAX-DAG: "value": "scalar-horizontal-masked-standalone-reduction"
+# MAX-DAG: "key": "tcrv_rvv.accumulation_mask_producer_source"
+# MAX-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# MAX-DAG: "key": "tcrv_rvv.accumulation_accumulator_contract"
+# MAX-DAG: "value": "scalar-seed-input-feeds-masked-horizontal-reduction"
+# MAX-DAG: "key": "tcrv_rvv.accumulation_result_contract"
+# MAX-DAG: "value": "scalar-horizontal-reduction-lane0-stored-to-output"
+# MAX-DAG: "key": "tcrv_rvv.accumulation_scalar_carry_contract"
+# MAX-DAG: "value": "scalar-result-carries-across-runtime-vl-chunks"
+# MAX-DAG: "key": "tcrv_rvv.inactive_lane_zeroing_requirement"
+# MAX-DAG: "value": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MAX-DAG: "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary"
+# MAX-DAG: "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
+# MAX-DAG: "mask_tail_policy_boundary": {
+# MAX-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar mask/reduction body/config/runtime facts"
+# MAX-DAG: "compare_producer": "tcrv_rvv.compare"
+# MAX-DAG: "runtime_scalar_operand": "rhs_scalar"
+# MAX-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# MAX-DAG: "inactive_lane_contract": "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
+# MAX-DAG: "inactive_neutral_literal": "(-2147483647-1)"
+# MAX-DAG: "inactive_neutral_splat_channel": "source/work vector channel"
+# MAX-DAG: "inactive_lanes_neutralized_before_reduction": true
+# MAX-DAG: "inactive_lanes_zeroed_before_reduction": false
+# MAX-DAG: "all_inactive_mask_behavior": "all compare-false lanes are replaced with the operation neutral element before reduction, so out[0] remains the seed"
+# MAX-DAG: "active_lane_contract": "runtime scalar compare-true source lanes contribute to the scalar max reduction"
+# MAX-DAG: "reduction_kind": "max"
+# MAX-DAG: "mask_false_lane_source": "operation-specific neutral"
+# MAX-DAG: "compare_operand_order": "cmp_lhs,rhs_scalar_splat,vl"
+# MAX-DAG: "__riscv_vmsle_vv_i32m1_b32"
+# MAX-DAG: "__riscv_vmv_v_x_i32m1"
+# MAX-DAG: "__riscv_vmerge_vvm_i32m1"
+# MAX-DAG: "__riscv_vredmax_vs_i32m1_i32m1"
+# MAX-DAG: "__riscv_vse32_v_i32m1"
+# MAX-DAG: "source_pattern_contract": "two compare/source input patterns, two runtime scalar threshold values, and two scalar seeds prove active-lane source contribution, source preservation, seed preservation, and multi-VL runtime n behavior"
+# MAX-DAG: "artifact_abi": {
+# MAX-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,src,acc,out,n"
+# MAX-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
+# MAX-DAG: "compare_source_patterns_required_minimum": 2
+# MAX-DAG: "seed_values_required_minimum": 2
+# MAX-DAG: "status": "dry_run_success"
+
+# HARNESS-DAG: make_cmp_lhs_value(size_t index, int pattern)
+# HARNESS-DAG: make_src_value(size_t index, int pattern)
+# HARNESS-DAG: runtime_scalar_computed_mask_standalone_reduce
+# HARNESS-DAG: inactive_nonzero
+# HARNESS-DAG: source_preserved
+# HARNESS-DAG: tail_preserved
+# HARNESS-DAG: int32_t expected = seed;
+# HARNESS-DAG: if (src[index] > expected)
+# HARNESS-DAG: expected = src[index];
+# HARNESS-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESS-DAG: runtime_scalar_cmp_masked_standalone_reduce_max all-inactive mismatch
+# HARNESS-DAG: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESS-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS-DAG: const int32_t seeds[] = {(int32_t)-11, (int32_t)17};
+# HARNESS-DAG: const int patterns[] = {0, 1};
+# HARNESS-DAG: patterns[pattern_index]
+# HARNESS-DAG: seeds=-11,17 patterns=0,1

@@ -9845,6 +9845,9 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         "source_vector": src_vec,
         "compare_mask": compare_mask,
         "inactive_neutral_vector": neutral_vec,
+        "inactive_neutral_literal": (
+            expectation.standalone_reduction_inactive_neutral_literal
+        ),
         "masked_source_vector": masked_source,
         "initial_seed_scalar": seed_scalar,
         "initial_accumulator_vector": seed_vector,
@@ -9871,6 +9874,7 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         "scalar_splat_intrinsic": expectation.scalar_splat_intrinsic,
         "compare_intrinsic": expectation.compare_intrinsic,
         "inactive_neutral_splat_intrinsic": expectation.scalar_splat_intrinsic,
+        "inactive_neutral_splat_channel": "source/work vector channel",
         "masked_source_merge_intrinsic": expectation.select_intrinsic,
         "scalar_seed_splat_intrinsic": (
             expectation.standalone_reduction_scalar_seed_splat_intrinsic
@@ -9881,7 +9885,11 @@ def extract_runtime_scalar_computed_mask_standalone_reduction_emitc_boundary(
         ),
         "seed_store_initializes_empty_count_result": True,
         "compare_uses_runtime_scalar_splat": True,
-        "inactive_lanes_zeroed_before_reduction": True,
+        "inactive_lanes_neutralized_before_reduction": True,
+        "inactive_lanes_zeroed_before_reduction": (
+            expectation.runtime_scalar_computed_mask_standalone_reduction_kind
+            == "add"
+        ),
         "reduction_uses_masked_source": True,
         "reduction_uses_loop_vl": True,
         "store_uses_reduction_result": True,
@@ -22686,6 +22694,10 @@ def reduction_accumulation_boundary_summary(
                 )
                 else "operation-specific neutral"
             ),
+            "inactive_neutral_literal": (
+                expectation.standalone_reduction_inactive_neutral_literal
+            ),
+            "inactive_neutral_splat_channel": "source/work vector channel",
             "reduction_operand_order": "masked_source,accumulator,vl",
             "store_pointer": "out",
             "store_vl": STANDALONE_REDUCE_STORE_VL,
@@ -22713,6 +22725,10 @@ def reduction_accumulation_boundary_summary(
             )
             if not is_runtime_scalar
             else expectation.runtime_scalar_computed_mask_standalone_reduce_inactive_contract,
+            "inactive_neutral_literal": (
+                expectation.standalone_reduction_inactive_neutral_literal
+            ),
+            "inactive_neutral_splat_channel": "source/work vector channel",
             "active_lane_contract": (
                 "runtime scalar compare-true source lanes contribute to the "
                 f"scalar {expectation.runtime_scalar_computed_mask_standalone_reduction_kind} reduction"
@@ -24273,6 +24289,12 @@ def run_one_op_e2e(
                 "inactive lanes must use the operation-specific neutral "
                 "contract before the horizontal reduction even when their "
                 "payload values are nonzero"
+            )
+            evidence["harness"]["inactive_neutral_literal"] = (
+                expectation.standalone_reduction_inactive_neutral_literal
+            )
+            evidence["harness"]["inactive_neutral_splat_channel"] = (
+                "source/work vector channel"
             )
             evidence["harness"]["source_pattern_contract"] = (
                 "two compare/source input patterns, two runtime scalar "

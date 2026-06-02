@@ -3143,6 +3143,10 @@ bool expectRVVTargetArtifactExporterShape(
             "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated" ||
         routeFacts->requiredHeaderDeclarations !=
             "stddef.h,stdint.h,riscv_vector.h" ||
+        routeFacts->inactiveNeutralLiteralSEW32 !=
+            expectedI32InactiveNeutral ||
+        routeFacts->inactiveNeutralLiteralSEW64 !=
+            expectedI64InactiveNeutral ||
         tianchenrv::plugin::rvv::
                 getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
                     op, 32) != expectedI32InactiveNeutral ||
@@ -5522,6 +5526,35 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      runtimeScalarStandaloneReduceMaxRoute;
+  RVVRouteDescription runtimeScalarStandaloneReduceMaxDescription;
+  if (!buildRVVRouteValidationInputs(
+          runtimeScalarStandaloneReduceMaxFixture,
+          runtimeScalarStandaloneReduceMaxRoute,
+          runtimeScalarStandaloneReduceMaxDescription,
+          "rebuild RVV runtime-scalar computed-mask standalone reduce_max "
+          "route validator inputs"))
+    return false;
+  RVVRouteValidationContext runtimeScalarStandaloneReduceMaxContext{
+      runtimeScalarStandaloneReduceMaxFixture.candidate,
+      runtimeScalarStandaloneReduceMaxRoute,
+      runtimeScalarStandaloneReduceMaxDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  runtimeScalarStandaloneReduceMaxContext),
+          "runtime-scalar computed-mask standalone reduce_max registry "
+          "accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  runtimeScalarStandaloneReduceMaxContext),
+          "runtime-scalar computed-mask standalone reduce_max registry "
+          "accepts candidate mirrors"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
       runtimeScalarStandaloneReduceMaxM2Route;
   RVVRouteDescription runtimeScalarStandaloneReduceMaxM2Description;
   if (!buildRVVRouteValidationInputs(
@@ -5640,6 +5673,42 @@ bool expectRVVTargetArtifactExporterShape(
     RVVRouteValidationContext mutatedContext{
         runtimeScalarStandaloneReduceMinFixture.candidate,
         runtimeScalarStandaloneReduceMinRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectRuntimeScalarStandaloneReduceMaxProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        runtimeScalarStandaloneReduceMaxFixture.candidate,
+        runtimeScalarStandaloneReduceMaxRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectRuntimeScalarStandaloneReduceMaxCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, runtimeScalarStandaloneReduceMaxRoute,
+        runtimeScalarStandaloneReduceMaxDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectRuntimeScalarStandaloneReduceMaxRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        runtimeScalarStandaloneReduceMaxFixture.candidate, mutatedRoute,
+        runtimeScalarStandaloneReduceMaxDescription};
     return expectErrorContains(
         tianchenrv::target::rvv::
             validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
@@ -6440,6 +6509,62 @@ bool expectRVVTargetArtifactExporterShape(
           "registry rejects stale signed max intrinsic",
           {"signed min/max/add reduction",
            "__riscv_vredmax_vs_i32m2_i32m1"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarStandaloneMaxBindingPlan =
+      runtimeScalarStandaloneReduceMaxDescription;
+  staleRuntimeScalarStandaloneMaxBindingPlan.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1";
+  if (!expectRuntimeScalarStandaloneReduceMaxProviderFailure(
+          staleRuntimeScalarStandaloneMaxBindingPlan,
+          "runtime-scalar computed-mask standalone reduce_max registry "
+          "rejects stale add route operand binding plan",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1",
+           "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneMaxMinNeutralLiteral =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceMaxRoute, /*loopIndex=*/0,
+              /*stepIndex=*/5, /*operandIndex=*/0, "2147483647");
+  if (!expectRuntimeScalarStandaloneReduceMaxRouteFailure(
+          staleRuntimeScalarStandaloneMaxMinNeutralLiteral,
+          "runtime-scalar computed-mask standalone reduce_max registry "
+          "rejects stale min inactive neutral literal",
+          {"inactive neutral splat operand[0]", "(-2147483647-1)",
+           "2147483647"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      staleRuntimeScalarStandaloneMaxAddNeutralLiteral =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              runtimeScalarStandaloneReduceMaxRoute, /*loopIndex=*/0,
+              /*stepIndex=*/5, /*operandIndex=*/0, "0");
+  if (!expectRuntimeScalarStandaloneReduceMaxRouteFailure(
+          staleRuntimeScalarStandaloneMaxAddNeutralLiteral,
+          "runtime-scalar computed-mask standalone reduce_max registry "
+          "rejects stale add inactive neutral literal",
+          {"inactive neutral splat operand[0]", "(-2147483647-1)", "0"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeScalarStandaloneMaxReductionMirror =
+      runtimeScalarStandaloneReduceMaxFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRuntimeScalarStandaloneMaxReductionMirror,
+          "tcrv_rvv.reduction_intrinsic",
+          "__riscv_vredmin_vs_i32m1_i32m1")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar standalone "
+                    "max reduction intrinsic mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeScalarStandaloneReduceMaxCandidateFailure(
+          staleRuntimeScalarStandaloneMaxReductionMirror,
+          "runtime-scalar computed-mask standalone reduce_max registry rejects "
+          "stale min reduction intrinsic mirror",
+          {"reduction_intrinsic", "__riscv_vredmax_vs_i32m1_i32m1",
+           "__riscv_vredmin_vs_i32m1_i32m1"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneMinProducer =

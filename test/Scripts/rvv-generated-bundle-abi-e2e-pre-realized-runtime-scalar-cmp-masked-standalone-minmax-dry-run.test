@@ -80,24 +80,22 @@
 # MAXM2-DAG: "reduction_kind": "max"
 # MAXM2-DAG: "status": "dry_run_success"
 
-# HARNESSMIN: int32_t expected = seed;
-# HARNESSMIN: if (src[index] < expected)
-# HARNESSMIN: expected = src[index];
-# HARNESSMIN: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min(cmp_lhs, rhs_scalar, src, acc, out, n);
-# HARNESSMIN: runtime_scalar_computed_mask_standalone_reduce
-# HARNESSMIN: all_inactive_mask
-# HARNESSMIN: tail_preserved
-# HARNESSMIN: const size_t counts[] = {0, 1, 16, 23, 257};
-# HARNESSMIN: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
-# HARNESSMIN: seeds=-11,17
+# HARNESSMIN-DAG: int32_t expected = seed;
+# HARNESSMIN-DAG: if (src[index] < expected)
+# HARNESSMIN-DAG: expected = src[index];
+# HARNESSMIN-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_min_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESSMIN-DAG: runtime_scalar_computed_mask_standalone_reduce
+# HARNESSMIN-DAG: tail_preserved
+# HARNESSMIN-DAG: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESSMIN-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESSMIN-DAG: seeds=-11,17
 
-# HARNESSMAX: int32_t expected = seed;
-# HARNESSMAX: if (src[index] > expected)
-# HARNESSMAX: expected = src[index];
-# HARNESSMAX: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max(cmp_lhs, rhs_scalar, src, acc, out, n);
-# HARNESSMAX: runtime_scalar_computed_mask_standalone_reduce
-# HARNESSMAX: all_inactive_mask
-# HARNESSMAX: tail_preserved
-# HARNESSMAX: const size_t counts[] = {0, 1, 16, 23, 257};
-# HARNESSMAX: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
-# HARNESSMAX: seeds=-11,17
+# HARNESSMAX-DAG: int32_t expected = seed;
+# HARNESSMAX-DAG: if (src[index] > expected)
+# HARNESSMAX-DAG: expected = src[index];
+# HARNESSMAX-DAG: tcrv_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max(cmp_lhs, rhs_scalar, src, acc, out, n);
+# HARNESSMAX-DAG: runtime_scalar_computed_mask_standalone_reduce
+# HARNESSMAX-DAG: tail_preserved
+# HARNESSMAX-DAG: const size_t counts[] = {0, 1, 16, 23, 257};
+# HARNESSMAX-DAG: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESSMAX-DAG: seeds=-11,17

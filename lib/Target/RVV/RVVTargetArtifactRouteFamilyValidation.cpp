@@ -6372,9 +6372,22 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           description.maskName, description.maskCType))
     return error;
 
-  const llvm::StringRef inactiveNeutral =
-      plugin::rvv::getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
-          description.operation, description.sew);
+  std::optional<
+      plugin::rvv::RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+      routeFacts =
+          plugin::rvv::
+              getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
+                  description.operation);
+  if (!routeFacts)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime-scalar computed-mask standalone reduction "
+        "canonical route facts before artifact export");
+  llvm::StringRef inactiveNeutral;
+  if (description.sew == 64)
+    inactiveNeutral = routeFacts->inactiveNeutralLiteralSEW64;
+  else if (description.sew == 32)
+    inactiveNeutral = routeFacts->inactiveNeutralLiteralSEW32;
   if (inactiveNeutral.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
