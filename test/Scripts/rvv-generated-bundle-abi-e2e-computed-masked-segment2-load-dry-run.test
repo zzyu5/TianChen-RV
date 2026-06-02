@@ -34,7 +34,7 @@
 # CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1"
 # CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem;out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|f0-store|f0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem|hdr;out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|f0-store|f0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 # CMSEG-DAG: "key": "tcrv_rvv.masked_memory_layout"
 # CMSEG-DAG: "value": "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi"
 # CMSEG-DAG: "key": "tcrv_rvv.mask_source"
@@ -60,7 +60,9 @@
 # HARNESS: int32_t expected0 = active ? src[2 * index] : old0[index];
 # HARNESS: int32_t expected1 = active ? src[2 * index + 1] : old1[index];
 # HARNESS: inactive lane failed to preserve old fields
-# HARNESS: computed_mask segment2_load
+# HARNESS: pattern=%d ok computed_mask segment2_load
 # HARNESS: field_distinguishing_lanes
 # HARNESS: source_preserved tail_preserved
+# HARNESS: for (int pattern = 0; pattern < 2; ++pattern)
+# HARNESS: patterns=0,1
 # HARNESS: PASS op=computed_masked_segment2_load_unit_store counts=0,1,16,17,257

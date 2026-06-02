@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, RVV-first stage order, and source-of-truth rules for this Stage 2 route task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body realization owner, computed-mask memory boundary, segment2 planning owner, segment2 statement-plan boundary, and computed-mask segment2 artifact rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and route operand-binding summary abi/hdr marker requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, generated-bundle dry-run, runtime ssh rvv, mask/tail, and sentinel evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-segment2-deinterleave-unit-store-artifact-abi/prd.md", "reason": "Closest plain segment2 load-to-two-stores ABI/hdr validation and ssh evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-segment2-interleave-unit-load-artifact-abi/prd.md", "reason": "Closest plain segment2 field-order and tail-preservation generated-bundle evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-indexed-gather-load-unit-store-artifact-abi/prd.md", "reason": "Closest computed-mask load/unit-store provider binding, target validation, inactive-lane, and harness pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-computed-masked-indexed-scatter-store-unit-load-artifact-abi/prd.md", "reason": "Closest computed-mask runtime pattern and direct pre-realized route-entry fail-closed evidence pattern."}

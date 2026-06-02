@@ -548,13 +548,13 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
     context = "computed_masked_segment2_load_unit_store route";
     addSegment2RouteOperandBinding(
         plan, "cmp_lhs", analysis.slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "cmp_rhs", analysis.slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
+        {"abi", "cmp-rhs-load", "rhs-call", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "src", analysis.slice.sourceABI,
-        {"abi", "mseg-base", "mseg-call", "src-mem"});
+        {"abi", "mseg-base", "mseg-call", "src-mem", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "out0", analysis.slice.field0ABI,
         {"abi", "old0-load", "f0-pass", "f0-store", "f0-role", "dst-mem",

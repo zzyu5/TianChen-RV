@@ -1412,6 +1412,50 @@ llvm::Error validateComputedMaskIndexedScatterHeaderBindingSummary(
   return llvm::Error::success();
 }
 
+llvm::Error validateComputedMaskSegment2LoadHeaderBindingSummary(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
+  if (description.operation != OperationKind::ComputedMaskSegment2LoadUnitStore)
+    return llvm::Error::success();
+
+  constexpr llvm::StringLiteral kExpectedPlan(
+      "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1");
+  const llvm::StringRef operationMnemonic =
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
+  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires provider plan '" +
+        kExpectedPlan + "' before artifact export");
+  if (description.routeOperandBindingSummary.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary is required before artifact export");
+  if (!llvm::StringRef(description.routeOperandBindingSummary)
+           .starts_with(kExpectedPlan))
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must start with provider plan '" +
+        kExpectedPlan + "' before artifact export");
+
+  constexpr llvm::StringLiteral logicalOperands[] = {
+      "cmp_lhs", "cmp_rhs", "src", "out0", "out1", "n"};
+  constexpr std::size_t logicalOperandCount =
+      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
+  if (description.runtimeABIParameters.size() != logicalOperandCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires the provider runtime ABI "
+        "order for cmp_lhs/cmp_rhs/src/out0/out1/n before artifact export");
+
+  for (std::size_t index = 0; index < logicalOperandCount; ++index)
+    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
+            description, operationMnemonic, logicalOperands[index],
+            description.runtimeABIParameters[index]))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validatePlainSegment2DeinterleaveHeaderBindingSummary(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
@@ -9294,9 +9338,9 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRouteOperandPlan(
     "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRouteOperandSummary(
     "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
-    "src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem|hdr;"
     "out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|"
     "f0-store|f0-role|dst-mem|hdr;"
     "out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|"
@@ -10652,6 +10696,9 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
           "computed-mask segment2-memory target artifact consumer requires "
           "provider-derived computed-mask family, producer, role, source, "
           "memory-form, and compare facts before artifact export");
+    if (llvm::Error error =
+            validateComputedMaskSegment2LoadHeaderBindingSummary(description))
+      return error;
     if (llvm::Error error =
             validateRVVComputedMaskSegment2MemoryProviderFacts(description))
       return error;

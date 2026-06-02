@@ -700,9 +700,9 @@ COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
-    "src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem|hdr;"
     "out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|"
     "f0-store|f0-role|dst-mem|hdr;"
     "out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|"
@@ -14821,7 +14821,7 @@ static int run_case(size_t n, int pattern) {{
   int32_t *old1 = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
   int status = 0;
   if (!cmp_lhs || !cmp_rhs || !src || !src_before || !out0 || !out1 || !old0 || !old1) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    fprintf(stderr, "allocation failed for n=%zu pattern=%d\\n", n, pattern);
     status = 11;
     goto cleanup;
   }}
@@ -14829,14 +14829,30 @@ static int run_case(size_t n, int pattern) {{
   for (size_t index = 0; index < alloc_n; ++index) {{
     cmp_lhs[index] = {expectation.lhs_initializer};
     cmp_rhs[index] = {expectation.rhs_initializer};
+    if (pattern == 1) {{
+      cmp_lhs[index] = (int32_t)(((index % 5) == 1 || (index % 5) == 2)
+                                     ? (int32_t)(5 + (int32_t)index)
+                                     : (int32_t)(90 + (int32_t)index));
+      cmp_rhs[index] = (int32_t)(((index % 5) == 1 || (index % 5) == 2)
+                                     ? (int32_t)(80 + (int32_t)index)
+                                     : (int32_t)(10 + (int32_t)index));
+    }}
   }}
   for (size_t index = 0; index < src_alloc_n; ++index) {{
     src[index] = {expectation.source_initializer};
+    if (pattern == 1)
+      src[index] = (int32_t)(((index & 1) == 0)
+                                 ? (int32_t)(7100 + (int32_t)(index * 31))
+                                 : (int32_t)(-7200 - (int32_t)(index * 37)));
     src_before[index] = src[index];
   }}
   for (size_t index = 0; index < out_alloc_n; ++index) {{
     out0[index] = {expectation.out_initializer};
     out1[index] = (int32_t)({expectation.out_initializer} - 97);
+    if (pattern == 1) {{
+      out0[index] = (int32_t)(-21000 - (int32_t)(index * 31));
+      out1[index] = (int32_t)(22000 + (int32_t)(index * 29));
+    }}
     old0[index] = out0[index];
     old1[index] = out1[index];
   }}
@@ -14859,8 +14875,8 @@ static int run_case(size_t n, int pattern) {{
       ++field_distinguishing_lanes;
     if (out0[index] != expected0 || out1[index] != expected1) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got0=%d expected0=%d got1=%d expected1=%d cmp_lhs=%d cmp_rhs=%d src0=%d src1=%d old0=%d old1=%d\\n",
-              n, index, out0[index], expected0, out1[index], expected1,
+              "{expectation.kind} mismatch n=%zu pattern=%d index=%zu got0=%d expected0=%d got1=%d expected1=%d cmp_lhs=%d cmp_rhs=%d src0=%d src1=%d old0=%d old1=%d\\n",
+              n, pattern, index, out0[index], expected0, out1[index], expected1,
               cmp_lhs[index], cmp_rhs[index], src[2 * index],
               src[2 * index + 1], old0[index], old1[index]);
       status = 12;
@@ -14869,8 +14885,8 @@ static int run_case(size_t n, int pattern) {{
     if (!active) {{
       if (out0[index] != old0[index] || out1[index] != old1[index]) {{
         fprintf(stderr,
-                "{expectation.kind} inactive lane failed to preserve old fields n=%zu index=%zu got0=%d old0=%d got1=%d old1=%d\\n",
-                n, index, out0[index], old0[index], out1[index], old1[index]);
+                "{expectation.kind} inactive lane failed to preserve old fields n=%zu pattern=%d index=%zu got0=%d old0=%d got1=%d old1=%d\\n",
+                n, pattern, index, out0[index], old0[index], out1[index], old1[index]);
         status = 13;
         goto cleanup;
       }}
@@ -14881,8 +14897,8 @@ static int run_case(size_t n, int pattern) {{
   for (size_t index = n; index < out_alloc_n; ++index) {{
     if (out0[index] != old0[index] || out1[index] != old1[index]) {{
       fprintf(stderr,
-              "{expectation.kind} touched tail sentinel n=%zu index=%zu got0=%d old0=%d got1=%d old1=%d\\n",
-              n, index, out0[index], old0[index], out1[index], old1[index]);
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d index=%zu got0=%d old0=%d got1=%d old1=%d\\n",
+              n, pattern, index, out0[index], old0[index], out1[index], old1[index]);
       status = 14;
       goto cleanup;
     }}
@@ -14890,36 +14906,36 @@ static int run_case(size_t n, int pattern) {{
   for (size_t index = 0; index < src_alloc_n; ++index) {{
     if (src[index] != src_before[index]) {{
       fprintf(stderr,
-              "{expectation.kind} source buffer mutated n=%zu index=%zu got=%d before=%d\\n",
-              n, index, src[index], src_before[index]);
+              "{expectation.kind} source buffer mutated n=%zu pattern=%d index=%zu got=%d before=%d\\n",
+              n, pattern, index, src[index], src_before[index]);
       status = 15;
       goto cleanup;
     }}
   }}
   if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
     fprintf(stderr,
-            "{expectation.kind} compare mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
-            n, active_lanes, inactive_lanes);
+            "{expectation.kind} compare mask coverage missing n=%zu pattern=%d active_lanes=%zu inactive_lanes=%zu\\n",
+            n, pattern, active_lanes, inactive_lanes);
     status = 16;
     goto cleanup;
   }}
   if (n > 1 && field_distinguishing_lanes == 0) {{
     fprintf(stderr,
-            "{expectation.kind} field-distinguishing coverage missing n=%zu\\n",
-            n);
+            "{expectation.kind} field-distinguishing coverage missing n=%zu pattern=%d\\n",
+            n, pattern);
     status = 17;
     goto cleanup;
   }}
   if (inactive_lanes != inactive_preserved_lanes) {{
     fprintf(stderr,
-            "{expectation.kind} inactive preservation coverage mismatch n=%zu inactive_lanes=%zu preserved_lanes=%zu\\n",
-            n, inactive_lanes, inactive_preserved_lanes);
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu pattern=%d inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, pattern, inactive_lanes, inactive_preserved_lanes);
     status = 18;
     goto cleanup;
   }}
 
-  printf("{expectation.kind} case n=%zu ok computed_mask segment2_load active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu field_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
-         n, active_lanes, inactive_lanes, inactive_preserved_lanes,
+  printf("{expectation.kind} case n=%zu pattern=%d ok computed_mask segment2_load active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu field_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
+         n, pattern, active_lanes, inactive_lanes, inactive_preserved_lanes,
          field_distinguishing_lanes);
 
 cleanup:
@@ -14937,12 +14953,14 @@ cleanup:
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   for (size_t index = 0; index < sizeof(counts) / sizeof(counts[0]); ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -25308,6 +25326,9 @@ def run_self_test() -> int:
                 "computed_mask segment2_load" not in harness
                 or "src[2 * index]" not in harness
                 or "src[2 * index + 1]" not in harness
+                or "for (int pattern = 0; pattern < 2; ++pattern)" not in harness
+                or "pattern=%d ok computed_mask segment2_load" not in harness
+                or "patterns=0,1" not in harness
                 or "inactive lane failed to preserve old fields" not in harness
                 or "field_distinguishing_lanes" not in harness
             ):

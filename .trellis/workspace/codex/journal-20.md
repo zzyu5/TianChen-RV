@@ -1191,3 +1191,55 @@ evidence, and ssh rvv correctness for counts 0,1,16,17,257.
 ### Status
 
 [OK] Completed, archived, and ready for the single task commit.
+
+
+## Session 379: Stage2 RVV computed-masked segment2 load artifact ABI
+
+**Date**: 2026-06-02
+**Task**: Stage2 RVV computed-masked segment2 load unit-store artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the transient-failed dirty worktree for
+`computed_masked_segment2_load_unit_store`. Local implementation, focused
+verification, and real `ssh rvv` generated-bundle correctness evidence are now
+complete.
+
+### Main Changes
+
+- Added `hdr` participation to the computed-mask segment2 load provider
+  operand binding for `cmp_lhs`, `cmp_rhs`, and `src`, completing the
+  `cmp_lhs,cmp_rhs,src,out0,out1,n` `abi|hdr` binding summary.
+- Added target artifact fail-closed validation for stale/missing
+  computed-mask segment2 load binding summaries and stale candidate mirror
+  metadata.
+- Updated explicit/pre-realized target artifact fixtures, generated-bundle
+  dry-run checks, direct pre-realized route-entry negative evidence counts,
+  and harness pattern/count evidence.
+- Strengthened the harness to run two patterns over `0,1,16,17,257`, checking
+  active segment field order, inactive old-field preservation, source
+  preservation, and output tail sentinels.
+
+### Testing
+
+- [OK] `rtk git diff --check`
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit filter `computed-masked-segment2-load` passed 5 tests.
+- [OK] Focused lit filter `direct-pre-realized-computed-masked-segment2-load` passed 1 test.
+- [OK] Explicit dry-run generated bundle counts `0,1,16,17,257` with `patterns=0,1`.
+- [OK] Pre-realized dry-run generated bundle counts `0,1,16,17,257` with `patterns=0,1`.
+- [OK] Real `ssh rvv` generated-bundle correctness counts `0,1,16,17,257` with `patterns=0,1`, covering active field order, inactive old-field preservation, source preservation, and output tail preservation.
+- [OK] Final `rtk git diff --check`
+- [OK] Final `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-02-06-02-stage2-rvv-computed-masked-segment2-load-unit-store-artifact-abi`
+
+### Status
+
+[OK] Completed, ready to archive, and ready for the single task commit.
+
+### Next Steps
+
+None - task complete.
