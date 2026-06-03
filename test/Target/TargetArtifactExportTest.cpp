@@ -2283,6 +2283,8 @@ using RVVDualCompareSelectRouteFacts =
         RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts;
 using RVVComputedMaskStridedMemoryRouteFacts =
     tianchenrv::plugin::rvv::RVVComputedMaskStridedMemoryRouteFacts;
+using RVVUnitStrideMaskedMemoryRouteFacts =
+    tianchenrv::plugin::rvv::RVVUnitStrideMaskedMemoryRouteFacts;
 
 RuntimeABIParameter makeRVVManualRuntimeABIParameter(
     llvm::StringRef cName, llvm::StringRef cType,
@@ -2538,6 +2540,85 @@ void applyRVVManualComputedMaskStridedMemoryRouteFacts(
   description.runtimeABIParameters.clear();
   for (const RuntimeABIParameter &parameter : routeFacts.runtimeABIParameters)
     description.runtimeABIParameters.push_back(parameter);
+}
+
+void applyRVVManualUnitStrideMaskedMemoryRouteFacts(
+    RVVManualRouteDescription &description,
+    const RVVUnitStrideMaskedMemoryRouteFacts &routeFacts,
+    llvm::StringRef emitCRouteID) {
+  description.operation = routeFacts.operation;
+  description.memoryForm = routeFacts.memoryForm;
+  description.elementTypeName = "i32";
+  description.sew = routeFacts.sew;
+  description.lmul = routeFacts.lmul;
+  description.tailPolicy = routeFacts.tailPolicy;
+  description.maskPolicy = routeFacts.maskPolicy;
+  description.emitCRouteID = emitCRouteID;
+  description.providerSupportedMirror = routeFacts.providerSupportedMirror;
+  description.targetLeafProfile = routeFacts.targetLeafProfile;
+  description.routeOperandBindingPlanID =
+      routeFacts.routeOperandBindingPlanID.str();
+  description.routeOperandBindingSummary =
+      routeFacts.routeOperandBindingSummary;
+  description.runtimeControlPlanID = routeFacts.runtimeControlPlanID;
+  description.runtimeABIOrder = routeFacts.runtimeABIOrder;
+  description.baseMemoryMovementRouteFamilyPlanID =
+      routeFacts.baseMemoryMovementRouteFamilyPlanID;
+  description.computedMaskMemoryRouteFamilyPlanID =
+      routeFacts.computedMaskMemoryRouteFamilyPlanID;
+  description.computedMaskMemoryMaskProducerSource =
+      routeFacts.computedMaskMemoryMaskProducerSource;
+  description.maskTailPolicyRouteFamilyPlanID =
+      routeFacts.maskTailPolicyRouteFamilyPlanID;
+  description.maskTailPolicyOwner = routeFacts.maskTailPolicyOwner;
+  description.requiredHeaderDeclarations =
+      routeFacts.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = routeFacts.cTypeMappingSummary;
+  description.vlCType = routeFacts.vlCType;
+  description.vectorTypeName = routeFacts.vectorTypeName;
+  description.vectorCType = routeFacts.vectorCType;
+  description.maskTypeName = routeFacts.maskTypeName;
+  description.maskCType = routeFacts.maskCType;
+  description.setVLIntrinsic = routeFacts.setVLIntrinsic;
+  description.vectorLoadIntrinsic = routeFacts.vectorLoadIntrinsic;
+  description.maskedLoadIntrinsic = routeFacts.maskedLoadIntrinsic;
+  description.storeIntrinsic = routeFacts.storeIntrinsic;
+  description.rhsBroadcastIntrinsic = routeFacts.rhsScalarSplatIntrinsic;
+  description.typedComputeOpName = routeFacts.typedComputeOpName;
+  description.comparePredicateKind = routeFacts.comparePredicateKind;
+  description.compareIntrinsic = routeFacts.compareIntrinsic;
+  description.maskRole = routeFacts.maskRole;
+  description.maskSource = routeFacts.maskSource;
+  description.maskMemoryForm = routeFacts.maskMemoryForm;
+  description.inactiveLaneContract = routeFacts.inactiveLaneContract;
+  description.maskedPassthroughLayout =
+      routeFacts.maskedPassthroughLayout;
+  description.indexedMemoryLayout = routeFacts.maskedMemoryLayout;
+  description.sourceMemoryForm = routeFacts.sourceMemoryForm;
+  description.destinationMemoryForm = routeFacts.destinationMemoryForm;
+  description.emitCLoopInductionName = "i";
+  description.emitCFullChunkVLName = "vl_full";
+  description.emitCLoopVLName = "vl";
+  description.runtimeABIParameters.clear();
+  for (const RuntimeABIParameter &parameter : routeFacts.runtimeABIParameters)
+    description.runtimeABIParameters.push_back(parameter);
+}
+
+RVVManualRouteDescription makeRVVManualUnitStrideMaskedMemoryDescription(
+    RVVManualOperationKind operation, llvm::StringRef emitCRouteID) {
+  std::optional<RVVUnitStrideMaskedMemoryRouteFacts> routeFacts =
+      tianchenrv::plugin::rvv::getRVVUnitStrideMaskedMemoryRouteFacts(
+          operation);
+  if (!routeFacts)
+    llvm::report_fatal_error(
+        "test fixture requires provider-owned unit-stride masked memory "
+        "route facts");
+  RVVManualRouteDescription description;
+  applyRVVManualUnitStrideMaskedMemoryRouteFacts(description, *routeFacts,
+                                                emitCRouteID);
+  description.maskName = "unit_stride_mask";
+  description.resultName = "unit_stride_masked_result";
+  return description;
 }
 
 RVVManualRouteDescription makeRVVManualPlainCompareSelectDescription() {
@@ -14128,6 +14209,50 @@ bool expectRVVTargetArtifactExporterShape(
           {"loop statements", "selected typed RVV source provenance"}))
     return false;
 
+  RVVRouteDescription wrongMaskedMaskCType = baseMaskedDescription;
+  wrongMaskedMaskCType.maskCType = "metadata-derived-mask";
+  if (!expectBaseMemoryProviderFailure(
+          baseMaskedFixture.candidate, baseMaskedRoute, wrongMaskedMaskCType,
+          "base-memory registry rejects stale masked unit mask C type",
+          {"mask C type", "vbool32_t", "metadata-derived-mask"}))
+    return false;
+
+  RVVRouteDescription wrongMaskedLoadIntrinsic = baseMaskedDescription;
+  wrongMaskedLoadIntrinsic.maskedLoadIntrinsic =
+      "metadata-derived-masked-load";
+  if (!expectBaseMemoryProviderFailure(
+          baseMaskedFixture.candidate, baseMaskedRoute,
+          wrongMaskedLoadIntrinsic,
+          "base-memory registry rejects stale masked unit load intrinsic",
+          {"masked load callee", "__riscv_vle32_v_i32m1_tumu",
+           "metadata-derived-masked-load"}))
+    return false;
+
+  RVVRouteDescription staleMaskedLoadBindingSummary = baseMaskedDescription;
+  {
+    std::string staleBinding =
+        staleMaskedLoadBindingSummary.routeOperandBindingSummary;
+    const std::string marker = "masked-load-mask-call|header-mirror";
+    const std::size_t markerPosition = staleBinding.find(marker);
+    if (markerPosition == std::string::npos) {
+      llvm::errs() << "masked unit load-store binding summary did not carry "
+                      "the provider-owned mask header mirror\n";
+      return false;
+    }
+    staleBinding.replace(markerPosition, marker.size(),
+                         "masked-load-mask-call");
+    staleMaskedLoadBindingSummary.routeOperandBindingSummary =
+        std::move(staleBinding);
+  }
+  if (!expectBaseMemoryProviderFailure(
+          baseMaskedFixture.candidate, baseMaskedRoute,
+          staleMaskedLoadBindingSummary,
+          "base-memory registry rejects stale masked unit binding facts",
+          {"route operand binding facts",
+           "masked-load-mask-call|header-mirror",
+           "masked-load-mask-call"}))
+    return false;
+
   TargetArtifactCandidate missingBaseProviderMirrorCandidate =
       baseStridedFixture.candidate;
   if (!eraseArtifactMetadataKey(missingBaseProviderMirrorCandidate,
@@ -14676,6 +14801,41 @@ bool expectRVVTargetArtifactExporterShape(
           {"mask_source", "runtime_abi:mask", "metadata-derived-mask"}))
     return false;
 
+  TargetArtifactCandidate wrongMaskedTypedComputeMirror =
+      baseMaskedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongMaskedTypedComputeMirror, "rvv_selected_body_typed_compute_op",
+          "tcrv_rvv.move")) {
+    llvm::errs() << "base-memory masked test fixture did not contain typed "
+                    "compute metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          wrongMaskedTypedComputeMirror, baseMaskedRoute,
+          baseMaskedDescription,
+          "base-memory registry rejects stale masked unit typed compute "
+          "mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.masked_load",
+           "tcrv_rvv.move"}))
+    return false;
+
+  TargetArtifactCandidate staleMaskedBindingMirror =
+      baseMaskedFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleMaskedBindingMirror, "tcrv_rvv.route_operand_binding_operands",
+          staleMaskedLoadBindingSummary.routeOperandBindingSummary)) {
+    llvm::errs() << "base-memory masked test fixture did not contain binding "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectBaseMemoryCandidateFailure(
+          staleMaskedBindingMirror, baseMaskedRoute, baseMaskedDescription,
+          "base-memory registry rejects stale masked unit binding mirror",
+          {"route_operand_binding_operands",
+           "selected typed RVV base-memory binding summary",
+           "masked-load-mask-call|header-mirror"}))
+    return false;
+
   TargetArtifactCandidate staleBaseABIMirror = baseStridedFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleBaseABIMirror,
                                     "tcrv_rvv.runtime_abi_order",
@@ -14767,6 +14927,37 @@ bool expectRVVTargetArtifactExporterShape(
           makeRVVManualStridedLoadRoute(manualStridedLoadDescription);
   TargetArtifactCandidate manualStridedLoadCandidate =
       makeRVVManualTargetArtifactCandidate(manualStridedLoadDescription);
+  RVVRouteDescription manualComputedUnitDescription =
+      makeRVVManualUnitStrideMaskedMemoryDescription(
+          RVVManualOperationKind::ComputedMaskUnitLoadStore,
+          "manual-computed-mask-unit-load-store-route");
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      manualComputedUnitRoute(manualComputedUnitDescription.emitCRouteID,
+                              "rvv-manual-target-artifact-test");
+  TargetArtifactCandidate manualComputedUnitCandidate =
+      makeRVVManualTargetArtifactCandidate(manualComputedUnitDescription);
+  RVVRouteDescription manualRuntimeScalarStoreDescription =
+      makeRVVManualUnitStrideMaskedMemoryDescription(
+          RVVManualOperationKind::RuntimeScalarComputedMaskStore,
+          "manual-runtime-scalar-cmp-masked-store-route");
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      manualRuntimeScalarStoreRoute(
+          manualRuntimeScalarStoreDescription.emitCRouteID,
+          "rvv-manual-target-artifact-test");
+  TargetArtifactCandidate manualRuntimeScalarStoreCandidate =
+      makeRVVManualTargetArtifactCandidate(
+          manualRuntimeScalarStoreDescription);
+  RVVRouteDescription manualRuntimeScalarLoadStoreDescription =
+      makeRVVManualUnitStrideMaskedMemoryDescription(
+          RVVManualOperationKind::RuntimeScalarComputedMaskLoadStore,
+          "manual-runtime-scalar-cmp-masked-load-store-route");
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      manualRuntimeScalarLoadStoreRoute(
+          manualRuntimeScalarLoadStoreDescription.emitCRouteID,
+          "rvv-manual-target-artifact-test");
+  TargetArtifactCandidate manualRuntimeScalarLoadStoreCandidate =
+      makeRVVManualTargetArtifactCandidate(
+          manualRuntimeScalarLoadStoreDescription);
 
   auto expectManualCompareSelectMaskPositive =
       [&](const TargetArtifactCandidate &manualCandidate,
@@ -14836,6 +15027,38 @@ bool expectRVVTargetArtifactExporterShape(
                 manualContext),
         mutationContext, fragments);
   };
+  auto expectUnitStrideMaskedMemoryCandidatePositive =
+      [&](const TargetArtifactCandidate &manualCandidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &manualRoute,
+          const RVVRouteDescription &manualDescription,
+          llvm::StringRef fixtureContext) -> bool {
+    RVVRouteValidationContext manualContext{manualCandidate, manualRoute,
+                                            manualDescription};
+    return expectSuccess(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                manualContext),
+        (llvm::Twine("unit-stride masked memory registry accepts candidate "
+                     "mirrors for ") +
+         fixtureContext)
+            .str());
+  };
+  auto expectUnitStrideMaskedMemoryCandidateFailure =
+      [&](TargetArtifactCandidate manualCandidate,
+          const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &manualRoute,
+          const RVVRouteDescription &manualDescription,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext manualContext{manualCandidate, manualRoute,
+                                            manualDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                manualContext),
+        mutationContext, fragments);
+  };
 
   RVVRouteDescription manualRuntimeScalarDescription =
       makeRVVManualRuntimeScalarCompareSelectDescription();
@@ -14875,6 +15098,21 @@ bool expectRVVTargetArtifactExporterShape(
           manualStridedLoadCandidate, manualStridedLoadRoute,
           manualStridedLoadDescription,
           "computed-mask strided load/unit store"))
+    return false;
+  if (!expectUnitStrideMaskedMemoryCandidatePositive(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          manualComputedUnitDescription, "computed-mask unit load/store"))
+    return false;
+  if (!expectUnitStrideMaskedMemoryCandidatePositive(
+          manualRuntimeScalarStoreCandidate, manualRuntimeScalarStoreRoute,
+          manualRuntimeScalarStoreDescription,
+          "runtime-scalar compare masked store"))
+    return false;
+  if (!expectUnitStrideMaskedMemoryCandidatePositive(
+          manualRuntimeScalarLoadStoreCandidate,
+          manualRuntimeScalarLoadStoreRoute,
+          manualRuntimeScalarLoadStoreDescription,
+          "runtime-scalar compare masked load/store"))
     return false;
 
   RVVRouteDescription stalePlainComputedMaskPlan = manualPlainDescription;
@@ -15526,6 +15764,59 @@ bool expectRVVTargetArtifactExporterShape(
           {"masked strided store callee", "__riscv_vsse32_v_i32m1_m"}))
     return false;
 
+  RVVRouteDescription staleComputedUnitBindingSummary =
+      manualComputedUnitDescription;
+  staleComputedUnitBindingSummary.routeOperandBindingSummary =
+      "metadata-only-computed-unit-binding-summary";
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitBindingSummary,
+          "unit-stride masked memory registry rejects stale computed unit "
+          "binding facts",
+          {"route operand binding facts",
+           "rvv-route-operand-binding:computed_masked_unit_load_store.v1",
+           "metadata-only-computed-unit-binding-summary"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitMaskProducer =
+      manualComputedUnitDescription;
+  staleComputedUnitMaskProducer.computedMaskMemoryMaskProducerSource =
+      "runtime-scalar-compare-rhs-splat";
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitMaskProducer,
+          "unit-stride masked memory registry rejects stale computed unit "
+          "mask producer",
+          {"computed-mask memory producer source", "vector-compare-rhs-load",
+           "runtime-scalar-compare-rhs-splat"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarBasePlan =
+      manualRuntimeScalarStoreDescription;
+  staleRuntimeScalarBasePlan.baseMemoryMovementRouteFamilyPlanID =
+      "rvv-base-memory-movement-route-family-plan.v1";
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          manualRuntimeScalarStoreCandidate, manualRuntimeScalarStoreRoute,
+          staleRuntimeScalarBasePlan,
+          "unit-stride masked memory registry rejects stale base-memory plan "
+          "on runtime-scalar store",
+          {"stale provider-derived base-memory route-family plan",
+           "rvv-base-memory-movement-route-family-plan.v1"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarSplat =
+      manualRuntimeScalarLoadStoreDescription;
+  staleRuntimeScalarSplat.rhsBroadcastIntrinsic =
+      "metadata-derived-runtime-scalar-splat";
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          manualRuntimeScalarLoadStoreCandidate,
+          manualRuntimeScalarLoadStoreRoute, staleRuntimeScalarSplat,
+          "unit-stride masked memory registry rejects stale runtime-scalar "
+          "splat intrinsic",
+          {"runtime scalar splat callee", "__riscv_vmv_v_x_i32m1",
+           "metadata-derived-runtime-scalar-splat"}))
+    return false;
+
   if (!expectManualCompareSelectMaskRouteFailure(
           manualIndexedCandidate,
           cloneRVVEmitCLowerableRouteWithLoopOperand(
@@ -15752,6 +16043,52 @@ bool expectRVVTargetArtifactExporterShape(
           {"base_memory_movement_route_family_plan",
            "must not carry",
            "without selected typed RVV plain base-memory route-family plan"}))
+    return false;
+
+  TargetArtifactCandidate wrongComputedUnitBaseMemoryCandidate =
+      manualComputedUnitCandidate;
+  wrongComputedUnitBaseMemoryCandidate.artifactMetadata.emplace_back(
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "rvv-base-memory-movement-route-family-plan.v1");
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          wrongComputedUnitBaseMemoryCandidate, manualComputedUnitRoute,
+          manualComputedUnitDescription,
+          "unit-stride masked memory registry rejects stale base-memory "
+          "metadata on computed unit load/store",
+          {"base_memory_movement_route_family_plan", "must not carry",
+           "without selected typed RVV plain base-memory route-family plan"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarProducerCandidate =
+      manualRuntimeScalarStoreCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarProducerCandidate,
+          "tcrv_rvv.computed_mask_memory_mask_producer_source",
+          "vector-compare-rhs-load"))
+    return false;
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          wrongRuntimeScalarProducerCandidate, manualRuntimeScalarStoreRoute,
+          manualRuntimeScalarStoreDescription,
+          "unit-stride masked memory registry rejects stale runtime-scalar "
+          "producer mirror",
+          {"computed_mask_memory_mask_producer_source",
+           "runtime-scalar-splat-compare-rhs", "vector-compare-rhs-load"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarLoadStoreTypedComputeCandidate =
+      manualRuntimeScalarLoadStoreCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarLoadStoreTypedComputeCandidate,
+          "rvv_selected_body_typed_compute_op", "tcrv_rvv.masked_store"))
+    return false;
+  if (!expectUnitStrideMaskedMemoryCandidateFailure(
+          wrongRuntimeScalarLoadStoreTypedComputeCandidate,
+          manualRuntimeScalarLoadStoreRoute,
+          manualRuntimeScalarLoadStoreDescription,
+          "unit-stride masked memory registry rejects stale runtime-scalar "
+          "load-store typed compute mirror",
+          {"rvv_selected_body_typed_compute_op", "tcrv_rvv.masked_load",
+           "tcrv_rvv.masked_store"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedTypedComputeCandidate =

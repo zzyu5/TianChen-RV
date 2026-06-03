@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 scope boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body, mask/tail, memory, ABI, type, intrinsic, and fail-closed route facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route fact surface, operand binding, header/type mirror, and target artifact validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-masked-unit-memory-production-validation-boundary/prd.md", "reason": "Bounded requirements, acceptance criteria, non-goals, and checks for this implementation round."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Expose provider-owned masked unit-stride memory facts for provider and target validation."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Route planning analysis/plan types for masked unit-stride memory provider facts and validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp", "reason": "Current static-mask unit-stride memory facts live in the base-memory owner and may need specialization or split routing."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider plan validation, route description population, and memory operand binding for computed-mask/runtime-scalar unit-stride masked routes."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Consume provider-owned masked unit-stride memory facts and reject stale provider/candidate mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run and direct fail-closed evidence for in-scope masked memory routes if script expectations are affected."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Direct C++ fail-closed target artifact checks for stale provider facts and candidate mirrors."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-load-store.mlir", "reason": "Focused explicit and pre-realized masked unit-stride target artifact fixtures."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-unit-load-store-dry-run.test", "reason": "Focused generated-bundle script fixtures for masked unit-stride and runtime-scalar masked memory."}

@@ -26630,7 +26630,7 @@ int runRouteOperandBindingPlanValidationTest() {
                  "mask", "const int32_t *",
                  RuntimeABIParameterRole::MaskInputBuffer),
              {"runtime-abi-mirror", "materialized-mask-load-base",
-              "masked-load-mask-call"});
+              "masked-load-mask-call", "header-mirror"});
   addBinding(maskedLoadStorePlan, "dst",
              makeTargetExportABIParameter(
                  "dst", "int32_t *",
@@ -26725,21 +26725,25 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "src", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base"});
+             {"runtime-abi-mirror", "materialized-load-base",
+              "header-mirror"});
   addBinding(maskedStorePlan, "mask",
              makeTargetExportABIParameter(
                  "mask", "const int32_t *",
                  RuntimeABIParameterRole::MaskInputBuffer),
-             {"runtime-abi-mirror", "materialized-mask-load-base"});
+             {"runtime-abi-mirror", "materialized-mask-load-base",
+              "header-mirror"});
   addBinding(maskedStorePlan, "dst",
              makeTargetExportABIParameter("dst", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"runtime-abi-mirror", "materialized-masked-store-base"});
+             {"runtime-abi-mirror", "materialized-masked-store-base",
+              "header-mirror"});
   addBinding(maskedStorePlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
                  RuntimeABIParameterRole::RuntimeElementCount),
-             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+             {"runtime-abi-mirror", "setvl-avl", "loop-control",
+              "header-mirror"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               maskedStorePlan,
@@ -26755,18 +26759,20 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "cmp_lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi-mirror", "cmp-lhs-load", "compare-lhs-call"});
+             {"abi-mirror", "cmp-lhs-load", "compare-lhs-call",
+              "header-mirror"});
   addBinding(computedMaskUnitLoadStorePlan, "cmp_rhs",
              makeTargetExportABIParameter(
                  "cmp_rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi-mirror", "cmp-rhs-load", "compare-rhs-call"});
+             {"abi-mirror", "cmp-rhs-load", "compare-rhs-call",
+              "header-mirror"});
   addBinding(computedMaskUnitLoadStorePlan, "src",
              makeTargetExportABIParameter(
                  "src", "const int32_t *",
                  RuntimeABIParameterRole::SourceInputBuffer),
              {"abi-mirror", "materialized-masked-load-base",
-              "masked-load-source-call"});
+              "masked-load-source-call", "header-mirror"});
   addBinding(computedMaskUnitLoadStorePlan, "dst",
              makeTargetExportABIParameter(
                  "dst", "int32_t *",

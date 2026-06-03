@@ -785,7 +785,7 @@ RVVRouteOperandBindingPlan buildBaseMemoryRouteOperandBindingPlanFromFacts(
     addBaseMemoryRouteOperandBinding(
         plan, "mask", parameter(1),
         {"runtime-abi-mirror", "materialized-mask-load-base",
-         "masked-load-mask-call"});
+         "masked-load-mask-call", "header-mirror"});
     addBaseMemoryRouteOperandBinding(
         plan, "dst", parameter(2),
         {"runtime-abi-mirror", "materialized-old-destination-load-base",
@@ -800,11 +800,11 @@ RVVRouteOperandBindingPlan buildBaseMemoryRouteOperandBindingPlanFromFacts(
     addBaseMemoryRouteOperandBinding(
         plan, "src", parameter(0),
         {"runtime-abi-mirror", "materialized-load-base",
-         "masked-store-source-call"});
+         "masked-store-source-call", "header-mirror"});
     addBaseMemoryRouteOperandBinding(
         plan, "mask", parameter(1),
         {"runtime-abi-mirror", "materialized-mask-load-base",
-         "masked-store-mask-call"});
+         "masked-store-mask-call", "header-mirror"});
     addBaseMemoryRouteOperandBinding(
         plan, "dst", parameter(2),
         {"runtime-abi-mirror", "materialized-masked-store-base",
@@ -921,7 +921,7 @@ deriveBaseMemoryRouteOperandBindingPlanImpl(
     addBaseMemoryRouteOperandBinding(
         plan, "mask", slice.maskABI,
         {"runtime-abi-mirror", "materialized-mask-load-base",
-         "masked-load-mask-call"});
+         "masked-load-mask-call", "header-mirror"});
     addBaseMemoryRouteOperandBinding(
         plan, "dst", slice.outABI,
         {"runtime-abi-mirror", "materialized-old-destination-load-base",
@@ -939,11 +939,11 @@ deriveBaseMemoryRouteOperandBindingPlanImpl(
     addBaseMemoryRouteOperandBinding(
         plan, "src", slice.lhsABI,
         {"runtime-abi-mirror", "materialized-load-base",
-         "masked-store-source-call"});
+         "masked-store-source-call", "header-mirror"});
     addBaseMemoryRouteOperandBinding(
         plan, "mask", slice.maskABI,
         {"runtime-abi-mirror", "materialized-mask-load-base",
-         "masked-store-mask-call"});
+         "masked-store-mask-call", "header-mirror"});
     addBaseMemoryRouteOperandBinding(
         plan, "dst", slice.outABI,
         {"runtime-abi-mirror", "materialized-masked-store-base",

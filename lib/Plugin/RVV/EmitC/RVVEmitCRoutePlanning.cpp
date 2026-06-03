@@ -1292,6 +1292,7 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
         plan.planID == kRVVRuntimeScalarCompareSelectOperandBindingPlanID ||
         plan.planID ==
             kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID ||
+        plan.planID == kRVVComputedMaskUnitLoadStoreOperandBindingPlanID ||
         plan.planID ==
             kRVVRuntimeScalarComputedMaskStoreOperandBindingPlanID ||
         plan.planID ==
@@ -1328,7 +1329,7 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
         return "hdr";
       return use;
     }
-    if (use == "runtime-abi-mirror")
+    if (use == "runtime-abi-mirror" || use == "abi-mirror")
       return "abi";
     if (use == "materialized-load-base")
       return "lhs-load";
@@ -11404,6 +11405,90 @@ getRVVPlainSegment2MemoryRuntimeABIParameters(
 }
 
 RVVRouteOperandBindingPlan
+buildUnitStrideMaskedMemoryRouteOperandBindingPlanFromFacts(
+    const RVVUnitStrideMaskedMemoryRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  auto parameter =
+      [&](std::size_t index) -> const support::RuntimeABIParameter & {
+    return facts.runtimeABIParameters[index];
+  };
+
+  switch (facts.operation) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+    addRouteOperandBinding(
+        plan, "lhs", parameter(0),
+        {"runtime-abi-mirror", "materialized-load-base", "compare-lhs-call",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "rhs_scalar", parameter(1),
+        {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
+         "compare-rhs-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "src", parameter(2),
+        {"runtime-abi-mirror", "materialized-source-load-base",
+         "masked-store-source-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "dst", parameter(3),
+        {"runtime-abi-mirror", "materialized-masked-store-base",
+         "masked-store-destination-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(4),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+    addRouteOperandBinding(
+        plan, "lhs", parameter(0),
+        {"runtime-abi-mirror", "materialized-load-base", "compare-lhs-call",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "rhs_scalar", parameter(1),
+        {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
+         "compare-rhs-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "src", parameter(2),
+        {"runtime-abi-mirror", "materialized-masked-load-base",
+         "masked-load-source-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "dst", parameter(3),
+        {"runtime-abi-mirror", "materialized-old-destination-load-base",
+         "masked-load-passthrough-call", "materialized-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(4),
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+    addRouteOperandBinding(
+        plan, "cmp_lhs", parameter(0),
+        {"abi-mirror", "cmp-lhs-load", "compare-lhs-call",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", parameter(1),
+        {"abi-mirror", "cmp-rhs-load", "compare-rhs-call",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "src", parameter(2),
+        {"abi-mirror", "materialized-masked-load-base",
+         "masked-load-source-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "dst", parameter(3),
+        {"abi-mirror", "old-dst-load", "masked-load-passthrough-call",
+         "materialized-store-base", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(4),
+        {"abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+    break;
+  default:
+    break;
+  }
+
+  return plan;
+}
+
+RVVRouteOperandBindingPlan
 buildComputedMaskStridedMemoryRouteOperandBindingPlanFromFacts(
     const RVVComputedMaskStridedMemoryRouteFacts &facts) {
   RVVRouteOperandBindingPlan plan;
@@ -12110,14 +12195,16 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "computed_masked_unit_load_store route";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
-        {"abi-mirror", "cmp-lhs-load", "compare-lhs-call"});
+        {"abi-mirror", "cmp-lhs-load", "compare-lhs-call",
+         "header-mirror"});
     addRouteOperandBinding(
         plan, "cmp_rhs", slice.rhsABI,
-        {"abi-mirror", "cmp-rhs-load", "compare-rhs-call"});
+        {"abi-mirror", "cmp-rhs-load", "compare-rhs-call",
+         "header-mirror"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
         {"abi-mirror", "materialized-masked-load-base",
-         "masked-load-source-call"});
+         "masked-load-source-call", "header-mirror"});
     addRouteOperandBinding(
         plan, "dst", slice.outABI,
         {"abi-mirror", "old-dst-load", "masked-load-passthrough-call",
@@ -18613,6 +18700,168 @@ getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
   return buildRVVWideningConversionRouteFacts(operation);
 }
 
+std::optional<RVVUnitStrideMaskedMemoryRouteFacts>
+getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
+  return getRVVUnitStrideMaskedMemoryRouteFacts(
+      operation, tcrv::rvv::getRVVFirstSliceSEWBits(),
+      tcrv::rvv::getRVVLMULM1());
+}
+
+std::optional<RVVUnitStrideMaskedMemoryRouteFacts>
+getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation,
+                                       std::int64_t sew,
+                                       llvm::StringRef lmul) {
+  const bool isStaticMaskLoad =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
+  const bool isStaticMaskStore =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isRuntimeScalarStore =
+      operation == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
+  const bool isRuntimeScalarLoadStore =
+      operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  const bool isComputedMaskUnitLoadStore =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+  const bool isStaticMask = isStaticMaskLoad || isStaticMaskStore;
+  const bool isRuntimeScalar =
+      isRuntimeScalarStore || isRuntimeScalarLoadStore;
+  const bool isComputedMask =
+      isRuntimeScalar || isComputedMaskUnitLoadStore;
+  if (!isStaticMask && !isComputedMask)
+    return std::nullopt;
+  if (isStaticMask || isComputedMaskUnitLoadStore) {
+    if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+        lmul != tcrv::rvv::getRVVLMULM1())
+      return std::nullopt;
+  } else if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryConfig(sew,
+                                                                     lmul)) {
+    return std::nullopt;
+  }
+
+  RVVUnitStrideMaskedMemoryRouteFacts facts;
+  facts.operation = operation;
+  facts.sew = sew;
+  facts.lmul = lmul;
+  facts.vlCType = "size_t";
+  facts.vectorTypeName = getRVVSelectedBodyVectorTypeName(sew, lmul);
+  facts.vectorCType = getRVVSelectedBodySignedVectorCType(sew, lmul);
+  facts.maskTypeName = getRVVSelectedBodyMaskTypeName(sew, lmul);
+  facts.maskCType = getRVVSelectedBodyMaskCType(sew, lmul);
+  facts.scalarCType =
+      isRuntimeScalar ? getRVVRuntimeScalarComputedMaskMemoryElementCType(sew,
+                                                                          lmul)
+                      : llvm::StringRef();
+  facts.setVLIntrinsic = getRVVSelectedBodySetVLIntrinsic(sew, lmul);
+  facts.vectorLoadIntrinsic = getRVVSelectedBodyVectorLoadIntrinsic(sew, lmul);
+  facts.maskedLoadIntrinsic =
+      (isStaticMaskLoad || isRuntimeScalarLoadStore ||
+       isComputedMaskUnitLoadStore)
+          ? getRVVSelectedBodyMaskedLoadIntrinsic(sew, lmul)
+          : llvm::StringRef();
+  facts.storeIntrinsic =
+      (isStaticMaskStore || isRuntimeScalarStore)
+          ? getRVVSelectedBodyMaskedStoreIntrinsic(sew, lmul)
+          : getRVVSelectedBodyStoreIntrinsic(sew, lmul);
+  facts.rhsScalarSplatIntrinsic =
+      isRuntimeScalar ? getRVVSelectedBodyScalarSplatIntrinsic(sew, lmul)
+                      : llvm::StringRef();
+  facts.comparePredicateKind =
+      isRuntimeScalar ? llvm::StringRef("sle")
+      : isComputedMaskUnitLoadStore ? llvm::StringRef("slt")
+                                    : llvm::StringRef();
+  facts.compareIntrinsic =
+      isStaticMask
+          ? getRVVSelectedBodyMaskFromI32Intrinsic(lmul)
+          : getRVVSelectedBodyCompareIntrinsicForPredicate(
+                facts.comparePredicateKind, sew, lmul);
+  facts.maskRole = isStaticMask
+                       ? llvm::StringRef(kRVVMaskRole)
+                       : llvm::StringRef(kRVVMaskedPredicateMaskRole);
+  facts.maskSource = isStaticMask
+                         ? llvm::StringRef(kRVVMaskSource)
+                         : llvm::StringRef(kRVVMaskedCompareMaskSource);
+  facts.maskMemoryForm =
+      isStaticMask ? llvm::StringRef(kRVVMaskMemoryForm)
+                   : llvm::StringRef(kRVVComputedMaskMemoryMaskMemoryForm);
+
+  if (isStaticMask) {
+    std::optional<RVVBaseMemoryMovementRouteFacts> baseFacts =
+        getRVVBaseMemoryMovementRouteFacts(operation);
+    if (!baseFacts)
+      return std::nullopt;
+    facts.memoryForm = baseFacts->memoryForm;
+    facts.tailPolicy = baseFacts->tailPolicy;
+    facts.maskPolicy = baseFacts->maskPolicy;
+    facts.runtimeControlPlanID = baseFacts->runtimeControlPlanID;
+    facts.runtimeABIOrder = baseFacts->runtimeABIOrder;
+    facts.targetLeafProfile = baseFacts->targetLeafProfile;
+    facts.providerSupportedMirror = baseFacts->providerSupportedMirror;
+    facts.requiredHeaderDeclarations = baseFacts->requiredHeaderDeclarations;
+    facts.cTypeMappingSummary = baseFacts->cTypeMappingSummary;
+    facts.routeOperandBindingPlanID = baseFacts->routeOperandBindingPlanID;
+    facts.baseMemoryMovementRouteFamilyPlanID = baseFacts->routeFamilyPlanID;
+    facts.typedComputeOpName =
+        isStaticMaskLoad ? llvm::StringRef("tcrv_rvv.masked_load")
+                         : llvm::StringRef("tcrv_rvv.masked_store");
+    facts.inactiveLaneContract = baseFacts->inactiveLaneContract;
+    facts.maskedPassthroughLayout = baseFacts->maskedPassthroughLayout;
+    facts.maskedMemoryLayout = baseFacts->indexedMemoryLayout;
+    facts.sourceMemoryForm = baseFacts->sourceMemoryForm;
+    facts.destinationMemoryForm = baseFacts->destinationMemoryForm;
+    facts.routeOperandBindingSummary = baseFacts->routeOperandBindingSummary;
+    facts.logicalOperands = baseFacts->logicalOperands;
+    facts.runtimeABIParameters = baseFacts->runtimeABIParameters;
+    return facts;
+  }
+
+  facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
+  facts.tailPolicy = isRuntimeScalarStore ? llvm::StringRef("undisturbed")
+                                          : llvm::StringRef("agnostic");
+  facts.maskPolicy = isRuntimeScalarStore ? llvm::StringRef("undisturbed")
+                                          : llvm::StringRef("agnostic");
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = getComputedMaskMemoryRuntimeABIOrder(operation);
+  facts.targetLeafProfile = getComputedMaskMemoryTargetLeafProfile(operation);
+  facts.providerSupportedMirror =
+      getComputedMaskMemoryProviderSupportedMirror(operation);
+  facts.requiredHeaderDeclarations =
+      getComputedMaskMemoryRequiredHeaderDeclarations(operation);
+  facts.cTypeMappingSummary = getComputedMaskMemoryCTypeMappingSummary(operation);
+  facts.routeOperandBindingPlanID =
+      getExpectedRVVRouteOperandBindingPlanID(operation);
+  facts.computedMaskMemoryRouteFamilyPlanID =
+      kRVVComputedMaskMemoryRouteFamilyPlanID;
+  facts.computedMaskMemoryMaskProducerSource =
+      getComputedMaskMemoryProducerSource(operation);
+  facts.maskTailPolicyRouteFamilyPlanID = kRVVMaskTailPolicyRouteFamilyPlanID;
+  facts.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
+  facts.typedComputeOpName =
+      (isRuntimeScalarStore)
+          ? llvm::StringRef("tcrv_rvv.masked_store")
+          : llvm::StringRef("tcrv_rvv.masked_load");
+  facts.inactiveLaneContract = getComputedMaskMemoryInactiveLaneContract(operation);
+  facts.maskedPassthroughLayout =
+      getComputedMaskMemoryPassthroughLayout(operation);
+  facts.maskedMemoryLayout = getComputedMaskMemoryLayout(operation);
+  facts.sourceMemoryForm = getComputedMaskMemorySourceMemoryForm(operation);
+  facts.destinationMemoryForm =
+      getComputedMaskMemoryDestinationMemoryForm(operation);
+  facts.runtimeABIParameters =
+      isRuntimeScalar
+          ? tcrv::rvv::
+                buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
+                    facts.scalarCType)
+          : tcrv::rvv::getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
+
+  RVVRouteOperandBindingPlan plan =
+      buildUnitStrideMaskedMemoryRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary = stringifyRVVRouteOperandBindingPlan(plan);
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    facts.logicalOperands.push_back(binding.logicalOperand);
+
+  return facts;
+}
+
 std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
 getRVVComputedMaskIndexedMemoryRouteFacts(
     RVVSelectedBodyOperationKind operation) {
@@ -25037,6 +25286,10 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
             "masked_unit_load_store mask operand"))
       return std::move(error);
     if (llvm::Error error =
+            requireOperandUse("mask", "header-mirror",
+                              "masked_unit_load_store mask header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
             bindOperand(facts.passthroughABI, "dst",
                         "materialized-old-destination-load-base",
                         "masked_unit_load_store old destination load"))
@@ -25081,12 +25334,20 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
             "masked_unit_store masked-store source operand"))
       return std::move(error);
     if (llvm::Error error =
+            requireOperandUse("src", "header-mirror",
+                              "masked_unit_store source header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
             bindOperand(facts.maskABI, "mask", "materialized-mask-load-base",
                         "masked_unit_store mask load operand"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
             "mask", "masked-store-mask-call",
             "masked_unit_store mask operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("mask", "header-mirror",
+                              "masked_unit_store mask header mirror"))
       return std::move(error);
     if (llvm::Error error =
             bindOperand(facts.destinationABI, "dst",
@@ -25272,6 +25533,16 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               "compare-rhs-call", "computed_masked_unit_load_store"))
         return std::move(error);
       if (llvm::Error error =
+              requireOperandUse("cmp_lhs", "header-mirror",
+                                "computed_masked_unit_load_store compare lhs "
+                                "header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("cmp_rhs", "header-mirror",
+                                "computed_masked_unit_load_store compare rhs "
+                                "header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
               bindOperand(facts.sourceABI, "src",
                           "materialized-masked-load-base",
                           "computed_masked_unit_load_store source base"))
@@ -25280,6 +25551,11 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
               requireOperandUse("src", "masked-load-source-call",
                                 "computed_masked_unit_load_store source "
                                 "operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("src", "header-mirror",
+                                "computed_masked_unit_load_store source "
+                                "header mirror"))
         return std::move(error);
       if (llvm::Error error =
               bindOperand(facts.passthroughABI, "dst", "old-dst-load",

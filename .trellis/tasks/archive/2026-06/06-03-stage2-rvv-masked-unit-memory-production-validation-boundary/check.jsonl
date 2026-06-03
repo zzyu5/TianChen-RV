@@ -1,0 +1,23 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final behavior against RVV-first authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider remains owner of masked memory route facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check operand binding, header/type, provider fact, and target artifact validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-masked-unit-memory-production-validation-boundary/prd.md", "reason": "Verify implementation and evidence satisfy bounded acceptance criteria."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Build and run direct target artifact C++ provider/candidate fail-closed tests."}
+{"file": "build/bin/tcrv-opt", "reason": "Build if route fixture or script validation requires MLIR pipelines."}
+{"file": "build/bin/tcrv-translate", "reason": "Build if generated-bundle script validation requires target artifact export."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-load-store.mlir", "reason": "Run focused lit filters for explicit and pre-realized in-scope masked unit-stride routes."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-unit-load-store-dry-run.test", "reason": "Run focused lit filters and direct dry-runs for script-supported in-scope masked memory routes."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp", "reason": "Bounded legacy authority scan and provider fact routing review after changes."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Bounded legacy authority scan and provider validation review after changes."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Bounded legacy authority scan and target validation review after changes."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Bounded legacy authority scan and direct C++ fail-closed test review after changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Built with RTK and passed; direct C++ provider-fact and candidate-mirror fail-closed regressions pass for static-mask, computed-mask, and runtime-scalar unit-stride masked memory."}
+{"file": "build/bin/tcrv-opt", "reason": "Built with RTK for focused target-artifact lit validation after route fixture updates."}
+{"file": "build/bin/tcrv-translate", "reason": "Built with RTK for generated-bundle script validation after metadata expectation updates."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Built and passed after provider plan closure checks required header-mirror participation for masked memory bindings."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-load-store.mlir", "reason": "Focused lit filter from build/test passed 24 in-scope masked unit-stride memory target/script tests, including explicit and pre-realized masked_unit_load_store, masked_unit_store, computed_masked_unit_load_store, runtime_scalar_cmp_masked_store, and runtime_scalar_cmp_masked_load_store forms."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-unit-load-store-dry-run.test", "reason": "Focused generated-bundle dry-run and direct fail-closed script checks passed for script-supported in-scope masked unit-stride memory forms."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Script metadata expectations were updated for provider-owned header participation and compact computed-mask binding summaries; focused lit dry-runs passed."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Diff-only old-authority scan found only fail-closed expected-fragment strings for legacy intrinsic spellings in negative tests, not positive route authority."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-masked-unit-memory-production-validation-boundary/prd.md", "reason": "No ssh rvv rerun required because validation metadata, mirrors, and header-participation checks changed without changing route emission, generated runtime behavior, runtime ABI order, mask/passthrough behavior, load/store semantics, tail behavior, or destination preservation semantics."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Whitespace diff check passed."}

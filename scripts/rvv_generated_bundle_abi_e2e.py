@@ -620,7 +620,7 @@ MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:masked_unit_load_store.v1;"
     "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;"
-    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call;"
+    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call|header-mirror;"
     "dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
@@ -629,8 +629,8 @@ MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:masked_unit_store.v1;"
-    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-store-source-call;"
-    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-store-mask-call;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-store-source-call|header-mirror;"
+    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-store-mask-call|header-mirror;"
     "dst=output-buffer:dst:runtime-abi-mirror|materialized-masked-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
@@ -639,11 +639,11 @@ COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_unit_load_store.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;"
-    "src=source-input-buffer:src:abi-mirror|materialized-masked-load-base|masked-load-source-call;"
-    "dst=output-buffer:dst:abi-mirror|old-dst-load|masked-load-passthrough-call|materialized-store-base|header-mirror;"
-    "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs|hdr;"
+    "src=source-input-buffer:src:abi|mload-base|mload-src|hdr;"
+    "dst=output-buffer:dst:abi|old-dst-load|mload-pass|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl|loop|hdr"
 )
 COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_strided_store.v1"

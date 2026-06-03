@@ -189,7 +189,29 @@ Tightened computed-mask segment2 update target provider fact validation, dry-run
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit from `build/test` with filter
+  `masked-unit-load-store|masked-unit-store|computed-masked-unit-load-store|runtime-scalar-cmp-masked-store($|-|\.mlir)|runtime-scalar-cmp-masked-load-store|runtime-scalar-cmp-masked-memory`
+  passed 24 in-scope tests.
+- [OK] Generated-bundle dry-runs and direct fail-closed script tests for
+  script-supported in-scope masked unit-stride memory forms passed through the
+  focused lit filter.
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-03-stage2-rvv-masked-unit-memory-production-validation-boundary`
+- [OK] `rtk git diff --check`
+- [OK] Diff-only old-authority scan found only fail-closed expected-fragment
+  strings for legacy intrinsic spellings in C++ negative tests, not positive
+  route authority.
+
+No `ssh rvv` rerun: this round tightened validation metadata, mirrors, and
+header-participation checks without changing route emission, generated runtime
+behavior, runtime ABI order, mask/passthrough behavior, load/store semantics,
+tail behavior, or destination preservation semantics.
 
 ### Status
 
@@ -1374,6 +1396,43 @@ included-in-this-commit
 No `ssh rvv` rerun: this changed provider/target validation only and did not
 change emitted runtime arithmetic, ABI order, intrinsic selection, mask/tail
 behavior, or destination preservation semantics.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 414: Stage2 RVV masked unit-stride memory production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV masked unit-stride memory production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the provider-to-target validation boundary for existing unit-stride masked memory routes by exposing provider-owned masked memory facts, consuming them in target artifact validation, and adding focused fail-closed evidence.
+
+### Main Changes
+
+- Added provider-owned unit-stride masked memory route facts for static-mask, computed-mask, and runtime-scalar store/load-store routes.
+- Required header participation in masked memory operand binding summaries and updated generated-bundle expectations accordingly.
+- Rewired target artifact validation to consume masked memory provider facts and reject stale provider descriptions or candidate mirrors.
+- Added focused C++ fail-closed checks plus fixture/script updates for in-scope masked unit-stride memory routes.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
