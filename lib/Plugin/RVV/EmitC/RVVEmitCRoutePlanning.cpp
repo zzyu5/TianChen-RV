@@ -1278,7 +1278,9 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
         return "hdr";
       return use;
     }
-    if (plan.planID == kRVVComputedMaskIndexedGatherOperandBindingPlanID ||
+    if (plan.planID == kRVVComputedMaskStridedStoreOperandBindingPlanID ||
+        plan.planID == kRVVComputedMaskStridedLoadOperandBindingPlanID ||
+        plan.planID == kRVVComputedMaskIndexedGatherOperandBindingPlanID ||
         plan.planID == kRVVComputedMaskIndexedScatterOperandBindingPlanID) {
       if (use == "runtime-abi-mirror" || use == "abi-mirror")
         return "abi";
@@ -11356,6 +11358,21 @@ getRVVComputedMaskIndexedMemoryRuntimeABIParameters(
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVComputedMaskStridedMemoryRuntimeABIParameters(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+    return tcrv::rvv::
+        getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    return tcrv::rvv::
+        getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
+  default:
+    return {};
+  }
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 8>
 getRVVComputedMaskSegment2MemoryRuntimeABIParameters(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -11384,6 +11401,65 @@ getRVVPlainSegment2MemoryRuntimeABIParameters(
   default:
     return {};
   }
+}
+
+RVVRouteOperandBindingPlan
+buildComputedMaskStridedMemoryRouteOperandBindingPlanFromFacts(
+    const RVVComputedMaskStridedMemoryRouteFacts &facts) {
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = facts.routeOperandBindingPlanID.str();
+  auto parameter =
+      [&](std::size_t index) -> const support::RuntimeABIParameter & {
+    return facts.runtimeABIParameters[index];
+  };
+
+  switch (facts.operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+    addRouteOperandBinding(
+        plan, "cmp_lhs", parameter(0),
+        {"abi-mirror", "cmp-lhs-load", "cmp-lhs-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", parameter(1),
+        {"abi-mirror", "cmp-rhs-load", "cmp-rhs-call", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "src", parameter(2),
+        {"abi-mirror", "src-load", "mstr-store-src-call", "header-mirror"});
+    addRouteOperandBinding(plan, "dst", parameter(3),
+                           {"abi-mirror", "mstr-store-base",
+                            "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(4),
+        {"abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "dst_stride_bytes", parameter(5),
+        {"abi-mirror", "mstr-store-stride", facts.destinationStrideUnit,
+         "header-mirror"});
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    addRouteOperandBinding(plan, "cmp_lhs", parameter(0),
+                           {"abi", "cmp-lhs-load", "lhs-call",
+                            "hdr-mirror"});
+    addRouteOperandBinding(plan, "cmp_rhs", parameter(1),
+                           {"abi", "cmp-rhs-load", "rhs-call",
+                            "hdr-mirror"});
+    addRouteOperandBinding(plan, "src", parameter(2),
+                           {"abi", "mstr-base", "mstr-load-call",
+                            "hdr-mirror"});
+    addRouteOperandBinding(plan, "dst", parameter(3),
+                           {"abi", "old-dst-load", "passthru-call",
+                            "store-base", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "n", parameter(4),
+        {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+    addRouteOperandBinding(
+        plan, "src_stride_bytes", parameter(5),
+        {"abi", "mstr-stride", facts.sourceStrideUnit, "hdr-mirror"});
+    break;
+  default:
+    break;
+  }
+
+  return plan;
 }
 
 RVVRouteOperandBindingPlan
@@ -12056,13 +12132,14 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "computed_masked_strided_store route";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
-        {"abi-mirror", "cmp-lhs-load", "cmp-lhs-call"});
+        {"abi-mirror", "cmp-lhs-load", "cmp-lhs-call", "header-mirror"});
     addRouteOperandBinding(
         plan, "cmp_rhs", slice.rhsABI,
-        {"abi-mirror", "cmp-rhs-load", "cmp-rhs-call"});
+        {"abi-mirror", "cmp-rhs-load", "cmp-rhs-call", "header-mirror"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
-        {"abi-mirror", "src-load", "mstr-store-src-call"});
+        {"abi-mirror", "src-load", "mstr-store-src-call",
+         "header-mirror"});
     addRouteOperandBinding(
         plan, "dst", slice.outABI,
         {"abi-mirror", "mstr-store-base", "header-mirror"});
@@ -12079,13 +12156,13 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "computed_masked_strided_load_unit_store route";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "lhs-call"});
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "cmp_rhs", slice.rhsABI,
-        {"abi", "cmp-rhs-load", "rhs-call"});
+        {"abi", "cmp-rhs-load", "rhs-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
-        {"abi", "mstr-base", "mstr-load-call"});
+        {"abi", "mstr-base", "mstr-load-call", "hdr-mirror"});
     addRouteOperandBinding(
         plan, "dst", slice.outABI,
         {"abi", "old-dst-load", "passthru-call", "store-base",
@@ -18644,6 +18721,107 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
   return facts;
 }
 
+std::optional<RVVComputedMaskStridedMemoryRouteFacts>
+getRVVComputedMaskStridedMemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation) {
+  const bool isStore =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+  const bool isLoad =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
+  if (!isStore && !isLoad)
+    return std::nullopt;
+
+  RVVComputedMaskStridedMemoryRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = getComputedMaskMemoryRouteFamilyMemoryForm(operation);
+  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = getComputedMaskMemoryRuntimeABIOrder(operation);
+  facts.targetLeafProfile = getComputedMaskMemoryTargetLeafProfile(operation);
+  facts.providerSupportedMirror =
+      getComputedMaskMemoryProviderSupportedMirror(operation);
+  facts.requiredHeaderDeclarations =
+      getComputedMaskMemoryRequiredHeaderDeclarations(operation);
+  facts.cTypeMappingSummary =
+      getComputedMaskMemoryCTypeMappingSummary(operation);
+  facts.routeOperandBindingPlanID =
+      getExpectedRVVRouteOperandBindingPlanID(operation);
+  facts.typedComputeOpName =
+      isStore ? llvm::StringRef("tcrv_rvv.masked_strided_store")
+              : llvm::StringRef("tcrv_rvv.masked_strided_load");
+  facts.comparePredicateKind = getComputedMaskMemoryComparePredicateKind(
+      operation);
+  facts.vlCType = "size_t";
+  facts.vectorTypeName = getRVVSelectedBodyVectorTypeName(facts.sew,
+                                                          facts.lmul);
+  facts.vectorCType = getRVVSelectedBodySignedVectorCType(facts.sew,
+                                                          facts.lmul);
+  facts.maskTypeName = getRVVSelectedBodyMaskTypeName(facts.sew, facts.lmul);
+  facts.maskCType = getRVVSelectedBodyMaskCType(facts.sew, facts.lmul);
+  facts.setVLIntrinsic = getRVVSelectedBodySetVLIntrinsic(facts.sew,
+                                                          facts.lmul);
+  facts.vectorLoadIntrinsic =
+      getRVVSelectedBodyVectorLoadIntrinsic(facts.sew, facts.lmul);
+  facts.maskedLoadIntrinsic =
+      isLoad ? getRVVSelectedBodyMaskedStridedLoadIntrinsic(facts.sew,
+                                                            facts.lmul)
+             : llvm::StringRef();
+  facts.storeIntrinsic =
+      isLoad ? getRVVSelectedBodyStoreIntrinsic(facts.sew, facts.lmul)
+             : llvm::StringRef();
+  facts.stridedStoreIntrinsic =
+      isStore ? getRVVSelectedBodyMaskedStridedStoreIntrinsic(facts.sew,
+                                                              facts.lmul)
+              : llvm::StringRef();
+  facts.compareIntrinsic = getRVVSelectedBodyCompareIntrinsicForPredicate(
+      facts.comparePredicateKind, facts.sew, facts.lmul);
+  facts.computedMaskMemoryRouteFamilyPlanID =
+      kRVVComputedMaskMemoryRouteFamilyPlanID;
+  facts.computedMaskMemoryMaskProducerSource =
+      getComputedMaskMemoryProducerSource(operation);
+  facts.maskTailPolicyRouteFamilyPlanID = kRVVMaskTailPolicyRouteFamilyPlanID;
+  facts.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
+  facts.maskRole = kRVVMaskedPredicateMaskRole;
+  facts.maskSource = kRVVMaskedCompareMaskSource;
+  facts.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  facts.inactiveLaneContract =
+      getComputedMaskMemoryInactiveLaneContract(operation);
+  facts.maskedPassthroughLayout =
+      getComputedMaskMemoryPassthroughLayout(operation);
+  facts.maskedMemoryLayout = getComputedMaskMemoryLayout(operation);
+  facts.stridedMemoryLayout = getComputedMaskMemoryLayout(operation);
+  facts.sourceMemoryForm = getComputedMaskMemorySourceMemoryForm(operation);
+  facts.destinationMemoryForm =
+      getComputedMaskMemoryDestinationMemoryForm(operation);
+  facts.sourceStrideSource =
+      isLoad ? llvm::StringRef(kRVVSourceByteStrideSource) : llvm::StringRef();
+  facts.destinationStrideSource =
+      isStore ? llvm::StringRef(kRVVDestinationByteStrideSource)
+              : llvm::StringRef();
+  facts.sourceStrideCType = isLoad ? llvm::StringRef("size_t")
+                                   : llvm::StringRef();
+  facts.destinationStrideCType = isStore ? llvm::StringRef("size_t")
+                                         : llvm::StringRef();
+  facts.sourceStrideUnit = isLoad ? llvm::StringRef("byte") : llvm::StringRef();
+  facts.destinationStrideUnit =
+      isStore ? llvm::StringRef("byte") : llvm::StringRef();
+  facts.runtimeABIParameters =
+      getRVVComputedMaskStridedMemoryRuntimeABIParameters(operation);
+
+  RVVRouteOperandBindingPlan plan =
+      buildComputedMaskStridedMemoryRouteOperandBindingPlanFromFacts(facts);
+  facts.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(plan);
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    facts.logicalOperands.push_back(binding.logicalOperand);
+
+  return facts;
+}
+
 std::optional<RVVPlainSegment2MemoryRouteFacts>
 getRVVPlainSegment2MemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
   const bool isDeinterleave =
@@ -23073,6 +23251,17 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
   const bool isStoreOnly =
       isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(operation);
   const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isStrided = isStridedStore || isStridedLoad;
+  std::optional<RVVComputedMaskStridedMemoryRouteFacts> stridedRouteFacts;
+  if (isStrided) {
+    stridedRouteFacts = getRVVComputedMaskStridedMemoryRouteFacts(operation);
+    if (!stridedRouteFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask strided memory route construction requires "
+          "canonical provider-owned strided route facts before creating "
+          "TCRVEmitCLowerableRoute");
+  }
   std::optional<RVVComputedMaskIndexedMemoryRouteFacts> indexedRouteFacts;
   if (isIndexed) {
     indexedRouteFacts = getRVVComputedMaskIndexedMemoryRouteFacts(operation);
@@ -23108,6 +23297,60 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
         " regular computed-mask memory route construction requires vector "
         "compare-mask producer facts and the matching regular memory form "
         "before creating TCRVEmitCLowerableRoute");
+
+  if (stridedRouteFacts &&
+      (plan.memoryForm != stridedRouteFacts->memoryForm ||
+       plan.sew != stridedRouteFacts->sew ||
+       plan.lmul != stridedRouteFacts->lmul ||
+       plan.runtimeControlPlan.controlPlanID !=
+           stridedRouteFacts->runtimeControlPlanID ||
+       plan.runtimeABIOrder != stridedRouteFacts->runtimeABIOrder ||
+       plan.targetLeafProfile != stridedRouteFacts->targetLeafProfile ||
+       plan.providerSupportedMirror !=
+           stridedRouteFacts->providerSupportedMirror ||
+       plan.requiredHeaderDeclarations !=
+           stridedRouteFacts->requiredHeaderDeclarations ||
+       plan.cTypeMappingSummary != stridedRouteFacts->cTypeMappingSummary ||
+       plan.familyPlanID !=
+           stridedRouteFacts->computedMaskMemoryRouteFamilyPlanID ||
+       plan.maskProducerSource !=
+           stridedRouteFacts->computedMaskMemoryMaskProducerSource ||
+       plan.vlCType != stridedRouteFacts->vlCType ||
+       plan.vectorTypeName != stridedRouteFacts->vectorTypeName ||
+       plan.vectorCType != stridedRouteFacts->vectorCType ||
+       plan.maskTypeName != stridedRouteFacts->maskTypeName ||
+       plan.maskCType != stridedRouteFacts->maskCType ||
+       plan.setVLIntrinsic != stridedRouteFacts->setVLIntrinsic ||
+       plan.vectorLoadIntrinsic != stridedRouteFacts->vectorLoadIntrinsic ||
+       plan.maskedLoadIntrinsic != stridedRouteFacts->maskedLoadIntrinsic ||
+       plan.maskedStoreIntrinsic != stridedRouteFacts->storeIntrinsic ||
+       plan.stridedStoreIntrinsic !=
+           stridedRouteFacts->stridedStoreIntrinsic ||
+       plan.compareIntrinsic != stridedRouteFacts->compareIntrinsic ||
+       plan.maskRole != stridedRouteFacts->maskRole ||
+       plan.maskSource != stridedRouteFacts->maskSource ||
+       plan.maskMemoryForm != stridedRouteFacts->maskMemoryForm ||
+       plan.inactiveLaneContract !=
+           stridedRouteFacts->inactiveLaneContract ||
+       plan.maskedPassthroughLayout !=
+           stridedRouteFacts->maskedPassthroughLayout ||
+       plan.maskedMemoryLayout != stridedRouteFacts->maskedMemoryLayout ||
+       plan.stridedMemoryLayout != stridedRouteFacts->stridedMemoryLayout ||
+       plan.sourceMemoryForm != stridedRouteFacts->sourceMemoryForm ||
+       plan.destinationMemoryForm !=
+           stridedRouteFacts->destinationMemoryForm ||
+       plan.sourceStrideSource != stridedRouteFacts->sourceStrideSource ||
+       plan.destinationStrideSource !=
+           stridedRouteFacts->destinationStrideSource ||
+       !support::runtimeABIParametersEqual(
+           plan.runtimeABIParameters,
+           stridedRouteFacts->runtimeABIParameters)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask strided memory route construction requires "
+        "the computed-mask memory family plan to mirror canonical "
+        "provider-owned strided route facts before creating "
+        "TCRVEmitCLowerableRoute");
 
   if (indexedRouteFacts &&
       (plan.memoryForm != indexedRouteFacts->memoryForm ||
@@ -23207,6 +23450,19 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
         llvm::Twine(context) +
         " regular computed-mask memory route construction requires runtime "
         "ABI parameters from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+  if (stridedRouteFacts &&
+      (description.routeOperandBindingPlanID !=
+           stridedRouteFacts->routeOperandBindingPlanID ||
+       description.routeOperandBindingSummary !=
+           stridedRouteFacts->routeOperandBindingSummary ||
+       analysis.routeOperandBindingPlan.planID !=
+           stridedRouteFacts->routeOperandBindingPlanID))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask strided memory route construction requires "
+        "route operand binding plan and summary to mirror canonical "
+        "provider-owned strided route facts before creating "
         "TCRVEmitCLowerableRoute");
 
   if (llvm::Error error =

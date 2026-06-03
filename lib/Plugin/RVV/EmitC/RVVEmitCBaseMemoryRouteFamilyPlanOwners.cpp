@@ -71,6 +71,22 @@ constexpr llvm::StringLiteral kRVVMaskedUnitStoreProviderSupportedMirror(
 constexpr llvm::StringLiteral
     kRVVBaseMemoryMovementRequiredHeaderDeclarations(
         "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVBaseMemoryVLType("size_t");
+constexpr llvm::StringLiteral kRVVBaseMemoryVectorTypeName(
+    "!tcrv_rvv.vector<i32, \"m1\">");
+constexpr llvm::StringLiteral kRVVBaseMemoryVectorCType("vint32m1_t");
+constexpr llvm::StringLiteral kRVVBaseMemorySetVLIntrinsic(
+    "__riscv_vsetvl_e32m1");
+constexpr llvm::StringLiteral kRVVBaseMemoryVectorLoadIntrinsic(
+    "__riscv_vle32_v_i32m1");
+constexpr llvm::StringLiteral kRVVBaseMemoryStridedLoadIntrinsic(
+    "__riscv_vlse32_v_i32m1");
+constexpr llvm::StringLiteral kRVVBaseMemoryStoreIntrinsic(
+    "__riscv_vse32_v_i32m1");
+constexpr llvm::StringLiteral kRVVBaseMemoryStridedStoreIntrinsic(
+    "__riscv_vsse32_v_i32m1");
+constexpr llvm::StringLiteral kRVVBaseMemoryStrideCType("size_t");
+constexpr llvm::StringLiteral kRVVBaseMemoryStrideUnit("byte");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreCTypeMappingSummary(
     "vl:size_t,source:byte-strided-e32m1,result:signed-e32m1");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreCTypeMappingSummary(
@@ -979,10 +995,23 @@ getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
       operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
   const bool isIndexed = isIndexedGather || isIndexedScatter;
   const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
+  const bool isStridedLoad =
+      operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  const bool isStridedStore =
+      operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore;
 
   RVVBaseMemoryMovementRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = getBaseMemoryMovementRouteFamilyMemoryForm(operation);
+  facts.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+  facts.lmul = tcrv::rvv::getRVVLMULM1();
+  facts.tailPolicy =
+      isStaticMaskStore ? llvm::StringRef("undisturbed")
+                        : llvm::StringRef("agnostic");
+  facts.maskPolicy =
+      isStaticMaskStore ? llvm::StringRef("undisturbed")
+                        : llvm::StringRef("agnostic");
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
   facts.runtimeABIOrder = getBaseMemoryMovementRuntimeABIOrder(operation);
   facts.targetLeafProfile = getBaseMemoryMovementTargetLeafProfile(operation);
   facts.providerSupportedMirror =
@@ -994,19 +1023,43 @@ getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
       *getExpectedRVVSelectedBodyBaseMemoryRouteOperandBindingPlanID(operation);
   facts.routeFamilyPlanID = kRVVBaseMemoryMovementRouteFamilyPlanID;
   facts.typedComputeOpName = "tcrv_rvv.move";
+  facts.vlCType = kRVVBaseMemoryVLType;
+  facts.vectorTypeName = kRVVBaseMemoryVectorTypeName;
+  facts.vectorCType = kRVVBaseMemoryVectorCType;
+  facts.setVLIntrinsic = kRVVBaseMemorySetVLIntrinsic;
+  facts.vectorLoadIntrinsic = kRVVBaseMemoryVectorLoadIntrinsic;
+  facts.stridedLoadIntrinsic =
+      isStridedLoad ? llvm::StringRef(kRVVBaseMemoryStridedLoadIntrinsic)
+                    : llvm::StringRef();
+  facts.storeIntrinsic =
+      !isStaticMaskStore ? llvm::StringRef(kRVVBaseMemoryStoreIntrinsic)
+                         : llvm::StringRef();
+  facts.stridedStoreIntrinsic =
+      isStridedStore ? llvm::StringRef(kRVVBaseMemoryStridedStoreIntrinsic)
+                     : llvm::StringRef();
   facts.stridedMemoryLayout = getBaseMemoryMovementStridedLayout(operation);
   facts.indexedMemoryLayout = getBaseMemoryMovementIndexedLayout(operation);
   facts.sourceMemoryForm = getBaseMemoryMovementSourceMemoryForm(operation);
   facts.destinationMemoryForm =
       getBaseMemoryMovementDestinationMemoryForm(operation);
   facts.sourceStrideSource =
-      operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore
-          ? llvm::StringRef(kRVVSourceStrideSource)
-          : llvm::StringRef();
+      isStridedLoad ? llvm::StringRef(kRVVSourceStrideSource)
+                    : llvm::StringRef();
   facts.destinationStrideSource =
-      operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore
-          ? llvm::StringRef(kRVVDestinationByteStrideSource)
-          : llvm::StringRef();
+      isStridedStore ? llvm::StringRef(kRVVDestinationByteStrideSource)
+                     : llvm::StringRef();
+  facts.sourceStrideCType =
+      isStridedLoad ? llvm::StringRef(kRVVBaseMemoryStrideCType)
+                    : llvm::StringRef();
+  facts.destinationStrideCType =
+      isStridedStore ? llvm::StringRef(kRVVBaseMemoryStrideCType)
+                     : llvm::StringRef();
+  facts.sourceStrideUnit =
+      isStridedLoad ? llvm::StringRef(kRVVBaseMemoryStrideUnit)
+                    : llvm::StringRef();
+  facts.destinationStrideUnit =
+      isStridedStore ? llvm::StringRef(kRVVBaseMemoryStrideUnit)
+                     : llvm::StringRef();
   facts.indexEEW = isIndexed ? 32 : 0;
   facts.offsetUnit = isIndexed ? llvm::StringRef(kRVVIndexedGatherOffsetUnit)
                                : llvm::StringRef();
@@ -2011,13 +2064,28 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
         " base memory movement provider requires canonical route facts for "
         "the selected operation before provider materialization");
   if (plan.memoryForm != routeFacts->memoryForm ||
+      plan.sew != routeFacts->sew || plan.lmul != routeFacts->lmul ||
+      plan.tailPolicy != routeFacts->tailPolicy ||
+      plan.maskPolicy != routeFacts->maskPolicy ||
       plan.familyPlanID != routeFacts->routeFamilyPlanID ||
+      plan.runtimeControlPlan.controlPlanID !=
+          routeFacts->runtimeControlPlanID ||
       plan.runtimeABIOrder != routeFacts->runtimeABIOrder ||
       plan.targetLeafProfile != routeFacts->targetLeafProfile ||
       plan.providerSupportedMirror != routeFacts->providerSupportedMirror ||
       plan.requiredHeaderDeclarations !=
           routeFacts->requiredHeaderDeclarations ||
       plan.cTypeMappingSummary != routeFacts->cTypeMappingSummary ||
+      plan.vlCType != routeFacts->vlCType ||
+      plan.vectorTypeName != routeFacts->vectorTypeName ||
+      plan.vectorCType != routeFacts->vectorCType ||
+      plan.setVLIntrinsic != routeFacts->setVLIntrinsic ||
+      plan.vectorLoadIntrinsic != routeFacts->vectorLoadIntrinsic ||
+      plan.stridedLoadIntrinsic != routeFacts->stridedLoadIntrinsic ||
+      (!isStaticMaskStore &&
+       plan.storeIntrinsic != routeFacts->storeIntrinsic) ||
+      plan.stridedStoreIntrinsic != routeFacts->stridedStoreIntrinsic ||
+      plan.stridedMemoryLayout != routeFacts->stridedMemoryLayout ||
       plan.indexedMemoryLayout != routeFacts->indexedMemoryLayout ||
       plan.sourceMemoryForm != routeFacts->sourceMemoryForm ||
       plan.destinationMemoryForm != routeFacts->destinationMemoryForm ||

@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 typed-body route ownership, and common EmitC boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, base/computed-mask memory statement-plan boundaries, and target artifact validator boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route fact surface, operand binding, header/type summary, and target validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-strided-memory-production-validation-boundary/prd.md", "reason": "Current task scope, acceptance criteria, non-goals, and evidence plan."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added canonical provider-owned plain and computed-mask strided memory route fact surfaces."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp", "reason": "Kept provider/planning strided memory owner facts aligned with typed body/config/runtime authority."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implemented strided provider fact accessors, operand binding summaries, and fail-closed planning checks."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Rewired target artifact validation to consume provider-owned strided facts and reject stale stride/mask/header/type/leaf mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Kept generated-bundle binding summary expectations aligned with provider-owned header and stride facts."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added focused positive and fail-closed target artifact coverage for computed-mask strided load/store validation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Documented the computed-mask strided provider-to-target fact contract and stride byte-unit validation surface."}

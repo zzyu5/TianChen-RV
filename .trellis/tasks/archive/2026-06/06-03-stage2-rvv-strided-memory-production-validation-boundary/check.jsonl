@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global RVV authority and no descriptor/source-front-door/common-EmitC semantic drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider planning, statement-plan ownership, target validation, and RVV evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider fact surface, operand binding, header/type, and mirror validation requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-strided-memory-production-validation-boundary/prd.md", "reason": "Check implementation and tests against this task's acceptance criteria and non-goals."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Run focused C++ target artifact validation regression suite after strided provider/target changes."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-load.mlir", "reason": "Run focused lit filter for strided load/store, computed-mask strided load/store, and touched runtime-scalar masked-memory dry-run tests."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-store.mlir", "reason": "Run generated-bundle explicit selected-body dry-run for supported strided owner forms with runtime counts and byte strides."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-store.mlir", "reason": "Run generated-bundle pre-realized selected-body dry-run for all four in-scope strided owner routes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Run script self-test and verify updated dry-run expectation logic."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Run git diff --check and bounded old-authority scan over touched files."}

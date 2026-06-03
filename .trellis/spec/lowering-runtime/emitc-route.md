@@ -517,6 +517,147 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact/evidence mirrors match exactly
 ```
 
+### Computed-Mask Strided Memory Fact Surface
+
+For `computed_masked_strided_store` and
+`computed_masked_strided_load_unit_store`, provider/target shared constants
+must use the provider-owned surface:
+
+```c++
+struct RVVComputedMaskStridedMemoryRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
+  llvm::StringRef computedMaskMemoryMaskProducerSource;
+  llvm::StringRef maskTailPolicyRouteFamilyPlanID;
+  llvm::StringRef maskTailPolicyOwner;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef maskedMemoryLayout;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceStrideSource;
+  llvm::StringRef destinationStrideSource;
+  llvm::StringRef sourceStrideCType;
+  llvm::StringRef destinationStrideCType;
+  llvm::StringRef sourceStrideUnit;
+  llvm::StringRef destinationStrideUnit;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+};
+
+std::optional<RVVComputedMaskStridedMemoryRouteFacts>
+getRVVComputedMaskStridedMemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+```
+
+Contracts:
+
+- Strided load/unit store uses runtime ABI order `cmp_lhs,cmp_rhs,src,dst,n,
+  src_stride_bytes`, typed compute op `tcrv_rvv.masked_load`, memory form
+  `computed-mask-strided-load-unit-store`, source memory form
+  `masked-strided-load`, destination memory form `unit-stride-store`, source
+  stride source `runtime_abi:src_stride_bytes`, source stride C type matching
+  the runtime ABI parameter, and source stride unit `byte`. It carries
+  `maskedLoadIntrinsic` and ordinary `storeIntrinsic`, and must carry empty
+  `stridedStoreIntrinsic` and destination-stride facts.
+- Strided store uses runtime ABI order `cmp_lhs,cmp_rhs,src,dst,n,
+  dst_stride_bytes`, typed compute op `tcrv_rvv.masked_store`, memory form
+  `computed-mask-unit-load-strided-store`, source memory form
+  `unit-stride-load`, destination memory form `masked-strided-store`,
+  destination stride source `runtime_abi:dst_stride_bytes`, destination stride
+  C type matching the runtime ABI parameter, and destination stride unit
+  `byte`. It carries `stridedStoreIntrinsic`, and must carry empty
+  `maskedLoadIntrinsic`, ordinary `storeIntrinsic`, and source-stride facts.
+- Both routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`, runtime
+  control, compare predicate, compare-produced mask facts, mask/tail
+  route-family plan, inactive-lane contract, masked layout, strided layout,
+  provider-supported mirror, target leaf profile, header declarations, C type
+  summary, operand binding plan, and exact operand binding summary from the
+  accessor.
+- Operand binding summaries must expose every runtime ABI parameter as an ABI
+  binding and must mark the active stride operand as a byte stride. Target
+  artifact validation consumes these provider facts; candidate metadata may
+  only mirror them after the provider route is rebuilt.
+- Common EmitC/export may carry these provider-built strings and metadata
+  mirrors, but must not infer mask, stride, load/store direction, header/type,
+  or support facts from route ids, artifact names, descriptor metadata, C ABI
+  spelling, scripts, or candidate metadata.
+
+Validation and error behavior:
+
+- Missing accessor result for either computed-mask strided operation -> fail
+  before target artifact export.
+- Load facts applied to store, or store facts applied to load -> fail on
+  memory form, typed compute op, source/destination stride source, active
+  intrinsic leaf, target profile, provider mirror, or binding summary before
+  bundle acceptance.
+- Missing or stale mask facts, strided facts, inactive-lane contract,
+  route-family plan, header/type summary, target profile, provider mirror,
+  runtime ABI order, or binding summary -> fail before target artifact
+  acceptance.
+- Missing or stale provider-derived VL/vector/mask C type facts, setvl, vector
+  load, compare leaf, masked load leaf, ordinary unit-store leaf, or strided
+  store leaf -> fail before target artifact acceptance.
+- A load route carrying destination-stride or strided-store facts, or a store
+  route carrying source-stride or masked-load/unit-store facts, is stale
+  cross-route residue and must fail before target artifact acceptance.
+- A stride source whose runtime ABI role, C type, source string, operand
+  binding use, or unit differs from the accessor facts must fail before target
+  artifact acceptance. Current strided memory routes use byte strides, not
+  element strides.
+- Computed-mask strided routes must reject stale indexed, segment2, unit-only,
+  scalar-splat, arithmetic, descriptor/direct-C/source-export, or legacy
+  `i32m1` route authority before accepting a target artifact.
+
+Tests required:
+
+- C++ target artifact tests must mutate provider route descriptions for stale
+  load/store typed compute, stride source/unit/C type, mask facts, binding
+  facts, header/type facts, target profile, provider mirror, masked-load leaf,
+  unit-store leaf, strided-store leaf, and load/store cross-contamination.
+- C++ target artifact tests must mutate candidate metadata mirrors for the same
+  fields and prove stale metadata cannot be accepted.
+- Generated-bundle dry-run FileCheck tests must keep explicit and
+  pre-realized coverage for computed-mask strided load/unit-store and
+  pre-realized coverage for computed-mask strided store, exposing
+  `typed_compute_op`, memory form, binding summary, mask/stride facts,
+  provider mirror, and target profile in evidence JSON.
+- Runtime `ssh rvv` evidence is required only when the task claims new runtime,
+  correctness, ABI order, stride-unit, inactive-lane, passthrough, destination
+  preservation, or performance behavior. Pure validation tightening may reuse
+  prior runtime evidence and must state that no generated runtime semantics
+  changed.
+
 ### Computed-Mask Indexed Memory Fact Surface
 
 For `computed_masked_indexed_gather_load_unit_store` and
@@ -1132,6 +1273,10 @@ struct RVVBaseMemoryMovementRouteFacts {
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceStrideSource;
   llvm::StringRef destinationStrideSource;
+  llvm::StringRef sourceStrideCType;
+  llvm::StringRef destinationStrideCType;
+  llvm::StringRef sourceStrideUnit;
+  llvm::StringRef destinationStrideUnit;
   std::int64_t indexEEW;
   llvm::StringRef offsetUnit;
   llvm::StringRef indexSource;

@@ -650,24 +650,24 @@ COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_strided_store.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|cmp-lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|cmp-rhs-call;"
-    "src=source-input-buffer:src:abi-mirror|src-load|mstr-store-src-call;"
-    "dst=output-buffer:dst:abi-mirror|mstr-store-base|header-mirror;"
-    "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror;"
-    "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi-mirror|mstr-store-stride|byte|header-mirror"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|src-load|mstr-store-src-call|hdr;"
+    "dst=output-buffer:dst:abi|mstr-store-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;"
+    "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi|mstr-store-stride|byte|hdr"
 )
 COMPUTED_MASK_STRIDED_LOAD_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1"
 )
 COMPUTED_MASK_STRIDED_LOAD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
-    "src=source-input-buffer:src:abi|mstr-base|mstr-load-call;"
-    "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr-mirror;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror;"
-    "src_stride_bytes=source-byte-stride:src_stride_bytes:abi|mstr-stride|byte|hdr-mirror"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|mstr-base|mstr-load-call|hdr;"
+    "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;"
+    "src_stride_bytes=source-byte-stride:src_stride_bytes:abi|mstr-stride|byte|hdr"
 )
 COMPUTED_MASK_INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"

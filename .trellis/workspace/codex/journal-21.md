@@ -1192,3 +1192,38 @@ Completed Stage2 RVV indexed memory provider-owned fact surface for plain and co
 ### Next Steps
 
 - None - task complete
+
+
+## Session 409: Stage2 RVV strided memory validation
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV strided memory validation
+**Branch**: `main`
+
+### Summary
+
+Finished and archived the Stage2 RVV strided-memory provider-to-target validation boundary.
+
+### Main Changes
+
+- Completed provider-owned plain and computed-mask strided memory fact surfaces.
+- Rewired target artifact validation to consume provider stride, mask, header/type, leaf, route-family, and provider mirror facts.
+- Preserved generated runtime semantics; no new ssh rvv claim was made.
+- Checks: target artifact C++ test, focused lit filter, generated-bundle dry-runs, script self-test, context validation, old-authority scan, git diff --check.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

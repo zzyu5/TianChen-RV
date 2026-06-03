@@ -289,11 +289,24 @@ struct RVVSelectedBodyEmitCRouteDescription {
 struct RVVBaseMemoryMovementRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef routeFamilyPlanID;
   llvm::StringRef typedComputeOpName;
@@ -303,6 +316,10 @@ struct RVVBaseMemoryMovementRouteFacts {
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceStrideSource;
   llvm::StringRef destinationStrideSource;
+  llvm::StringRef sourceStrideCType;
+  llvm::StringRef destinationStrideCType;
+  llvm::StringRef sourceStrideUnit;
+  llvm::StringRef destinationStrideUnit;
   std::int64_t indexEEW = 0;
   llvm::StringRef offsetUnit;
   llvm::StringRef indexSource;
@@ -380,6 +397,62 @@ struct RVVComputedMaskIndexedMemoryRouteFacts {
 
 std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
 getRVVComputedMaskIndexedMemoryRouteFacts(
+    RVVSelectedBodyOperationKind operation);
+
+struct RVVComputedMaskStridedMemoryRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
+  llvm::StringRef computedMaskMemoryMaskProducerSource;
+  llvm::StringRef maskTailPolicyRouteFamilyPlanID;
+  llvm::StringRef maskTailPolicyOwner;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef maskedMemoryLayout;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceStrideSource;
+  llvm::StringRef destinationStrideSource;
+  llvm::StringRef sourceStrideCType;
+  llvm::StringRef destinationStrideCType;
+  llvm::StringRef sourceStrideUnit;
+  llvm::StringRef destinationStrideUnit;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+};
+
+std::optional<RVVComputedMaskStridedMemoryRouteFacts>
+getRVVComputedMaskStridedMemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
 struct RVVPlainSegment2MemoryRouteFacts {

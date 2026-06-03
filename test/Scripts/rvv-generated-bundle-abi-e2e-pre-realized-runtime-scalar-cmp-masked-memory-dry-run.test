@@ -128,19 +128,21 @@
 # STORE-HARNESS: inactive lane did not preserve old destination
 # STORE-HARNESS: runtime_scalar_cmp_masked_store touched tail sentinel
 # STORE-HARNESS: source payload buffer mutated
-# STORE-HARNESS: runtime scalar mask coverage missing
-# STORE-HARNESS: inactive preservation coverage mismatch
-# STORE-HARNESS: payload-distinguishing coverage missing
+# STORE-HARNESS: inactive preservation coverage mismatch n=%zu rhs_scalar=
+# STORE-HARNESS: payload-distinguishing coverage missing n=%zu rhs_scalar=
 # STORE-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # STORE-HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# STORE-HARNESS: aggregate runtime scalar mask coverage missing mixed active/inactive threshold case
+# STORE-HARNESS: aggregate payload-distinguishing coverage missing
 
 # LOADSTORE-HARNESS: tcrv_emitc_pr_rt_cmp_mload_kernel_pr_rvv_cmp_mload(lhs, rhs_scalar, src, dst, n);
 # LOADSTORE-HARNESS: (lhs[index] <= rhs_scalar ? src[index] : old_dst[index])
 # LOADSTORE-HARNESS: inactive lane did not preserve old destination
 # LOADSTORE-HARNESS: runtime_scalar_cmp_masked_load_store touched tail sentinel
 # LOADSTORE-HARNESS: source payload buffer mutated
-# LOADSTORE-HARNESS: runtime scalar mask coverage missing
-# LOADSTORE-HARNESS: inactive preservation coverage mismatch
-# LOADSTORE-HARNESS: payload-distinguishing coverage missing
+# LOADSTORE-HARNESS: inactive preservation coverage mismatch n=%zu rhs_scalar=
+# LOADSTORE-HARNESS: payload-distinguishing coverage missing n=%zu rhs_scalar=
 # LOADSTORE-HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # LOADSTORE-HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# LOADSTORE-HARNESS: aggregate runtime scalar mask coverage missing mixed active/inactive threshold case
+# LOADSTORE-HARNESS: aggregate payload-distinguishing coverage missing

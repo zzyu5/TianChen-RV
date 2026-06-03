@@ -77,9 +77,10 @@
 # HARNESS: inactive lane did not preserve old destination
 # HARNESS: touched tail sentinel
 # HARNESS: source payload buffer mutated
-# HARNESS: runtime scalar mask coverage missing
-# HARNESS: inactive preservation coverage mismatch
-# HARNESS: payload-distinguishing coverage missing
+# HARNESS: inactive preservation coverage mismatch n=%zu rhs_scalar=
+# HARNESS: payload-distinguishing coverage missing n=%zu rhs_scalar=
 # HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: aggregate runtime scalar mask coverage missing mixed active/inactive threshold case
+# HARNESS: aggregate payload-distinguishing coverage missing
 # HARNESS: tcrv_rvv_generated_bundle_abi_runtime_scalar_cmp_masked_store_ok counts=0,1,16,23,257 rhs_scalars=-37,91

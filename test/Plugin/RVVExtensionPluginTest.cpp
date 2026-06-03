@@ -22671,8 +22671,8 @@ module {
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
               staleProvider,
               "computed-mask strided contraction provider unit test"),
-          {"computed-mask strided widening dot-reduce mirrors",
-           "provider canonical route-fact surface"}))
+          {"widening dot-reduce provider fact 'mask role'",
+           "canonical route-fact surface"}))
     return result;
 
   staleProvider = *computedStridedAnalysis;
