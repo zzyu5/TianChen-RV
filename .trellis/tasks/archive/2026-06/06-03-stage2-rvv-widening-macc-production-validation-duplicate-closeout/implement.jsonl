@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and RVV stage-order invariants used to validate whether this brief is still live."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV provider authority, direct contraction provider-plan boundary, and target artifact validator boundary for widening_macc_add."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned fact surface, operand binding, header/type summary, and target validation contracts for widening_macc_add."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widening-macc-production-validation-boundary/prd.md", "reason": "Same-title archived task that records completed widening MAcc provider-to-target validation behavior and evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-unit-stride-macc-production-validation-boundary/prd.md", "reason": "Adjacent stale duplicate MAcc closeout pattern and evidence boundary for avoiding unit-stride MAcc redo."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Live provider fact surface checked for RVVWideningMAccRouteFacts and getRVVWideningMAccRouteFacts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Live direct contraction provider/statement plan surfaces and widening MAcc planning flags checked."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Live route description and generated metadata mirror path checked for widening MAcc facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCControlPolicyPlanOwners.cpp", "reason": "Live route-control provider-plan validation checked for widening MAcc versus dot-reduce memory/control facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Live target artifact widening MAcc provider fact and candidate mirror validation checked."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Live generated-bundle widening_macc_add dry-run and evidence-surface support checked."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Live focused C++ canonical fact and fail-closed widening MAcc coverage checked."}
