@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 scope boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, and provider-owned route facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, operand binding summary, header/type mirror, and target artifact validation contracts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h", "reason": "Expose provider-owned elementwise operand binding logical operands and materialized-use facts for target validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp", "reason": "Define canonical binding logical operands and use tokens for plain, masked, scalar-broadcast, and existing strided elementwise route owners."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Consume provider-owned elementwise binding facts and fail closed on stale or operation-mismatched provider summaries before artifact export."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Add representative plain, masked, and scalar-broadcast C++ fail-closed checks for stale provider facts and candidate mirrors."}

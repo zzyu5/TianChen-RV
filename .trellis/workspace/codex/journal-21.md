@@ -1324,3 +1324,61 @@ Verified current HEAD and existing archive already contain the widening_macc_add
 ### Next Steps
 
 - None - task complete
+
+
+## Session 413: Stage2 RVV elementwise/broadcast validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV elementwise/broadcast validation boundary
+**Branch**: `main`
+
+### Summary
+
+Completed provider-owned elementwise/broadcast arithmetic binding validation: exposed RVV elementwise binding operands/uses, made target artifact validation consume operation-specific provider facts, added C++ fail-closed checks, ran focused builds, lit, generated-bundle dry-runs, diff check, and legacy authority scans; no ssh rvv rerun because generated runtime behavior did not change.
+
+### Main Changes
+
+- Exposed provider-owned RVV elementwise route operand binding logical operands
+  and materialized-use token expectations from the elementwise plan owner.
+- Replaced the scalar-broadcast-add-only target validator check with a shared
+  in-scope elementwise arithmetic binding validator for `add/sub/mul`,
+  `masked_add/sub/mul`, and `scalar_broadcast_add/sub/mul`.
+- Added C++ fail-closed coverage for stale plain `mul` binding plans,
+  operation-mismatched `masked_sub` materialized uses, and stale
+  `scalar_broadcast_sub` provider/candidate binding mirrors.
+- Archived Trellis task
+  `stage2-rvv-elementwise-broadcast-arithmetic-production-validation`.
+
+### Git Commits
+
+included-in-this-commit
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit for explicit/pre-realized selected-body artifact
+  add/sub/mul, masked add/sub/mul, and scalar-broadcast add/sub/mul.
+- [OK] Focused generated-bundle dry-run lit for script-backed plain,
+  masked-add, scalar-broadcast add/sub, and direct scalar-broadcast-add
+  fail-closed coverage.
+- [OK] Direct generated-bundle dry-runs for all script-supported in-scope
+  explicit and pre-realized op kinds with counts `0,1,16,17,257` and RHS
+  scalar values `-37,91`.
+- [OK] `rtk git diff --check`
+- [OK] Bounded old-authority scan: full touched-file scan only found
+  pre-existing legacy/fail-closed strings in `TargetArtifactExportTest.cpp`;
+  diff-only scan found no new legacy authority strings.
+
+No `ssh rvv` rerun: this changed provider/target validation only and did not
+change emitted runtime arithmetic, ABI order, intrinsic selection, mask/tail
+behavior, or destination preservation semantics.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

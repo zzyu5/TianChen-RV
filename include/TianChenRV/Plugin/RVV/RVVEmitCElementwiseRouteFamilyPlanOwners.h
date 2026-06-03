@@ -55,6 +55,14 @@ std::optional<llvm::StringRef>
 getExpectedRVVSelectedBodyElementwiseRouteOperandBindingPlanID(
     RVVSelectedBodyOperationKind operation);
 
+std::optional<llvm::ArrayRef<llvm::StringLiteral>>
+getExpectedRVVSelectedBodyElementwiseRouteOperandBindingLogicalOperands(
+    RVVSelectedBodyOperationKind operation);
+
+std::optional<llvm::ArrayRef<llvm::StringLiteral>>
+getExpectedRVVSelectedBodyElementwiseRouteOperandBindingUses(
+    RVVSelectedBodyOperationKind operation, llvm::StringRef logicalOperand);
+
 std::optional<support::RuntimeABIParameterRole>
 getExpectedRVVSelectedBodyElementwiseRouteOperandBindingRole(
     llvm::StringRef planID, llvm::StringRef logicalOperand);

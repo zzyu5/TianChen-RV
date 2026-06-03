@@ -43,6 +43,71 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastSubOperandBindingPlanID(
 constexpr llvm::StringLiteral kRVVScalarBroadcastMulOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_mul.v1");
 
+constexpr llvm::StringLiteral kRVVBinaryElementwiseLogicalOperands[] = {
+    "lhs", "rhs", "out", "n"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastLogicalOperands[] = {
+    "lhs", "rhs_scalar", "out", "n"};
+constexpr llvm::StringLiteral kRVVStridedElementwiseLogicalOperands[] = {
+    "lhs", "rhs", "out", "n", "lhs_stride", "rhs_stride", "out_stride"};
+
+constexpr llvm::StringLiteral kRVVPlainLHSBindingUses[] = {
+    "abi", "load-base", "binary-lhs-call"};
+constexpr llvm::StringLiteral kRVVPlainRHSBindingUses[] = {
+    "abi", "load-base", "binary-rhs-call"};
+constexpr llvm::StringLiteral kRVVPlainOutBindingUses[] = {
+    "abi", "store-base", "header"};
+constexpr llvm::StringLiteral kRVVPlainNBindingUses[] = {
+    "abi", "setvl-avl", "loop-control", "header"};
+
+constexpr llvm::StringLiteral kRVVMaskedAddLHSBindingUses[] = {
+    "abi", "load-base", "compare-lhs-call", "masked-add-lhs-call",
+    "masked-merge-passthrough-call"};
+constexpr llvm::StringLiteral kRVVMaskedSubLHSBindingUses[] = {
+    "abi", "load-base", "compare-lhs-call", "masked-sub-lhs-call",
+    "masked-merge-passthrough-call"};
+constexpr llvm::StringLiteral kRVVMaskedMulLHSBindingUses[] = {
+    "abi", "load-base", "compare-lhs-call", "masked-mul-lhs-call",
+    "masked-merge-passthrough-call"};
+constexpr llvm::StringLiteral kRVVMaskedAddRHSBindingUses[] = {
+    "abi", "load-base", "compare-rhs-call", "masked-add-rhs-call"};
+constexpr llvm::StringLiteral kRVVMaskedSubRHSBindingUses[] = {
+    "abi", "load-base", "compare-rhs-call", "masked-sub-rhs-call"};
+constexpr llvm::StringLiteral kRVVMaskedMulRHSBindingUses[] = {
+    "abi", "load-base", "compare-rhs-call", "masked-mul-rhs-call"};
+
+constexpr llvm::StringLiteral kRVVScalarBroadcastAddLHSBindingUses[] = {
+    "abi", "materialized-load-base", "scalar-broadcast-lhs-call", "hdr"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastAddRHSBindingUses[] = {
+    "abi", "scalar-broadcast-rhs-call", "hdr"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastAddOutBindingUses[] = {
+    "abi", "materialized-store-base", "hdr"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastAddNBindingUses[] = {
+    "abi", "setvl-avl", "loop-control", "hdr"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastLHSBindingUses[] = {
+    "runtime-abi-mirror", "materialized-load-base",
+    "scalar-broadcast-lhs-call", "header-mirror"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastRHSBindingUses[] = {
+    "runtime-abi-mirror", "scalar-broadcast-rhs-call", "header-mirror"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastOutBindingUses[] = {
+    "runtime-abi-mirror", "materialized-store-base", "header-mirror"};
+constexpr llvm::StringLiteral kRVVScalarBroadcastNBindingUses[] = {
+    "runtime-abi-mirror", "setvl-avl", "loop-control", "header-mirror"};
+
+constexpr llvm::StringLiteral kRVVStridedLHSBindingUses[] = {
+    "abi", "lhs-load-base", "binary-lhs-call", "hdr"};
+constexpr llvm::StringLiteral kRVVStridedRHSBindingUses[] = {
+    "abi", "rhs-load-base", "binary-rhs-call", "hdr"};
+constexpr llvm::StringLiteral kRVVStridedOutBindingUses[] = {
+    "abi", "store-base", "hdr"};
+constexpr llvm::StringLiteral kRVVStridedNBindingUses[] = {
+    "abi", "setvl-avl", "loop-control", "hdr"};
+constexpr llvm::StringLiteral kRVVStridedLHSStrideBindingUses[] = {
+    "abi", "lhs-load-stride", "lhs-byte-addr", "hdr"};
+constexpr llvm::StringLiteral kRVVStridedRHSStrideBindingUses[] = {
+    "abi", "rhs-load-stride", "rhs-byte-addr", "hdr"};
+constexpr llvm::StringLiteral kRVVStridedOutStrideBindingUses[] = {
+    "abi", "store-stride", "out-byte-addr", "hdr"};
+
 constexpr llvm::StringLiteral kRVVElementwiseArithmeticRouteFamilyPlanID(
     "rvv-elementwise-arithmetic-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVPlainElementwiseArithmeticTargetLeafProfile(
@@ -1747,6 +1812,130 @@ getExpectedRVVSelectedBodyElementwiseRouteOperandBindingPlanID(
     return kRVVScalarBroadcastSubOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
     return kRVVScalarBroadcastMulOperandBindingPlanID;
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<llvm::ArrayRef<llvm::StringLiteral>>
+getExpectedRVVSelectedBodyElementwiseRouteOperandBindingLogicalOperands(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+  case RVVSelectedBodyOperationKind::MaskedSub:
+  case RVVSelectedBodyOperationKind::MaskedMul:
+    return llvm::ArrayRef<llvm::StringLiteral>(
+        kRVVBinaryElementwiseLogicalOperands);
+  case RVVSelectedBodyOperationKind::StridedAdd:
+    return llvm::ArrayRef<llvm::StringLiteral>(
+        kRVVStridedElementwiseLogicalOperands);
+  case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    return llvm::ArrayRef<llvm::StringLiteral>(
+        kRVVScalarBroadcastLogicalOperands);
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<llvm::ArrayRef<llvm::StringLiteral>>
+getExpectedRVVSelectedBodyElementwiseRouteOperandBindingUses(
+    RVVSelectedBodyOperationKind operation, llvm::StringRef logicalOperand) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::Mul:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainLHSBindingUses);
+    if (logicalOperand == "rhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainNBindingUses);
+    return std::nullopt;
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVMaskedAddLHSBindingUses);
+    if (logicalOperand == "rhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVMaskedAddRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainNBindingUses);
+    return std::nullopt;
+  case RVVSelectedBodyOperationKind::MaskedSub:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVMaskedSubLHSBindingUses);
+    if (logicalOperand == "rhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVMaskedSubRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainNBindingUses);
+    return std::nullopt;
+  case RVVSelectedBodyOperationKind::MaskedMul:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVMaskedMulLHSBindingUses);
+    if (logicalOperand == "rhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVMaskedMulRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVPlainNBindingUses);
+    return std::nullopt;
+  case RVVSelectedBodyOperationKind::StridedAdd:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVStridedLHSBindingUses);
+    if (logicalOperand == "rhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVStridedRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVStridedOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(kRVVStridedNBindingUses);
+    if (logicalOperand == "lhs_stride")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVStridedLHSStrideBindingUses);
+    if (logicalOperand == "rhs_stride")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVStridedRHSStrideBindingUses);
+    if (logicalOperand == "out_stride")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVStridedOutStrideBindingUses);
+    return std::nullopt;
+  case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastAddLHSBindingUses);
+    if (logicalOperand == "rhs_scalar")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastAddRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastAddOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastAddNBindingUses);
+    return std::nullopt;
+  case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    if (logicalOperand == "lhs")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastLHSBindingUses);
+    if (logicalOperand == "rhs_scalar")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastRHSBindingUses);
+    if (logicalOperand == "out")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastOutBindingUses);
+    if (logicalOperand == "n")
+      return llvm::ArrayRef<llvm::StringLiteral>(
+          kRVVScalarBroadcastNBindingUses);
+    return std::nullopt;
   default:
     return std::nullopt;
   }

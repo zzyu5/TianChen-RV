@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that final behavior preserves RVV-first authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV route provider remains the owner of arithmetic/broadcast/mask facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check operand binding, header/type, and target artifact validation contracts."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Built and ran target artifact C++ tests; provider-fact and candidate-mirror fail-closed regressions pass."}
+{"file": "build/bin/tcrv-opt", "reason": "Built for focused target-artifact and generated-bundle lit/script validation."}
+{"file": "build/bin/tcrv-translate", "reason": "Built for focused target-artifact and generated-bundle lit/script validation."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-add.mlir", "reason": "Focused target RVV lit filter passed for explicit/pre-realized add/sub/mul, masked add/sub/mul, and scalar-broadcast add/sub/mul target artifact fixtures."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-selected-body-dry-run.test", "reason": "Focused generated-bundle dry-run lit filters passed for script-backed plain, masked-add, scalar-broadcast add/sub, and direct scalar-broadcast-add fail-closed coverage."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Direct dry-runs passed for all script-supported in-scope explicit and pre-realized op kinds with runtime counts 0,1,16,17,257 and RHS scalar values -37,91."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Whitespace diff check passed after target validator changes."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Touched-file legacy authority scan found only pre-existing legacy/fail-closed test strings; diff-only scan found no new legacy i32m1, descriptor, source-front-door, source-artifact, or exact-intrinsic authority strings."}

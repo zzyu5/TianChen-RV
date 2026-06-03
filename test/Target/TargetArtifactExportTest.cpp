@@ -474,6 +474,10 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
     return "tcrv_rvv.masked_binary";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedSub:
+    return "tcrv_rvv.masked_binary";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedMul:
+    return "tcrv_rvv.masked_binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "tcrv_rvv.macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
@@ -528,6 +532,10 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.segment2_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
     return "tcrv_rvv.binary";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+    return "tcrv_rvv.binary";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64:
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32:
     return "tcrv_rvv.widening_convert";
@@ -554,6 +562,10 @@ llvm::StringRef getRVVTestBinaryKind(
     return "reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
     return "masked_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedSub:
+    return "masked_sub";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedMul:
+    return "masked_mul";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd:
@@ -608,12 +620,52 @@ llvm::StringRef getRVVTestBinaryKind(
     return "segment2_interleave_unit_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
     return "scalar_broadcast_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+    return "scalar_broadcast_sub";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    return "scalar_broadcast_mul";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64:
     return "widen_i32_to_i64";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32:
     return "widen_i16_to_i32";
   }
   llvm_unreachable("unknown RVV test binary kind");
+}
+
+llvm::StringRef getRVVTestElementwiseArithmeticKind(
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  switch (op) {
+  case OperationKind::Add:
+  case OperationKind::MaskedAdd:
+  case OperationKind::ScalarBroadcastAdd:
+    return "add";
+  case OperationKind::Sub:
+  case OperationKind::MaskedSub:
+  case OperationKind::ScalarBroadcastSub:
+    return "sub";
+  case OperationKind::Mul:
+  case OperationKind::MaskedMul:
+  case OperationKind::ScalarBroadcastMul:
+    return "mul";
+  default:
+    return {};
+  }
+}
+
+bool isRVVTestMaskedElementwiseArithmeticOperation(
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  return op == OperationKind::MaskedAdd || op == OperationKind::MaskedSub ||
+         op == OperationKind::MaskedMul;
+}
+
+bool isRVVTestScalarBroadcastElementwiseOperation(
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  return op == OperationKind::ScalarBroadcastAdd ||
+         op == OperationKind::ScalarBroadcastSub ||
+         op == OperationKind::ScalarBroadcastMul;
 }
 
 std::string getRVVTestVariantSymbol(
@@ -733,9 +785,7 @@ module {
     os.flush();
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
-  if (op ==
-      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
-          ScalarBroadcastAdd) {
+  if (isRVVTestScalarBroadcastElementwiseOperation(op)) {
     std::string vectorType =
         (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.vector<i32, \"m2\">"
@@ -759,7 +809,8 @@ module {
        << vectorType << R"mlir(
         %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
-        %result = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "add"} : )mlir"
+        %result = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = ")mlir"
+       << getRVVTestElementwiseArithmeticKind(op) << R"mlir("} : )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
         tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
@@ -1700,14 +1751,14 @@ module {
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
 )mlir";
-  } else if (op ==
-             tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd) {
+  } else if (isRVVTestMaskedElementwiseArithmeticOperation(op)) {
     os << R"mlir(
         %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "eq"} : )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, ")mlir"
        << lmul << R"mlir(">
-        %result = tcrv_rvv.masked_binary %mask, %lhs_vec, %lhs_vec, %rhs_vec, %vl {kind = "add"} : !tcrv_rvv.mask<i32, ")mlir"
+        %result = tcrv_rvv.masked_binary %mask, %lhs_vec, %lhs_vec, %rhs_vec, %vl {kind = ")mlir"
+       << getRVVTestElementwiseArithmeticKind(op) << R"mlir("} : !tcrv_rvv.mask<i32, ")mlir"
        << lmul << R"mlir(">, )mlir" << vectorType << R"mlir(, )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
@@ -3236,6 +3287,8 @@ bool expectRVVTargetArtifactExporterShape(
   using RVVRouteValidationContext =
       tianchenrv::target::rvv::
           RVVTargetArtifactRouteFamilyValidationContext;
+  using RVVLowerableRoute =
+      tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
   using RVVOperationKind =
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
 
@@ -3315,7 +3368,7 @@ bool expectRVVTargetArtifactExporterShape(
           "scalar-broadcast add registry rejects stale binding summary "
           "provider facts",
           {"scalar_broadcast_add", "route operand binding summary",
-           "provider ABI marker 'abi'", "'hdr'"}))
+           "materialized use[0]", "provider-owned use 'abi'"}))
     return false;
 
   TargetArtifactCandidate staleScalarBroadcastAddBindingMirror =
@@ -3333,6 +3386,164 @@ bool expectRVVTargetArtifactExporterShape(
           {"route_operand_binding_operands",
            "selected typed RVV elementwise binding summary",
            "header-mirror"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture plainMulFixture(RVVOperationKind::Mul);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          plainMulFixture,
+          "build valid RVV plain multiply target artifact fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         plainMulFixture.candidate, *exporter),
+                     "validate RVV plain multiply target artifact candidate "
+                     "through exporter"))
+    return false;
+  RVVLowerableRoute plainMulRoute;
+  RVVRouteDescription plainMulDescription;
+  if (!buildRVVRouteValidationInputs(
+          plainMulFixture, plainMulRoute, plainMulDescription,
+          "rebuild RVV plain multiply route validator inputs"))
+    return false;
+  RVVRouteValidationContext plainMulContext{
+      plainMulFixture.candidate, plainMulRoute, plainMulDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  plainMulContext),
+          "plain multiply registry accepts provider facts"))
+    return false;
+  RVVRouteDescription stalePlainMulBindingPlan = plainMulDescription;
+  stalePlainMulBindingPlan.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:add.v1";
+  RVVRouteValidationContext stalePlainMulBindingPlanContext{
+      plainMulFixture.candidate, plainMulRoute, stalePlainMulBindingPlan};
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  stalePlainMulBindingPlanContext),
+          "plain multiply registry rejects operation-mismatched binding plan",
+          {"mul", "route operand binding summary", "provider plan",
+           "rvv-route-operand-binding:mul.v1"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture maskedSubFixture(
+      RVVOperationKind::MaskedSub);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          maskedSubFixture,
+          "build valid RVV masked subtract target artifact fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         maskedSubFixture.candidate, *exporter),
+                     "validate RVV masked subtract target artifact candidate "
+                     "through exporter"))
+    return false;
+  RVVLowerableRoute maskedSubRoute;
+  RVVRouteDescription maskedSubDescription;
+  if (!buildRVVRouteValidationInputs(
+          maskedSubFixture, maskedSubRoute, maskedSubDescription,
+          "rebuild RVV masked subtract route validator inputs"))
+    return false;
+  RVVRouteValidationContext maskedSubContext{
+      maskedSubFixture.candidate, maskedSubRoute, maskedSubDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  maskedSubContext),
+          "masked subtract registry accepts provider facts"))
+    return false;
+  RVVRouteDescription staleMaskedSubBindingUses = maskedSubDescription;
+  const std::string maskedSubLHSUse = "masked-sub-lhs-call";
+  size_t maskedSubUsePos =
+      staleMaskedSubBindingUses.routeOperandBindingSummary.find(maskedSubLHSUse);
+  if (maskedSubUsePos == std::string::npos) {
+    llvm::errs() << "masked subtract route fixture did not contain "
+                    "masked-sub-lhs-call binding use\n";
+    return false;
+  }
+  staleMaskedSubBindingUses.routeOperandBindingSummary.replace(
+      maskedSubUsePos, maskedSubLHSUse.size(), "masked-add-lhs-call");
+  RVVRouteValidationContext staleMaskedSubBindingUsesContext{
+      maskedSubFixture.candidate, maskedSubRoute, staleMaskedSubBindingUses};
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  staleMaskedSubBindingUsesContext),
+          "masked subtract registry rejects operation-mismatched binding use",
+          {"masked_sub", "materialized use[3]",
+           "masked-sub-lhs-call"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture scalarBroadcastSubFixture(
+      RVVOperationKind::ScalarBroadcastSub);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          scalarBroadcastSubFixture,
+          "build valid RVV scalar-broadcast subtract target artifact fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         scalarBroadcastSubFixture.candidate, *exporter),
+                     "validate RVV scalar-broadcast subtract target artifact "
+                     "candidate through exporter"))
+    return false;
+  RVVLowerableRoute scalarBroadcastSubRoute;
+  RVVRouteDescription scalarBroadcastSubDescription;
+  if (!buildRVVRouteValidationInputs(
+          scalarBroadcastSubFixture, scalarBroadcastSubRoute,
+          scalarBroadcastSubDescription,
+          "rebuild RVV scalar-broadcast subtract route validator inputs"))
+    return false;
+  RVVRouteValidationContext scalarBroadcastSubContext{
+      scalarBroadcastSubFixture.candidate, scalarBroadcastSubRoute,
+      scalarBroadcastSubDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  scalarBroadcastSubContext),
+          "scalar-broadcast subtract registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  scalarBroadcastSubContext),
+          "scalar-broadcast subtract registry accepts candidate mirrors"))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubBindingPlan =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubBindingPlan.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:scalar_broadcast_add.v1";
+  RVVRouteValidationContext staleScalarBroadcastSubBindingPlanContext{
+      scalarBroadcastSubFixture.candidate, scalarBroadcastSubRoute,
+      staleScalarBroadcastSubBindingPlan};
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  staleScalarBroadcastSubBindingPlanContext),
+          "scalar-broadcast subtract registry rejects stale add binding plan",
+          {"scalar_broadcast_sub", "route operand binding summary",
+           "rvv-route-operand-binding:scalar_broadcast_sub.v1"}))
+    return false;
+
+  TargetArtifactCandidate staleScalarBroadcastSubBindingMirror =
+      scalarBroadcastSubFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleScalarBroadcastSubBindingMirror,
+          "tcrv_rvv.route_operand_binding_operands",
+          scalarBroadcastAddDescription.routeOperandBindingSummary)) {
+    llvm::errs() << "scalar-broadcast subtract test fixture did not contain "
+                    "route operand binding metadata\n";
+    return false;
+  }
+  RVVRouteValidationContext staleScalarBroadcastSubBindingMirrorContext{
+      staleScalarBroadcastSubBindingMirror, scalarBroadcastSubRoute,
+      scalarBroadcastSubDescription};
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  staleScalarBroadcastSubBindingMirrorContext),
+          "scalar-broadcast subtract registry rejects stale binding mirror",
+          {"route_operand_binding_operands",
+           "selected typed RVV elementwise binding summary",
+           "scalar_broadcast_add"}))
     return false;
 
   auto expectStandaloneReductionCanonicalFacts =

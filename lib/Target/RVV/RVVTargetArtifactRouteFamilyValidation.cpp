@@ -1,11 +1,13 @@
 #include "TianChenRV/Target/RVV/RVVTargetArtifactRouteFamilyValidation.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -1341,47 +1343,149 @@ llvm::Error validateComputedMaskIndexedScatterHeaderBindingSummary(
   return llvm::Error::success();
 }
 
-llvm::Error validateScalarBroadcastAddHeaderBindingSummary(
+llvm::Error requireElementwiseArithmeticBindingSummaryEntry(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef operationMnemonic, llvm::StringRef expectedPlanID,
+    llvm::StringRef logicalOperand,
+    const support::RuntimeABIParameter &parameter,
+    llvm::ArrayRef<llvm::StringLiteral> expectedUses,
+    llvm::StringRef summaryEntry) {
+  const std::string expectedPrefix = (llvm::Twine(logicalOperand) + "=").str();
+  if (!summaryEntry.starts_with(expectedPrefix))
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires logical operand '" +
+        logicalOperand + "' in provider runtime ABI order before artifact "
+                         "export");
+
+  llvm::StringRef rest = summaryEntry.drop_front(expectedPrefix.size());
+  llvm::SmallVector<llvm::StringRef, 4> fields;
+  rest.split(fields, ':', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (fields.size() != 3)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires logical operand '" +
+        logicalOperand +
+        "' to record role, C name, and materialized uses before artifact "
+        "export");
+
+  std::optional<support::RuntimeABIParameterRole> expectedRole =
+      plugin::rvv::getExpectedRVVSelectedBodyElementwiseRouteOperandBindingRole(
+          expectedPlanID, logicalOperand);
+  if (!expectedRole)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary has no provider-owned expected ABI "
+        "role for logical operand '" +
+        logicalOperand + "'");
+  if (parameter.role != *expectedRole)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires runtime ABI parameter for "
+        "logical operand '" +
+        logicalOperand + "' to carry provider-owned ABI role '" +
+        support::stringifyRuntimeABIParameterRole(*expectedRole) + "'");
+
+  llvm::StringRef expectedRoleName =
+      support::stringifyRuntimeABIParameterRole(parameter.role);
+  if (fields[0] != expectedRoleName || fields[1] != parameter.cName)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires logical operand '" +
+        logicalOperand + "' to bind runtime ABI role '" + expectedRoleName +
+        "' and C name '" + parameter.cName + "' before artifact export");
+
+  llvm::SmallVector<llvm::StringRef, 8> actualUses;
+  fields[2].split(actualUses, '|', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (actualUses.size() != expectedUses.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires logical operand '" +
+        logicalOperand +
+        "' to mirror the provider-owned materialized use count before "
+        "artifact export");
+  for (auto indexedUse : llvm::enumerate(expectedUses)) {
+    if (actualUses[indexedUse.index()] != indexedUse.value())
+      return makeRVVTargetRouteError(
+          llvm::Twine(operationMnemonic) +
+          " route operand binding summary requires logical operand '" +
+          logicalOperand + "' materialized use[" +
+          llvm::Twine(indexedUse.index()) + "] to mirror provider-owned use '" +
+          indexedUse.value() + "' before artifact export");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateElementwiseArithmeticHeaderBindingSummary(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  if (description.operation != OperationKind::ScalarBroadcastAdd)
+  if (!isRVVElementwiseArithmeticRouteFamilyOperation(description.operation) ||
+      isRVVStridedElementwiseArithmeticRouteFamilyOperation(
+          description.operation))
     return llvm::Error::success();
 
-  constexpr llvm::StringLiteral kExpectedPlan(
-      "rvv-route-operand-binding:scalar_broadcast_add.v1");
+  std::optional<llvm::StringRef> expectedPlanID =
+      plugin::rvv::
+          getExpectedRVVSelectedBodyElementwiseRouteOperandBindingPlanID(
+              description.operation);
+  std::optional<llvm::ArrayRef<llvm::StringLiteral>> logicalOperands =
+      plugin::rvv::
+          getExpectedRVVSelectedBodyElementwiseRouteOperandBindingLogicalOperands(
+              description.operation);
   const llvm::StringRef operationMnemonic =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
-  if (llvm::StringRef(description.routeOperandBindingPlanID) != kExpectedPlan)
+  if (!expectedPlanID || !logicalOperands)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary requires provider-owned elementwise "
+        "operand-binding facts before artifact export");
+  if (llvm::StringRef(description.routeOperandBindingPlanID) !=
+      *expectedPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        kExpectedPlan + "' before artifact export");
+        *expectedPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
-  if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(kExpectedPlan))
+  llvm::SmallVector<llvm::StringRef, 8> entries;
+  llvm::StringRef(description.routeOperandBindingSummary)
+      .split(entries, ';', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (entries.empty() || entries.front() != *expectedPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        kExpectedPlan + "' before artifact export");
+        *expectedPlanID + "' before artifact export");
+  if (entries.size() != logicalOperands->size() + 1)
+    return makeRVVTargetRouteError(
+        llvm::Twine(operationMnemonic) +
+        " route operand binding summary must mirror the provider-owned "
+        "logical operand count before artifact export");
 
-  constexpr llvm::StringLiteral logicalOperands[] = {"lhs", "rhs_scalar",
-                                                     "out", "n"};
-  constexpr std::size_t logicalOperandCount =
-      sizeof(logicalOperands) / sizeof(logicalOperands[0]);
-  if (description.runtimeABIParameters.size() != logicalOperandCount)
+  if (description.runtimeABIParameters.size() != logicalOperands->size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
-        "order for lhs/rhs_scalar/out/n before artifact export");
+        "order before artifact export");
 
-  for (std::size_t index = 0; index < logicalOperandCount; ++index)
-    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, logicalOperands[index],
-            description.runtimeABIParameters[index]))
+  for (std::size_t index = 0; index < logicalOperands->size(); ++index) {
+    llvm::StringRef logicalOperand = (*logicalOperands)[index];
+    std::optional<llvm::ArrayRef<llvm::StringLiteral>> expectedUses =
+        plugin::rvv::
+            getExpectedRVVSelectedBodyElementwiseRouteOperandBindingUses(
+                description.operation, logicalOperand);
+    if (!expectedUses)
+      return makeRVVTargetRouteError(
+          llvm::Twine(operationMnemonic) +
+          " route operand binding summary requires provider-owned "
+          "materialized uses for logical operand '" +
+          logicalOperand + "' before artifact export");
+    if (llvm::Error error = requireElementwiseArithmeticBindingSummaryEntry(
+            description, operationMnemonic, *expectedPlanID, logicalOperand,
+            description.runtimeABIParameters[index], *expectedUses,
+            entries[index + 1]))
       return error;
+  }
   return llvm::Error::success();
 }
 
@@ -12983,7 +13087,7 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
           validateRVVElementwiseArithmeticRouteABIMappings(route, description))
     return error;
   if (llvm::Error error =
-          validateScalarBroadcastAddHeaderBindingSummary(description))
+          validateElementwiseArithmeticHeaderBindingSummary(description))
     return error;
   if (llvm::Error error = validateStridedAddHeaderBindingSummary(description))
     return error;
