@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Final global authority and Stage 2 RVV compliance"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Provider ownership, target consume-only boundary, and no common EmitC semantics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Route validation contract and segment2 mirror contract compliance"}
+{"command": "cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2", "reason": "Provider header/plugin and target artifact C++ build"}
+{"command": "./build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused target artifact provider-contract and fail-closed tests"}
+{"command": "./build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Provider/plugin tests after RVV provider implementation changes"}
+{"command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'segment2-(interleave-unit-load|deinterleave-unit-store)|computed-masked-segment2-(load-unit-store|store-unit-load|update-unit-load)'", "reason": "Focused segment2 fixture families touched by target validation"}
+{"command": "git diff --check", "reason": "Whitespace and patch hygiene"}
+{"command": "git diff -U0 -- touched source/test files | rg added old-authority tokens", "reason": "Bounded scan for new legacy i32m1, descriptor, source-front-door, source-artifact, exact-intrinsic, common-EmitC, or mirror-only authority"}
+{"command": "ssh rvv", "reason": "Only if generated runtime ABI/order, segment2 memory behavior, field/lane layout, mask/tail behavior, correctness, or performance claims change"}

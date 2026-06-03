@@ -2092,6 +2092,170 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact fails closed when any mask/segment/update/ABI/header/type fact is stale
 ```
 
+### Segment2 Memory Route Validation Contract
+
+#### 1. Scope / Trigger
+
+When target artifact validation accepts any existing segment2 memory route, it
+must consume a provider-owned route validation contract after rebuilding the
+provider route. This applies to plain segment2 deinterleave/interleave and
+computed-mask segment2 load/store/update route families. The contract sits
+above metadata mirror validation: mirrors are checked after the rebuilt route
+and provider description have matched the provider-owned contract.
+
+#### 2. Signatures
+
+The durable provider-owned surface is:
+
+```c++
+enum class RVVSegment2MemoryRouteValidationKind {
+  PlainDeinterleaveUnitStore,
+  PlainInterleaveUnitLoad,
+  ComputedMaskLoadUnitStore,
+  ComputedMaskStoreUnitLoad,
+  ComputedMaskUpdateUnitLoad,
+};
+
+struct RVVSegment2MemoryRouteValidationContract {
+  RVVSegment2MemoryRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string segment2MemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryMaskProducerSource;
+  std::string maskTailPolicyRouteFamilyPlanID;
+  std::string maskTailPolicyOwner;
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  bool usesPlainSegment2;
+  bool usesComputedMaskSegment2;
+  bool usesDeinterleaveLoad;
+  bool usesInterleaveStore;
+  bool usesComputedMaskLoad;
+  bool usesComputedMaskStore;
+  bool usesComputedMaskUpdate;
+  std::string segmentMemoryLayout;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::int64_t segmentCount;
+  std::string segmentTupleCType;
+  std::string segmentLoadIntrinsic;
+  std::string segmentStoreIntrinsic;
+  std::string segmentFieldExtractIntrinsic;
+  std::string segmentTupleCreateIntrinsic;
+  std::string segment2UpdateArithmeticKind;
+  std::string segment2UpdateArithmeticIntrinsic;
+  llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  // Plus provider-owned field names, field roles, type mappings, headers,
+  // vector/mask C types, setvl/load/store/compare callees, and EmitC names.
+};
+
+std::optional<RVVSegment2MemoryRouteValidationContract>
+getRVVSegment2MemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+#### 3. Contracts
+
+- The RVV provider builds the contract from the same plain or computed-mask
+  segment2 fact accessor used for route planning plus rebuilt route
+  description fields such as route id, config contract, field/mask names, and
+  EmitC AVL/VL statement names.
+- Target artifact validation must require the contract before accepting route
+  payload, headers, type mappings, ABI mappings, segment/field facts,
+  mask/tail facts, update facts, runtime ABI order, and statement-plan counts.
+- Computed-mask segment2 rebuilt route descriptions must carry the
+  provider-owned mask/tail route-family plan and owner. Target validation must
+  reject missing or stale values rather than falling back to metadata mirrors.
+- Candidate metadata mirror validation remains separate and continues to use
+  `getRVVSegment2MemoryRouteMetadataMirrorContract(...)` after provider-fact
+  validation succeeds.
+
+#### 4. Validation & Error Matrix
+
+- Missing validation contract for a segment2 operation -> fail before target
+  artifact acceptance.
+- Cross-family operation, route id, memory form, route-family plan, binding
+  summary, runtime ABI order, header/type summary, field layout, segment
+  intrinsic, mask/tail fact, or update arithmetic fact differs from the
+  contract -> fail before artifact acceptance.
+- Plain segment2 route carries computed-mask contract fields, or computed-mask
+  segment2 route carries plain route-family facts -> fail closed.
+- Rebuilt route statement counts or pre-loop/loop AVL/VL statement names differ
+  from the contract -> fail before accepting the generated artifact.
+- Candidate metadata matches while provider payload mismatches -> fail; mirrors
+  cannot override provider route validation.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: computed-mask segment2 update route facts -> route validation contract
+  -> target checks mask/tail plan, update arithmetic, field roles, ABI order,
+  statement plan, and then candidate mirrors.
+- Good: plain segment2 interleave route facts -> route validation contract ->
+  target checks two field loads, tuple create, segment store, field roles, and
+  absence of computed-mask fields.
+- Base: non-segment2 memory routes consume their own validation contracts and
+  must not call the segment2 contract accessor.
+- Bad: target validation accepts segment2 because route id, artifact name,
+  candidate metadata, or C intrinsic spelling looks plausible while the
+  provider contract is missing or stale.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must cover positive contract access for plain
+  deinterleave/interleave and computed-mask load/store/update routes.
+- C++ target artifact tests must keep fail-closed mutations for stale route id,
+  binding summary, runtime ABI order/roles, target profile, provider mirror,
+  header/type summary, segment layout, field roles, mask facts, update
+  arithmetic, and statement steps.
+- Focused generated-bundle or lit tests must continue to expose segment2
+  mirrors and prove existing explicit/pre-realized segment2 artifacts still
+  pass.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  switch operation kind
+  -> fetch plain/computed-mask segment2 facts directly
+  -> rebuild local statement counts and cross-family stale rules
+```
+
+Correct:
+
+```text
+typed segment2 body/config/runtime facts
+  -> RVV provider fact accessor
+  -> RVVSegment2MemoryRouteValidationContract
+  -> target validator consumes contract for route payload and statements
+  -> metadata mirror contract validates candidate mirrors only after that
+```
+
 ### Widening Conversion Fact Surface
 
 For selected-body widening conversion routes, provider/target shared constants

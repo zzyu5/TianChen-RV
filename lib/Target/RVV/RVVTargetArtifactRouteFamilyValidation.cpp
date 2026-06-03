@@ -1468,171 +1468,48 @@ llvm::Error validateComputedMaskIndexedScatterHeaderBindingSummary(
   return llvm::Error::success();
 }
 
-llvm::Error validateComputedMaskSegment2HeaderBindingSummary(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-
-  constexpr llvm::StringLiteral loadPlan(
-      "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1");
-  constexpr llvm::StringLiteral storePlan(
-      "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1");
-  constexpr llvm::StringLiteral updatePlan(
-      "rvv-route-operand-binding:cmseg2_update_unit_load.v1");
-  constexpr llvm::StringLiteral loadLogicalOperands[] = {
-      "cmp_lhs", "cmp_rhs", "src", "out0", "out1", "n"};
-  constexpr llvm::StringLiteral storeLogicalOperands[] = {
-      "cmp_lhs", "cmp_rhs", "src0", "src1", "dst", "n"};
-
-  llvm::StringRef expectedPlan;
-  llvm::ArrayRef<llvm::StringLiteral> logicalOperands;
-  switch (description.operation) {
-  case OperationKind::ComputedMaskSegment2LoadUnitStore:
-    expectedPlan = loadPlan;
-    logicalOperands = llvm::ArrayRef<llvm::StringLiteral>(loadLogicalOperands);
-    break;
-  case OperationKind::ComputedMaskSegment2StoreUnitLoad:
-    expectedPlan = storePlan;
-    logicalOperands =
-        llvm::ArrayRef<llvm::StringLiteral>(storeLogicalOperands);
-    break;
-  case OperationKind::ComputedMaskSegment2UpdateUnitLoad:
-    expectedPlan = updatePlan;
-    logicalOperands =
-        llvm::ArrayRef<llvm::StringLiteral>(storeLogicalOperands);
-    break;
-  default:
-    return llvm::Error::success();
-  }
-
+llvm::Error validateRVVSegment2HeaderBindingSummary(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
   const llvm::StringRef operationMnemonic =
-      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
-  if (llvm::StringRef(description.routeOperandBindingPlanID) != expectedPlan)
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(contract.operation);
+  if (llvm::StringRef(description.routeOperandBindingPlanID) !=
+      contract.routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        expectedPlan + "' before artifact export");
+        contract.routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
   if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(expectedPlan))
+           .starts_with(contract.routeOperandBindingPlanID))
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        expectedPlan + "' before artifact export");
+        contract.routeOperandBindingPlanID + "' before artifact export");
 
-  if (description.runtimeABIParameters.size() != logicalOperands.size())
+  if (description.runtimeABIParameters.size() !=
+          contract.logicalOperands.size() ||
+      contract.runtimeABIParameters.size() != contract.logicalOperands.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order before artifact export");
 
-  for (std::size_t index = 0; index < logicalOperands.size(); ++index)
+  for (std::size_t index = 0; index < contract.logicalOperands.size(); ++index)
     if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, logicalOperands[index],
-            description.runtimeABIParameters[index]))
+            description, operationMnemonic, contract.logicalOperands[index],
+            contract.runtimeABIParameters[index]))
       return error;
-  return llvm::Error::success();
-}
-
-llvm::Error validatePlainSegment2DeinterleaveHeaderBindingSummary(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  if (description.operation != OperationKind::Segment2DeinterleaveUnitStore)
-    return llvm::Error::success();
-
-  std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
-      getRVVPlainSegment2MemoryFactsForDescription(description);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        "plain segment2-memory target artifact consumer requires "
-        "provider-owned deinterleave route facts before artifact export");
-
-  const llvm::StringRef operationMnemonic =
-      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
-  if (llvm::StringRef(description.routeOperandBindingPlanID) !=
-      routeFacts->routeOperandBindingPlanID)
+  if (description.routeOperandBindingSummary !=
+      contract.routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
-        " route operand binding summary requires provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
-  if (description.routeOperandBindingSummary.empty())
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary is required before artifact export");
-  if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(routeFacts->routeOperandBindingPlanID))
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary must start with provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
-
-  if (description.runtimeABIParameters.size() !=
-          routeFacts->logicalOperands.size() ||
-      routeFacts->runtimeABIParameters.size() !=
-          routeFacts->logicalOperands.size())
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary requires the provider runtime ABI "
-        "order for src/out0/out1/n before artifact export");
-
-  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
-       ++index)
-    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, routeFacts->logicalOperands[index],
-            description.runtimeABIParameters[index]))
-      return error;
-  return llvm::Error::success();
-}
-
-llvm::Error validatePlainSegment2InterleaveHeaderBindingSummary(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  if (description.operation != OperationKind::Segment2InterleaveUnitLoad)
-    return llvm::Error::success();
-
-  std::optional<plugin::rvv::RVVPlainSegment2MemoryRouteFacts> routeFacts =
-      getRVVPlainSegment2MemoryFactsForDescription(description);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        "plain segment2-memory target artifact consumer requires "
-        "provider-owned interleave route facts before artifact export");
-
-  const llvm::StringRef operationMnemonic =
-      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
-  if (llvm::StringRef(description.routeOperandBindingPlanID) !=
-      routeFacts->routeOperandBindingPlanID)
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary requires provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
-  if (description.routeOperandBindingSummary.empty())
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary is required before artifact export");
-  if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(routeFacts->routeOperandBindingPlanID))
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary must start with provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
-
-  if (description.runtimeABIParameters.size() !=
-          routeFacts->logicalOperands.size() ||
-      routeFacts->runtimeABIParameters.size() !=
-          routeFacts->logicalOperands.size())
-    return makeRVVTargetRouteError(
-        llvm::Twine(operationMnemonic) +
-        " route operand binding summary requires the provider runtime ABI "
-        "order for src0/src1/dst/n before artifact export");
-
-  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
-       ++index)
-    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, routeFacts->logicalOperands[index],
-            description.runtimeABIParameters[index]))
-      return error;
+        " route operand binding summary must mirror provider-owned "
+        "segment2-memory binding summary '" +
+        contract.routeOperandBindingSummary + "' before artifact export");
   return llvm::Error::success();
 }
 
@@ -9592,31 +9469,24 @@ llvm::Error validateRVVConversionDtypePolicyTargetArtifactCandidateMirrors(
 
 llvm::Error validateRVVSegment2MemoryRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.requiredHeaderDeclarations.empty())
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
+  if (contract.requiredHeaderDeclarations.empty() ||
+      contract.requiredHeaders.empty())
     return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires provider-derived "
-        "required_header_declarations before accepting the route artifact");
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned required_header_declarations before "
+        "accepting the route artifact");
 
-  llvm::SmallVector<llvm::StringRef, 4> headers;
-  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
-                                               /*KeepEmpty=*/false);
-  if (headers.empty())
-    return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires at least one "
-        "provider route header");
-
-  for (llvm::StringRef header : headers) {
-    llvm::StringRef trimmed = header.trim();
-    if (trimmed.empty())
+  for (llvm::StringRef header : contract.requiredHeaders) {
+    if (header.empty())
       return makeRVVTargetRouteError(
-          "segment2-memory target artifact consumer saw an empty provider "
-          "route header declaration");
-    if (!routeHasHeader(route, trimmed))
+          llvm::Twine(contract.consumerLabel) +
+          " saw an empty provider route header declaration");
+    if (!routeHasHeader(route, header))
       return makeRVVTargetRouteError(
-          llvm::Twine("segment2-memory target artifact consumer requires "
-                      "rebuilt provider route header '") +
-          trimmed + "' before artifact export");
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route header '" + header +
+          "' before artifact export");
   }
 
   return llvm::Error::success();
@@ -9624,42 +9494,26 @@ llvm::Error validateRVVSegment2MemoryRouteHeaders(
 
 llvm::Error validateRVVSegment2MemoryRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
-      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
+  if (contract.vlCType.empty() || contract.vectorTypeName.empty() ||
+      contract.vectorCType.empty() || contract.cTypeMappingSummary.empty() ||
+      contract.typeMappings.empty())
     return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires provider-derived "
-        "VL, vector, and C type mapping facts before artifact export");
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived VL, vector, and C type mapping facts "
+        "before artifact export");
 
-  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer requires "
-                    "rebuilt provider route type mapping '!tcrv_rvv.vl' -> '") +
-        description.vlCType + "'");
-  if (!routeHasTypeMapping(route, description.vectorTypeName,
-                           description.vectorCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer requires "
-                    "rebuilt provider route type mapping '") +
-        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
-
-  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
-          description.operation)) {
-    if (description.maskTypeName.empty() || description.maskCType.empty())
+  for (const plugin::rvv::RVVSegment2MemoryRouteTypeMappingContract &mapping :
+       contract.typeMappings) {
+    if (mapping.sourceType.empty() || mapping.cType.empty())
       return makeRVVTargetRouteError(
-          "computed-mask segment2-memory target artifact consumer requires "
-          "provider-derived mask type mapping facts before artifact export");
-    if (!routeHasTypeMapping(route, description.maskTypeName,
-                             description.maskCType))
+          llvm::Twine(contract.consumerLabel) +
+          " requires non-empty provider type mapping contract entries");
+    if (!routeHasTypeMapping(route, mapping.sourceType, mapping.cType))
       return makeRVVTargetRouteError(
-          llvm::Twine("computed-mask segment2-memory target artifact consumer "
-                      "requires rebuilt provider route type mapping '") +
-          description.maskTypeName + "' -> '" + description.maskCType + "'");
-  } else if (!description.maskTypeName.empty() ||
-             !description.maskCType.empty()) {
-    return makeRVVTargetRouteError(
-        "plain segment2-memory target artifact consumer rejects stale mask "
-        "type mapping facts");
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route type mapping '" +
+          mapping.sourceType + "' -> '" + mapping.cType + "'");
   }
 
   return llvm::Error::success();
@@ -9667,34 +9521,41 @@ llvm::Error validateRVVSegment2MemoryRouteTypeMappings(
 
 llvm::Error validateRVVSegment2MemoryRouteABIMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.runtimeABIOrder.empty() ||
-      description.runtimeABIParameters.empty())
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
+  if (contract.runtimeABIParameterRoles.size() !=
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires provider-derived "
-        "runtime ABI order and ABI parameters before artifact export");
-  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned runtime ABI role order with one role per "
+        "ABI parameter before artifact export");
+  if (contract.runtimeABIOrder.empty() ||
+      contract.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer requires "
-                    "rebuilt provider route ABI mapping count ") +
-        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived runtime ABI order and ABI parameters "
+        "before artifact export");
+  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route ABI mapping count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
         llvm::Twine(route.getABIMappings().size()));
 
   for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
     const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
         route.getABIMappings()[index];
     const support::RuntimeABIParameter &expected =
-        description.runtimeABIParameters[index];
+        contract.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(mapping.parameter, expected))
       return makeRVVTargetRouteError(
-          llvm::Twine("segment2-memory target artifact consumer requires "
-                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
           llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
           expected.cName + "'");
     if (mapping.valueName != expected.cName)
       return makeRVVTargetRouteError(
-          llvm::Twine("segment2-memory target artifact consumer requires "
-                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
           llvm::Twine(index) +
           "] value name to use provider runtime ABI parameter '" +
           expected.cName + "' but was '" + mapping.valueName + "'");
@@ -9723,7 +9584,7 @@ llvm::Error requireRVVSegment2MemoryProviderField(
       label + " '" + expected + "' but was '" + actual + "'");
 }
 
-llvm::Error validateRVVComputedMaskSegment2MemoryProviderFacts(
+[[maybe_unused]] llvm::Error validateRVVComputedMaskSegment2MemoryProviderFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   const plugin::rvv::RVVSelectedBodyOperationKind operation =
       description.operation;
@@ -9946,7 +9807,7 @@ llvm::Error validateRVVComputedMaskSegment2MemoryProviderFacts(
   return llvm::Error::success();
 }
 
-llvm::Error validateRVVPlainSegment2MemoryProviderFacts(
+[[maybe_unused]] llvm::Error validateRVVPlainSegment2MemoryProviderFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   const plugin::rvv::RVVSelectedBodyOperationKind operation =
       description.operation;
@@ -10112,13 +9973,302 @@ llvm::Error validateRVVPlainSegment2MemoryProviderFacts(
   return llvm::Error::success();
 }
 
+llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
+  if (description.operation != contract.operation)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned operation '" +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            contract.operation) +
+        "' before artifact export");
+
+  if (description.memoryForm != contract.memoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires selected typed RVV memory form '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(contract.memoryForm) +
+        "' before artifact export but saw '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+  if (description.sew != contract.sew)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived SEW '" + llvm::Twine(contract.sew) +
+        "' but was '" + llvm::Twine(description.sew) + "'");
+  if (description.elementTypeName != contract.elementTypeName)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived element type '" +
+        contract.elementTypeName + "' but was '" +
+        description.elementTypeName + "'");
+  if (description.configContractID != contract.configContractID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned config contract '" +
+        contract.configContractID + "' but description carried '" +
+        description.configContractID + "'");
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "LMUL", description.lmul, contract.lmul))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "tail policy", description.tailPolicy, contract.tailPolicy))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask policy", description.maskPolicy, contract.maskPolicy))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "runtime AVL/VL control plan", description.runtimeControlPlanID,
+          contract.runtimeControlPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "typed compute op", description.typedComputeOpName,
+          contract.typedComputeOpName))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "runtime ABI order", description.runtimeABIOrder,
+          contract.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "route operand binding plan", description.routeOperandBindingPlanID,
+          contract.routeOperandBindingPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "route operand binding summary",
+          description.routeOperandBindingSummary,
+          contract.routeOperandBindingSummary))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "target leaf profile", description.targetLeafProfile,
+          contract.targetLeafProfile))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "provider-supported mirror", description.providerSupportedMirror,
+          contract.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "required header declarations",
+          description.requiredHeaderDeclarations,
+          contract.requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "C type mapping", description.cTypeMappingSummary,
+          contract.cTypeMappingSummary))
+    return error;
+
+  if (contract.usesPlainSegment2) {
+    const bool expectsDeinterleave =
+        contract.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                  Segment2DeinterleaveUnitStore;
+    const bool expectsInterleave =
+        contract.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                  Segment2InterleaveUnitLoad;
+    if (contract.usesDeinterleaveLoad != expectsDeinterleave ||
+        contract.usesInterleaveStore != expectsInterleave ||
+        contract.usesDeinterleaveLoad == contract.usesInterleaveStore)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-owned segment2 direction facts to match the "
+          "selected interleave/deinterleave route before artifact export");
+  }
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "plain segment2 route-family plan",
+          description.segment2MemoryRouteFamilyPlanID,
+          contract.segment2MemoryRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "computed-mask route-family plan",
+          description.computedMaskMemoryRouteFamilyPlanID,
+          contract.computedMaskMemoryRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "computed-mask producer source",
+          description.computedMaskMemoryMaskProducerSource,
+          contract.computedMaskMemoryMaskProducerSource))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask/tail route-family plan",
+          description.maskTailPolicyRouteFamilyPlanID,
+          contract.maskTailPolicyRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask/tail route-family owner", description.maskTailPolicyOwner,
+          contract.maskTailPolicyOwner))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "compare predicate", description.comparePredicateKind,
+          contract.comparePredicateKind))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask role", description.maskRole, contract.maskRole))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask source", description.maskSource, contract.maskSource))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask memory form", description.maskMemoryForm,
+          contract.maskMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "inactive lane contract", description.inactiveLaneContract,
+          contract.inactiveLaneContract))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "masked passthrough layout", description.maskedPassthroughLayout,
+          contract.maskedPassthroughLayout))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "compare callee", description.compareIntrinsic,
+          contract.compareIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask result", description.maskName, contract.maskName))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask type", description.maskTypeName, contract.maskTypeName))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "mask C type", description.maskCType, contract.maskCType))
+    return error;
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "VL C type", description.vlCType, contract.vlCType))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "vector type", description.vectorTypeName, contract.vectorTypeName))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "vector C type", description.vectorCType, contract.vectorCType))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "setvl callee", description.setVLIntrinsic,
+          contract.setVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "vector load callee", description.vectorLoadIntrinsic,
+          contract.vectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "store callee", description.storeIntrinsic,
+          contract.storeIntrinsic))
+    return error;
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment memory layout", description.segmentMemoryLayout,
+          contract.segmentMemoryLayout))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "source memory form", description.sourceMemoryForm,
+          contract.sourceMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "destination memory form", description.destinationMemoryForm,
+          contract.destinationMemoryForm))
+    return error;
+  if (description.segmentCount != contract.segmentCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived segment-count facts '" +
+        llvm::Twine(contract.segmentCount) + "' but was '" +
+        llvm::Twine(description.segmentCount) + "'");
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment tuple C type", description.segmentTupleCType,
+          contract.segmentTupleCType))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment load callee", description.segmentLoadIntrinsic,
+          contract.segmentLoadIntrinsic))
+    return error;
+
+  llvm::StringRef actualSegmentStoreIntrinsic =
+      contract.usesComputedMaskLoad ? llvm::StringRef()
+                                    : description.segmentStoreIntrinsic;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment store callee", actualSegmentStoreIntrinsic,
+          contract.usesComputedMaskLoad ? llvm::StringRef()
+                                        : contract.segmentStoreIntrinsic))
+    return error;
+  llvm::StringRef actualTupleCreateIntrinsic =
+      contract.usesComputedMaskLoad ? description.segmentStoreIntrinsic
+                                    : description.segmentFieldExtractIntrinsic;
+  if (contract.usesPlainSegment2 && contract.usesDeinterleaveLoad)
+    actualTupleCreateIntrinsic = llvm::StringRef();
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment tuple create callee", actualTupleCreateIntrinsic,
+          contract.segmentTupleCreateIntrinsic))
+    return error;
+  llvm::StringRef actualFieldExtractIntrinsic =
+      (contract.usesDeinterleaveLoad || contract.usesComputedMaskLoad)
+          ? description.segmentFieldExtractIntrinsic
+          : llvm::StringRef();
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment field extract callee", actualFieldExtractIntrinsic,
+          contract.segmentFieldExtractIntrinsic))
+    return error;
+
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 role", description.field0Role, contract.field0Role))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 role", description.field1Role, contract.field1Role))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 name", description.field0Name, contract.field0Name))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 name", description.field1Name, contract.field1Name))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 source memory form", description.field0SourceMemoryForm,
+          contract.field0SourceMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 source memory form", description.field1SourceMemoryForm,
+          contract.field1SourceMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field0 destination memory form",
+          description.field0DestinationMemoryForm,
+          contract.field0DestinationMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "field1 destination memory form",
+          description.field1DestinationMemoryForm,
+          contract.field1DestinationMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment2 update arithmetic kind",
+          description.segment2UpdateArithmeticKind,
+          contract.segment2UpdateArithmeticKind))
+    return error;
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "segment2 update arithmetic callee",
+          description.segment2UpdateArithmeticIntrinsic,
+          contract.segment2UpdateArithmeticIntrinsic))
+    return error;
+
+  if (description.emitCFullChunkVLName != contract.emitCFullChunkVLName ||
+      description.emitCLoopVLName != contract.emitCLoopVLName ||
+      description.emitCLoopInductionName != contract.emitCLoopInductionName)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned EmitC runtime AVL/VL statement names before "
+        "artifact export");
+
+  return llvm::Error::success();
+}
+
 struct RVVExpectedSegment2RuntimeABIParameter {
   std::string cName;
   std::string cType;
   support::RuntimeABIParameterRole role;
 };
 
-llvm::StringRef getRVVSegment2MemoryExpectedRuntimeABIOrder(
+[[maybe_unused]] llvm::StringRef getRVVSegment2MemoryExpectedRuntimeABIOrder(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(operation)) {
     std::optional<plugin::rvv::RVVComputedMaskSegment2MemoryRouteFacts>
@@ -10134,7 +10284,7 @@ llvm::StringRef getRVVSegment2MemoryExpectedRuntimeABIOrder(
   return {};
 }
 
-llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6>
+[[maybe_unused]] llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6>
 getRVVSegment2MemoryExpectedRuntimeABIParameters(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6> expected;
@@ -10165,9 +10315,9 @@ getRVVSegment2MemoryExpectedRuntimeABIParameters(
 }
 
 llvm::Error validateRVVSegment2MemoryRuntimeABIFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  llvm::StringRef expectedOrder =
-      getRVVSegment2MemoryExpectedRuntimeABIOrder(description.operation);
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
+  llvm::StringRef expectedOrder = contract.runtimeABIOrder;
   if (expectedOrder.empty())
     return makeRVVTargetRouteError(
         "segment2-memory target artifact consumer requires a segment2 runtime "
@@ -10178,23 +10328,21 @@ llvm::Error validateRVVSegment2MemoryRuntimeABIFacts(
                     "provider-derived runtime ABI order '") +
         expectedOrder + "' but was '" + description.runtimeABIOrder + "'");
 
-  llvm::SmallVector<RVVExpectedSegment2RuntimeABIParameter, 6>
-      expectedParameters =
-          getRVVSegment2MemoryExpectedRuntimeABIParameters(
-              description.operation);
-  if (description.runtimeABIParameters.size() != expectedParameters.size())
+  if (description.runtimeABIParameters.size() !=
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine("segment2-memory target artifact consumer requires ") +
-        llvm::Twine(expectedParameters.size()) +
+        llvm::Twine(contract.runtimeABIParameters.size()) +
         " provider-derived runtime ABI parameters before artifact export but "
         "saw " +
         llvm::Twine(description.runtimeABIParameters.size()));
 
-  for (std::size_t index = 0; index < expectedParameters.size(); ++index) {
+  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
+       ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
-    const RVVExpectedSegment2RuntimeABIParameter &expected =
-        expectedParameters[index];
+    const support::RuntimeABIParameter &expected =
+        contract.runtimeABIParameters[index];
     if (actual.cName != expected.cName || actual.cType != expected.cType ||
         actual.role != expected.role ||
         actual.ownership !=
@@ -10215,43 +10363,51 @@ llvm::Error validateRVVSegment2MemoryRuntimeABIFacts(
 
 llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  constexpr llvm::StringLiteral consumerLabel(
-      "segment2-memory target artifact consumer");
-  if (llvm::Error error = validateRVVSegment2MemoryRuntimeABIFacts(description))
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
+  const llvm::StringRef consumerLabel = contract.consumerLabel;
+  if (llvm::Error error =
+          validateRVVSegment2MemoryRuntimeABIFacts(description, contract))
     return error;
-  if (description.setVLIntrinsic.empty() || description.vectorCType.empty() ||
-      description.vlCType.empty() || description.emitCFullChunkVLName.empty() ||
-      description.emitCLoopVLName.empty() ||
-      description.emitCLoopInductionName.empty() ||
-      description.field0Name.empty() || description.field1Name.empty() ||
-      description.segmentTupleCType.empty())
+  if (contract.setVLIntrinsic.empty() || contract.vectorCType.empty() ||
+      contract.vlCType.empty() || contract.emitCFullChunkVLName.empty() ||
+      contract.emitCLoopVLName.empty() ||
+      contract.emitCLoopInductionName.empty() ||
+      contract.field0Name.empty() || contract.field1Name.empty() ||
+      contract.segmentTupleCType.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires provider-derived setvl, vector, VL, field, tuple, and loop "
         "facts before validating route statements");
 
   const support::RuntimeABIParameter &runtimeNABI =
-      description.runtimeABIParameters.back();
-  const support::RuntimeABIParameter *runtimeElementCount =
-      findRuntimeElementCountABIParameter(description);
+      contract.runtimeABIParameters.back();
+  const support::RuntimeABIParameter *runtimeElementCount = nullptr;
+  for (const support::RuntimeABIParameter &parameter :
+       contract.runtimeABIParameters)
+    if (parameter.role ==
+        support::RuntimeABIParameterRole::RuntimeElementCount) {
+      runtimeElementCount = &parameter;
+      break;
+    }
   if (!runtimeElementCount || runtimeElementCount != &runtimeNABI)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires runtime n/AVL ABI role to match the selected segment2 ABI "
         "order before validating route statements");
 
-  if (route.getCallOpaqueSteps().size() != 1)
+  if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
-        " requires exactly one provider-built pre-loop setvl statement before "
-        "artifact export");
+        " requires exact provider-built pre-loop statement count " +
+        llvm::Twine(contract.expectedPreLoopStepCount) +
+        " before artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, consumerLabel, "pre-loop setvl",
-          description.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
-          description.emitCFullChunkVLName, description.vlCType))
+          contract.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
+          contract.emitCFullChunkVLName, contract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -10265,11 +10421,11 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
         "segment2-memory target artifact consumer requires exactly one "
         "provider-built runtime AVL/VL loop before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != description.emitCLoopInductionName ||
+  if (loop.inductionVarName != contract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != description.vlCType ||
-      loop.step.expression != description.emitCFullChunkVLName ||
-      loop.step.cType != description.vlCType)
+      loop.lowerBound.cType != contract.vlCType ||
+      loop.step.expression != contract.emitCFullChunkVLName ||
+      loop.step.cType != contract.vlCType)
     return makeRVVTargetRouteError(
         "segment2-memory target artifact consumer requires provider-built "
         "loop bounds and step to mirror runtime AVL/VL route facts");
@@ -10279,45 +10435,28 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
         "segment2-memory target artifact consumer requires provider-built "
         "loop upper bound to use the runtime n/AVL ABI parameter");
 
-  std::size_t expectedLoopBodyStepCount = 0;
-  switch (description.operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2LoadUnitStore:
-    expectedLoopBodyStepCount = 12;
-    break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2StoreUnitLoad:
-    expectedLoopBodyStepCount = 8;
-    break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskSegment2UpdateUnitLoad:
-    expectedLoopBodyStepCount = 9;
-    break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    expectedLoopBodyStepCount = 6;
-    break;
-  case plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    expectedLoopBodyStepCount = 5;
-    break;
-  default:
-    llvm_unreachable("validated non-segment2 operation as segment2-memory");
-  }
-  if (loop.bodySteps.size() != expectedLoopBodyStepCount)
+  if (contract.expectedPreLoopStepCount == 0 ||
+      contract.expectedLoopBodyStepCount == 0)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-owned statement-plan expectations before artifact "
+        "export");
+  if (loop.bodySteps.size() != contract.expectedLoopBodyStepCount)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires exact provider-built loop statement count " +
-        llvm::Twine(expectedLoopBodyStepCount) +
+        llvm::Twine(contract.expectedLoopBodyStepCount) +
         " for the selected segment2-memory family before artifact export");
 
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeNABI.cName) + " - " +
-       description.emitCLoopInductionName)
+       contract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          description.setVLIntrinsic,
-          {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          contract.setVLIntrinsic,
+          {{expectedRemainingAVL, contract.vlCType}},
+          contract.emitCLoopVLName, contract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -10617,74 +10756,78 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
 llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getRouteID() != description.emitCRouteID)
+  std::optional<plugin::rvv::RVVSegment2MemoryRouteValidationContract>
+      contract =
+          plugin::rvv::getRVVSegment2MemoryRouteValidationContract(description);
+  if (!contract)
     return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer requires "
-                    "rebuilt provider route id '") +
-        description.emitCRouteID + "' but route carried '" +
+        "segment2-memory target artifact consumer requires provider-owned "
+        "segment2 memory route validation contract before artifact export");
+
+  if (route.getRouteID() != contract->emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires rebuilt provider route id '" + contract->emitCRouteID +
+        "' but route carried '" +
         route.getRouteID() + "'");
-  if (description.providerSupportedMirror.empty() ||
-      description.routeOperandBindingPlanID.empty() ||
-      description.routeOperandBindingSummary.empty() ||
-      description.runtimeControlPlanID.empty() ||
-      description.segmentMemoryLayout.empty() ||
-      description.sourceMemoryForm.empty() ||
-      description.destinationMemoryForm.empty() ||
-      description.segmentCount != 2)
+  if (description.emitCRouteID != contract->emitCRouteID)
     return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires provider-derived "
-        "support, binding, runtime control, segment layout, memory form, and "
-        "segment-count facts before artifact export");
-  if (llvm::Error error = validateRVVSegment2MemoryRuntimeABIFacts(description))
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-owned route id '" + contract->emitCRouteID +
+        "' but description carried '" + description.emitCRouteID + "'");
+  if (contract->providerSupportedMirror.empty() ||
+      contract->routeOperandBindingPlanID.empty() ||
+      contract->routeOperandBindingSummary.empty() ||
+      contract->runtimeControlPlanID.empty() ||
+      contract->runtimeABIOrder.empty() ||
+      contract->elementTypeName.empty() || contract->sew == 0 ||
+      contract->lmul.empty() || contract->tailPolicy.empty() ||
+      contract->maskPolicy.empty() || contract->configContractID.empty() ||
+      contract->requiredHeaderDeclarations.empty() ||
+      contract->cTypeMappingSummary.empty() ||
+      contract->segmentMemoryLayout.empty() ||
+      contract->sourceMemoryForm.empty() ||
+      contract->destinationMemoryForm.empty() ||
+      contract->segmentCount != 2 || contract->setVLIntrinsic.empty() ||
+      contract->vectorCType.empty() || contract->vlCType.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires complete provider-owned route payload, dtype/config, "
+        "runtime, binding, header/type, intrinsic, and segment layout contract "
+        "facts before artifact export");
+  if (llvm::Error error =
+          validateRVVSegment2MemoryRuntimeABIFacts(description, *contract))
     return error;
 
-  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
-          description.operation)) {
-    if (description.computedMaskMemoryRouteFamilyPlanID.empty() ||
-        description.computedMaskMemoryMaskProducerSource.empty() ||
-        description.maskRole.empty() || description.maskSource.empty() ||
-        description.maskMemoryForm.empty() ||
-        description.compareIntrinsic.empty())
+  if (contract->usesComputedMaskSegment2) {
+    if (contract->computedMaskMemoryRouteFamilyPlanID.empty() ||
+        contract->computedMaskMemoryMaskProducerSource.empty() ||
+        contract->maskRole.empty() || contract->maskSource.empty() ||
+        contract->maskMemoryForm.empty() ||
+        contract->compareIntrinsic.empty())
       return makeRVVTargetRouteError(
           "computed-mask segment2-memory target artifact consumer requires "
           "provider-derived computed-mask family, producer, role, source, "
           "memory-form, and compare facts before artifact export");
     if (llvm::Error error =
-            validateComputedMaskSegment2HeaderBindingSummary(description))
+            validateRVVSegment2HeaderBindingSummary(description, *contract))
       return error;
-    if (llvm::Error error =
-            validateRVVComputedMaskSegment2MemoryProviderFacts(description))
-      return error;
-    if (!description.segment2MemoryRouteFamilyPlanID.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask segment2-memory target artifact consumer rejects "
-          "stale plain segment2 route-family facts");
-  } else if (isRVVPlainSegment2MemoryRouteFamilyOperation(
-                 description.operation)) {
-    if (description.segment2MemoryRouteFamilyPlanID.empty())
+  } else if (contract->usesPlainSegment2) {
+    if (contract->segment2MemoryRouteFamilyPlanID.empty())
       return makeRVVTargetRouteError(
           "plain segment2-memory target artifact consumer requires a "
           "provider-derived segment2 route-family plan mirror before artifact "
           "export");
     if (llvm::Error error =
-            validatePlainSegment2DeinterleaveHeaderBindingSummary(description))
+            validateRVVSegment2HeaderBindingSummary(description, *contract))
       return error;
-    if (llvm::Error error =
-            validatePlainSegment2InterleaveHeaderBindingSummary(description))
-      return error;
-    if (llvm::Error error =
-            validateRVVPlainSegment2MemoryProviderFacts(description))
-      return error;
-    if (!description.computedMaskMemoryRouteFamilyPlanID.empty() ||
-        !description.computedMaskMemoryMaskProducerSource.empty() ||
-        !description.maskRole.empty() || !description.maskSource.empty() ||
-        !description.maskMemoryForm.empty())
-      return makeRVVTargetRouteError(
-          "plain segment2-memory target artifact consumer rejects stale "
-          "computed-mask route-family facts");
   } else {
     llvm_unreachable("validated non-segment2 operation as segment2-memory");
   }
+  if (llvm::Error error =
+          validateRVVSegment2MemoryProviderFactsFromContract(description,
+                                                            *contract))
+    return error;
 
   if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
@@ -10705,15 +10848,16 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
         "route-family facts");
 
   if (llvm::Error error =
-          validateRVVSegment2MemoryRouteHeaders(route, description))
+          validateRVVSegment2MemoryRouteHeaders(route, *contract))
     return error;
   if (llvm::Error error =
-          validateRVVSegment2MemoryRouteTypeMappings(route, description))
+          validateRVVSegment2MemoryRouteTypeMappings(route, *contract))
     return error;
   if (llvm::Error error =
-          validateRVVSegment2MemoryRouteABIMappings(route, description))
+          validateRVVSegment2MemoryRouteABIMappings(route, *contract))
     return error;
-  return validateRVVSegment2MemoryRouteStatementPlan(route, description);
+  return validateRVVSegment2MemoryRouteStatementPlan(route, description,
+                                                    *contract);
 }
 
 llvm::Error validateRVVSegment2MemoryTargetArtifactProviderFactsImpl(

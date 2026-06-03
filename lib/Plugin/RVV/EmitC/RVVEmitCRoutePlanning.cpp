@@ -7571,12 +7571,9 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                                                description);
   description.computedMaskMemoryRouteFamilyPlanID = plan.familyPlanID;
   description.computedMaskMemoryMaskProducerSource = plan.maskProducerSource;
-  if (!plan.usesSegment2Load && !plan.usesSegment2Store &&
-      !plan.usesSegment2Update) {
-    description.maskTailPolicyRouteFamilyPlanID =
-        kRVVMaskTailPolicyRouteFamilyPlanID;
-    description.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
-  }
+  description.maskTailPolicyRouteFamilyPlanID =
+      kRVVMaskTailPolicyRouteFamilyPlanID;
+  description.maskTailPolicyOwner = kRVVComputedMaskMemoryMaskTailPolicyOwner;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -19972,6 +19969,280 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
     facts.logicalOperands.push_back(binding.logicalOperand);
 
   return facts;
+}
+
+static RVVSegment2MemoryRouteValidationKind
+getSegment2MemoryRouteValidationKind(RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return RVVSegment2MemoryRouteValidationKind::PlainDeinterleaveUnitStore;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return RVVSegment2MemoryRouteValidationKind::PlainInterleaveUnitLoad;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return RVVSegment2MemoryRouteValidationKind::ComputedMaskLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return RVVSegment2MemoryRouteValidationKind::ComputedMaskStoreUnitLoad;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return RVVSegment2MemoryRouteValidationKind::ComputedMaskUpdateUnitLoad;
+  default:
+    llvm_unreachable("unsupported segment2 memory validation operation");
+  }
+}
+
+static std::size_t
+getSegment2MemoryExpectedLoopBodyStepCount(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return 12;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return 8;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return 9;
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return 6;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return 5;
+  default:
+    return 0;
+  }
+}
+
+static void appendSegment2MemoryValidationHeaders(
+    RVVSegment2MemoryRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendSegment2MemoryValidationTypeMapping(
+    RVVSegment2MemoryRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void appendSegment2MemoryValidationRuntimeABIRoles(
+    RVVSegment2MemoryRouteValidationContract &contract) {
+  for (const support::RuntimeABIParameter &parameter :
+       contract.runtimeABIParameters)
+    contract.runtimeABIParameterRoles.push_back(parameter.role);
+}
+
+static void populateSegment2MemoryValidationCommonFields(
+    RVVSegment2MemoryRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  contract.kind = getSegment2MemoryRouteValidationKind(description.operation);
+  contract.operation = description.operation;
+  contract.consumerLabel = "segment2-memory target artifact consumer";
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  contract.elementTypeName =
+      getRVVSelectedBodyIntegerElementTypeName(contract.sew).str();
+  contract.configContractID = description.configContractID.str();
+  contract.vlCType = "size_t";
+  contract.vectorTypeName =
+      getRVVSelectedBodyVectorTypeName(contract.sew, contract.lmul).str();
+  contract.vectorCType =
+      getRVVSelectedBodySignedVectorCType(contract.sew, contract.lmul).str();
+  contract.setVLIntrinsic =
+      getRVVSelectedBodySetVLIntrinsic(contract.sew, contract.lmul).str();
+  contract.vectorLoadIntrinsic =
+      getRVVSelectedBodyVectorLoadIntrinsic(contract.sew, contract.lmul).str();
+  contract.storeIntrinsic =
+      getRVVSelectedBodyStoreIntrinsic(contract.sew, contract.lmul).str();
+  contract.emitCFullChunkVLName = description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount =
+      getSegment2MemoryExpectedLoopBodyStepCount(description.operation);
+
+  appendSegment2MemoryValidationRuntimeABIRoles(contract);
+  appendSegment2MemoryValidationHeaders(contract,
+                                        contract.requiredHeaderDeclarations);
+  appendSegment2MemoryValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", contract.vlCType,
+      "selected typed RVV segment2 VL type");
+  appendSegment2MemoryValidationTypeMapping(
+      contract, contract.vectorTypeName, contract.vectorCType,
+      "selected typed RVV segment2 vector type");
+}
+
+std::optional<RVVSegment2MemoryRouteValidationContract>
+getRVVSegment2MemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (std::optional<RVVPlainSegment2MemoryRouteFacts> routeFacts =
+          getRVVPlainSegment2MemoryRouteFacts(description.operation)) {
+    RVVSegment2MemoryRouteValidationContract contract;
+    contract.memoryForm = routeFacts->memoryForm;
+    contract.sew = routeFacts->sew;
+    contract.lmul = routeFacts->lmul.str();
+    contract.tailPolicy = routeFacts->tailPolicy.str();
+    contract.maskPolicy = routeFacts->maskPolicy.str();
+    contract.runtimeControlPlanID = routeFacts->runtimeControlPlanID.str();
+    contract.runtimeABIOrder = routeFacts->runtimeABIOrder.str();
+    contract.targetLeafProfile = routeFacts->targetLeafProfile.str();
+    contract.providerSupportedMirror =
+        routeFacts->providerSupportedMirror.str();
+    contract.requiredHeaderDeclarations =
+        routeFacts->requiredHeaderDeclarations.str();
+    contract.cTypeMappingSummary = routeFacts->cTypeMappingSummary.str();
+    contract.routeOperandBindingPlanID =
+        routeFacts->routeOperandBindingPlanID.str();
+    contract.routeOperandBindingSummary =
+        routeFacts->routeOperandBindingSummary;
+    contract.typedComputeOpName = routeFacts->typedComputeOpName.str();
+
+    contract.usesPlainSegment2 = true;
+    contract.usesDeinterleaveLoad = routeFacts->usesDeinterleaveLoad;
+    contract.usesInterleaveStore = routeFacts->usesInterleaveStore;
+    contract.segment2MemoryRouteFamilyPlanID =
+        routeFacts->segment2MemoryRouteFamilyPlanID.str();
+    contract.segmentMemoryLayout = routeFacts->segmentMemoryLayout.str();
+    contract.sourceMemoryForm = routeFacts->sourceMemoryForm.str();
+    contract.destinationMemoryForm =
+        routeFacts->destinationMemoryForm.str();
+    contract.segmentCount = routeFacts->segmentCount;
+    contract.segmentTupleCType = routeFacts->segmentTupleCType.str();
+    contract.segmentLoadIntrinsic = routeFacts->segmentLoadIntrinsic.str();
+    contract.segmentStoreIntrinsic = routeFacts->segmentStoreIntrinsic.str();
+    contract.segmentFieldExtractIntrinsic =
+        routeFacts->usesDeinterleaveLoad
+            ? routeFacts->segmentFieldExtractIntrinsic.str()
+            : std::string();
+    contract.segmentTupleCreateIntrinsic =
+        routeFacts->usesInterleaveStore
+            ? routeFacts->segmentFieldExtractIntrinsic.str()
+            : std::string();
+    contract.field0Role = routeFacts->field0Role.str();
+    contract.field1Role = routeFacts->field1Role.str();
+    contract.field0Name = routeFacts->field0Name.str();
+    contract.field1Name = routeFacts->field1Name.str();
+    contract.field0SourceMemoryForm =
+        routeFacts->field0SourceMemoryForm.str();
+    contract.field1SourceMemoryForm =
+        routeFacts->field1SourceMemoryForm.str();
+    contract.field0DestinationMemoryForm =
+        routeFacts->field0DestinationMemoryForm.str();
+    contract.field1DestinationMemoryForm =
+        routeFacts->field1DestinationMemoryForm.str();
+    contract.logicalOperands.append(routeFacts->logicalOperands.begin(),
+                                    routeFacts->logicalOperands.end());
+    contract.runtimeABIParameters.append(
+        routeFacts->runtimeABIParameters.begin(),
+        routeFacts->runtimeABIParameters.end());
+
+    populateSegment2MemoryValidationCommonFields(contract, description);
+    return contract;
+  }
+
+  if (std::optional<RVVComputedMaskSegment2MemoryRouteFacts> routeFacts =
+          getRVVComputedMaskSegment2MemoryRouteFacts(description.operation)) {
+    RVVSegment2MemoryRouteValidationContract contract;
+    contract.memoryForm = routeFacts->memoryForm;
+    contract.sew = routeFacts->sew;
+    contract.lmul = routeFacts->lmul.str();
+    contract.tailPolicy = routeFacts->tailPolicy.str();
+    contract.maskPolicy = routeFacts->maskPolicy.str();
+    contract.runtimeControlPlanID = routeFacts->runtimeControlPlanID.str();
+    contract.runtimeABIOrder = routeFacts->runtimeABIOrder.str();
+    contract.targetLeafProfile = routeFacts->targetLeafProfile.str();
+    contract.providerSupportedMirror =
+        routeFacts->providerSupportedMirror.str();
+    contract.requiredHeaderDeclarations =
+        routeFacts->requiredHeaderDeclarations.str();
+    contract.cTypeMappingSummary = routeFacts->cTypeMappingSummary.str();
+    contract.routeOperandBindingPlanID =
+        routeFacts->routeOperandBindingPlanID.str();
+    contract.routeOperandBindingSummary =
+        routeFacts->routeOperandBindingSummary;
+    contract.typedComputeOpName = routeFacts->typedComputeOpName.str();
+
+    contract.usesComputedMaskSegment2 = true;
+    contract.usesComputedMaskLoad =
+        description.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+    contract.usesComputedMaskStore =
+        description.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+    contract.usesComputedMaskUpdate =
+        description.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
+    contract.computedMaskMemoryRouteFamilyPlanID =
+        routeFacts->computedMaskMemoryRouteFamilyPlanID.str();
+    contract.computedMaskMemoryMaskProducerSource =
+        routeFacts->computedMaskMemoryMaskProducerSource.str();
+    contract.maskTailPolicyRouteFamilyPlanID =
+        routeFacts->maskTailPolicyRouteFamilyPlanID.str();
+    contract.maskTailPolicyOwner = routeFacts->maskTailPolicyOwner.str();
+    contract.comparePredicateKind = routeFacts->comparePredicateKind.str();
+    contract.maskRole = routeFacts->maskRole.str();
+    contract.maskSource = routeFacts->maskSource.str();
+    contract.maskMemoryForm = routeFacts->maskMemoryForm.str();
+    contract.inactiveLaneContract =
+        routeFacts->inactiveLaneContract.str();
+    contract.maskedPassthroughLayout =
+        routeFacts->maskedPassthroughLayout.str();
+    contract.segmentMemoryLayout = routeFacts->segmentMemoryLayout.str();
+    contract.sourceMemoryForm = routeFacts->sourceMemoryForm.str();
+    contract.destinationMemoryForm =
+        routeFacts->destinationMemoryForm.str();
+    contract.segmentCount = routeFacts->segmentCount;
+    contract.segmentTupleCType = routeFacts->segmentTupleCType.str();
+    contract.segmentLoadIntrinsic = routeFacts->segmentLoadIntrinsic.str();
+    contract.segmentStoreIntrinsic = routeFacts->segmentStoreIntrinsic.str();
+    contract.segmentFieldExtractIntrinsic =
+        contract.usesComputedMaskLoad
+            ? routeFacts->segmentFieldExtractIntrinsic.str()
+            : std::string();
+    contract.segmentTupleCreateIntrinsic =
+        contract.usesComputedMaskLoad
+            ? routeFacts->segmentStoreIntrinsic.str()
+            : routeFacts->segmentFieldExtractIntrinsic.str();
+    contract.segment2UpdateArithmeticKind =
+        routeFacts->segment2UpdateArithmeticKind.str();
+    contract.segment2UpdateArithmeticIntrinsic =
+        routeFacts->segment2UpdateArithmeticIntrinsic.str();
+    contract.field0Role = routeFacts->field0Role.str();
+    contract.field1Role = routeFacts->field1Role.str();
+    contract.field0Name = routeFacts->field0Name.str();
+    contract.field1Name = routeFacts->field1Name.str();
+    contract.field0SourceMemoryForm =
+        routeFacts->field0SourceMemoryForm.str();
+    contract.field1SourceMemoryForm =
+        routeFacts->field1SourceMemoryForm.str();
+    contract.field0DestinationMemoryForm =
+        routeFacts->field0DestinationMemoryForm.str();
+    contract.field1DestinationMemoryForm =
+        routeFacts->field1DestinationMemoryForm.str();
+    contract.maskTypeName =
+        getRVVSelectedBodyMaskTypeName(routeFacts->sew, routeFacts->lmul).str();
+    contract.maskCType =
+        getRVVSelectedBodyMaskCType(routeFacts->sew, routeFacts->lmul).str();
+    contract.compareIntrinsic =
+        getRVVSelectedBodyCompareIntrinsicForPredicate(
+            routeFacts->comparePredicateKind, routeFacts->sew,
+            routeFacts->lmul)
+            .str();
+    contract.maskName = description.maskName.str();
+    contract.logicalOperands.append(routeFacts->logicalOperands.begin(),
+                                    routeFacts->logicalOperands.end());
+    contract.runtimeABIParameters.append(
+        routeFacts->runtimeABIParameters.begin(),
+        routeFacts->runtimeABIParameters.end());
+
+    populateSegment2MemoryValidationCommonFields(contract, description);
+    appendSegment2MemoryValidationTypeMapping(
+        contract, contract.maskTypeName, contract.maskCType,
+        "selected typed RVV computed-mask segment2 mask type");
+    return contract;
+  }
+
+  return std::nullopt;
 }
 
 static void appendRVVMemoryRouteMetadataMirror(

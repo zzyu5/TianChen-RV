@@ -1943,3 +1943,36 @@ Extracted provider-owned base-memory movement route validation contract and rewi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 422: Stage2 RVV segment2 route validation contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV segment2 route validation contract
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned segment2 memory route validation contract, rewired target artifact validation to consume it, updated focused tests and spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f20e40a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

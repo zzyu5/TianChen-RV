@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain and Stage2 boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV segment2 provider/planning/statement-plan and target export boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route fact and validation contract pattern; segment2 fact surfaces"}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-movement-route-contract-extraction/prd.md", "reason": "Closest provider-owned route validation contract implementation template"}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-plain-segment2-production-validation-boundary/prd.md", "reason": "Plain segment2 provider fact surface and target consumer boundary"}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-segment2-production-validation-boundary/prd.md", "reason": "Computed-mask segment2 provider fact surface and target consumer boundary"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider interface for segment2 facts, metadata mirror contract, and new route validation contract"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Segment2 fact accessors and metadata mirror contract implementation"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact validation consumer to rewire to provider contract"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused C++ target artifact validation tests"}

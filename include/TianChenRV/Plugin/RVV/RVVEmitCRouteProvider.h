@@ -819,6 +819,117 @@ std::optional<RVVComputedMaskSegment2MemoryRouteFacts>
 getRVVComputedMaskSegment2MemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+enum class RVVSegment2MemoryRouteValidationKind {
+  PlainDeinterleaveUnitStore,
+  PlainInterleaveUnitLoad,
+  ComputedMaskLoadUnitStore,
+  ComputedMaskStoreUnitLoad,
+  ComputedMaskUpdateUnitLoad,
+};
+
+struct RVVSegment2MemoryRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVSegment2MemoryRouteValidationContract {
+  RVVSegment2MemoryRouteValidationKind kind =
+      RVVSegment2MemoryRouteValidationKind::PlainDeinterleaveUnitStore;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string segment2MemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryMaskProducerSource;
+  std::string maskTailPolicyRouteFamilyPlanID;
+  std::string maskTailPolicyOwner;
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+
+  bool usesPlainSegment2 = false;
+  bool usesComputedMaskSegment2 = false;
+  bool usesDeinterleaveLoad = false;
+  bool usesInterleaveStore = false;
+  bool usesComputedMaskLoad = false;
+  bool usesComputedMaskStore = false;
+  bool usesComputedMaskUpdate = false;
+  std::string segmentMemoryLayout;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::int64_t segmentCount = 0;
+  std::string segmentTupleCType;
+  std::string segmentLoadIntrinsic;
+  std::string segmentStoreIntrinsic;
+  std::string segmentFieldExtractIntrinsic;
+  std::string segmentTupleCreateIntrinsic;
+  std::string segment2UpdateArithmeticKind;
+  std::string segment2UpdateArithmeticIntrinsic;
+  std::string field0Role;
+  std::string field1Role;
+  std::string field0Name;
+  std::string field1Name;
+  std::string field0SourceMemoryForm;
+  std::string field1SourceMemoryForm;
+  std::string field0DestinationMemoryForm;
+  std::string field1DestinationMemoryForm;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string compareIntrinsic;
+  std::string storeIntrinsic;
+  std::string maskName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameterRole, 8>
+      runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVSegment2MemoryRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVSegment2MemoryRouteValidationContract>
+getRVVSegment2MemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVMemoryRouteMetadataMirrorContract {
   llvm::StringRef key;
   std::string expected;

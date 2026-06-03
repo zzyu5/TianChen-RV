@@ -11385,6 +11385,115 @@ bool expectRVVTargetArtifactExporterShape(
                                     segment2InterleaveDescription))
     return false;
 
+  auto expectSegment2RouteValidationContractMatch =
+      [](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+         const RVVRouteDescription &description,
+         llvm::StringRef context) -> bool {
+    std::optional<
+        tianchenrv::plugin::rvv::RVVSegment2MemoryRouteValidationContract>
+        contract =
+            tianchenrv::plugin::rvv::
+                getRVVSegment2MemoryRouteValidationContract(description);
+    if (!contract) {
+      llvm::errs() << context << " did not expose provider-owned segment2 "
+                   << "route validation contract\n";
+      return false;
+    }
+    if (contract->operation != description.operation ||
+        contract->memoryForm != description.memoryForm ||
+        contract->emitCRouteID != description.emitCRouteID ||
+        contract->runtimeABIOrder != description.runtimeABIOrder ||
+        contract->routeOperandBindingPlanID !=
+            description.routeOperandBindingPlanID ||
+        contract->routeOperandBindingSummary !=
+            description.routeOperandBindingSummary ||
+        contract->targetLeafProfile != description.targetLeafProfile ||
+        contract->providerSupportedMirror !=
+            description.providerSupportedMirror ||
+        contract->requiredHeaderDeclarations !=
+            description.requiredHeaderDeclarations ||
+        contract->cTypeMappingSummary != description.cTypeMappingSummary ||
+        contract->segmentMemoryLayout != description.segmentMemoryLayout ||
+        contract->sourceMemoryForm != description.sourceMemoryForm ||
+        contract->destinationMemoryForm != description.destinationMemoryForm ||
+        contract->segmentCount != description.segmentCount ||
+        contract->segmentTupleCType != description.segmentTupleCType ||
+        contract->field0Role != description.field0Role ||
+        contract->field1Role != description.field1Role ||
+        contract->field0Name != description.field0Name ||
+        contract->field1Name != description.field1Name ||
+        contract->runtimeABIParameters.size() !=
+            description.runtimeABIParameters.size() ||
+        contract->expectedPreLoopStepCount !=
+            route.getCallOpaqueSteps().size() ||
+        route.getForLoops().empty() ||
+        contract->expectedLoopBodyStepCount !=
+            route.getForLoops().front().bodySteps.size()) {
+      llvm::errs() << context << " provider-owned segment2 route validation "
+                   << "contract did not match rebuilt route description\n";
+      return false;
+    }
+    if (contract->usesComputedMaskSegment2) {
+      if (contract->computedMaskMemoryRouteFamilyPlanID !=
+              description.computedMaskMemoryRouteFamilyPlanID ||
+          contract->computedMaskMemoryMaskProducerSource !=
+              description.computedMaskMemoryMaskProducerSource ||
+          contract->maskRole != description.maskRole ||
+          contract->maskSource != description.maskSource ||
+          contract->maskMemoryForm != description.maskMemoryForm ||
+          contract->comparePredicateKind !=
+              description.comparePredicateKind ||
+          contract->segment2UpdateArithmeticKind !=
+              description.segment2UpdateArithmeticKind ||
+          contract->segment2UpdateArithmeticIntrinsic !=
+              description.segment2UpdateArithmeticIntrinsic ||
+          !contract->segment2MemoryRouteFamilyPlanID.empty()) {
+        llvm::errs() << context << " computed-mask segment2 contract "
+                     << "mismatched route-family, mask, or update facts\n";
+        return false;
+      }
+    }
+    if (contract->usesPlainSegment2) {
+      if (contract->segment2MemoryRouteFamilyPlanID !=
+              description.segment2MemoryRouteFamilyPlanID ||
+          !contract->computedMaskMemoryRouteFamilyPlanID.empty() ||
+          !contract->computedMaskMemoryMaskProducerSource.empty() ||
+          !contract->maskRole.empty() || !contract->maskSource.empty() ||
+          !contract->maskMemoryForm.empty()) {
+        llvm::errs() << context << " plain segment2 contract mismatched "
+                     << "plain or stale computed-mask route-family facts\n";
+        return false;
+      }
+    }
+    return true;
+  };
+
+  if (!expectSegment2RouteValidationContractMatch(
+          computedMaskSegment2LoadRoute,
+          computedMaskSegment2LoadDescription,
+          "computed-mask segment2 load route validation contract"))
+    return false;
+  if (!expectSegment2RouteValidationContractMatch(
+          computedMaskSegment2StoreRoute,
+          computedMaskSegment2StoreDescription,
+          "computed-mask segment2 store route validation contract"))
+    return false;
+  if (!expectSegment2RouteValidationContractMatch(
+          computedMaskSegment2UpdateRoute,
+          computedMaskSegment2UpdateDescription,
+          "computed-mask segment2 update route validation contract"))
+    return false;
+  if (!expectSegment2RouteValidationContractMatch(
+          segment2DeinterleaveRoute,
+          segment2DeinterleaveDescription,
+          "plain segment2 deinterleave route validation contract"))
+    return false;
+  if (!expectSegment2RouteValidationContractMatch(
+          segment2InterleaveRoute,
+          segment2InterleaveDescription,
+          "plain segment2 interleave route validation contract"))
+    return false;
+
   auto expectPlainSegment2ProviderFactsMatch =
       [](OperationKind operation, const RVVRouteDescription &description,
          llvm::StringRef context) -> bool {
@@ -11695,7 +11804,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleDeinterleaveComputedMaskFamily,
           "plain segment2 deinterleave validator rejects stale computed-mask "
           "route-family facts",
-          {"stale computed-mask route-family facts"}))
+          {"stale provider-derived computed-mask route-family plan fact"}))
     return false;
 
   RVVRouteDescription wrongDeinterleaveRouteOperandBinding =
@@ -12016,7 +12125,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleInterleaveComputedMaskFamily,
           "plain segment2 interleave validator rejects stale computed-mask "
           "route-family facts",
-          {"stale computed-mask route-family facts"}))
+          {"stale provider-derived computed-mask route-family plan fact"}))
     return false;
 
   RVVRouteDescription wrongInterleaveRouteOperandBinding =
@@ -12317,7 +12426,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleLoadPlainSegment2Plan,
           "computed-mask segment2 load validator rejects stale plain segment2 "
           "route-family plan",
-          {"stale plain segment2 route-family facts"}))
+          {"stale provider-derived plain segment2 route-family plan fact"}))
     return false;
 
   RVVRouteDescription wrongLoadMaskSource =
@@ -12822,7 +12931,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleStorePlainSegment2Family,
           "computed-mask segment2 store validator rejects stale plain "
           "segment2 family facts",
-          {"stale plain segment2 route-family facts"}))
+          {"stale provider-derived plain segment2 route-family plan fact"}))
     return false;
 
   RVVRouteDescription wrongStoreMaskSource =
@@ -13191,8 +13300,9 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectComputedMaskSegment2ProviderFailure(
           wrongSegment2Operation,
           "computed-mask segment2 registry rejects wrong operation facts",
-          {"route operand binding summary",
-           "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1"}))
+          {"rebuilt provider route id",
+           "rvv-generic-computed-masked-segment2-store-unit-load-emitc-route",
+           "rvv-generic-computed-masked-segment2-update-unit-load-emitc-route"}))
     return false;
 
   RVVRouteDescription staleSegment2RouteID =
@@ -13214,7 +13324,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleSegment2PlainFamily,
           "computed-mask segment2 registry rejects stale plain segment2 "
           "family facts",
-          {"stale plain segment2 route-family facts"}))
+          {"stale provider-derived plain segment2 route-family plan fact"}))
     return false;
 
   RVVRouteDescription wrongSegment2MaskBinding =
