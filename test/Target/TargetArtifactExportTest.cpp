@@ -2288,6 +2288,11 @@ using RVVDualCompareSelectRouteFacts =
         RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts;
 using RVVComputedMaskStridedMemoryRouteFacts =
     tianchenrv::plugin::rvv::RVVComputedMaskStridedMemoryRouteFacts;
+using RVVComputedMaskStridedMemoryRouteValidationContract =
+    tianchenrv::plugin::rvv::
+        RVVComputedMaskStridedMemoryRouteValidationContract;
+using RVVMemoryRouteMetadataMirrorContractSet =
+    tianchenrv::plugin::rvv::RVVMemoryRouteMetadataMirrorContractSet;
 using RVVUnitStrideMaskedMemoryRouteFacts =
     tianchenrv::plugin::rvv::RVVUnitStrideMaskedMemoryRouteFacts;
 
@@ -15941,6 +15946,67 @@ bool expectRVVTargetArtifactExporterShape(
     return true;
   };
 
+  auto expectComputedMaskStridedProviderContract =
+      [&](const RVVRouteDescription &manualDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskStridedMemoryRouteValidationKind kind,
+          llvm::StringRef fixtureContext) -> bool {
+    std::optional<RVVComputedMaskStridedMemoryRouteValidationContract>
+        contract =
+            tianchenrv::plugin::rvv::
+                getRVVComputedMaskStridedMemoryRouteValidationContract(
+                    manualDescription);
+    if (!contract) {
+      llvm::errs() << fixtureContext
+                   << ": missing computed-mask strided route validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->kind != kind ||
+        contract->operation != manualDescription.operation ||
+        llvm::StringRef(contract->runtimeABIOrder) !=
+            manualDescription.runtimeABIOrder ||
+        llvm::StringRef(contract->routeOperandBindingPlanID) !=
+            manualDescription.routeOperandBindingPlanID ||
+        llvm::StringRef(contract->routeOperandBindingSummary) !=
+            manualDescription.routeOperandBindingSummary ||
+        llvm::StringRef(contract->providerSupportedMirror) !=
+            manualDescription.providerSupportedMirror ||
+        llvm::StringRef(contract->targetLeafProfile) !=
+            manualDescription.targetLeafProfile ||
+        llvm::StringRef(contract->requiredHeaderDeclarations) !=
+            manualDescription.requiredHeaderDeclarations ||
+        llvm::StringRef(contract->cTypeMappingSummary) !=
+            manualDescription.cTypeMappingSummary ||
+        llvm::StringRef(contract->computedMaskMemoryRouteFamilyPlanID) !=
+            manualDescription.computedMaskMemoryRouteFamilyPlanID ||
+        llvm::StringRef(contract->computedMaskMemoryMaskProducerSource) !=
+            manualDescription.computedMaskMemoryMaskProducerSource ||
+        llvm::StringRef(contract->stridedMemoryLayout) !=
+            manualDescription.stridedMemoryLayout ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount == 0 ||
+        contract->runtimeABIParameters.size() !=
+            manualDescription.runtimeABIParameters.size() ||
+        contract->requiredHeaders.empty() || contract->typeMappings.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": malformed computed-mask strided route validation "
+                      "contract\n";
+      return false;
+    }
+    std::optional<RVVMemoryRouteMetadataMirrorContractSet> mirrorContract =
+        tianchenrv::plugin::rvv::
+            getRVVComputedMaskStridedMemoryRouteMetadataMirrorContract(
+                manualDescription);
+    if (!mirrorContract || mirrorContract->mirrors.empty() ||
+        mirrorContract->staleMirrorKeys.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": missing computed-mask strided mirror contract\n";
+      return false;
+    }
+    return true;
+  };
+
   if (!expectCompareSelectProviderContract(
           manualPlainDescription,
           tianchenrv::plugin::rvv::
@@ -15958,6 +16024,19 @@ bool expectRVVTargetArtifactExporterShape(
           tianchenrv::plugin::rvv::
               RVVCompareSelectRouteValidationKind::RuntimeScalarDual,
           "runtime-scalar dual compare/select provider contract"))
+    return false;
+  if (!expectComputedMaskStridedProviderContract(
+          manualStridedStoreDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskStridedMemoryRouteValidationKind::StridedStore,
+          "computed-mask strided store provider contract"))
+    return false;
+  if (!expectComputedMaskStridedProviderContract(
+          manualStridedLoadDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskStridedMemoryRouteValidationKind::
+                  StridedLoadUnitStore,
+          "computed-mask strided load provider contract"))
     return false;
 
   if (!expectManualCompareSelectMaskPositive(
@@ -16656,6 +16735,68 @@ bool expectRVVTargetArtifactExporterShape(
           {"masked strided store callee", "__riscv_vsse32_v_i32m1_m"}))
     return false;
 
+  RVVRouteDescription staleStridedStoreProviderMirror =
+      manualStridedStoreDescription;
+  staleStridedStoreProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-computed-mask-strided-store";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualStridedStoreCandidate, manualStridedStoreRoute,
+          staleStridedStoreProviderMirror,
+          "computed-mask strided contract rejects stale provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-computed-mask-strided-store-plan-validated",
+           "metadata-only-computed-mask-strided-store"}))
+    return false;
+
+  RVVRouteDescription staleStridedLoadBindingSummary =
+      manualStridedLoadDescription;
+  staleStridedLoadBindingSummary.routeOperandBindingSummary =
+      "metadata-only-computed-mask-strided-load-binding";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualStridedLoadCandidate, manualStridedLoadRoute,
+          staleStridedLoadBindingSummary,
+          "computed-mask strided contract rejects stale load binding summary",
+          {"route operand binding facts",
+           "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1",
+           "metadata-only-computed-mask-strided-load-binding"}))
+    return false;
+
+  RVVRouteDescription staleStridedStoreHeaders =
+      manualStridedStoreDescription;
+  staleStridedStoreHeaders.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualStridedStoreCandidate, manualStridedStoreRoute,
+          staleStridedStoreHeaders,
+          "computed-mask strided contract rejects stale header facts",
+          {"required header declarations",
+           "stddef.h,stdint.h,riscv_vector.h", "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription staleStridedStoreStrideRole =
+      manualStridedStoreDescription;
+  staleStridedStoreStrideRole.runtimeABIParameters.back().role =
+      RuntimeABIParameterRole::SourceByteStride;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualStridedStoreCandidate, manualStridedStoreRoute,
+          staleStridedStoreStrideRole,
+          "computed-mask strided contract rejects stale destination stride "
+          "ABI role",
+          {"runtime ABI parameter[5]", "destination-byte-stride",
+           "source-byte-stride"}))
+    return false;
+
+  RVVRouteDescription staleStridedMaskSource =
+      manualStridedLoadDescription;
+  staleStridedMaskSource.maskSource = "metadata-derived-mask-source";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualStridedLoadCandidate, manualStridedLoadRoute,
+          staleStridedMaskSource,
+          "computed-mask strided contract rejects stale mask source",
+          {"mask source", "compare-produced-mask-same-vl-scope",
+           "metadata-derived-mask-source"}))
+    return false;
+
   RVVRouteDescription staleComputedUnitBindingSummary =
       manualComputedUnitDescription;
   staleComputedUnitBindingSummary.routeOperandBindingSummary =
@@ -17233,6 +17374,69 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale source stride metadata",
           {"source_stride_source", "runtime_abi:src_stride_bytes",
            "metadata-derived-stride"}))
+    return false;
+
+  TargetArtifactCandidate wrongStridedProviderMirrorCandidate =
+      manualStridedStoreCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongStridedProviderMirrorCandidate,
+          "tcrv_rvv.provider_supported_mirror",
+          "provider_supported_mirror:metadata-only-strided-store"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongStridedProviderMirrorCandidate, manualStridedStoreRoute,
+          manualStridedStoreDescription,
+          "computed-mask strided mirror contract rejects stale provider "
+          "mirror metadata",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-computed-mask-strided-store-plan-validated",
+           "metadata-only-strided-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongStridedBindingCandidate =
+      manualStridedLoadCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongStridedBindingCandidate,
+          "tcrv_rvv.route_operand_binding_operands",
+          "metadata-only-computed-mask-strided-load-binding"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongStridedBindingCandidate, manualStridedLoadRoute,
+          manualStridedLoadDescription,
+          "computed-mask strided mirror contract rejects stale binding "
+          "metadata",
+          {"route_operand_binding_operands",
+           "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1",
+           "metadata-only-computed-mask-strided-load-binding"}))
+    return false;
+
+  TargetArtifactCandidate wrongStridedHeaderCandidate =
+      manualStridedStoreCandidate;
+  if (!rewriteArtifactMetadataValue(wrongStridedHeaderCandidate,
+                                    "tcrv_rvv.required_header_declarations",
+                                    "stddef.h,stdint.h"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongStridedHeaderCandidate, manualStridedStoreRoute,
+          manualStridedStoreDescription,
+          "computed-mask strided mirror contract rejects stale header "
+          "metadata",
+          {"required_header_declarations",
+           "stddef.h,stdint.h,riscv_vector.h", "stddef.h,stdint.h"}))
+    return false;
+
+  TargetArtifactCandidate wrongStridedBaseMemoryPlanCandidate =
+      manualStridedStoreCandidate;
+  wrongStridedBaseMemoryPlanCandidate.artifactMetadata.emplace_back(
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "rvv-base-memory-movement-route-family-plan.v1");
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongStridedBaseMemoryPlanCandidate, manualStridedStoreRoute,
+          manualStridedStoreDescription,
+          "computed-mask strided mirror contract rejects stale base-memory "
+          "metadata",
+          {"base_memory_movement_route_family_plan", "must not carry",
+           "without selected typed RVV computed-mask strided memory route"}))
     return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(

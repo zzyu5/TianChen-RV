@@ -19,7 +19,15 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 
 ### Main Changes
 
-(Add details)
+- Added provider-owned computed-mask strided memory route validation and
+  metadata mirror contracts.
+- Rewired target artifact validation for `computed_masked_strided_store` and
+  `computed_masked_strided_load_unit_store` to consume the provider contract
+  before candidate metadata mirrors.
+- Added focused stale provider-description and stale candidate-mirror negative
+  coverage.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the durable
+  computed-mask strided validation contract.
 
 ### Git Commits
 
@@ -29,7 +37,18 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for computed-mask strided store/load artifacts and
+  generated-bundle dry-run: 5 passed, 472 excluded.
+- [OK] direct pre-realized `computed_masked_strided_load_unit_store`
+  generated-bundle dry-run with runtime counts `7,16,23` and byte strides
+  `4,8,12`.
+- [OK] `rtk git diff --check`
+- [OK] task context validation
+- [OK] bounded added-line old-authority scan found no new positive legacy
+  authority path.
 
 ### Status
 
@@ -106,6 +125,39 @@ counts `7,16,23`.
 ### Summary
 
 Extracted provider-owned vector-reduction route validation contract for ReduceAdd vector RHS-load, rewired target artifact validation to consume it for ABI, binding, dtype/config, header/type, leaf/profile, intrinsic, layout, AVL/VL and candidate mirrors, added focused provider/target tests, and passed focused build/tests/lit/diff checks. No ssh rvv run because this changed validation ownership only, not generated runtime behavior or correctness/performance claims.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 425: Stage2 RVV computed-mask strided-memory provider contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask strided-memory provider contract
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned computed-mask strided memory route validation and mirror contracts, rewired target artifact validation to consume them, added focused stale provider/mirror coverage, updated lowering-runtime spec, and passed focused build/C++/lit/dry-run checks.
 
 ### Main Changes
 

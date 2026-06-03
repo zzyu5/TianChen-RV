@@ -722,6 +722,99 @@ std::optional<RVVComputedMaskStridedMemoryRouteFacts>
 getRVVComputedMaskStridedMemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+enum class RVVComputedMaskStridedMemoryRouteValidationKind {
+  StridedStore,
+  StridedLoadUnitStore,
+};
+
+struct RVVComputedMaskStridedMemoryRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVComputedMaskStridedMemoryRouteValidationContract {
+  RVVComputedMaskStridedMemoryRouteValidationKind kind =
+      RVVComputedMaskStridedMemoryRouteValidationKind::StridedStore;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string computedMaskMemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryMaskProducerSource;
+  std::string maskTailPolicyRouteFamilyPlanID;
+  std::string maskTailPolicyOwner;
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  std::string maskedMemoryLayout;
+  std::string stridedMemoryLayout;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string sourceStrideSource;
+  std::string destinationStrideSource;
+  std::string sourceStrideCType;
+  std::string destinationStrideCType;
+  std::string sourceStrideUnit;
+  std::string destinationStrideUnit;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string maskedLoadIntrinsic;
+  std::string storeIntrinsic;
+  std::string stridedStoreIntrinsic;
+  std::string compareIntrinsic;
+  std::string resultName;
+  std::string maskName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameterRole, 8>
+      runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVComputedMaskStridedMemoryRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVComputedMaskStridedMemoryRouteValidationContract>
+getRVVComputedMaskStridedMemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVPlainSegment2MemoryRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -1072,6 +1165,10 @@ struct RVVMemoryRouteMetadataMirrorContractSet {
 
 std::optional<RVVMemoryRouteMetadataMirrorContractSet>
 getRVVBaseMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVComputedMaskStridedMemoryRouteMetadataMirrorContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
 std::optional<RVVMemoryRouteMetadataMirrorContractSet>

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the final route authority remains typed RVV body -> RVV provider contract -> target mirror validation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check computed-mask memory provider/statement-plan/route-control rules and no target-local semantic reconstruction."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider route validation contract shape, fact-surface consumption, and mirror-only metadata rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit evidence and no positive legacy i32 route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check dry-run/generated-bundle and no-runtime-change rationale requirements."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Check that runtime/correctness claims are not made without ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-strided-memory-production-validation-boundary/prd.md", "reason": "Check this round preserves prior strided facts and validation behavior."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Check nearby computed-mask memory route validation behavior remains unaffected."}

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 boundary, and no descriptor/source-front-door/common-EmitC semantic authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned computed-mask memory route planning, statement-plan, mask/tail, and selected-body realization contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract and existing computed-mask strided memory fact-surface requirements."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence and RVV runtime evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run and runtime/no-runtime evidence rules for masked memory routes."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Validation interpretation rules and ssh rvv evidence requirement for runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-vector-reduction-executable-closeout/prd.md", "reason": "Immediately previous closeout context and no-runtime-change/evidence reporting pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-strided-memory-production-validation-boundary/prd.md", "reason": "Existing strided-memory provider facts and target validation boundary context."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Nearby computed-mask indexed provider/target validation pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-runtime-computed-mask-memory-realization-boundary/prd.md", "reason": "Computed-mask memory selected-body realization and fail-closed boundary context."}
