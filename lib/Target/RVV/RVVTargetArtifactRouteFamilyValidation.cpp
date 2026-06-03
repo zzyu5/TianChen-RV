@@ -616,23 +616,6 @@ bool isRVVBaseMemoryMovementRouteFamilyOperation(
   }
 }
 
-bool isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return operation ==
-             plugin::rvv::RVVSelectedBodyOperationKind::
-                 IndexedGatherUnitStore ||
-         operation ==
-             plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
-}
-
-bool isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return operation ==
-             plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
-         operation ==
-             plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore;
-}
-
 bool isRVVUnitStrideMaskedMemoryRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -1326,55 +1309,43 @@ llvm::Error requireIndexedBaseMemoryHeaderBindingSummaryEntry(
 }
 
 llvm::Error validateIndexedBaseMemoryHeaderBindingSummary(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
   using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  if (description.operation != OperationKind::IndexedGatherUnitStore &&
-      description.operation != OperationKind::IndexedScatterUnitLoad)
+  if (contract.operation != OperationKind::IndexedGatherUnitStore &&
+      contract.operation != OperationKind::IndexedScatterUnitLoad)
     return llvm::Error::success();
-  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
-      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        "indexed base-memory target artifact consumer requires "
-        "provider-owned base-memory route facts before artifact export");
 
   const llvm::StringRef operationMnemonic =
-      plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(contract.operation);
   if (description.routeOperandBindingPlanID !=
-      routeFacts->routeOperandBindingPlanID)
+      contract.routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+        contract.routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
   if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(routeFacts->routeOperandBindingPlanID))
+           .starts_with(contract.routeOperandBindingPlanID))
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+        contract.routeOperandBindingPlanID + "' before artifact export");
   if (description.runtimeABIParameters.size() !=
-          routeFacts->runtimeABIParameters.size() ||
-      routeFacts->logicalOperands.size() != routeFacts->runtimeABIParameters.size())
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order before artifact export");
-  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
-       ++index)
-    if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, routeFacts->logicalOperands[index],
-            description.runtimeABIParameters[index]))
-      return error;
   if (description.routeOperandBindingSummary !=
-      routeFacts->routeOperandBindingSummary)
+      contract.routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must mirror provider-owned "
-        "base-memory binding summary '" + routeFacts->routeOperandBindingSummary +
+        "base-memory binding summary '" + contract.routeOperandBindingSummary +
         "' before artifact export");
   return llvm::Error::success();
 }
@@ -1667,32 +1638,24 @@ llvm::Error validatePlainSegment2InterleaveHeaderBindingSummary(
 
 llvm::Error validateRVVBaseMemoryMovementRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.requiredHeaderDeclarations.empty())
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
+  if (contract.requiredHeaderDeclarations.empty() ||
+      contract.requiredHeaders.empty())
     return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires "
-        "provider-derived required_header_declarations before accepting the "
-        "route artifact");
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned required_header_declarations before "
+        "accepting the route artifact");
 
-  llvm::SmallVector<llvm::StringRef, 4> headers;
-  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
-                                               /*KeepEmpty=*/false);
-  if (headers.empty())
-    return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires at least one "
-        "provider route header");
-
-  for (llvm::StringRef header : headers) {
-    llvm::StringRef trimmed = header.trim();
-    if (trimmed.empty())
+  for (llvm::StringRef header : contract.requiredHeaders) {
+    if (header.empty())
       return makeRVVTargetRouteError(
-          "base-memory-movement target artifact consumer saw an empty "
-          "provider route header declaration");
-    if (!routeHasHeader(route, trimmed))
+          llvm::Twine(contract.consumerLabel) +
+          " saw an empty provider route header declaration");
+    if (!routeHasHeader(route, header))
       return makeRVVTargetRouteError(
-          llvm::Twine("base-memory-movement target artifact consumer requires "
-                      "rebuilt provider route header '") +
-          trimmed + "' before artifact export");
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route header '" + header +
+          "' before artifact export");
   }
 
   return llvm::Error::success();
@@ -1700,65 +1663,27 @@ llvm::Error validateRVVBaseMemoryMovementRouteHeaders(
 
 llvm::Error validateRVVBaseMemoryMovementRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
-      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
+  if (contract.vlCType.empty() || contract.vectorTypeName.empty() ||
+      contract.vectorCType.empty() || contract.cTypeMappingSummary.empty() ||
+      contract.typeMappings.empty())
     return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires "
+        llvm::Twine(contract.consumerLabel) +
+        " requires "
         "provider-derived VL, vector, and C type mapping facts before "
         "artifact export");
 
-  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "rebuilt provider route type mapping '!tcrv_rvv.vl' -> '") +
-        description.vlCType + "'");
-  if (!routeHasTypeMapping(route, description.vectorTypeName,
-                           description.vectorCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "rebuilt provider route type mapping '") +
-        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
-
-  if (isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
-          description.operation)) {
-    if (description.indexVectorTypeName.empty() ||
-        description.indexVectorCType.empty())
+  for (const plugin::rvv::RVVBaseMemoryMovementRouteTypeMappingContract
+           &mapping : contract.typeMappings) {
+    if (mapping.sourceType.empty() || mapping.cType.empty())
       return makeRVVTargetRouteError(
-          "indexed base-memory-movement target artifact consumer requires "
-          "provider-derived index vector type mapping facts before artifact "
-          "export");
-    if (!routeHasTypeMapping(route, description.indexVectorTypeName,
-                             description.indexVectorCType))
+          llvm::Twine(contract.consumerLabel) +
+          " requires non-empty provider type mapping contract entries");
+    if (!routeHasTypeMapping(route, mapping.sourceType, mapping.cType))
       return makeRVVTargetRouteError(
-          llvm::Twine("indexed base-memory-movement target artifact consumer "
-                      "requires rebuilt provider route type mapping '") +
-          description.indexVectorTypeName + "' -> '" +
-          description.indexVectorCType + "'");
-  } else if (!description.indexVectorTypeName.empty() ||
-             !description.indexVectorCType.empty()) {
-    return makeRVVTargetRouteError(
-        "non-indexed base-memory-movement target artifact consumer rejects "
-        "stale index vector type mapping facts");
-  }
-
-  if (isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
-          description.operation)) {
-    if (description.maskTypeName.empty() || description.maskCType.empty())
-      return makeRVVTargetRouteError(
-          "masked base-memory-movement target artifact consumer requires "
-          "provider-derived mask type mapping facts before artifact export");
-    if (!routeHasTypeMapping(route, description.maskTypeName,
-                             description.maskCType))
-      return makeRVVTargetRouteError(
-          llvm::Twine("masked base-memory-movement target artifact consumer "
-                      "requires rebuilt provider route type mapping '") +
-          description.maskTypeName + "' -> '" + description.maskCType + "'");
-  } else if (!description.maskTypeName.empty() ||
-             !description.maskCType.empty()) {
-    return makeRVVTargetRouteError(
-        "non-masked base-memory-movement target artifact consumer rejects "
-        "stale mask type mapping facts");
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route type mapping '" +
+          mapping.sourceType + "' -> '" + mapping.cType + "'");
   }
 
   return llvm::Error::success();
@@ -1766,35 +1691,59 @@ llvm::Error validateRVVBaseMemoryMovementRouteTypeMappings(
 
 llvm::Error validateRVVBaseMemoryMovementRouteABIMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.runtimeABIOrder.empty() ||
-      description.runtimeABIParameters.empty())
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
+  if (contract.runtimeABIParameterRoles.size() !=
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires "
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned runtime ABI role order with one role per "
+        "ABI parameter before artifact export");
+  if (contract.runtimeABIOrder.empty() || contract.runtimeABIParameters.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires "
         "provider-derived runtime ABI order and ABI parameters before "
         "artifact export");
-  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "rebuilt provider route ABI mapping count ") +
-        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route ABI mapping count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
         llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0, count = contract.runtimeABIParameters.size();
+       index < count; ++index) {
+    support::RuntimeABIParameterRole expectedRole =
+        contract.runtimeABIParameterRoles[index];
+    support::RuntimeABIParameterRole actualRole =
+        contract.runtimeABIParameters[index].role;
+    if (actualRole != expectedRole)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-owned runtime ABI parameter[" +
+          llvm::Twine(index) + "] role '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' but saw '" +
+          support::stringifyRuntimeABIParameterRole(actualRole) +
+          "' for parameter '" + contract.runtimeABIParameters[index].cName +
+          "'");
+  }
 
   for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
     const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
         route.getABIMappings()[index];
     const support::RuntimeABIParameter &expected =
-        description.runtimeABIParameters[index];
+        contract.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(mapping.parameter, expected))
       return makeRVVTargetRouteError(
-          llvm::Twine("base-memory-movement target artifact consumer requires "
-                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
           llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
           expected.cName + "'");
     if (mapping.valueName != expected.cName)
       return makeRVVTargetRouteError(
-          llvm::Twine("base-memory-movement target artifact consumer requires "
-                      "rebuilt provider route ABI mapping[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
           llvm::Twine(index) +
           "] value name to use provider runtime ABI parameter '" +
           expected.cName + "' but was '" + mapping.valueName + "'");
@@ -1804,64 +1753,58 @@ llvm::Error validateRVVBaseMemoryMovementRouteABIMappings(
 }
 
 llvm::Error validateRVVBaseMemoryMovementRuntimeABIFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
-      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires "
-        "provider-owned canonical route facts before artifact export");
-
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
   if (description.runtimeABIParameters.size() !=
-      routeFacts->runtimeABIParameters.size())
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "provider-derived runtime ABI parameter count ") +
-        llvm::Twine(routeFacts->runtimeABIParameters.size()) +
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived runtime ABI parameter count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) +
         " for operation '" +
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
-            description.operation) +
+            contract.operation) +
         "' but saw " + llvm::Twine(description.runtimeABIParameters.size()));
 
-  for (std::size_t index = 0; index < routeFacts->runtimeABIParameters.size();
+  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
        ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
     const support::RuntimeABIParameter &expected =
-        routeFacts->runtimeABIParameters[index];
+        contract.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
-          llvm::Twine("base-memory-movement target artifact consumer requires "
-                      "provider-derived runtime ABI parameter[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-derived runtime ABI parameter[" +
           llvm::Twine(index) + "] to bind '" + expected.cName +
           "' as " +
           support::stringifyRuntimeABIParameterRole(expected.role) +
           " before validating route statements");
   }
 
-  return validateIndexedBaseMemoryHeaderBindingSummary(description);
+  return validateIndexedBaseMemoryHeaderBindingSummary(description, contract);
 }
 
 llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  constexpr llvm::StringLiteral consumerLabel(
-      "base-memory-movement target artifact consumer");
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
+  llvm::StringRef consumerLabel = contract.consumerLabel;
 
   if (llvm::Error error =
-          validateRVVBaseMemoryMovementRuntimeABIFacts(description))
+          validateRVVBaseMemoryMovementRuntimeABIFacts(description, contract))
     return error;
-  if (description.vlCType.empty() || description.vectorCType.empty() ||
-      description.resultName.empty())
+  if (contract.vlCType.empty() || contract.vectorCType.empty() ||
+      contract.resultName.empty())
     return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
+        llvm::Twine(contract.consumerLabel) +
         " requires provider-derived result, vector C type, and VL C type "
         "facts before validating route statements");
 
   using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  const OperationKind operation = description.operation;
+  const OperationKind operation = contract.operation;
   const support::RuntimeABIParameter *sourceABI =
-      &description.runtimeABIParameters[0];
+      &contract.runtimeABIParameters[0];
   const support::RuntimeABIParameter *indexABI = nullptr;
   const support::RuntimeABIParameter *maskABI = nullptr;
   const support::RuntimeABIParameter *destinationABI = nullptr;
@@ -1871,30 +1814,30 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
 
   switch (operation) {
   case OperationKind::StridedLoadUnitStore:
-    destinationABI = &description.runtimeABIParameters[1];
-    runtimeNABI = &description.runtimeABIParameters[2];
-    sourceStrideABI = &description.runtimeABIParameters[3];
+    destinationABI = &contract.runtimeABIParameters[1];
+    runtimeNABI = &contract.runtimeABIParameters[2];
+    sourceStrideABI = &contract.runtimeABIParameters[3];
     break;
   case OperationKind::UnitLoadStridedStore:
-    destinationABI = &description.runtimeABIParameters[1];
-    runtimeNABI = &description.runtimeABIParameters[2];
-    destinationStrideABI = &description.runtimeABIParameters[3];
+    destinationABI = &contract.runtimeABIParameters[1];
+    runtimeNABI = &contract.runtimeABIParameters[2];
+    destinationStrideABI = &contract.runtimeABIParameters[3];
     break;
   case OperationKind::IndexedGatherUnitStore:
-    indexABI = &description.runtimeABIParameters[1];
-    destinationABI = &description.runtimeABIParameters[2];
-    runtimeNABI = &description.runtimeABIParameters[3];
+    indexABI = &contract.runtimeABIParameters[1];
+    destinationABI = &contract.runtimeABIParameters[2];
+    runtimeNABI = &contract.runtimeABIParameters[3];
     break;
   case OperationKind::IndexedScatterUnitLoad:
-    indexABI = &description.runtimeABIParameters[1];
-    destinationABI = &description.runtimeABIParameters[2];
-    runtimeNABI = &description.runtimeABIParameters[3];
+    indexABI = &contract.runtimeABIParameters[1];
+    destinationABI = &contract.runtimeABIParameters[2];
+    runtimeNABI = &contract.runtimeABIParameters[3];
     break;
   case OperationKind::MaskedUnitLoadStore:
   case OperationKind::MaskedUnitStore:
-    maskABI = &description.runtimeABIParameters[1];
-    destinationABI = &description.runtimeABIParameters[2];
-    runtimeNABI = &description.runtimeABIParameters[3];
+    maskABI = &contract.runtimeABIParameters[1];
+    destinationABI = &contract.runtimeABIParameters[2];
+    runtimeNABI = &contract.runtimeABIParameters[3];
     break;
   default:
     llvm_unreachable("validated non-base-memory operation as base memory");
@@ -1902,7 +1845,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
 
   const support::RuntimeABIParameter *runtimeElementCount = nullptr;
   for (const support::RuntimeABIParameter &parameter :
-       description.runtimeABIParameters)
+       contract.runtimeABIParameters)
     if (parameter.role ==
         support::RuntimeABIParameterRole::RuntimeElementCount) {
       runtimeElementCount = &parameter;
@@ -1914,18 +1857,19 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         " requires runtime n/AVL ABI role to match the selected base-memory "
         "ABI order before validating route statements");
 
-  if (route.getCallOpaqueSteps().size() != 1)
+  if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
-        " requires exactly one provider-built pre-loop setvl statement before "
-        "artifact export");
+        llvm::Twine(contract.consumerLabel) +
+        " requires exact provider-built base-memory pre-loop statement count " +
+        llvm::Twine(contract.expectedPreLoopStepCount) +
+        " before artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, consumerLabel, "pre-loop setvl",
-          description.setVLIntrinsic,
+          contract.setVLIntrinsic,
           {{runtimeNABI->cName, runtimeNABI->cType}},
-          description.emitCFullChunkVLName, description.vlCType))
+          contract.emitCFullChunkVLName, contract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -1939,49 +1883,38 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         "base-memory-movement target artifact consumer requires exactly one "
         "provider-built runtime AVL/VL loop before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != description.emitCLoopInductionName ||
+  if (loop.inductionVarName != contract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != description.vlCType ||
+      loop.lowerBound.cType != contract.vlCType ||
       loop.upperBound.expression != runtimeNABI->cName ||
       loop.upperBound.cType != runtimeNABI->cType ||
-      loop.step.expression != description.emitCFullChunkVLName ||
-      loop.step.cType != description.vlCType)
+      loop.step.expression != contract.emitCFullChunkVLName ||
+      loop.step.cType != contract.vlCType)
     return makeRVVTargetRouteError(
         "base-memory-movement target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeNABI->cName) + " - " +
-       description.emitCLoopInductionName)
+       contract.emitCLoopInductionName)
           .str();
 
-  std::size_t expectedLoopStepCount = 0;
-  switch (operation) {
-  case OperationKind::StridedLoadUnitStore:
-  case OperationKind::UnitLoadStridedStore:
-    expectedLoopStepCount = 3;
-    break;
-  case OperationKind::IndexedGatherUnitStore:
-  case OperationKind::IndexedScatterUnitLoad:
-  case OperationKind::MaskedUnitStore:
-    expectedLoopStepCount = 5;
-    break;
-  case OperationKind::MaskedUnitLoadStore:
-    expectedLoopStepCount = 6;
-    break;
-  default:
-    llvm_unreachable("validated non-base-memory operation as base memory");
-  }
-  if (loop.bodySteps.size() != expectedLoopStepCount)
+  if (contract.expectedPreLoopStepCount == 0 ||
+      contract.expectedLoopBodyStepCount == 0)
     return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned statement-plan expectations before artifact "
+        "export");
+  if (loop.bodySteps.size() != contract.expectedLoopBodyStepCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
         " requires exact provider-built base-memory loop statement count " +
-        llvm::Twine(expectedLoopStepCount) + " before artifact export");
+        llvm::Twine(contract.expectedLoopBodyStepCount) +
+        " before artifact export");
 
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          description.setVLIntrinsic,
-          {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          contract.setVLIntrinsic, {{expectedRemainingAVL, contract.vlCType}},
+          contract.emitCLoopVLName, contract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -1991,17 +1924,17 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
 
   const std::string sourcePointer =
       (llvm::StringRef(sourceABI->cName) + " + " +
-       description.emitCLoopInductionName)
+       contract.emitCLoopInductionName)
           .str();
   const std::string destinationPointer =
       (llvm::StringRef(destinationABI->cName) + " + " +
-       description.emitCLoopInductionName)
+       contract.emitCLoopInductionName)
           .str();
   const std::string stridedSourcePointer =
       sourceStrideABI
           ? ("(const int32_t *)((const uint8_t *)" +
              llvm::StringRef(sourceABI->cName) + " + (" +
-             description.emitCLoopInductionName + " * " +
+             contract.emitCLoopInductionName + " * " +
              sourceStrideABI->cName + "))")
                 .str()
           : std::string();
@@ -2009,18 +1942,18 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
       destinationStrideABI
           ? ("(int32_t *)((uint8_t *)" +
              llvm::StringRef(destinationABI->cName) + " + (" +
-             description.emitCLoopInductionName + " * " +
+             contract.emitCLoopInductionName + " * " +
              destinationStrideABI->cName + "))")
                 .str()
           : std::string();
   const std::string indexPointer =
       indexABI ? (llvm::StringRef(indexABI->cName) + " + " +
-                  description.emitCLoopInductionName)
+                  contract.emitCLoopInductionName)
                      .str()
                : std::string();
   const std::string maskPointer =
       maskABI ? (llvm::StringRef(maskABI->cName) + " + " +
-                 description.emitCLoopInductionName)
+                 contract.emitCLoopInductionName)
                     .str()
               : std::string();
 
@@ -2029,150 +1962,150 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
           llvm::StringRef stepLabel) -> llvm::Error {
     return validateRVVProviderBuiltRouteStep(
         loop.bodySteps[stepIndex], consumerLabel, stepLabel,
-        description.vectorLoadIntrinsic,
+        contract.vectorLoadIntrinsic,
         {{sourcePointer, sourceABI->cType},
-         {description.emitCLoopVLName, description.vlCType}},
-        resultName, description.vectorCType);
+         {contract.emitCLoopVLName, contract.vlCType}},
+        resultName, contract.vectorCType);
   };
   auto validateUnitStore = [&](std::size_t stepIndex,
                                llvm::StringRef valueName,
                                llvm::StringRef stepLabel) -> llvm::Error {
     return validateRVVProviderBuiltRouteStep(
         loop.bodySteps[stepIndex], consumerLabel, stepLabel,
-        description.storeIntrinsic,
+        contract.storeIntrinsic,
         {{destinationPointer, destinationABI->cType},
-         {valueName, description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {valueName, contract.vectorCType},
+         {contract.emitCLoopVLName, contract.vlCType}});
   };
 
   switch (operation) {
   case OperationKind::StridedLoadUnitStore:
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[1], consumerLabel, "strided load",
-            description.stridedLoadIntrinsic,
+            contract.stridedLoadIntrinsic,
             {{stridedSourcePointer, sourceABI->cType},
              {sourceStrideABI->cName, "ptrdiff_t"},
-             {description.emitCLoopVLName, description.vlCType}},
-            description.resultName, description.vectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            contract.resultName, contract.vectorCType))
       return error;
-    return validateUnitStore(/*stepIndex=*/2, description.resultName,
+    return validateUnitStore(/*stepIndex=*/2, contract.resultName,
                              "unit store");
   case OperationKind::UnitLoadStridedStore:
     if (llvm::Error error =
-            validateUnitLoad(/*stepIndex=*/1, description.resultName,
+            validateUnitLoad(/*stepIndex=*/1, contract.resultName,
                              "unit load"))
       return error;
     return validateRVVProviderBuiltRouteStep(
         loop.bodySteps[2], consumerLabel, "strided store",
-        description.stridedStoreIntrinsic,
+        contract.stridedStoreIntrinsic,
         {{stridedDestinationPointer, destinationABI->cType},
          {destinationStrideABI->cName, "ptrdiff_t"},
-         {description.resultName, description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {contract.resultName, contract.vectorCType},
+         {contract.emitCLoopVLName, contract.vlCType}});
   case OperationKind::IndexedGatherUnitStore:
-    if (description.indexVectorCType.empty())
+    if (contract.indexVectorCType.empty())
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
           " requires provider-derived index vector C type before validating "
           "indexed gather statements");
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[1], consumerLabel, "index load",
-            description.indexLoadIntrinsic,
+            contract.indexLoadIntrinsic,
             {{indexPointer, indexABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
-            "index_vec", description.indexVectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "index_vec", contract.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[2], consumerLabel, "index scale",
-            description.indexScaleIntrinsic,
-            {{"index_vec", description.indexVectorCType},
+            contract.indexScaleIntrinsic,
+            {{"index_vec", contract.indexVectorCType},
              {"4", "uint32_t"},
-             {description.emitCLoopVLName, description.vlCType}},
-            "byte_offsets", description.indexVectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "byte_offsets", contract.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[3], consumerLabel, "indexed gather load",
-            description.indexedLoadIntrinsic,
+            contract.indexedLoadIntrinsic,
             {{sourceABI->cName, sourceABI->cType},
-             {"byte_offsets", description.indexVectorCType},
-             {description.emitCLoopVLName, description.vlCType}},
-            description.resultName, description.vectorCType))
+             {"byte_offsets", contract.indexVectorCType},
+             {contract.emitCLoopVLName, contract.vlCType}},
+            contract.resultName, contract.vectorCType))
       return error;
-    return validateUnitStore(/*stepIndex=*/4, description.resultName,
+    return validateUnitStore(/*stepIndex=*/4, contract.resultName,
                              "unit store");
   case OperationKind::IndexedScatterUnitLoad:
-    if (description.indexVectorCType.empty())
+    if (contract.indexVectorCType.empty())
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
           " requires provider-derived index vector C type before validating "
           "indexed scatter statements");
     if (llvm::Error error =
-            validateUnitLoad(/*stepIndex=*/1, description.resultName,
+            validateUnitLoad(/*stepIndex=*/1, contract.resultName,
                              "unit load"))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[2], consumerLabel, "index load",
-            description.indexLoadIntrinsic,
+            contract.indexLoadIntrinsic,
             {{indexPointer, indexABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
-            "index_vec", description.indexVectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "index_vec", contract.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[3], consumerLabel, "index scale",
-            description.indexScaleIntrinsic,
-            {{"index_vec", description.indexVectorCType},
+            contract.indexScaleIntrinsic,
+            {{"index_vec", contract.indexVectorCType},
              {"4", "uint32_t"},
-             {description.emitCLoopVLName, description.vlCType}},
-            "byte_offsets", description.indexVectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "byte_offsets", contract.indexVectorCType))
       return error;
     return validateRVVProviderBuiltRouteStep(
         loop.bodySteps[4], consumerLabel, "indexed scatter store",
-        description.indexedStoreIntrinsic,
+        contract.indexedStoreIntrinsic,
         {{destinationABI->cName, destinationABI->cType},
-         {"byte_offsets", description.indexVectorCType},
-         {description.resultName, description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {"byte_offsets", contract.indexVectorCType},
+         {contract.resultName, contract.vectorCType},
+         {contract.emitCLoopVLName, contract.vlCType}});
   case OperationKind::MaskedUnitLoadStore:
-    if (description.maskName.empty() || description.maskCType.empty())
+    if (contract.maskName.empty() || contract.maskCType.empty())
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
           " requires provider-derived mask result and mask C type before "
           "validating masked load/store statements");
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[1], consumerLabel, "mask vector load",
-            description.vectorLoadIntrinsic,
+            contract.vectorLoadIntrinsic,
             {{maskPointer, maskABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
-            "mask_i32_vec", description.vectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "mask_i32_vec", contract.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[2], consumerLabel, "mask predicate",
-            description.compareIntrinsic,
-            {{"mask_i32_vec", description.vectorCType},
+            contract.compareIntrinsic,
+            {{"mask_i32_vec", contract.vectorCType},
              {"0", "int32_t"},
-             {description.emitCLoopVLName, description.vlCType}},
-            description.maskName, description.maskCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            contract.maskName, contract.maskCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[3], consumerLabel, "passthrough load",
-            description.vectorLoadIntrinsic,
+            contract.vectorLoadIntrinsic,
             {{destinationPointer, destinationABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
-            "old_dst_vec", description.vectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "old_dst_vec", contract.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[4], consumerLabel, "masked load",
-            description.maskedLoadIntrinsic,
-            {{description.maskName, description.maskCType},
-             {"old_dst_vec", description.vectorCType},
+            contract.maskedLoadIntrinsic,
+            {{contract.maskName, contract.maskCType},
+             {"old_dst_vec", contract.vectorCType},
              {sourcePointer, sourceABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
-            description.resultName, description.vectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            contract.resultName, contract.vectorCType))
       return error;
-    return validateUnitStore(/*stepIndex=*/5, description.resultName,
+    return validateUnitStore(/*stepIndex=*/5, contract.resultName,
                              "unit store");
   case OperationKind::MaskedUnitStore:
-    if (description.maskName.empty() || description.maskCType.empty())
+    if (contract.maskName.empty() || contract.maskCType.empty())
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
           " requires provider-derived mask result and mask C type before "
@@ -2182,26 +2115,26 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[2], consumerLabel, "mask vector load",
-            description.vectorLoadIntrinsic,
+            contract.vectorLoadIntrinsic,
             {{maskPointer, maskABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
-            "mask_i32_vec", description.vectorCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            "mask_i32_vec", contract.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[3], consumerLabel, "mask predicate",
-            description.compareIntrinsic,
-            {{"mask_i32_vec", description.vectorCType},
+            contract.compareIntrinsic,
+            {{"mask_i32_vec", contract.vectorCType},
              {"0", "int32_t"},
-             {description.emitCLoopVLName, description.vlCType}},
-            description.maskName, description.maskCType))
+             {contract.emitCLoopVLName, contract.vlCType}},
+            contract.maskName, contract.maskCType))
       return error;
     return validateRVVProviderBuiltRouteStep(
         loop.bodySteps[4], consumerLabel, "masked store",
-        description.storeIntrinsic,
-        {{description.maskName, description.maskCType},
+        contract.storeIntrinsic,
+        {{contract.maskName, contract.maskCType},
          {destinationPointer, destinationABI->cType},
-         {"lhs_vec", description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {"lhs_vec", contract.vectorCType},
+         {contract.emitCLoopVLName, contract.vlCType}});
   default:
     llvm_unreachable("validated non-base-memory operation as base memory");
   }
@@ -2209,14 +2142,14 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
 
 llvm::Error validateRVVBaseMemoryMovementRouteLayoutFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
-    const plugin::rvv::RVVBaseMemoryMovementRouteFacts &routeFacts) {
+    const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "strided memory layout", description.stridedMemoryLayout,
-          routeFacts.stridedMemoryLayout))
+          contract.stridedMemoryLayout))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "indexed or masked memory layout", description.indexedMemoryLayout,
-          routeFacts.indexedMemoryLayout))
+          contract.indexedMemoryLayout))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "lhs stride source", description.lhsStrideSource, ""))
@@ -2226,64 +2159,64 @@ llvm::Error validateRVVBaseMemoryMovementRouteLayoutFacts(
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "source stride binding", description.sourceStrideSource,
-          routeFacts.sourceStrideSource))
+          contract.sourceStrideSource))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "destination stride binding", description.outStrideSource,
-          routeFacts.destinationStrideSource))
+          contract.destinationStrideSource))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "source memory form", description.sourceMemoryForm,
-          routeFacts.sourceMemoryForm))
+          contract.sourceMemoryForm))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "destination memory form", description.destinationMemoryForm,
-          routeFacts.destinationMemoryForm))
+          contract.destinationMemoryForm))
     return error;
 
-  if (description.indexEEW != routeFacts.indexEEW)
+  if (description.indexEEW != contract.indexEEW)
     return makeRVVTargetRouteError(
         llvm::Twine("base-memory-movement target artifact consumer requires "
                     "provider-derived index EEW ") +
-        llvm::Twine(routeFacts.indexEEW) + " but was " +
+        llvm::Twine(contract.indexEEW) + " but was " +
         llvm::Twine(description.indexEEW));
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "index source", description.indexSource, routeFacts.indexSource))
+          "index source", description.indexSource, contract.indexSource))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "offset unit", description.offsetUnit, routeFacts.offsetUnit))
+          "offset unit", description.offsetUnit, contract.offsetUnit))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "index uniqueness", description.indexUniqueness,
-          routeFacts.indexUniqueness))
+          contract.indexUniqueness))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "indexed data memory form", description.indexedDataMemoryForm,
-          routeFacts.indexedDataMemoryForm))
+          contract.indexedDataMemoryForm))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "indexed destination memory form",
           description.indexedDestinationMemoryForm,
-          routeFacts.indexedDestinationMemoryForm))
+          contract.indexedDestinationMemoryForm))
     return error;
 
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "mask role", description.maskRole, routeFacts.maskRole))
+          "mask role", description.maskRole, contract.maskRole))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "mask source", description.maskSource, routeFacts.maskSource))
+          "mask source", description.maskSource, contract.maskSource))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "mask memory form", description.maskMemoryForm,
-          routeFacts.maskMemoryForm))
+          contract.maskMemoryForm))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "inactive lane contract", description.inactiveLaneContract,
-          routeFacts.inactiveLaneContract))
+          contract.inactiveLaneContract))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "masked passthrough layout", description.maskedPassthroughLayout,
-          routeFacts.maskedPassthroughLayout))
+          contract.maskedPassthroughLayout))
     return error;
   return llvm::Error::success();
 }
@@ -2291,65 +2224,90 @@ llvm::Error validateRVVBaseMemoryMovementRouteLayoutFacts(
 llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteFacts> routeFacts =
-      plugin::rvv::getRVVBaseMemoryMovementRouteFacts(description.operation);
-  if (!routeFacts)
+  std::optional<plugin::rvv::RVVBaseMemoryMovementRouteValidationContract>
+      contract =
+          plugin::rvv::getRVVBaseMemoryMovementRouteValidationContract(
+              description);
+  if (!contract)
     return makeRVVTargetRouteError(
         "base-memory-movement target artifact consumer requires "
-        "provider-owned canonical route facts before artifact export");
+        "provider-owned base-memory movement route validation contract before "
+        "artifact export");
+  if (contract->providerSupportedMirror.empty() ||
+      contract->routeOperandBindingPlanID.empty() ||
+      contract->routeOperandBindingSummary.empty() ||
+      contract->baseMemoryMovementRouteFamilyPlanID.empty() ||
+      contract->runtimeControlPlanID.empty() ||
+      contract->runtimeABIOrder.empty() ||
+      contract->elementTypeName.empty() || contract->sew == 0 ||
+      contract->lmul.empty() || contract->tailPolicy.empty() ||
+      contract->maskPolicy.empty() || contract->configContractID.empty() ||
+      contract->requiredHeaderDeclarations.empty() ||
+      contract->cTypeMappingSummary.empty() ||
+      contract->setVLIntrinsic.empty() || contract->vectorCType.empty() ||
+      contract->vlCType.empty() || contract->resultName.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires complete provider-owned route payload, dtype/config, "
+        "runtime, binding, header/type, intrinsic, and result contract facts "
+        "before artifact export");
 
-  if (route.getRouteID() != description.emitCRouteID)
+  if (route.getRouteID() != contract->emitCRouteID)
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "rebuilt provider route id '") +
-        description.emitCRouteID + "' but route carried '" +
+        llvm::Twine(contract->consumerLabel) +
+        " requires rebuilt provider route id '" + contract->emitCRouteID +
+        "' but route carried '" +
         route.getRouteID() + "'");
-  if (llvm::Error error =
-          validateRVVUnitStrideMaskedMemoryCanonicalProviderFacts(description))
-    return error;
-  if (description.memoryForm != routeFacts->memoryForm)
+  if (description.operation != contract->operation)
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "selected typed RVV memory form '") +
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-owned operation '" +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            contract->operation) +
+        "' before artifact export");
+  if (description.emitCRouteID != contract->emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-owned route id '" + contract->emitCRouteID +
+        "' but description carried '" + description.emitCRouteID + "'");
+  if (description.memoryForm != contract->memoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires selected typed RVV memory form '" +
         plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-            routeFacts->memoryForm) +
+            contract->memoryForm) +
         "' before artifact export but saw '" +
         plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
             description.memoryForm) +
         "'");
-  if (description.operation ==
-          plugin::rvv::RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
-      description.operation ==
-          plugin::rvv::RVVSelectedBodyOperationKind::UnitLoadStridedStore ||
-      isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
-          description.operation))
-    if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-            "typed compute op", description.typedComputeOpName,
-            routeFacts->typedComputeOpName))
-      return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "typed compute op", description.typedComputeOpName,
+          contract->typedComputeOpName))
+    return error;
   if (description.routeOperandBindingSummary.empty() ||
       description.targetLeafProfile.empty())
     return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires "
+        llvm::Twine(contract->consumerLabel) +
+        " requires "
         "provider-derived binding summary and target leaf profile facts before "
         "artifact export");
 
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "provider-supported mirror", description.providerSupportedMirror,
-          routeFacts->providerSupportedMirror))
+          contract->providerSupportedMirror))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "target leaf profile", description.targetLeafProfile,
-          routeFacts->targetLeafProfile))
+          contract->targetLeafProfile))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "route-family plan",
           description.baseMemoryMovementRouteFamilyPlanID,
-          routeFacts->routeFamilyPlanID))
+          contract->baseMemoryMovementRouteFamilyPlanID))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "route operand binding plan", description.routeOperandBindingPlanID,
-          routeFacts->routeOperandBindingPlanID))
+          contract->routeOperandBindingPlanID))
     return error;
   if (!llvm::StringRef(description.routeOperandBindingSummary)
            .starts_with(description.routeOperandBindingPlanID))
@@ -2360,96 +2318,151 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
         description.routeOperandBindingPlanID + "' but was '" +
         description.routeOperandBindingSummary + "'");
   if (description.routeOperandBindingSummary !=
-      routeFacts->routeOperandBindingSummary)
+      contract->routeOperandBindingSummary)
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "provider route operand binding summary '") +
-        routeFacts->routeOperandBindingSummary + "' but was '" +
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider route operand binding summary '" +
+        contract->routeOperandBindingSummary + "' but was '" +
         description.routeOperandBindingSummary + "'");
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "runtime AVL/VL control plan", description.runtimeControlPlanID,
-          routeFacts->runtimeControlPlanID))
+          contract->runtimeControlPlanID))
     return error;
 
-  if (description.runtimeABIOrder != routeFacts->runtimeABIOrder)
+  if (description.runtimeABIOrder != contract->runtimeABIOrder)
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "provider-derived runtime ABI order '") +
-        routeFacts->runtimeABIOrder + "' but was '" +
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-derived runtime ABI order '" +
+        contract->runtimeABIOrder + "' but was '" +
         description.runtimeABIOrder + "'");
-  if (description.sew != routeFacts->sew)
+  if (description.elementTypeName != contract->elementTypeName ||
+      description.sew != contract->sew)
     return makeRVVTargetRouteError(
-        llvm::Twine("base-memory-movement target artifact consumer requires "
-                    "provider-derived SEW ") +
-        llvm::Twine(routeFacts->sew) + " but was " +
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-derived element '" + contract->elementTypeName +
+        "' and SEW " + llvm::Twine(contract->sew) + " but description carried "
+        "element '" +
+        description.elementTypeName + "' and SEW " +
         llvm::Twine(description.sew));
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "LMUL", description.lmul, routeFacts->lmul))
+          "LMUL", description.lmul, contract->lmul))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "tail policy", description.tailPolicy, routeFacts->tailPolicy))
+          "tail policy", description.tailPolicy, contract->tailPolicy))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "mask policy", description.maskPolicy, routeFacts->maskPolicy))
+          "mask policy", description.maskPolicy, contract->maskPolicy))
+    return error;
+  if (description.configContractID != contract->configContractID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-owned config contract '" +
+        contract->configContractID + "' but description carried '" +
+        description.configContractID + "'");
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "VL C type", description.vlCType, contract->vlCType))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "VL C type", description.vlCType, routeFacts->vlCType))
+          "vector type", description.vectorTypeName, contract->vectorTypeName))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "vector type", description.vectorTypeName, routeFacts->vectorTypeName))
+          "vector C type", description.vectorCType, contract->vectorCType))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "vector C type", description.vectorCType, routeFacts->vectorCType))
+          "index vector type", description.indexVectorTypeName,
+          contract->indexVectorTypeName))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "index vector C type", description.indexVectorCType,
+          contract->indexVectorCType))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "mask type", description.maskTypeName, contract->maskTypeName))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "mask C type", description.maskCType, contract->maskCType))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "setvl callee", description.setVLIntrinsic,
-          routeFacts->setVLIntrinsic))
+          contract->setVLIntrinsic))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "vector load callee", description.vectorLoadIntrinsic,
-          routeFacts->vectorLoadIntrinsic))
+          contract->vectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "index load callee", description.indexLoadIntrinsic,
+          contract->indexLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "index scale callee", description.indexScaleIntrinsic,
+          contract->indexScaleIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "indexed load callee", description.indexedLoadIntrinsic,
+          contract->indexedLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "indexed store callee", description.indexedStoreIntrinsic,
+          contract->indexedStoreIntrinsic))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "strided load callee", description.stridedLoadIntrinsic,
-          routeFacts->stridedLoadIntrinsic))
+          contract->stridedLoadIntrinsic))
     return error;
-  if (!routeFacts->storeIntrinsic.empty())
-    if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-            "store callee", description.storeIntrinsic,
-            routeFacts->storeIntrinsic))
-      return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "masked load callee", description.maskedLoadIntrinsic,
+          contract->maskedLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "compare callee", description.compareIntrinsic,
+          contract->compareIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "store callee", description.storeIntrinsic,
+          contract->storeIntrinsic))
+    return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "strided store callee", description.stridedStoreIntrinsic,
-          routeFacts->stridedStoreIntrinsic))
+          contract->stridedStoreIntrinsic))
     return error;
-  if (description.resultName.empty())
-    return makeRVVTargetRouteError(
-        "base-memory-movement target artifact consumer requires "
-        "provider-derived result facts before artifact export");
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "result", description.resultName, contract->resultName))
+    return error;
+  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
+          "mask result", description.maskName, contract->maskName))
+    return error;
   if (llvm::Error error = requireRuntimeByteStrideContract(
           description, "base-memory-movement target artifact consumer",
-          "source", routeFacts->sourceStrideSource,
-          routeFacts->sourceStrideCType, routeFacts->sourceStrideUnit,
+          "source", contract->sourceStrideSource,
+          contract->sourceStrideCType, contract->sourceStrideUnit,
           support::RuntimeABIParameterRole::SourceByteStride,
           "materialized-byte-address"))
     return error;
   if (llvm::Error error = requireRuntimeByteStrideContract(
           description, "base-memory-movement target artifact consumer",
-          "destination", routeFacts->destinationStrideSource,
-          routeFacts->destinationStrideCType,
-          routeFacts->destinationStrideUnit,
+          "destination", contract->destinationStrideSource,
+          contract->destinationStrideCType,
+          contract->destinationStrideUnit,
           support::RuntimeABIParameterRole::DestinationByteStride,
           "materialized-byte-address"))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "required_header_declarations",
           description.requiredHeaderDeclarations,
-          routeFacts->requiredHeaderDeclarations))
+          contract->requiredHeaderDeclarations))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "C type mapping", description.cTypeMappingSummary,
-          routeFacts->cTypeMappingSummary))
+          contract->cTypeMappingSummary))
     return error;
+  if (description.emitCFullChunkVLName != contract->emitCFullChunkVLName ||
+      description.emitCLoopVLName != contract->emitCLoopVLName ||
+      description.emitCLoopInductionName != contract->emitCLoopInductionName)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires provider-owned EmitC runtime AVL/VL statement names before "
+        "artifact export");
   if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
       !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
@@ -2471,18 +2484,19 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
 
   if (llvm::Error error =
           validateRVVBaseMemoryMovementRouteLayoutFacts(description,
-                                                       *routeFacts))
+                                                       *contract))
     return error;
   if (llvm::Error error =
-          validateRVVBaseMemoryMovementRouteHeaders(route, description))
+          validateRVVBaseMemoryMovementRouteHeaders(route, *contract))
     return error;
   if (llvm::Error error =
-          validateRVVBaseMemoryMovementRouteTypeMappings(route, description))
+          validateRVVBaseMemoryMovementRouteTypeMappings(route, *contract))
     return error;
   if (llvm::Error error =
-          validateRVVBaseMemoryMovementRouteABIMappings(route, description))
+          validateRVVBaseMemoryMovementRouteABIMappings(route, *contract))
     return error;
-  return validateRVVBaseMemoryMovementRouteStatementPlan(route, description);
+  return validateRVVBaseMemoryMovementRouteStatementPlan(route, description,
+                                                        *contract);
 }
 
 llvm::Error validateRVVBaseMemoryMovementTargetArtifactProviderFacts(
@@ -2496,9 +2510,6 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
   const TargetArtifactCandidate &candidate = context.candidate;
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
-  if (llvm::Error error =
-          validateRVVUnitStrideMaskedMemoryCanonicalProviderFacts(description))
-    return error;
   std::optional<plugin::rvv::RVVMemoryRouteMetadataMirrorContractSet>
       contract =
           plugin::rvv::getRVVBaseMemoryRouteMetadataMirrorContract(description);

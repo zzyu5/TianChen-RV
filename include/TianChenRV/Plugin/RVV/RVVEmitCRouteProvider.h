@@ -447,6 +447,111 @@ struct RVVBaseMemoryMovementRouteFacts {
 std::optional<RVVBaseMemoryMovementRouteFacts>
 getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation);
 
+enum class RVVBaseMemoryMovementRouteValidationKind {
+  StridedLoadUnitStore,
+  UnitLoadStridedStore,
+  IndexedGatherUnitStore,
+  IndexedScatterUnitLoad,
+  MaskedUnitLoadStore,
+  MaskedUnitStore,
+};
+
+struct RVVBaseMemoryMovementRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVBaseMemoryMovementRouteValidationContract {
+  RVVBaseMemoryMovementRouteValidationKind kind =
+      RVVBaseMemoryMovementRouteValidationKind::StridedLoadUnitStore;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string baseMemoryMovementRouteFamilyPlanID;
+  std::string typedComputeOpName;
+
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string stridedMemoryLayout;
+  std::string indexedMemoryLayout;
+  std::string sourceStrideSource;
+  std::string destinationStrideSource;
+  std::string sourceStrideCType;
+  std::string destinationStrideCType;
+  std::string sourceStrideUnit;
+  std::string destinationStrideUnit;
+  std::int64_t indexEEW = 0;
+  std::string offsetUnit;
+  std::string indexSource;
+  std::string indexUniqueness;
+  std::string indexedDataMemoryForm;
+  std::string indexedDestinationMemoryForm;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string indexVectorTypeName;
+  std::string maskTypeName;
+  std::string vectorCType;
+  std::string indexVectorCType;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string indexLoadIntrinsic;
+  std::string indexScaleIntrinsic;
+  std::string indexedLoadIntrinsic;
+  std::string indexedStoreIntrinsic;
+  std::string stridedLoadIntrinsic;
+  std::string maskedLoadIntrinsic;
+  std::string compareIntrinsic;
+  std::string storeIntrinsic;
+  std::string stridedStoreIntrinsic;
+  std::string resultName;
+  std::string maskName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameterRole, 8>
+      runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVBaseMemoryMovementRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVBaseMemoryMovementRouteValidationContract>
+getRVVBaseMemoryMovementRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVUnitStrideMaskedMemoryRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

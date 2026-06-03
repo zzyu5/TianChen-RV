@@ -984,6 +984,67 @@ void appendRVVMemoryRouteMetadataMirror(
   contract.mirrors.push_back({key, expected.str(), label});
 }
 
+RVVBaseMemoryMovementRouteValidationKind
+getBaseMemoryMovementRouteValidationKind(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return RVVBaseMemoryMovementRouteValidationKind::StridedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return RVVBaseMemoryMovementRouteValidationKind::UnitLoadStridedStore;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return RVVBaseMemoryMovementRouteValidationKind::IndexedGatherUnitStore;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return RVVBaseMemoryMovementRouteValidationKind::IndexedScatterUnitLoad;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return RVVBaseMemoryMovementRouteValidationKind::MaskedUnitLoadStore;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return RVVBaseMemoryMovementRouteValidationKind::MaskedUnitStore;
+  default:
+    llvm_unreachable("unsupported base memory movement validation op");
+  }
+}
+
+std::size_t getBaseMemoryMovementExpectedLoopBodyStepCount(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return 3;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return 5;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return 6;
+  default:
+    return 0;
+  }
+}
+
+void appendBaseMemoryMovementValidationHeaders(
+    RVVBaseMemoryMovementRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+void appendBaseMemoryMovementValidationTypeMapping(
+    RVVBaseMemoryMovementRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+void appendBaseMemoryMovementValidationRuntimeABIRoles(
+    RVVBaseMemoryMovementRouteValidationContract &contract) {
+  for (const support::RuntimeABIParameter &parameter :
+       contract.runtimeABIParameters)
+    contract.runtimeABIParameterRoles.push_back(parameter.role);
+}
+
 } // namespace
 
 std::optional<RVVBaseMemoryMovementRouteFacts>
@@ -1104,6 +1165,154 @@ getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
     facts.logicalOperands.push_back(binding.logicalOperand);
 
   return facts;
+}
+
+std::optional<RVVBaseMemoryMovementRouteValidationContract>
+getRVVBaseMemoryMovementRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVBaseMemoryMovementRouteFacts> routeFacts =
+      getRVVBaseMemoryMovementRouteFacts(description.operation);
+  if (!routeFacts)
+    return std::nullopt;
+
+  const bool isIndexed =
+      description.operation ==
+          RVVSelectedBodyOperationKind::IndexedGatherUnitStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isMasked =
+      description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
+      description.operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+
+  std::optional<RVVUnitStrideMaskedMemoryRouteFacts> maskedRouteFacts;
+  if (isMasked) {
+    maskedRouteFacts = getRVVUnitStrideMaskedMemoryRouteFacts(
+        description.operation, routeFacts->sew, routeFacts->lmul);
+    if (!maskedRouteFacts)
+      return std::nullopt;
+  }
+
+  RVVBaseMemoryMovementRouteValidationContract contract;
+  contract.kind = getBaseMemoryMovementRouteValidationKind(description.operation);
+  contract.operation = routeFacts->operation;
+  contract.consumerLabel = "base-memory-movement target artifact consumer";
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(routeFacts->operation).str();
+  contract.memoryForm = routeFacts->memoryForm;
+  contract.elementTypeName = "i32";
+  contract.sew = routeFacts->sew;
+  contract.lmul = routeFacts->lmul.str();
+  contract.tailPolicy = routeFacts->tailPolicy.str();
+  contract.maskPolicy = routeFacts->maskPolicy.str();
+  contract.configContractID = description.configContractID.str();
+  contract.runtimeControlPlanID = routeFacts->runtimeControlPlanID.str();
+  contract.runtimeABIOrder = routeFacts->runtimeABIOrder.str();
+  contract.targetLeafProfile = routeFacts->targetLeafProfile.str();
+  contract.providerSupportedMirror = routeFacts->providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      routeFacts->requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = routeFacts->cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      routeFacts->routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary =
+      routeFacts->routeOperandBindingSummary;
+  contract.baseMemoryMovementRouteFamilyPlanID =
+      routeFacts->routeFamilyPlanID.str();
+  contract.typedComputeOpName =
+      maskedRouteFacts ? maskedRouteFacts->typedComputeOpName.str()
+                       : routeFacts->typedComputeOpName.str();
+
+  contract.sourceMemoryForm = routeFacts->sourceMemoryForm.str();
+  contract.destinationMemoryForm = routeFacts->destinationMemoryForm.str();
+  contract.stridedMemoryLayout = routeFacts->stridedMemoryLayout.str();
+  contract.indexedMemoryLayout = routeFacts->indexedMemoryLayout.str();
+  contract.sourceStrideSource = routeFacts->sourceStrideSource.str();
+  contract.destinationStrideSource =
+      routeFacts->destinationStrideSource.str();
+  contract.sourceStrideCType = routeFacts->sourceStrideCType.str();
+  contract.destinationStrideCType =
+      routeFacts->destinationStrideCType.str();
+  contract.sourceStrideUnit = routeFacts->sourceStrideUnit.str();
+  contract.destinationStrideUnit =
+      routeFacts->destinationStrideUnit.str();
+  contract.indexEEW = routeFacts->indexEEW;
+  contract.offsetUnit = routeFacts->offsetUnit.str();
+  contract.indexSource = routeFacts->indexSource.str();
+  contract.indexUniqueness = routeFacts->indexUniqueness.str();
+  contract.indexedDataMemoryForm = routeFacts->indexedDataMemoryForm.str();
+  contract.indexedDestinationMemoryForm =
+      routeFacts->indexedDestinationMemoryForm.str();
+  contract.maskRole = routeFacts->maskRole.str();
+  contract.maskSource = routeFacts->maskSource.str();
+  contract.maskMemoryForm = routeFacts->maskMemoryForm.str();
+  contract.inactiveLaneContract = routeFacts->inactiveLaneContract.str();
+  contract.maskedPassthroughLayout =
+      routeFacts->maskedPassthroughLayout.str();
+
+  contract.vlCType = routeFacts->vlCType.str();
+  contract.vectorTypeName = routeFacts->vectorTypeName.str();
+  contract.vectorCType = routeFacts->vectorCType.str();
+  contract.indexVectorTypeName =
+      isIndexed ? description.indexVectorTypeName.str() : std::string();
+  contract.indexVectorCType =
+      isIndexed ? description.indexVectorCType.str() : std::string();
+  contract.maskTypeName =
+      maskedRouteFacts ? maskedRouteFacts->maskTypeName.str() : std::string();
+  contract.maskCType =
+      maskedRouteFacts ? maskedRouteFacts->maskCType.str() : std::string();
+  contract.setVLIntrinsic = routeFacts->setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = routeFacts->vectorLoadIntrinsic.str();
+  contract.indexLoadIntrinsic =
+      isIndexed ? description.indexLoadIntrinsic.str() : std::string();
+  contract.indexScaleIntrinsic =
+      isIndexed ? description.indexScaleIntrinsic.str() : std::string();
+  contract.indexedLoadIntrinsic =
+      isIndexed ? description.indexedLoadIntrinsic.str() : std::string();
+  contract.indexedStoreIntrinsic =
+      isIndexed ? description.indexedStoreIntrinsic.str() : std::string();
+  contract.stridedLoadIntrinsic = routeFacts->stridedLoadIntrinsic.str();
+  contract.maskedLoadIntrinsic =
+      maskedRouteFacts ? maskedRouteFacts->maskedLoadIntrinsic.str()
+                       : std::string();
+  contract.compareIntrinsic =
+      maskedRouteFacts ? maskedRouteFacts->compareIntrinsic.str()
+                       : std::string();
+  contract.storeIntrinsic =
+      maskedRouteFacts ? maskedRouteFacts->storeIntrinsic.str()
+                       : routeFacts->storeIntrinsic.str();
+  contract.stridedStoreIntrinsic = routeFacts->stridedStoreIntrinsic.str();
+  contract.resultName = description.resultName.str();
+  contract.maskName = isMasked ? description.maskName.str() : std::string();
+
+  contract.emitCFullChunkVLName = description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount =
+      getBaseMemoryMovementExpectedLoopBodyStepCount(description.operation);
+
+  contract.runtimeABIParameters.append(routeFacts->runtimeABIParameters.begin(),
+                                       routeFacts->runtimeABIParameters.end());
+  appendBaseMemoryMovementValidationRuntimeABIRoles(contract);
+  appendBaseMemoryMovementValidationHeaders(
+      contract, contract.requiredHeaderDeclarations);
+  appendBaseMemoryMovementValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", contract.vlCType,
+      "selected typed RVV base-memory VL type");
+  appendBaseMemoryMovementValidationTypeMapping(
+      contract, contract.vectorTypeName, contract.vectorCType,
+      "selected typed RVV base-memory vector type");
+  if (isIndexed)
+    appendBaseMemoryMovementValidationTypeMapping(
+        contract, contract.indexVectorTypeName, contract.indexVectorCType,
+        "selected typed RVV base-memory index vector type");
+  if (isMasked)
+    appendBaseMemoryMovementValidationTypeMapping(
+        contract, contract.maskTypeName, contract.maskCType,
+        "selected typed RVV base-memory mask type");
+
+  return contract;
 }
 
 std::optional<RVVMemoryRouteMetadataMirrorContractSet>

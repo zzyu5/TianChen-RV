@@ -13935,6 +13935,56 @@ bool expectRVVTargetArtifactExporterShape(
                                 baseMaskedStoreDescription))
     return false;
 
+  auto expectBaseMemoryValidationContract =
+      [&](llvm::StringRef fixtureContext,
+          const RVVRouteDescription &description,
+          OperationKind expectedOperation,
+          std::size_t expectedLoopBodyStepCount,
+          llvm::StringRef expectedTypedComputeOp) -> bool {
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVBaseMemoryMovementRouteValidationContract>
+        contract =
+            tianchenrv::plugin::rvv::
+                getRVVBaseMemoryMovementRouteValidationContract(description);
+    if (!contract) {
+      llvm::errs() << fixtureContext
+                   << ": missing provider-owned base-memory route validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->operation != expectedOperation ||
+        contract->baseMemoryMovementRouteFamilyPlanID !=
+            "rvv-base-memory-movement-route-family-plan.v1" ||
+        contract->runtimeABIParameters.empty() ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount != expectedLoopBodyStepCount ||
+        contract->typedComputeOpName != expectedTypedComputeOp ||
+        contract->routeOperandBindingSummary !=
+            description.routeOperandBindingSummary) {
+      llvm::errs() << fixtureContext
+                   << ": provider-owned base-memory validation contract did "
+                      "not mirror route facts\n";
+      return false;
+    }
+    return true;
+  };
+
+  if (!expectBaseMemoryValidationContract(
+          "strided load/unit store contract", baseStridedDescription,
+          OperationKind::StridedLoadUnitStore,
+          /*expectedLoopBodyStepCount=*/3, "tcrv_rvv.move"))
+    return false;
+  if (!expectBaseMemoryValidationContract(
+          "indexed gather/unit store contract", baseIndexedDescription,
+          OperationKind::IndexedGatherUnitStore,
+          /*expectedLoopBodyStepCount=*/5, "tcrv_rvv.move"))
+    return false;
+  if (!expectBaseMemoryValidationContract(
+          "masked unit load/store contract", baseMaskedDescription,
+          OperationKind::MaskedUnitLoadStore,
+          /*expectedLoopBodyStepCount=*/6, "tcrv_rvv.masked_load"))
+    return false;
+
   auto expectBaseMemoryProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -14771,7 +14821,7 @@ bool expectRVVTargetArtifactExporterShape(
           baseMaskedFixture.candidate, baseMaskedRoute,
           staleMaskedLoadBindingSummary,
           "base-memory registry rejects stale masked unit binding facts",
-          {"route operand binding facts",
+          {"provider route operand binding summary",
            "masked-load-mask-call|header-mirror",
            "masked-load-mask-call"}))
     return false;

@@ -809,11 +809,16 @@ Implemented scalar_broadcast_add ABI/header binding facts, target validation, fo
 
 ### Git Commits
 
-(No commits - planning session)
+Included in the final round commit for this session.
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for strided, indexed, and masked base-memory route fixtures from `build/test`
+- [OK] `git diff --check`
+- [OK] bounded old-authority scan over touched source/test files
 
 ### Status
 
@@ -1889,6 +1894,43 @@ No `ssh rvv` rerun: this changed provider/target validation contract ownership o
 | Hash | Message |
 |------|---------|
 | `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 421: Stage2 RVV base-memory route validation contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV base-memory route validation contract
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned base-memory movement route validation contract and rewired target artifact validation to consume it.
+
+### Main Changes
+
+- Added a provider-owned base-memory movement route validation contract and accessor in the RVV provider interface.
+- Populated the contract from canonical base-memory route facts and selected route description facts for existing strided, indexed, and masked base-memory families.
+- Rewired target artifact base-memory validation to consume the contract for route payload, headers/types, ABI, runtime ABI, layout, mask/tail, AVL/VL names, and statement-plan expectations.
+- Extended target artifact tests with representative positive contract accessor coverage and updated stale-field rejection evidence.
+- Checks passed: focused build, target artifact export test, RVV extension plugin test, focused lit base-memory filter, git diff --check, and bounded old-authority scan.
+- No ssh rvv run: validation contract ownership changed only; no runtime ABI/order, emitted memory behavior, correctness, or performance claim changed.
+
+
+### Git Commits
+
+(No commits - planning session)
 
 ### Testing
 
