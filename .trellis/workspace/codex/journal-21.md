@@ -1260,3 +1260,36 @@ Finished segment2 provider-to-target validation boundary: computed-mask segment2
 ### Next Steps
 
 - None - task complete
+
+
+## Session 411: Stage2 RVV unit-stride MAcc production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV unit-stride MAcc production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Closed duplicate stale Hermes brief by verifying current HEAD already contains unit-stride and computed-mask MAcc provider-to-target validation facts; no production source changes were needed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

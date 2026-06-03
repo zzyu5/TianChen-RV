@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that no legacy i32/source-front-door/metadata authority is introduced while closing the stale brief."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider-owned MAcc facts and route-family target validation against RVV plugin contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC remains neutral and target artifacts only consume provider-built facts/mirrors."}
