@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV route authority, RVV-first stage order, and common EmitC/source-of-truth constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, conversion dtype-policy boundary, and widening conversion route-provider facts preflight."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and widening conversion fact surface."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Conversion/SEW generated-bundle evidence and runtime evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-compare-select-route-contract-extraction/prd.md", "reason": "Closest completed provider validation contract extraction pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-widening-conversion-production-validation-boundary/prd.md", "reason": "Existing widening conversion production validation boundary and evidence."}

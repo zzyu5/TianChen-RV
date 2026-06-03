@@ -60,6 +60,63 @@ Tightened computed-mask segment2 store target artifact provider/candidate valida
 - None - task complete
 
 
+## Session 421: Stage2 RVV conversion dtype-policy route-family provider contract extraction
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV conversion dtype-policy route-family provider contract extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned RVV conversion dtype-policy route validation and
+metadata mirror contracts for the existing widening conversion variants, then
+rewired target artifact validation to consume those contracts.
+
+### Main Changes
+
+- Added conversion dtype-policy validation and metadata mirror contract APIs in
+  `RVVEmitCRouteProvider.h`.
+- Built contracts from existing widening conversion provider facts plus selected
+  route statement-plan names in `RVVEmitCRoutePlanning.cpp`.
+- Rewired target conversion provider-fact validation to require the contract
+  before route id, ABI, header/type, dtype/SEW/LMUL, conversion relation,
+  memory form, policy, intrinsic, and statement-plan checks.
+- Rewired conversion candidate metadata validation to consume provider mirror
+  contracts and stale non-conversion mirror keys.
+- Extended focused target artifact export tests for both `widen_i16_to_i32` and
+  `widen_i32_to_i64` provider contracts and non-conversion accessor rejection.
+- Updated `emitc-route.md` with the executable conversion dtype-policy
+  validation/mirror contract signatures and target-consumer rules.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit fixtures:
+  `explicit-selected-body-artifact-widen-i32-to-i64.mlir`,
+  `pre-realized-selected-body-artifact-widen-i16-to-i32.mlir`, and
+  `pre-realized-selected-body-artifact-widen-i32-to-i64.mlir`.
+- [OK] `rtk git diff --check`
+- [OK] Bounded added-diff old-authority scan found no new descriptor,
+  source-front-door, source-artifact, legacy-i32, or common direct-C route
+  authority markers.
+
+No `ssh rvv` rerun: this changed provider/target validation contract ownership
+only and did not change emitted conversion C/C++, runtime ABI order,
+source/result dtype layout, SEW/LMUL relation, mask/tail behavior, correctness,
+or performance behavior.
+
+### Status
+
+[OK] Completed and archived
+
+### Next Steps
+
+- Commit the coherent change.
+
+
 ## Session 417: Stage2 RVV MAcc route-family provider contract extraction
 
 **Date**: 2026-06-03

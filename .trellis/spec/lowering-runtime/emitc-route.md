@@ -2140,6 +2140,91 @@ std::optional<RVVWideningConversionRouteFacts>
 getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
 ```
 
+### Widening Conversion Route Validation Contract
+
+Scope / trigger: selected-body `widen_i32_to_i64` and `widen_i16_to_i32`
+routes must expose a provider-owned validation contract before target artifact
+validation accepts rebuilt route payloads or candidate metadata mirrors.
+
+Signatures:
+
+```c++
+struct RVVConversionDtypePolicyRouteValidationContract {
+  RVVConversionDtypePolicyRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string sourceElementTypeName;
+  std::string resultElementTypeName;
+  std::int64_t sourceSEW;
+  std::string sourceLMUL;
+  std::int64_t resultSEW;
+  std::string resultLMUL;
+  std::string conversionKind;
+  std::string conversionRelation;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string runtimeABIOrder;
+  llvm::SmallVector<RuntimeABIParameter, 3> runtimeABIParameters;
+  llvm::SmallVector<RVVConversionDtypePolicyRouteTypeMappingContract, 3>
+      typeMappings;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  /* plus provider support/header/type/intrinsic/result/statement names */
+};
+
+std::optional<RVVConversionDtypePolicyRouteValidationContract>
+getRVVConversionDtypePolicyRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+std::optional<RVVConversionDtypePolicyRouteMetadataMirrorContractSet>
+getRVVConversionDtypePolicyRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+Contracts:
+
+- The validation contract must be built from
+  `getRVVWideningConversionRouteFacts(description.operation)` and selected
+  route statement names. Unsupported/non-conversion operations return
+  `std::nullopt`.
+- Target artifact route-family validation is a consume-only client: it compares
+  rebuilt route id, headers, type mappings, ABI mappings, source/result dtype
+  policy, SEW/LMUL relation, conversion relation, memory forms, tail/mask
+  policy, intrinsic leaves, and statement-plan counts against the contract.
+- Candidate metadata validation must consume the metadata mirror contract and
+  must reject stale non-conversion route-family mirrors from that contract.
+
+Validation & error matrix:
+
+- Missing validation contract -> fail before route payload validation.
+- Route id, required header, type mapping, ABI parameter, source/result dtype,
+  source/result SEW/LMUL, conversion kind/relation, memory form, intrinsic, or
+  statement-plan mismatch -> fail before artifact export.
+- Candidate mirror missing/stale or stale non-conversion mirror present -> fail
+  before accepting candidate metadata.
+
+Good/base/bad:
+
+- Good: typed widening conversion body -> provider facts -> conversion
+  validation contract -> target validator consumes contract -> metadata mirrors
+  checked separately as mirrors.
+- Base: `widen_i32_to_i64` and `widen_i16_to_i32` expose contracts derived
+  from their existing canonical widening conversion facts.
+- Bad: target artifact validation reconstructs conversion semantics from route
+  ids, artifact metadata, C strings, test names, or local target tables.
+
+Tests required:
+
+- C++ target artifact tests must prove positive contract access for both
+  existing widening conversion variants and no contract for non-conversion
+  operations.
+- C++ target artifact tests must mutate route payload fields and metadata
+  mirrors to prove fail-closed behavior.
+- Focused conversion lit/dry-run fixtures must continue to pass for existing
+  `widen_i32_to_i64` and `widen_i16_to_i32` artifact flows.
+
 The accessor is the canonical provider-owned fact surface for
 `widen_i32_to_i64` and `widen_i16_to_i32`. `widen_i32_to_i64` facts must include
 runtime ABI order `lhs,out,n`, source `i32/m1`, result `i64/m2`,
@@ -2155,11 +2240,12 @@ and relation `signed-i16mf2-to-i32m1` facts.
 Provider route-family plan derivation may use typed body/config/runtime facts
 to select the operation, but every shared constant above must be copied from
 `getRVVWideningConversionRouteFacts(...)` or validated against it. Target
-artifact validation must consume this same accessor and reject stale local
-copies of source/result element type, source/result SEW-LMUL, tail/mask
-policy, conversion kind/relation, source/destination memory form, runtime ABI
-parameter facts, header/type mapping, target profile, provider mirror,
-route-family plan, or operand binding summary before accepting a bundle.
+artifact validation must consume
+`getRVVConversionDtypePolicyRouteValidationContract(...)` and reject stale local
+copies of source/result element type, source/result SEW-LMUL, tail/mask policy,
+conversion kind/relation, source/destination memory form, runtime ABI parameter
+facts, header/type mapping, target profile, provider mirror, route-family plan,
+or operand binding summary before accepting a bundle.
 
 Good:
 
@@ -2168,7 +2254,7 @@ typed widen_i32_to_i64 body/config/runtime facts
   -> getRVVWideningConversionRouteFacts(WidenI32ToI64)
   -> widening conversion route-family plan
   -> provider-built TCRVEmitCLowerableRoute
-  -> target validator consumes the same accessor
+  -> target validator consumes the provider validation contract
 ```
 
 Bad:

@@ -19142,6 +19142,260 @@ getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
   return buildRVVWideningConversionRouteFacts(operation);
 }
 
+static void appendRVVConversionDtypePolicyValidationHeaders(
+    RVVConversionDtypePolicyRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRVVConversionDtypePolicyValidationTypeMapping(
+    RVVConversionDtypePolicyRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static llvm::StringRef getRVVConversionDtypePolicyValidationConsumerLabel(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::WidenI16ToI32:
+    return "widen_i16_to_i32 conversion dtype-policy target artifact consumer";
+  case RVVSelectedBodyOperationKind::WidenI32ToI64:
+    return "widen_i32_to_i64 conversion dtype-policy target artifact consumer";
+  default:
+    return "conversion dtype-policy target artifact consumer";
+  }
+}
+
+static void populateRVVConversionDtypePolicyValidationContract(
+    RVVConversionDtypePolicyRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVWideningConversionRouteFacts &facts) {
+  contract.kind =
+      RVVConversionDtypePolicyRouteValidationKind::WideningConversion;
+  contract.operation = facts.operation;
+  contract.consumerLabel =
+      getRVVConversionDtypePolicyValidationConsumerLabel(facts.operation);
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(facts.operation).str();
+  contract.memoryForm = facts.memoryForm;
+  contract.sourceElementTypeName = facts.sourceElementTypeName.str();
+  contract.resultElementTypeName = facts.resultElementTypeName.str();
+  contract.sourceSEW = facts.sourceSEW;
+  contract.sourceLMUL = facts.sourceLMUL.str();
+  contract.resultSEW = facts.resultSEW;
+  contract.resultLMUL = facts.resultLMUL.str();
+  contract.tailPolicy = facts.tailPolicy.str();
+  contract.maskPolicy = facts.maskPolicy.str();
+  contract.runtimeControlPlanID = facts.runtimeControlPlanID.str();
+  contract.runtimeABIOrder = facts.runtimeABIOrder.str();
+  contract.targetLeafProfile = facts.targetLeafProfile.str();
+  contract.providerSupportedMirror = facts.providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      facts.requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = facts.cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      facts.routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = facts.routeOperandBindingSummary;
+  contract.wideningConversionRouteFamilyPlanID =
+      facts.routeFamilyPlanID.str();
+  contract.typedComputeOpName = facts.typedComputeOpName.str();
+
+  contract.conversionKind = facts.conversionKind.str();
+  contract.conversionRelation = facts.conversionRelation.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.sourceVectorLoadIntrinsic =
+      facts.sourceVectorLoadIntrinsic.str();
+  contract.conversionIntrinsic = facts.conversionIntrinsic.str();
+  contract.intrinsic = facts.conversionIntrinsic.str();
+  contract.storeIntrinsic = facts.storeIntrinsic.str();
+  contract.setVLIntrinsic = facts.setVLIntrinsic.str();
+  contract.vlCType = facts.vlCType.str();
+  contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
+  contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.resultVectorTypeName = facts.resultVectorTypeName.str();
+  contract.resultVectorCType = facts.resultVectorCType.str();
+  contract.vectorTypeName = facts.resultVectorTypeName.str();
+  contract.vectorCType = facts.resultVectorCType.str();
+  contract.resultName = facts.resultName.str();
+
+  contract.emitCFullChunkVLName =
+      description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount = 4;
+  contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
+                                       facts.runtimeABIParameters.end());
+
+  appendRVVConversionDtypePolicyValidationHeaders(
+      contract, facts.requiredHeaderDeclarations);
+  appendRVVConversionDtypePolicyValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", facts.vlCType,
+      "selected typed RVV conversion dtype-policy VL type");
+  appendRVVConversionDtypePolicyValidationTypeMapping(
+      contract, facts.resultVectorTypeName, facts.resultVectorCType,
+      "selected typed RVV conversion dtype-policy result vector type");
+  appendRVVConversionDtypePolicyValidationTypeMapping(
+      contract, facts.sourceVectorTypeName, facts.sourceVectorCType,
+      "selected typed RVV conversion dtype-policy source vector type");
+}
+
+static std::optional<RVVConversionDtypePolicyRouteValidationContract>
+buildRVVConversionDtypePolicyRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVWideningConversionRouteFacts> routeFacts =
+      getRVVWideningConversionRouteFacts(description.operation);
+  if (!routeFacts)
+    return std::nullopt;
+
+  RVVConversionDtypePolicyRouteValidationContract contract;
+  populateRVVConversionDtypePolicyValidationContract(contract, description,
+                                                    *routeFacts);
+  return contract;
+}
+
+static void appendRVVConversionDtypePolicyMetadataMirror(
+    RVVConversionDtypePolicyRouteMetadataMirrorContractSet &contract,
+    llvm::StringRef key, llvm::StringRef expected,
+    llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
+static std::optional<
+    RVVConversionDtypePolicyRouteMetadataMirrorContractSet>
+buildRVVConversionDtypePolicyRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVConversionDtypePolicyRouteValidationContract> validation =
+      buildRVVConversionDtypePolicyRouteValidationContract(description);
+  if (!validation)
+    return std::nullopt;
+
+  const RVVConversionDtypePolicyRouteValidationContract &facts = *validation;
+  RVVConversionDtypePolicyRouteMetadataMirrorContractSet contract;
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "rvv_selected_body_typed_compute_op",
+      facts.typedComputeOpName,
+      "selected typed RVV conversion dtype-policy typed compute op");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan",
+      facts.routeOperandBindingPlanID,
+      "selected typed RVV conversion dtype-policy binding plan");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands",
+      facts.routeOperandBindingSummary,
+      "selected typed RVV conversion dtype-policy binding summary");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror",
+      facts.providerSupportedMirror,
+      "selected typed RVV conversion dtype-policy provider support");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.target_leaf_profile", facts.targetLeafProfile,
+      "selected typed RVV conversion dtype-policy target leaf profile");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.widening_conversion_route_family_plan",
+      facts.wideningConversionRouteFamilyPlanID,
+      "selected typed RVV widening conversion route-family plan");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.tail_policy", facts.tailPolicy,
+      "selected typed RVV widening conversion tail policy");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.mask_policy", facts.maskPolicy,
+      "selected typed RVV widening conversion mask policy");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.source_element_type",
+      facts.sourceElementTypeName,
+      "selected typed RVV widening conversion source element type");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.result_element_type",
+      facts.resultElementTypeName,
+      "selected typed RVV widening conversion result element type");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.source_sew", llvm::Twine(facts.sourceSEW).str(),
+      "selected typed RVV widening conversion source SEW");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.source_lmul", facts.sourceLMUL,
+      "selected typed RVV widening conversion source LMUL");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.dest_sew", llvm::Twine(facts.resultSEW).str(),
+      "selected typed RVV widening conversion destination SEW");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.dest_lmul", facts.resultLMUL,
+      "selected typed RVV widening conversion destination LMUL");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.conversion_kind", facts.conversionKind,
+      "selected typed RVV widening conversion kind");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.conversion_relation",
+      facts.conversionRelation,
+      "selected typed RVV widening conversion relation");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(facts.memoryForm),
+      "selected typed RVV conversion dtype-policy memory form");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.source_memory_form",
+      facts.sourceMemoryForm,
+      "selected typed RVV widening conversion source memory form");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.destination_memory_form",
+      facts.destinationMemoryForm,
+      "selected typed RVV widening conversion destination memory form");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      facts.runtimeControlPlanID,
+      "selected typed RVV conversion dtype-policy runtime AVL/VL control plan");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
+      "selected typed RVV conversion dtype-policy runtime ABI order");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations",
+      facts.requiredHeaderDeclarations,
+      "selected typed RVV conversion dtype-policy route header requirements");
+  appendRVVConversionDtypePolicyMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping", facts.cTypeMappingSummary,
+      "selected typed RVV conversion dtype-policy route type mapping summary");
+
+  constexpr llvm::StringLiteral staleMirrorKeys[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.widening_macc_relation",
+      "tcrv_rvv.widening_dot_relation"};
+  for (llvm::StringRef key : staleMirrorKeys)
+    contract.staleMirrorKeys.push_back(key);
+  contract.staleMirrorLabel =
+      "selected typed RVV non-conversion route-family mirror";
+  return contract;
+}
+
+std::optional<RVVConversionDtypePolicyRouteValidationContract>
+getRVVConversionDtypePolicyRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVConversionDtypePolicyRouteValidationContract(description);
+}
+
+std::optional<RVVConversionDtypePolicyRouteMetadataMirrorContractSet>
+getRVVConversionDtypePolicyRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVConversionDtypePolicyRouteMetadataMirrorContract(description);
+}
+
 std::optional<RVVUnitStrideMaskedMemoryRouteFacts>
 getRVVUnitStrideMaskedMemoryRouteFacts(RVVSelectedBodyOperationKind operation) {
   return getRVVUnitStrideMaskedMemoryRouteFacts(

@@ -1179,6 +1179,98 @@ struct RVVWideningConversionRouteFacts {
 std::optional<RVVWideningConversionRouteFacts>
 getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
 
+enum class RVVConversionDtypePolicyRouteValidationKind {
+  WideningConversion,
+};
+
+struct RVVConversionDtypePolicyRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVConversionDtypePolicyRouteValidationContract {
+  RVVConversionDtypePolicyRouteValidationKind kind =
+      RVVConversionDtypePolicyRouteValidationKind::WideningConversion;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  std::string sourceElementTypeName;
+  std::string resultElementTypeName;
+  std::int64_t sourceSEW = 0;
+  std::string sourceLMUL;
+  std::int64_t resultSEW = 0;
+  std::string resultLMUL;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string wideningConversionRouteFamilyPlanID;
+  std::string typedComputeOpName;
+
+  std::string conversionKind;
+  std::string conversionRelation;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string sourceVectorLoadIntrinsic;
+  std::string conversionIntrinsic;
+  std::string intrinsic;
+  std::string storeIntrinsic;
+  std::string setVLIntrinsic;
+  std::string vlCType;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string resultVectorTypeName;
+  std::string resultVectorCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string resultName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
+      runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVConversionDtypePolicyRouteTypeMappingContract, 3>
+      typeMappings;
+};
+
+std::optional<RVVConversionDtypePolicyRouteValidationContract>
+getRVVConversionDtypePolicyRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+struct RVVConversionDtypePolicyRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVConversionDtypePolicyRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVConversionDtypePolicyRouteMetadataMirrorContract, 32>
+      mirrors;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVConversionDtypePolicyRouteMetadataMirrorContractSet>
+getRVVConversionDtypePolicyRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVWideningMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

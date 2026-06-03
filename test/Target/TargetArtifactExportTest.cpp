@@ -7811,7 +7811,8 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   auto expectWideningConversionCanonicalFacts =
-      [&](OperationKind operation, llvm::StringRef context,
+      [&](const RVVRouteDescription &description, OperationKind operation,
+          llvm::StringRef context,
           llvm::StringRef expectedSourceElement,
           llvm::StringRef expectedResultElement, int64_t expectedSourceSEW,
           llvm::StringRef expectedSourceLMUL, int64_t expectedResultSEW,
@@ -7870,21 +7871,184 @@ bool expectRVVTargetArtifactExporterShape(
                    << ": malformed widening conversion canonical route facts\n";
       return false;
     }
+
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVConversionDtypePolicyRouteValidationContract>
+        contract = tianchenrv::plugin::rvv::
+            getRVVConversionDtypePolicyRouteValidationContract(description);
+    if (!contract) {
+      llvm::errs() << context
+                   << ": missing conversion dtype-policy validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->operation != operation ||
+        contract->emitCRouteID != description.emitCRouteID ||
+        contract->memoryForm != routeFacts->memoryForm ||
+        contract->sourceElementTypeName != routeFacts->sourceElementTypeName ||
+        contract->resultElementTypeName != routeFacts->resultElementTypeName ||
+        contract->sourceSEW != routeFacts->sourceSEW ||
+        contract->sourceLMUL != routeFacts->sourceLMUL ||
+        contract->resultSEW != routeFacts->resultSEW ||
+        contract->resultLMUL != routeFacts->resultLMUL ||
+        contract->tailPolicy != routeFacts->tailPolicy ||
+        contract->maskPolicy != routeFacts->maskPolicy ||
+        contract->runtimeControlPlanID != routeFacts->runtimeControlPlanID ||
+        contract->runtimeABIOrder != routeFacts->runtimeABIOrder ||
+        contract->targetLeafProfile != routeFacts->targetLeafProfile ||
+        contract->providerSupportedMirror !=
+            routeFacts->providerSupportedMirror ||
+        contract->requiredHeaderDeclarations !=
+            routeFacts->requiredHeaderDeclarations ||
+        contract->cTypeMappingSummary != routeFacts->cTypeMappingSummary ||
+        contract->routeOperandBindingPlanID !=
+            routeFacts->routeOperandBindingPlanID ||
+        contract->routeOperandBindingSummary !=
+            routeFacts->routeOperandBindingSummary ||
+        contract->wideningConversionRouteFamilyPlanID !=
+            routeFacts->routeFamilyPlanID ||
+        contract->typedComputeOpName != routeFacts->typedComputeOpName ||
+        contract->conversionKind != routeFacts->conversionKind ||
+        contract->conversionRelation != routeFacts->conversionRelation ||
+        contract->sourceMemoryForm != routeFacts->sourceMemoryForm ||
+        contract->destinationMemoryForm !=
+            routeFacts->destinationMemoryForm ||
+        contract->sourceVectorLoadIntrinsic !=
+            routeFacts->sourceVectorLoadIntrinsic ||
+        contract->conversionIntrinsic != routeFacts->conversionIntrinsic ||
+        contract->intrinsic != routeFacts->conversionIntrinsic ||
+        contract->storeIntrinsic != routeFacts->storeIntrinsic ||
+        contract->setVLIntrinsic != routeFacts->setVLIntrinsic ||
+        contract->vlCType != routeFacts->vlCType ||
+        contract->sourceVectorTypeName !=
+            routeFacts->sourceVectorTypeName ||
+        contract->sourceVectorCType != routeFacts->sourceVectorCType ||
+        contract->resultVectorTypeName !=
+            routeFacts->resultVectorTypeName ||
+        contract->resultVectorCType != routeFacts->resultVectorCType ||
+        contract->vectorTypeName != routeFacts->resultVectorTypeName ||
+        contract->vectorCType != routeFacts->resultVectorCType ||
+        contract->resultName != routeFacts->resultName ||
+        contract->emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        contract->emitCLoopVLName != description.emitCLoopVLName ||
+        contract->emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount != 4 ||
+        contract->runtimeABIParameters.size() !=
+            routeFacts->runtimeABIParameters.size() ||
+        contract->requiredHeaders.size() != 3 ||
+        contract->typeMappings.size() != 3) {
+      llvm::errs() << context
+                   << ": malformed conversion dtype-policy validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->requiredHeaders[0] != "stddef.h" ||
+        contract->requiredHeaders[1] != "stdint.h" ||
+        contract->requiredHeaders[2] != "riscv_vector.h") {
+      llvm::errs() << context
+                   << ": malformed conversion dtype-policy header contract\n";
+      return false;
+    }
+    if (contract->typeMappings[0].sourceType != "!tcrv_rvv.vl" ||
+        contract->typeMappings[0].cType != routeFacts->vlCType ||
+        contract->typeMappings[1].sourceType !=
+            routeFacts->resultVectorTypeName ||
+        contract->typeMappings[1].cType != routeFacts->resultVectorCType ||
+        contract->typeMappings[2].sourceType !=
+            routeFacts->sourceVectorTypeName ||
+        contract->typeMappings[2].cType != routeFacts->sourceVectorCType) {
+      llvm::errs() << context
+                   << ": malformed conversion dtype-policy type mapping "
+                      "contract\n";
+      return false;
+    }
+    if (!tianchenrv::support::runtimeABIParametersEqual(
+            contract->runtimeABIParameters,
+            routeFacts->runtimeABIParameters)) {
+      llvm::errs() << context
+                   << ": malformed conversion dtype-policy runtime ABI "
+                      "contract\n";
+      return false;
+    }
+
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVConversionDtypePolicyRouteMetadataMirrorContractSet>
+        mirrorContract = tianchenrv::plugin::rvv::
+            getRVVConversionDtypePolicyRouteMetadataMirrorContract(
+                description);
+    if (!mirrorContract) {
+      llvm::errs() << context
+                   << ": missing conversion dtype-policy metadata mirror "
+                      "contract\n";
+      return false;
+    }
+    auto mirrorHas = [&](llvm::StringRef key,
+                         llvm::StringRef expected) -> bool {
+      for (const tianchenrv::plugin::rvv::
+               RVVConversionDtypePolicyRouteMetadataMirrorContract &mirror :
+           mirrorContract->mirrors)
+        if (mirror.key == key && mirror.expected == expected)
+          return true;
+      return false;
+    };
+    auto staleMirrorHas = [&](llvm::StringRef key) -> bool {
+      for (llvm::StringRef staleKey : mirrorContract->staleMirrorKeys)
+        if (staleKey == key)
+          return true;
+      return false;
+    };
+    if (!mirrorHas("rvv_selected_body_typed_compute_op",
+                   routeFacts->typedComputeOpName) ||
+        !mirrorHas("tcrv_rvv.provider_supported_mirror",
+                   routeFacts->providerSupportedMirror) ||
+        !mirrorHas("tcrv_rvv.target_leaf_profile",
+                   routeFacts->targetLeafProfile) ||
+        !mirrorHas("tcrv_rvv.widening_conversion_route_family_plan",
+                   routeFacts->routeFamilyPlanID) ||
+        !mirrorHas("tcrv_rvv.conversion_relation",
+                   routeFacts->conversionRelation) ||
+        !mirrorHas("tcrv_rvv.required_header_declarations",
+                   routeFacts->requiredHeaderDeclarations) ||
+        !mirrorHas("tcrv_rvv.c_type_mapping",
+                   routeFacts->cTypeMappingSummary) ||
+        !staleMirrorHas(
+            "tcrv_rvv.elementwise_arithmetic_route_family_plan") ||
+        !staleMirrorHas("tcrv_rvv.widening_dot_relation")) {
+      llvm::errs() << context
+                   << ": malformed conversion dtype-policy metadata mirror "
+                      "contract\n";
+      return false;
+    }
     return true;
   };
 
   if (!expectWideningConversionCanonicalFacts(
-          OperationKind::WidenI16ToI32,
+          widenI16Description, OperationKind::WidenI16ToI32,
           "widen_i16_to_i32 canonical route facts", "i16", "i32", 16, "mf2",
           32, "m1", "sign_extend_widen_vf2", "signed-i16mf2-to-i32m1",
           "const int16_t *", "int32_t *"))
     return false;
   if (!expectWideningConversionCanonicalFacts(
-          OperationKind::WidenI32ToI64,
+          widenI32Description, OperationKind::WidenI32ToI64,
           "widen_i32_to_i64 canonical route facts", "i32", "i64", 32, "m1",
           64, "m2", "widen_i32_to_i64", "signed-i32m1-to-i64m2",
           "const int32_t *", "int64_t *"))
     return false;
+  RVVRouteDescription nonConversionDescription = widenI16Description;
+  nonConversionDescription.operation = OperationKind::Add;
+  if (tianchenrv::plugin::rvv::
+          getRVVConversionDtypePolicyRouteValidationContract(
+              nonConversionDescription) ||
+      tianchenrv::plugin::rvv::
+          getRVVConversionDtypePolicyRouteMetadataMirrorContract(
+              nonConversionDescription)) {
+    llvm::errs() << "conversion dtype-policy provider contract accepted "
+                    "non-conversion operation\n";
+    return false;
+  }
 
   auto expectWideningConversionProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
