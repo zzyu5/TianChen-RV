@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin typed-body/provider authority and target validator boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned indexed memory fact surfaces, operand binding, header/type, and target validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-base-memory-route-family-production-validation-closeout/prd.md", "reason": "Plain indexed gather/scatter production validation closeout and runtime evidence reuse context."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Computed-mask indexed gather/scatter production validation closeout and masked fact surface context."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-compare-select-production-validation-boundary/prd.md", "reason": "Latest provider-to-target production validation boundary pattern."}

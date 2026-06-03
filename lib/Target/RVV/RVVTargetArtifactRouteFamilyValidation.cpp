@@ -9158,6 +9158,10 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
       return makeRVVTargetRouteError(
           "compare-produced computed-mask memory target artifact consumer "
           "rejects stale compare/select route-family facts");
+    if (!description.baseMemoryMovementRouteFamilyPlanID.empty())
+      return makeRVVTargetRouteError(
+          "compare-produced computed-mask memory target artifact consumer "
+          "rejects stale plain base-memory route-family facts");
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
             "computed-mask memory route-family plan",
             description.computedMaskMemoryRouteFamilyPlanID,
@@ -9418,6 +9422,10 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.computed_mask_select_route_family_plan", "",
             "selected typed RVV computed-mask select route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.base_memory_movement_route_family_plan", "",
+            "selected typed RVV plain base-memory route-family plan"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.mask_tail_policy_route_family_plan",

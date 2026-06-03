@@ -14941,6 +14941,17 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-masked-indexed-load"}))
     return false;
 
+  RVVRouteDescription staleIndexedBaseMemoryPlan = manualIndexedDescription;
+  staleIndexedBaseMemoryPlan.baseMemoryMovementRouteFamilyPlanID =
+      "rvv-base-memory-movement-route-family-plan.v1";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute,
+          staleIndexedBaseMemoryPlan,
+          "compare/select mask registry rejects stale plain base-memory plan "
+          "on computed-mask indexed gather",
+          {"stale plain base-memory route-family facts"}))
+    return false;
+
   RVVRouteDescription wrongIndexedBindingPlan = manualIndexedDescription;
   wrongIndexedBindingPlan.routeOperandBindingPlanID =
       "metadata-derived-computed-mask-indexed-gather-binding-plan";
@@ -15335,6 +15346,21 @@ bool expectRVVTargetArtifactExporterShape(
           {"route_operand_binding_operands",
            "selected typed RVV compare/select mask binding summary",
            "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
+    return false;
+
+  TargetArtifactCandidate wrongIndexedBaseMemoryPlanCandidate =
+      manualIndexedCandidate;
+  wrongIndexedBaseMemoryPlanCandidate.artifactMetadata.emplace_back(
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "rvv-base-memory-movement-route-family-plan.v1");
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongIndexedBaseMemoryPlanCandidate, manualIndexedRoute,
+          manualIndexedDescription,
+          "compare/select mask registry rejects stale plain base-memory "
+          "metadata on computed-mask indexed gather",
+          {"base_memory_movement_route_family_plan",
+           "must not carry",
+           "without selected typed RVV plain base-memory route-family plan"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedTypedComputeCandidate =

@@ -600,6 +600,11 @@ Validation and error behavior:
 - Missing or stale mask facts, index facts, inactive-lane contract, route-family
   plan, header/type summary, target profile, provider mirror, runtime ABI order,
   or binding summary -> fail before target artifact acceptance.
+- Computed-mask indexed routes must reject stale plain base-memory route-family
+  facts before target artifact acceptance. A provider description carrying
+  `baseMemoryMovementRouteFamilyPlanID` or candidate metadata carrying
+  `tcrv_rvv.base_memory_movement_route_family_plan` is an unmasked indexed
+  memory fallback residue, not support evidence.
 - Candidate metadata mirrors must match the provider-built route description
   exactly. Stale candidate mirrors for typed compute op, index source/EEW,
   offset unit, uniqueness, header/type summary, provider mirror, target
@@ -615,6 +620,9 @@ Tests required:
   facts, target profile, provider mirror, and gather/scatter cross-contamination.
 - C++ target artifact tests must mutate candidate metadata mirrors for the same
   fields and prove stale metadata cannot be accepted.
+- C++ target artifact tests must prove stale plain base-memory provider facts
+  and `tcrv_rvv.base_memory_movement_route_family_plan` candidate mirrors fail
+  closed on computed-mask indexed routes.
 - Generated-bundle dry-run FileCheck tests must keep explicit and pre-realized
   gather/scatter coverage and expose representative `typed_compute_op`,
   memory form, binding summary, mask/index facts, provider mirror, and target

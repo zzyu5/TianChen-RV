@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for RVV plugin-owned semantics and target validator boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check for indexed memory provider fact and mirror validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-base-memory-route-family-production-validation-closeout/prd.md", "reason": "Check plain indexed validation behavior and evidence reuse remain consistent."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Check computed-mask indexed validation behavior and evidence reuse remain consistent."}

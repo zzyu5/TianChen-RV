@@ -1107,3 +1107,57 @@ Canonicalized compare/select provider facts across route planning, target valida
 ### Next Steps
 
 - None - task complete
+
+
+## Session 407: Stage2 RVV indexed memory production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV indexed memory production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the indexed memory provider-to-target validation boundary by rejecting stale plain base-memory facts on computed-mask indexed routes, with focused target validation tests and indexed dry-run evidence.
+
+### Main Changes
+
+- Added provider-side target validation for compare-produced computed-mask memory routes so stale `baseMemoryMovementRouteFamilyPlanID` fails before artifact export.
+- Added candidate mirror validation so computed-mask indexed routes reject stale `tcrv_rvv.base_memory_movement_route_family_plan` metadata.
+- Added C++ regression coverage for stale plain base-memory provider facts and candidate metadata on computed-mask indexed gather.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the exact computed-mask indexed stale plain base-memory rejection contract.
+
+Checks:
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j 16`
+- [OK] lit filter `indexed-gather-unit-store` from `build/test`: 5/5 passed
+- [OK] lit filter `indexed-scatter-unit-load` from `build/test`: 5/5 passed
+- [OK] lit filter `selected-body-artifact-computed-masked-indexed-(gather-load|scatter-store)` from `build/test`: 4/4 passed
+- [OK] lit filter `rvv-generated-bundle-abi-e2e-(pre-realized-)?computed-masked-indexed-gather-load-dry-run` from `build/test`: 2/2 passed
+- [OK] lit filter `rvv-generated-bundle-abi-e2e-(pre-realized-)?computed-masked-indexed-scatter-store-dry-run` from `build/test`: 2/2 passed
+- [OK] explicit plain indexed generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] pre-realized plain indexed generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] `rtk git diff --check`
+- [OK] diff-only old-authority scan over added lines
+
+Runtime evidence:
+- No new `ssh rvv` run was needed because this round tightened validation only and did not change route emission, generated runtime semantics, runtime ABI order, index semantics, mask/passthrough semantics, or performance behavior. Runtime correctness is reused from the archived plain indexed and computed-mask indexed artifact ABI tasks.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
