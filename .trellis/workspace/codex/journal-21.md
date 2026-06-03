@@ -1495,3 +1495,52 @@ Closed the provider-to-target validation boundary for existing unit-stride maske
 ### Next Steps
 
 - None - task complete
+
+
+## Session 416: Stage2 RVV provider-owned memory route contract extraction
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV provider-owned memory route contract extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted RVV memory metadata mirror contract ownership into provider APIs and rewired target artifact validation to consume those contracts.
+
+### Main Changes
+
+- Added provider-owned `RVVMemoryRouteMetadataMirrorContract` / `RVVMemoryRouteMetadataMirrorContractSet` API.
+- Added base-memory and segment2-memory provider contract accessors built from existing provider route facts and rebuilt route descriptions.
+- Rewired target artifact validation to consume provider contract sets for base/unit, masked unit, strided, indexed, plain segment2, and computed-mask segment2 memory mirrors.
+- Removed target-local memory mirror table construction for those families.
+- Updated `lowering-runtime/emitc-route.md` with the executable provider-owned memory metadata mirror contract.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter '(strided-load-unit-store|unit-load-strided-store|indexed-gather-unit-store|indexed-scatter-unit-load|masked-unit-(load-store|store)|segment2-(deinterleave|interleave)|computed-masked-segment2-(load|store|update))'` from `build/test`, 60 passed.
+- [OK] `rtk git diff --check`
+- [OK] Bounded changed-line old-authority scan over touched production files.
+
+No `ssh rvv` rerun: this changed provider/target validation contract ownership only and did not change route emission, generated runtime semantics, runtime ABI order, emitted intrinsics, mask/tail behavior, passthrough behavior, destination preservation, runtime correctness, or performance behavior.
+
+### Self-Repair
+
+- Initial segment2 provider contract expected mask/tail metadata from the segment2 fact accessor. The target artifact C++ test showed current segment2 artifacts mirror the rebuilt route description for those fields instead. Adjusted the provider-owned contract to consume the rebuilt provider route description for those route-description-only mirrors while keeping contract construction provider-owned.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

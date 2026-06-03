@@ -19278,6 +19278,350 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   return facts;
 }
 
+static void appendRVVMemoryRouteMetadataMirror(
+    RVVMemoryRouteMetadataMirrorContractSet &contract, llvm::StringRef key,
+    llvm::StringRef expected, llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVSegment2MemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  RVVMemoryRouteMetadataMirrorContractSet contract;
+
+  if (std::optional<RVVPlainSegment2MemoryRouteFacts> routeFacts =
+          getRVVPlainSegment2MemoryRouteFacts(description.operation)) {
+    const std::string segmentCountMirror =
+        llvm::Twine(routeFacts->segmentCount).str();
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.route_operand_binding_plan",
+        routeFacts->routeOperandBindingPlanID,
+        "selected typed RVV plain segment2 binding plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.route_operand_binding_operands",
+        routeFacts->routeOperandBindingSummary,
+        "selected typed RVV plain segment2 binding summary");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.provider_supported_mirror",
+        routeFacts->providerSupportedMirror,
+        "selected typed RVV plain segment2 provider support");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.target_leaf_profile",
+        routeFacts->targetLeafProfile,
+        "selected typed RVV plain segment2 target leaf profile");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "rvv_selected_body_typed_compute_op",
+        routeFacts->typedComputeOpName,
+        "selected typed RVV plain segment2 typed compute op");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment2_memory_route_family_plan",
+        routeFacts->segment2MemoryRouteFamilyPlanID,
+        "selected typed RVV segment2 route-family plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
+        "selected typed RVV computed-mask segment2 route-family plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.memory_form",
+        stringifyRVVSelectedBodyMemoryForm(routeFacts->memoryForm),
+        "selected typed RVV plain segment2-memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.runtime_control_plan",
+        routeFacts->runtimeControlPlanID,
+        "selected typed RVV plain segment2 runtime AVL/VL control plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.runtime_abi_order", routeFacts->runtimeABIOrder,
+        "selected typed RVV plain segment2 runtime ABI order");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.required_header_declarations",
+        routeFacts->requiredHeaderDeclarations,
+        "selected typed RVV plain segment2 route header requirements");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.c_type_mapping",
+        routeFacts->cTypeMappingSummary,
+        "selected typed RVV plain segment2 route type mapping summary");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_memory_layout",
+        routeFacts->segmentMemoryLayout,
+        "selected typed RVV plain segment2 memory layout");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.source_memory_form",
+        routeFacts->sourceMemoryForm,
+        "selected typed RVV plain segment2 source memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.destination_memory_form",
+        routeFacts->destinationMemoryForm,
+        "selected typed RVV plain segment2 destination memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_count", segmentCountMirror,
+        "selected typed RVV plain segment2 count");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_tuple_c_type",
+        routeFacts->segmentTupleCType,
+        "selected typed RVV plain segment2 tuple C type");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_load_intrinsic",
+        routeFacts->segmentLoadIntrinsic,
+        "selected typed RVV plain segment2 load callee");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_store_intrinsic",
+        routeFacts->segmentStoreIntrinsic,
+        "selected typed RVV plain segment2 store callee");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_field_extract_intrinsic",
+        routeFacts->usesDeinterleaveLoad
+            ? routeFacts->segmentFieldExtractIntrinsic
+            : llvm::StringRef(),
+        "selected typed RVV plain segment2 field extract");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_tuple_create_intrinsic",
+        routeFacts->usesInterleaveStore
+            ? routeFacts->segmentFieldExtractIntrinsic
+            : llvm::StringRef(),
+        "selected typed RVV plain segment2 tuple create");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_role", routeFacts->field0Role,
+        "selected typed RVV plain segment2 field0 role");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_role", routeFacts->field1Role,
+        "selected typed RVV plain segment2 field1 role");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_name", routeFacts->field0Name,
+        "selected typed RVV plain segment2 field0 binding");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_name", routeFacts->field1Name,
+        "selected typed RVV plain segment2 field1 binding");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_source_memory_form",
+        routeFacts->field0SourceMemoryForm,
+        "selected typed RVV plain segment2 field0 source memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_source_memory_form",
+        routeFacts->field1SourceMemoryForm,
+        "selected typed RVV plain segment2 field1 source memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_destination_memory_form",
+        routeFacts->field0DestinationMemoryForm,
+        "selected typed RVV plain segment2 field0 destination memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_destination_memory_form",
+        routeFacts->field1DestinationMemoryForm,
+        "selected typed RVV plain segment2 field1 destination memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.computed_mask_memory_mask_producer_source", "",
+        "selected typed RVV computed-mask segment2 producer source");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_role", "",
+        "selected typed RVV computed-mask segment2 mask role");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_source", "",
+        "selected typed RVV computed-mask segment2 mask source");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_memory_form", "",
+        "selected typed RVV computed-mask segment2 mask memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.compare_predicate_kind", "",
+        "selected typed RVV computed-mask segment2 compare predicate");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.masked_memory_layout", "",
+        "selected typed RVV computed-mask segment2 masked memory layout");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+        "selected typed RVV segment2-memory mask/tail policy plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_tail_policy_owner", "",
+        "selected typed RVV segment2-memory mask/tail policy owner");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment2_update_arithmetic_kind", "",
+        "selected typed RVV computed-mask segment2 update arithmetic kind");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment2_update_arithmetic_intrinsic", "",
+        "selected typed RVV computed-mask segment2 update arithmetic callee");
+  } else if (std::optional<RVVComputedMaskSegment2MemoryRouteFacts> routeFacts =
+                 getRVVComputedMaskSegment2MemoryRouteFacts(
+                     description.operation)) {
+    const bool isLoad =
+        routeFacts->operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+    const std::string segmentCountMirror =
+        llvm::Twine(routeFacts->segmentCount).str();
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.route_operand_binding_plan",
+        routeFacts->routeOperandBindingPlanID,
+        "selected typed RVV computed-mask segment2 binding plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.route_operand_binding_operands",
+        routeFacts->routeOperandBindingSummary,
+        "selected typed RVV computed-mask segment2 binding summary");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.provider_supported_mirror",
+        routeFacts->providerSupportedMirror,
+        "selected typed RVV computed-mask segment2 provider support");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.target_leaf_profile",
+        routeFacts->targetLeafProfile,
+        "selected typed RVV computed-mask segment2 target leaf profile");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "rvv_selected_body_typed_compute_op",
+        routeFacts->typedComputeOpName,
+        "selected typed RVV computed-mask segment2 typed compute op");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment2_memory_route_family_plan", "",
+        "selected typed RVV segment2 route-family plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.computed_mask_memory_route_family_plan",
+        routeFacts->computedMaskMemoryRouteFamilyPlanID,
+        "selected typed RVV computed-mask segment2 route-family plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.memory_form",
+        stringifyRVVSelectedBodyMemoryForm(routeFacts->memoryForm),
+        "selected typed RVV computed-mask segment2-memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.runtime_control_plan",
+        routeFacts->runtimeControlPlanID,
+        "selected typed RVV computed-mask segment2 runtime AVL/VL control plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.runtime_abi_order", routeFacts->runtimeABIOrder,
+        "selected typed RVV computed-mask segment2 runtime ABI order");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.required_header_declarations",
+        routeFacts->requiredHeaderDeclarations,
+        "selected typed RVV computed-mask segment2 route header requirements");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.c_type_mapping",
+        routeFacts->cTypeMappingSummary,
+        "selected typed RVV computed-mask segment2 route type mapping summary");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.compare_predicate_kind",
+        routeFacts->comparePredicateKind,
+        "selected typed RVV computed-mask segment2 compare predicate");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.computed_mask_memory_mask_producer_source",
+        routeFacts->computedMaskMemoryMaskProducerSource,
+        "selected typed RVV computed-mask segment2 producer source");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_role", routeFacts->maskRole,
+        "selected typed RVV computed-mask segment2 mask role");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_source", routeFacts->maskSource,
+        "selected typed RVV computed-mask segment2 mask source");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_memory_form", routeFacts->maskMemoryForm,
+        "selected typed RVV computed-mask segment2 mask memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.inactive_lane_contract",
+        routeFacts->inactiveLaneContract,
+        "selected typed RVV computed-mask segment2 inactive lane contract");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.masked_passthrough_layout",
+        routeFacts->maskedPassthroughLayout,
+        "selected typed RVV computed-mask segment2 passthrough layout");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.masked_memory_layout",
+        routeFacts->segmentMemoryLayout,
+        "selected typed RVV computed-mask segment2 masked memory layout");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_memory_layout",
+        routeFacts->segmentMemoryLayout,
+        "selected typed RVV computed-mask segment2 memory layout");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.source_memory_form",
+        routeFacts->sourceMemoryForm,
+        "selected typed RVV computed-mask segment2 source memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.destination_memory_form",
+        routeFacts->destinationMemoryForm,
+        "selected typed RVV computed-mask segment2 destination memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_count", segmentCountMirror,
+        "selected typed RVV computed-mask segment2 count");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_tuple_c_type",
+        routeFacts->segmentTupleCType,
+        "selected typed RVV computed-mask segment2 tuple C type");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_load_intrinsic",
+        isLoad ? routeFacts->segmentLoadIntrinsic : llvm::StringRef(),
+        "selected typed RVV computed-mask segment2 load callee");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_store_intrinsic",
+        isLoad ? llvm::StringRef() : routeFacts->segmentStoreIntrinsic,
+        "selected typed RVV computed-mask segment2 masked store callee");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_field_extract_intrinsic",
+        isLoad ? routeFacts->segmentFieldExtractIntrinsic : llvm::StringRef(),
+        "selected typed RVV computed-mask segment2 field extract");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment_tuple_create_intrinsic",
+        isLoad ? routeFacts->segmentStoreIntrinsic
+               : routeFacts->segmentFieldExtractIntrinsic,
+        "selected typed RVV computed-mask segment2 tuple create");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_role", routeFacts->field0Role,
+        "selected typed RVV computed-mask segment2 field0 role");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_role", routeFacts->field1Role,
+        "selected typed RVV computed-mask segment2 field1 role");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_name", routeFacts->field0Name,
+        "selected typed RVV computed-mask segment2 field0 binding");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_name", routeFacts->field1Name,
+        "selected typed RVV computed-mask segment2 field1 binding");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_source_memory_form",
+        routeFacts->field0SourceMemoryForm,
+        "selected typed RVV computed-mask segment2 field0 source memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_source_memory_form",
+        routeFacts->field1SourceMemoryForm,
+        "selected typed RVV computed-mask segment2 field1 source memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field0_destination_memory_form",
+        routeFacts->field0DestinationMemoryForm,
+        "selected typed RVV computed-mask segment2 field0 destination memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.field1_destination_memory_form",
+        routeFacts->field1DestinationMemoryForm,
+        "selected typed RVV computed-mask segment2 field1 destination memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_tail_policy_route_family_plan",
+        description.maskTailPolicyRouteFamilyPlanID,
+        "selected typed RVV segment2-memory mask/tail policy plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_tail_policy_owner",
+        description.maskTailPolicyOwner,
+        "selected typed RVV segment2-memory mask/tail policy owner");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment2_update_arithmetic_kind",
+        routeFacts->segment2UpdateArithmeticKind,
+        "selected typed RVV computed-mask segment2 update arithmetic kind");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.segment2_update_arithmetic_intrinsic",
+        routeFacts->segment2UpdateArithmeticIntrinsic,
+        "selected typed RVV computed-mask segment2 update arithmetic callee");
+  } else {
+    return std::nullopt;
+  }
+
+  contract.staleMirrorKeys.append(
+      {"tcrv_rvv.elementwise_arithmetic_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+       "tcrv_rvv.widening_conversion_route_family_plan",
+       "tcrv_rvv.plain_compare_select_route_family_plan",
+       "tcrv_rvv.computed_mask_select_route_family_plan",
+       "tcrv_rvv.plain_macc_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+       "tcrv_rvv.accumulation_route_family_plan",
+       "tcrv_rvv.standalone_reduction_route_family_plan",
+       "tcrv_rvv.contraction_route_family_plan",
+       "tcrv_rvv.base_memory_movement_route_family_plan",
+       "tcrv_rvv.widening_macc_relation",
+       "tcrv_rvv.widening_dot_relation"});
+  contract.staleMirrorLabel =
+      "selected typed RVV non-segment2 route-family mirror";
+  return contract;
+}
+
 llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
     RVVSelectedBodyOperationKind operation, std::int64_t sew) {
   switch (operation) {

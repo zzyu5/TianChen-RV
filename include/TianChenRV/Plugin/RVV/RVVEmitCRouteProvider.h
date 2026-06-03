@@ -607,6 +607,26 @@ std::optional<RVVComputedMaskSegment2MemoryRouteFacts>
 getRVVComputedMaskSegment2MemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+struct RVVMemoryRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVMemoryRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVMemoryRouteMetadataMirrorContract, 32> mirrors;
+  llvm::SmallVector<llvm::StringRef, 16> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVBaseMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVSegment2MemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVStandaloneReductionRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

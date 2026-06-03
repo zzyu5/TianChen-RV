@@ -978,6 +978,12 @@ deriveBaseMemoryRouteOperandBindingPlanImpl(
   return plan;
 }
 
+void appendRVVMemoryRouteMetadataMirror(
+    RVVMemoryRouteMetadataMirrorContractSet &contract, llvm::StringRef key,
+    llvm::StringRef expected, llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
 } // namespace
 
 std::optional<RVVBaseMemoryMovementRouteFacts>
@@ -1098,6 +1104,172 @@ getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation) {
     facts.logicalOperands.push_back(binding.logicalOperand);
 
   return facts;
+}
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVBaseMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVBaseMemoryMovementRouteFacts> routeFacts =
+      getRVVBaseMemoryMovementRouteFacts(description.operation);
+  if (!routeFacts)
+    return std::nullopt;
+
+  const bool isIndexed =
+      description.operation ==
+          RVVSelectedBodyOperationKind::IndexedGatherUnitStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isMasked =
+      description.operation ==
+          RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
+      description.operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const std::string indexEEWMirror =
+      routeFacts->indexEEW == 0 ? "" : llvm::Twine(routeFacts->indexEEW).str();
+
+  RVVMemoryRouteMetadataMirrorContractSet contract;
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan",
+      routeFacts->routeOperandBindingPlanID,
+      "selected typed RVV base-memory binding plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands",
+      routeFacts->routeOperandBindingSummary,
+      "selected typed RVV base-memory binding summary");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror",
+      routeFacts->providerSupportedMirror,
+      "selected typed RVV base-memory provider support");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.base_memory_movement_route_family_plan",
+      routeFacts->routeFamilyPlanID,
+      "selected typed RVV base-memory route-family plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(routeFacts->memoryForm),
+      "selected typed RVV base-memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.target_leaf_profile",
+      routeFacts->targetLeafProfile,
+      "selected typed RVV base-memory target leaf profile");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      routeFacts->runtimeControlPlanID,
+      "selected typed RVV base-memory runtime AVL/VL control plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", routeFacts->runtimeABIOrder,
+      "selected typed RVV base-memory runtime ABI order");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations",
+      routeFacts->requiredHeaderDeclarations,
+      "selected typed RVV base-memory route header requirements");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping",
+      routeFacts->cTypeMappingSummary,
+      "selected typed RVV base-memory route type mapping summary");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.source_memory_form", routeFacts->sourceMemoryForm,
+      "selected typed RVV base-memory source memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.destination_memory_form",
+      routeFacts->destinationMemoryForm,
+      "selected typed RVV base-memory destination memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.strided_memory_layout",
+      routeFacts->stridedMemoryLayout,
+      "selected typed RVV base-memory strided layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.source_stride_source",
+      routeFacts->sourceStrideSource,
+      "selected typed RVV base-memory source stride binding");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.destination_stride_source",
+      routeFacts->destinationStrideSource,
+      "selected typed RVV base-memory destination stride binding");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.index_source", routeFacts->indexSource,
+      "selected typed RVV base-memory index source");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.index_eew", indexEEWMirror,
+      "selected typed RVV base-memory index EEW");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.offset_unit", routeFacts->offsetUnit,
+      "selected typed RVV base-memory offset unit");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.index_uniqueness", routeFacts->indexUniqueness,
+      "selected typed RVV base-memory index uniqueness");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_data_memory_form",
+      routeFacts->indexedDataMemoryForm,
+      "selected typed RVV base-memory indexed data memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_destination_memory_form",
+      routeFacts->indexedDestinationMemoryForm,
+      "selected typed RVV base-memory indexed destination memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_role", routeFacts->maskRole,
+      "selected typed RVV base-memory mask role");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_source", routeFacts->maskSource,
+      "selected typed RVV base-memory mask source");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_memory_form", routeFacts->maskMemoryForm,
+      "selected typed RVV base-memory mask memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.inactive_lane_contract",
+      routeFacts->inactiveLaneContract,
+      "selected typed RVV base-memory inactive lane contract");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.masked_passthrough_layout",
+      routeFacts->maskedPassthroughLayout,
+      "selected typed RVV base-memory masked passthrough layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_memory_layout",
+      isIndexed ? routeFacts->indexedMemoryLayout : llvm::StringRef(),
+      "selected typed RVV base-memory indexed layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.masked_memory_layout",
+      isMasked ? routeFacts->indexedMemoryLayout : llvm::StringRef(),
+      "selected typed RVV base-memory masked layout");
+
+  if (isIndexed)
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "rvv_selected_body_typed_compute_op",
+        routeFacts->typedComputeOpName,
+        "selected typed RVV base-memory typed compute op");
+  if (isMasked) {
+    std::optional<RVVUnitStrideMaskedMemoryRouteFacts> maskedRouteFacts =
+        getRVVUnitStrideMaskedMemoryRouteFacts(description.operation,
+                                              description.sew,
+                                              description.lmul);
+    if (!maskedRouteFacts)
+      return std::nullopt;
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "rvv_selected_body_typed_compute_op",
+        maskedRouteFacts->typedComputeOpName,
+        "selected typed RVV unit-stride masked-memory typed compute op");
+  }
+
+  contract.staleMirrorKeys.append(
+      {"tcrv_rvv.elementwise_arithmetic_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+       "tcrv_rvv.widening_conversion_route_family_plan",
+       "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+       "tcrv_rvv.plain_compare_select_route_family_plan",
+       "tcrv_rvv.computed_mask_select_route_family_plan",
+       "tcrv_rvv.computed_mask_memory_route_family_plan",
+       "tcrv_rvv.segment2_memory_route_family_plan",
+       "tcrv_rvv.plain_macc_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+       "tcrv_rvv.accumulation_route_family_plan",
+       "tcrv_rvv.standalone_reduction_route_family_plan",
+       "tcrv_rvv.contraction_route_family_plan",
+       "tcrv_rvv.mask_tail_policy_route_family_plan",
+       "tcrv_rvv.mask_tail_policy_owner",
+       "tcrv_rvv.widening_macc_relation",
+       "tcrv_rvv.widening_dot_relation"});
+  contract.staleMirrorLabel =
+      "selected typed RVV non-base-memory route-family mirror";
+  return contract;
 }
 
 bool isRVVSelectedBodyBaseMemoryMovementRouteOperation(

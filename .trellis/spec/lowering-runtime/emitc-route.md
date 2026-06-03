@@ -1384,6 +1384,125 @@ Required tests:
 - Runtime RVV correctness claims still require real `ssh rvv` execution after
   provider and target validators accept the route.
 
+### Provider-Owned Memory Metadata Mirror Contract
+
+#### 1. Scope / Trigger
+
+Use this contract when target artifact validation needs a normalized
+`key/expected/label` metadata mirror table for existing RVV memory route
+families. This includes base/unit-stride, masked unit-stride, strided,
+indexed, plain segment2, and computed-mask segment2 memory routes. The trigger
+is any target artifact consumer that would otherwise assemble memory mirror
+keys, expected values, stale-route-family keys, or labels locally.
+
+#### 2. Signatures
+
+The durable provider-owned C++ surface is:
+
+```c++
+struct RVVMemoryRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVMemoryRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVMemoryRouteMetadataMirrorContract, 32> mirrors;
+  llvm::SmallVector<llvm::StringRef, 16> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVBaseMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVSegment2MemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+`expected` is owning storage so provider accessors may safely return computed
+string values such as `index_eew` or `segment_count`.
+
+#### 3. Contracts
+
+- Provider contract accessors build mirror entries from the same provider fact
+  surfaces and rebuilt provider route description used for route validation.
+- Target artifact validation consumes the returned contract set after the
+  provider route is rebuilt. Target code may look up candidate metadata and
+  format target bridge diagnostics, but must not locally define memory-family
+  mirror tables or stale-route-family key sets.
+- Candidate artifact metadata may only mirror entries in the provider-owned
+  contract. A non-empty `expected` requires an exact candidate mirror; an empty
+  `expected` rejects stale candidate metadata for that key.
+- `staleMirrorKeys` are provider-owned rejection lists for unrelated
+  route-family mirrors that must be absent on the selected memory route.
+- The contract does not replace family-specific provider fact validation,
+  route payload validation, runtime ABI validation, header/type validation, or
+  segment2 statement-plan validation.
+
+#### 4. Validation & Error Matrix
+
+- Missing contract for a route family selected by the target validator -> fail
+  before artifact acceptance.
+- Missing candidate mirror for a non-empty provider contract entry -> fail
+  before artifact acceptance.
+- Candidate mirror value differs from `expected` -> fail before artifact
+  acceptance.
+- Candidate carries a key whose provider contract entry has empty `expected`
+  -> fail as stale mirror residue.
+- Candidate carries any provider-owned `staleMirrorKeys` entry -> fail as
+  cross-family or cross-route residue.
+- Provider fact validation disagrees with the provider route description ->
+  fail before the target consumes candidate mirrors.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: base indexed memory facts -> provider-owned contract entries for
+  binding summary, provider mirror, memory form, index facts, header/type
+  facts, and stale non-base route-family keys -> target consumes the contract.
+- Good: computed-mask segment2 route facts plus rebuilt route description ->
+  provider-owned contract entries for binding, mask, segment, field, update,
+  header/type, and stale non-segment2 route-family keys.
+- Base: route families without memory artifact mirrors use their own provider
+  fact and target validation contracts.
+- Bad: target artifact validation reconstructs expected `index_eew`,
+  `segment_count`, mask role/source/form, header/type summaries, or stale
+  memory route-family keys in a target-local table.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must continue to mutate provider descriptions and
+  candidate metadata mirrors for representative stale memory fields and prove
+  fail-closed behavior.
+- Provider or plugin C++ builds must cover the public contract accessors when
+  the provider header or implementation changes.
+- Focused lit/generated-bundle dry-run tests must keep representative memory
+  fixtures exposing provider-derived metadata mirrors.
+- Runtime `ssh rvv` evidence is required only when generated runtime ABI,
+  load/store behavior, mask/tail behavior, passthrough/destination
+  preservation, correctness, or performance behavior changes.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator local table:
+  tcrv_rvv.index_eew = 32
+  tcrv_rvv.segment_count = 2
+  stale keys = local target list
+```
+
+Correct:
+
+```text
+typed tcrv_rvv body/config/runtime facts
+  -> RVV provider fact accessor and route description
+  -> provider-owned memory metadata mirror contract set
+  -> target validator consumes the contract and checks candidate mirrors
+```
+
 ## RVV Rules
 
 An RVV lowerable route is valid only when:
