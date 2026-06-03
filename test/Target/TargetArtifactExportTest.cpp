@@ -4779,6 +4779,92 @@ bool expectRVVTargetArtifactExporterShape(
           "standalone reduce_max registry accepts candidate mirrors"))
     return false;
 
+  auto expectStandaloneReductionValidationContract =
+      [](const RVVRouteDescription &description, std::size_t abiCount,
+         std::size_t typeMappingCount, std::size_t loopBodyStepCount,
+         llvm::StringRef fixtureContext) -> bool {
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVStandaloneReductionRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVStandaloneReductionRouteFacts(
+                description.operation, description.sew);
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVStandaloneReductionRouteValidationContract>
+        contract = tianchenrv::plugin::rvv::
+            getRVVStandaloneReductionRouteValidationContract(description);
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVStandaloneReductionRouteMetadataMirrorContractSet>
+        mirrorContract = tianchenrv::plugin::rvv::
+            getRVVStandaloneReductionRouteMetadataMirrorContract(description);
+    if (!routeFacts || !contract || !mirrorContract) {
+      llvm::errs() << fixtureContext
+                   << " did not have provider-owned standalone reduction "
+                      "route validation contracts\n";
+      return false;
+    }
+    if (contract->emitCRouteID !=
+            tianchenrv::plugin::rvv::getRVVSelectedBodyEmitCRouteID(
+                description.operation) ||
+        contract->memoryForm != routeFacts->memoryForm ||
+        contract->typedComputeOpName != routeFacts->typedComputeOpName ||
+        contract->runtimeABIOrder != routeFacts->runtimeABIOrder ||
+        contract->routeOperandBindingPlanID !=
+            routeFacts->routeOperandBindingPlanID ||
+        contract->routeOperandBindingSummary !=
+            routeFacts->routeOperandBindingSummary ||
+        contract->targetLeafProfile != routeFacts->targetLeafProfile ||
+        contract->providerSupportedMirror !=
+            routeFacts->providerSupportedMirror ||
+        contract->requiredHeaderDeclarations !=
+            routeFacts->requiredHeaderDeclarations ||
+        contract->cTypeMappingSummary != routeFacts->cTypeMappingSummary ||
+        contract->scalarResultRuntimeBoundary !=
+            routeFacts->scalarResultRuntimeBoundary ||
+        contract->reductionAccumulatorLayout !=
+            routeFacts->reductionAccumulatorLayout ||
+        contract->reductionResultLayout !=
+            routeFacts->reductionResultLayout ||
+        contract->reductionStoreVL != routeFacts->reductionStoreVL ||
+        contract->inactiveLaneRequirement !=
+            routeFacts->inactiveLaneRequirement ||
+        contract->expectedPreLoopStepCount != 3 ||
+        contract->expectedLoopBodyStepCount != loopBodyStepCount ||
+        contract->runtimeABIParameters.size() != abiCount ||
+        !tianchenrv::support::runtimeABIParametersEqual(
+            contract->runtimeABIParameters,
+            routeFacts->runtimeABIParameters) ||
+        contract->requiredHeaders.empty() ||
+        contract->typeMappings.size() != typeMappingCount ||
+        mirrorContract->mirrors.empty() ||
+        mirrorContract->staleMirrorKeys.empty()) {
+      llvm::errs() << fixtureContext
+                   << " provider standalone reduction route validation "
+                      "contract did not mirror canonical facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectStandaloneReductionValidationContract(
+          standaloneReduceAddDescription, /*abiCount=*/4,
+          /*typeMappingCount=*/4, /*loopBodyStepCount=*/5,
+          "standalone reduce_add validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          standaloneReduceAddM2Description, /*abiCount=*/4,
+          /*typeMappingCount=*/4, /*loopBodyStepCount=*/5,
+          "standalone reduce_add LMUL m2 validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          standaloneReduceMinDescription, /*abiCount=*/4,
+          /*typeMappingCount=*/4, /*loopBodyStepCount=*/5,
+          "standalone reduce_min validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          standaloneReduceMaxDescription, /*abiCount=*/4,
+          /*typeMappingCount=*/4, /*loopBodyStepCount=*/5,
+          "standalone reduce_max validation contract"))
+    return false;
+
   auto expectStandaloneReduceAddProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -4876,8 +4962,8 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceAddProviderFailure(
           staleStandaloneAddTypedOp,
           "standalone reduce_add registry rejects stale typed compute op",
-          {"tcrv_rvv.standalone_reduce",
-           "unit-stride standalone reduction memory form"}))
+          {"typed compute op", "tcrv_rvv.standalone_reduce",
+           "metadata-derived-standalone-reduction"}))
     return false;
 
   RVVRouteDescription staleStandaloneAddOperation =
@@ -4887,9 +4973,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleStandaloneAddOperation,
           "standalone reduce_add registry rejects stale operation-kind "
           "authority",
-          {"route operand binding plan",
-           "rvv-route-operand-binding:standalone_reduce_min.v1",
-           "rvv-route-operand-binding:standalone_reduce_add.v1"}))
+          {"route id", "rvv-generic-standalone-reduce-min-emitc-route",
+           "rvv-generic-standalone-reduce-add-emitc-route"}))
     return false;
 
   RVVRouteDescription staleStandaloneAddMemoryForm =
@@ -4899,8 +4984,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceAddProviderFailure(
           staleStandaloneAddMemoryForm,
           "standalone reduce_add registry rejects stale memory form",
-          {"tcrv_rvv.standalone_reduce",
-           "unit-stride standalone reduction memory form"}))
+          {"memory form"}))
     return false;
 
   RVVRouteDescription staleStandaloneAddABIOrder =
@@ -4930,7 +5014,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleStandaloneAddM2ScalarResult,
           "standalone reduce_add LMUL m2 registry rejects stale scalar-result "
           "channel",
-          {"scalar-result type mapping", "vint32m2_t"}))
+          {"route type mapping", "vint32m2_t"}))
     return false;
 
   RVVRouteDescription missingStandaloneAddScalarCType =
@@ -4959,7 +5043,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleStandaloneAddBindingSummary,
           "standalone reduce_add registry rejects stale route operand binding "
           "summary",
-          {"route operand binding plan",
+          {"route operand binding summary",
            "rvv-route-operand-binding:standalone_reduce_add.v1"}))
     return false;
 
@@ -4974,7 +5058,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceAddProviderFailure(
           staleStandaloneAddHeaderBinding,
           "standalone reduce_add registry rejects missing lhs header binding",
-          {"route operand binding plan",
+          {"route operand binding summary",
            "rvv-route-operand-binding:standalone_reduce_add.v1"}))
     return false;
 
@@ -4984,7 +5068,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceAddProviderFailure(
           staleStandaloneAddAccumulatorLayout,
           "standalone reduce_add registry rejects missing accumulator layout",
-          {"reduction accumulator", "store-VL facts"}))
+          {"reduction accumulator layout"}))
     return false;
 
   RVVRouteDescription staleStandaloneAddM2VectorLoad =
@@ -5136,8 +5220,8 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceMinProviderFailure(
           staleStandaloneMinTypedOp,
           "standalone reduce_min registry rejects stale typed compute op",
-          {"tcrv_rvv.standalone_reduce",
-           "unit-stride standalone reduction memory form"}))
+          {"typed compute op", "tcrv_rvv.standalone_reduce",
+           "metadata-derived-standalone-reduction"}))
     return false;
 
   RVVRouteDescription staleStandaloneMinOperation =
@@ -5147,9 +5231,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleStandaloneMinOperation,
           "standalone reduce_min registry rejects stale operation-kind "
           "authority",
-          {"route operand binding plan",
-           "rvv-route-operand-binding:standalone_reduce_max.v1",
-           "rvv-route-operand-binding:standalone_reduce_min.v1"}))
+          {"route id", "rvv-generic-standalone-reduce-max-emitc-route",
+           "rvv-generic-standalone-reduce-min-emitc-route"}))
     return false;
 
   RVVRouteDescription staleStandaloneMinIntrinsic =
@@ -5180,7 +5263,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceMinProviderFailure(
           staleStandaloneMinScalarChannel,
           "standalone reduce_min registry rejects missing scalar seed channel",
-          {"reduction accumulator", "store-VL facts"}))
+          {"reduction accumulator layout"}))
     return false;
 
   RVVRouteDescription staleStandaloneMinScalarResultType =
@@ -5190,7 +5273,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceMinProviderFailure(
           staleStandaloneMinScalarResultType,
           "standalone reduce_min registry rejects stale scalar result type",
-          {"scalar-result type mapping", "vint32m2_t"}))
+          {"route type mapping", "vint32m2_t"}))
     return false;
 
   RVVRouteDescription staleStandaloneMinProviderMirror =
@@ -5218,8 +5301,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceMinProviderFailure(
           staleStandaloneMinMemoryForm,
           "standalone reduce_min registry rejects stale memory form",
-          {"tcrv_rvv.standalone_reduce",
-           "unit-stride standalone reduction memory form"}))
+          {"memory form"}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -5501,6 +5583,26 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask standalone reduce_max registry accepts candidate "
           "mirrors"))
     return false;
+  if (!expectStandaloneReductionValidationContract(
+          computedMaskStandaloneReduceAddDescription, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "computed-mask standalone reduce_add validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          computedMaskStandaloneReduceAddM2Description, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "computed-mask standalone reduce_add LMUL m2 validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          computedMaskStandaloneReduceMinDescription, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "computed-mask standalone reduce_min validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          computedMaskStandaloneReduceMaxDescription, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "computed-mask standalone reduce_max validation contract"))
+    return false;
 
   auto expectComputedMaskStandaloneReduceAddProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
@@ -5616,8 +5718,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneAddTypedOp,
           "computed-mask standalone reduce_add registry rejects stale typed "
           "compute op",
-          {"tcrv_rvv.masked_standalone_reduce",
-           "computed-mask unit-stride standalone reduction"}))
+          {"typed compute op", "tcrv_rvv.masked_standalone_reduce",
+           "metadata-derived-masked-standalone-reduction"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneAddOperation =
@@ -5628,9 +5730,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneAddOperation,
           "computed-mask standalone reduce_add registry rejects stale "
           "operation-kind authority",
-          {"route operand binding plan",
-           "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1",
-           "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"}))
+          {"route id",
+           "rvv-generic-computed-mask-standalone-reduce-min-emitc-route",
+           "rvv-generic-computed-mask-standalone-reduce-add-emitc-route"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneAddMemoryForm =
@@ -5642,8 +5744,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneAddMemoryForm,
           "computed-mask standalone reduce_add registry rejects stale memory "
           "form",
-          {"tcrv_rvv.masked_standalone_reduce",
-           "computed-mask unit-stride standalone reduction"}))
+          {"memory form"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneAddABIOrder =
@@ -5677,7 +5778,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneAddM2ScalarResult,
           "computed-mask standalone reduce_add LMUL m2 registry rejects stale "
           "scalar-result channel",
-          {"scalar-result type mapping", "vint32m2_t"}))
+          {"route type mapping", "vint32m2_t"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneAddProviderMirror =
@@ -5718,7 +5819,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneAddAccumulatorHeaderBinding,
           "computed-mask standalone reduce_add registry rejects missing "
           "accumulator header binding",
-          {"route operand binding plan",
+          {"route operand binding summary",
            "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"}))
     return false;
 
@@ -5739,7 +5840,7 @@ bool expectRVVTargetArtifactExporterShape(
           missingComputedMaskStandaloneAddSourceSplat,
           "computed-mask standalone reduce_add registry rejects missing source "
           "splat leaf",
-          {"source splat", "scalar seed"}))
+          {"source splat intrinsic"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneAddM2VectorLoad =
@@ -5794,7 +5895,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneAddProducer,
           "computed-mask standalone reduce_add registry rejects missing "
           "accumulation producer",
-          {"computed-mask accumulation producer source"}))
+          {"computed-mask accumulation mask producer source"}))
     return false;
 
   TargetArtifactCandidate staleComputedMaskStandaloneAddOperationMirror =
@@ -5930,8 +6031,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneMinTypedOp,
           "computed-mask standalone reduce_min registry rejects stale typed "
           "compute op",
-          {"tcrv_rvv.masked_standalone_reduce",
-           "computed-mask unit-stride standalone reduction"}))
+          {"typed compute op", "tcrv_rvv.masked_standalone_reduce",
+           "metadata-derived-masked-standalone-reduction"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneMinOperation =
@@ -5942,9 +6043,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStandaloneMinOperation,
           "computed-mask standalone reduce_min registry rejects stale "
           "operation-kind authority",
-          {"route operand binding plan",
-           "rvv-route-operand-binding:computed_mask_standalone_reduce_max.v1",
-           "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1"}))
+          {"route id",
+           "rvv-generic-computed-mask-standalone-reduce-max-emitc-route",
+           "rvv-generic-computed-mask-standalone-reduce-min-emitc-route"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStandaloneMinIntrinsic =
@@ -6428,6 +6529,36 @@ bool expectRVVTargetArtifactExporterShape(
           "runtime-scalar computed-mask standalone reduce_max LMUL m2 "
           "registry accepts candidate mirrors"))
     return false;
+  if (!expectStandaloneReductionValidationContract(
+          runtimeScalarStandaloneReduceAddDescription, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "runtime-scalar standalone reduce_add validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          runtimeScalarStandaloneReduceAddM2Description, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "runtime-scalar standalone reduce_add LMUL m2 validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          runtimeScalarStandaloneReduceAddI64Description, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "runtime-scalar standalone reduce_add i64 validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          runtimeScalarStandaloneReduceMinDescription, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "runtime-scalar standalone reduce_min validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          runtimeScalarStandaloneReduceMaxDescription, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "runtime-scalar standalone reduce_max validation contract"))
+    return false;
+  if (!expectStandaloneReductionValidationContract(
+          runtimeScalarStandaloneReduceMaxM2Description, /*abiCount=*/6,
+          /*typeMappingCount=*/5, /*loopBodyStepCount=*/10,
+          "runtime-scalar standalone reduce_max LMUL m2 validation contract"))
+    return false;
 
   auto expectRuntimeScalarStandaloneReduceAddProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
@@ -6605,8 +6736,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneAddTypedOp,
           "runtime-scalar computed-mask standalone reduce_add registry "
           "rejects stale typed compute op",
-          {"tcrv_rvv.masked_standalone_reduce",
-           "runtime-scalar computed-mask unit-stride standalone reduction"}))
+          {"typed compute op", "tcrv_rvv.masked_standalone_reduce",
+           "metadata-derived-masked-standalone-reduction"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneAddABIOrder =
@@ -6650,7 +6781,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneAddM2ScalarResult,
           "runtime-scalar computed-mask standalone reduce_add LMUL m2 "
           "registry rejects stale scalar-result channel",
-          {"scalar-result type mapping", "vint32m2_t"}))
+          {"route type mapping", "vint32m2_t"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneAddProviderMirror =
@@ -6692,7 +6823,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneAddAccumulatorHeaderBinding,
           "runtime-scalar computed-mask standalone reduce_add registry "
           "rejects missing accumulator header binding",
-          {"route operand binding plan",
+          {"route operand binding summary",
            "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1"}))
     return false;
 
@@ -6859,7 +6990,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneAddProducer,
           "runtime-scalar computed-mask standalone reduce_add registry "
           "rejects missing runtime scalar producer source",
-          {"runtime-scalar accumulation producer source"}))
+          {"computed-mask accumulation mask producer source"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneAddAccumulationPlan =
@@ -7187,8 +7318,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneMinTypedOp,
           "runtime-scalar computed-mask standalone reduce_min registry "
           "rejects stale typed compute op",
-          {"tcrv_rvv.masked_standalone_reduce",
-           "runtime-scalar computed-mask unit-stride standalone reduction"}))
+          {"typed compute op", "tcrv_rvv.masked_standalone_reduce",
+           "metadata-derived-masked-standalone-reduction"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneMinABIOrder =
@@ -7420,7 +7551,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneMinProducer,
           "runtime-scalar computed-mask standalone reduce_min registry "
           "rejects missing mask producer source",
-          {"runtime-scalar accumulation producer source"}))
+          {"computed-mask accumulation mask producer source"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneMinAccumulationPlan =

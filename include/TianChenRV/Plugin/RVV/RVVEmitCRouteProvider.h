@@ -678,6 +678,128 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
 llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
     RVVSelectedBodyOperationKind operation, std::int64_t sew);
 
+enum class RVVStandaloneReductionRouteValidationKind {
+  Plain,
+  ComputedMask,
+  RuntimeScalarComputedMask,
+};
+
+struct RVVStandaloneReductionRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVStandaloneReductionRouteValidationContract {
+  RVVStandaloneReductionRouteValidationKind kind =
+      RVVStandaloneReductionRouteValidationKind::Plain;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string standaloneReductionRouteFamilyPlanID;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string scalarCType;
+  std::string scalarResultVectorTypeName;
+  std::string scalarResultVectorCType;
+  std::string scalarResultRuntimeBoundary;
+  std::string standaloneReductionSourceVectorTypeName;
+  std::string standaloneReductionSourceVectorCType;
+  std::string standaloneReductionScalarCType;
+  std::string standaloneReductionScalarResultVectorTypeName;
+  std::string standaloneReductionScalarResultVectorCType;
+  std::string standaloneReductionScalarResultRuntimeBoundary;
+  std::string reductionAccumulatorLayout;
+  std::string reductionResultLayout;
+  std::string reductionStoreVL;
+
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string accumulationRouteFamilyPlanID;
+  std::string accumulationComputeSuffix;
+  std::string accumulationMaskProducerSource;
+  std::string accumulationAccumulatorContract;
+  std::string accumulationResultContract;
+  std::string accumulationScalarCarryContract;
+  std::string inactiveLaneUse;
+  std::string inactiveLaneRequirement;
+  std::string inactiveLaneZeroingRequirement;
+  std::string inactiveNeutralLiteral;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string sourceSplatIntrinsic;
+  std::string rhsBroadcastIntrinsic;
+  std::string scalarSeedSplatIntrinsic;
+  std::string reductionIntrinsic;
+  std::string intrinsic;
+  std::string storeIntrinsic;
+  std::string compareIntrinsic;
+  std::string maskedMergeIntrinsic;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  std::string resultName;
+  std::string maskName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+      runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVStandaloneReductionRouteTypeMappingContract, 5>
+      typeMappings;
+};
+
+std::optional<RVVStandaloneReductionRouteValidationContract>
+getRVVStandaloneReductionRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+struct RVVStandaloneReductionRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVStandaloneReductionRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVStandaloneReductionRouteMetadataMirrorContract, 40>
+      mirrors;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVStandaloneReductionRouteMetadataMirrorContractSet>
+getRVVStandaloneReductionRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVCompareSelectRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

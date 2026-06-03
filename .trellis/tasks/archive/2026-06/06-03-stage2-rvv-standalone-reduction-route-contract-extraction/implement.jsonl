@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 boundary, and source-of-truth constraints for provider-owned route facts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, standalone reduction scalar-channel boundary, inactive-neutral provider ownership, and selected-body route-family rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract and RVV route-family fact surface requirements for provider-owned validation consumed by target artifacts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-widening-dot-reduce-route-contract-extraction/prd.md", "reason": "Immediate prior provider-owned route validation contract pattern to mirror for standalone reduction."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-standalone-reduction-production-validation-boundary/prd.md", "reason": "Existing standalone reduction canonical facts surface and target validation boundary context."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-standalone-reduction-route-fact-canonicalization/prd.md", "reason": "Runtime-scalar computed-mask standalone reduction facts and inactive-neutral canonicalization context."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary/prd.md", "reason": "Standalone reduction selected-body realization boundary and realized route fact prerequisites."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added provider-owned standalone reduction route validation contract and metadata mirror contract API declarations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implemented standalone reduction validation contract and mirror contract builders from RVV provider-owned facts plus rebuilt route descriptions."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Rewired standalone reduction target provider-fact and candidate-mirror validation to consume provider contracts, and removed obsolete target-local standalone payload/mirror truth helpers."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added positive contract construction checks and updated fail-closed stale field expectations for standalone reduction provider contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Documented the standalone reduction route validation and metadata mirror contract as a durable code-spec."}

@@ -1984,6 +1984,436 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVStandaloneReductionMaskedInactiveLaneNeutralRequirement(
         "masked-standalone-reduction-neutral-inactive-lanes-before-reduction");
+
+static void appendRVVStandaloneReductionValidationHeaders(
+    RVVStandaloneReductionRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRVVStandaloneReductionValidationTypeMapping(
+    RVVStandaloneReductionRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static RVVStandaloneReductionRouteValidationKind
+getRVVStandaloneReductionValidationKind(
+    RVVSelectedBodyOperationKind operation) {
+  if (isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFactsOperation(
+          operation))
+    return RVVStandaloneReductionRouteValidationKind::
+        RuntimeScalarComputedMask;
+  if (isRVVVectorComputedMaskStandaloneReductionRouteFactsOperation(operation))
+    return RVVStandaloneReductionRouteValidationKind::ComputedMask;
+  return RVVStandaloneReductionRouteValidationKind::Plain;
+}
+
+static llvm::StringRef getRVVStandaloneReductionValidationConsumerLabel(
+    RVVSelectedBodyOperationKind operation) {
+  if (isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFactsOperation(
+          operation))
+    return "runtime-scalar computed-mask standalone reduction target artifact "
+           "consumer";
+  if (isRVVVectorComputedMaskStandaloneReductionRouteFactsOperation(operation))
+    return "computed-mask standalone reduction target artifact consumer";
+  return "plain standalone reduction target artifact consumer";
+}
+
+static void populateRVVStandaloneReductionValidationContract(
+    RVVStandaloneReductionRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVStandaloneReductionRouteFacts &facts) {
+  const bool isComputedMask =
+      isRVVVectorComputedMaskStandaloneReductionRouteFactsOperation(
+          facts.operation) ||
+      isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFactsOperation(
+          facts.operation);
+
+  contract.kind = getRVVStandaloneReductionValidationKind(facts.operation);
+  contract.operation = facts.operation;
+  contract.consumerLabel =
+      getRVVStandaloneReductionValidationConsumerLabel(facts.operation);
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  contract.memoryForm = facts.memoryForm;
+  contract.elementTypeName = description.elementTypeName.str();
+  contract.sew = description.sew;
+  contract.lmul = description.lmul.str();
+  contract.tailPolicy = description.tailPolicy.str();
+  contract.maskPolicy = description.maskPolicy.str();
+  contract.runtimeControlPlanID = description.runtimeControlPlanID.str();
+  contract.runtimeABIOrder = facts.runtimeABIOrder.str();
+  contract.targetLeafProfile = facts.targetLeafProfile.str();
+  contract.providerSupportedMirror = facts.providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      facts.requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = facts.cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      facts.routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = facts.routeOperandBindingSummary;
+  contract.typedComputeOpName = facts.typedComputeOpName.str();
+
+  contract.standaloneReductionRouteFamilyPlanID =
+      kRVVStandaloneReductionRouteFamilyPlanID.str();
+  contract.sourceVectorTypeName =
+      description.standaloneReductionSourceVectorTypeName.str();
+  contract.sourceVectorCType =
+      description.standaloneReductionSourceVectorCType.str();
+  contract.scalarCType = description.standaloneReductionScalarCType.str();
+  contract.scalarResultVectorTypeName =
+      description.standaloneReductionScalarResultVectorTypeName.str();
+  contract.scalarResultVectorCType =
+      description.standaloneReductionScalarResultVectorCType.str();
+  contract.scalarResultRuntimeBoundary =
+      facts.scalarResultRuntimeBoundary.str();
+  contract.standaloneReductionSourceVectorTypeName =
+      contract.sourceVectorTypeName;
+  contract.standaloneReductionSourceVectorCType = contract.sourceVectorCType;
+  contract.standaloneReductionScalarCType = contract.scalarCType;
+  contract.standaloneReductionScalarResultVectorTypeName =
+      contract.scalarResultVectorTypeName;
+  contract.standaloneReductionScalarResultVectorCType =
+      contract.scalarResultVectorCType;
+  contract.standaloneReductionScalarResultRuntimeBoundary =
+      contract.scalarResultRuntimeBoundary;
+  contract.reductionAccumulatorLayout =
+      facts.reductionAccumulatorLayout.str();
+  contract.reductionResultLayout = facts.reductionResultLayout.str();
+  contract.reductionStoreVL = facts.reductionStoreVL.str();
+
+  contract.comparePredicateKind = facts.comparePredicateKind.str();
+  contract.maskRole = facts.maskRole.str();
+  contract.maskSource = facts.maskSource.str();
+  contract.maskMemoryForm = facts.maskMemoryForm.str();
+  contract.accumulationRouteFamilyPlanID =
+      facts.accumulationRouteFamilyPlanID.str();
+  contract.accumulationComputeSuffix = facts.accumulationComputeSuffix.str();
+  contract.accumulationMaskProducerSource =
+      facts.accumulationMaskProducerSource.str();
+  contract.accumulationAccumulatorContract =
+      facts.accumulationAccumulatorContract.str();
+  contract.accumulationResultContract =
+      facts.accumulationResultContract.str();
+  contract.accumulationScalarCarryContract =
+      facts.accumulationScalarCarryContract.str();
+  contract.inactiveLaneUse = facts.inactiveLaneUse.str();
+  contract.inactiveLaneRequirement = facts.inactiveLaneRequirement.str();
+  contract.inactiveLaneZeroingRequirement =
+      contract.inactiveLaneRequirement;
+  contract.inactiveNeutralLiteral =
+      description.sew == 64 ? facts.inactiveNeutralLiteralSEW64.str()
+                            : facts.inactiveNeutralLiteralSEW32.str();
+
+  contract.vlCType = description.vlCType.str();
+  contract.vectorTypeName = description.vectorTypeName.str();
+  contract.vectorCType = description.vectorCType.str();
+  contract.maskTypeName = description.maskTypeName.str();
+  contract.maskCType = description.maskCType.str();
+  contract.setVLIntrinsic = description.setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = description.vectorLoadIntrinsic.str();
+  contract.sourceSplatIntrinsic = description.sourceSplatIntrinsic.str();
+  contract.rhsBroadcastIntrinsic = description.rhsBroadcastIntrinsic.str();
+  contract.scalarSeedSplatIntrinsic =
+      description.scalarSeedSplatIntrinsic.str();
+  contract.reductionIntrinsic = description.intrinsic.str();
+  contract.intrinsic = description.intrinsic.str();
+  contract.storeIntrinsic = description.storeIntrinsic.str();
+  contract.compareIntrinsic = description.compareIntrinsic.str();
+  contract.maskedMergeIntrinsic = description.maskedMergeIntrinsic.str();
+
+  contract.emitCFullChunkVLName = description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.resultName = description.resultName.str();
+  contract.maskName = description.maskName.str();
+  contract.expectedPreLoopStepCount = 3;
+  contract.expectedLoopBodyStepCount = isComputedMask ? 10 : 5;
+  contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
+                                       facts.runtimeABIParameters.end());
+
+  appendRVVStandaloneReductionValidationHeaders(
+      contract, facts.requiredHeaderDeclarations);
+  appendRVVStandaloneReductionValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", description.vlCType,
+      "selected typed RVV standalone reduction VL type");
+  appendRVVStandaloneReductionValidationTypeMapping(
+      contract, description.vectorTypeName, description.vectorCType,
+      "selected typed RVV standalone reduction vector type");
+  appendRVVStandaloneReductionValidationTypeMapping(
+      contract, description.standaloneReductionSourceVectorTypeName,
+      description.standaloneReductionSourceVectorCType,
+      "selected typed RVV standalone reduction source vector type");
+  appendRVVStandaloneReductionValidationTypeMapping(
+      contract, description.standaloneReductionScalarResultVectorTypeName,
+      description.standaloneReductionScalarResultVectorCType,
+      "selected typed RVV standalone reduction scalar-result vector type");
+  if (isComputedMask)
+    appendRVVStandaloneReductionValidationTypeMapping(
+        contract, description.maskTypeName, description.maskCType,
+        "selected typed RVV computed-mask standalone reduction mask type");
+}
+
+static std::optional<RVVStandaloneReductionRouteValidationContract>
+buildRVVStandaloneReductionRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVStandaloneReductionRouteFacts> routeFacts =
+      getRVVStandaloneReductionRouteFacts(description.operation,
+                                          description.sew);
+  if (!routeFacts)
+    return std::nullopt;
+
+  RVVStandaloneReductionRouteValidationContract contract;
+  populateRVVStandaloneReductionValidationContract(contract, description,
+                                                  *routeFacts);
+  return contract;
+}
+
+static void appendRVVStandaloneReductionMetadataMirror(
+    RVVStandaloneReductionRouteMetadataMirrorContractSet &contract,
+    llvm::StringRef key, llvm::StringRef expected,
+    llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
+static void appendRVVStandaloneReductionStaleMetadataMirrors(
+    RVVStandaloneReductionRouteMetadataMirrorContractSet &contract,
+    llvm::ArrayRef<llvm::StringLiteral> keys, llvm::StringRef label) {
+  for (llvm::StringRef key : keys)
+    contract.staleMirrorKeys.push_back(key);
+  contract.staleMirrorLabel = label;
+}
+
+static std::optional<RVVStandaloneReductionRouteMetadataMirrorContractSet>
+buildRVVStandaloneReductionRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVStandaloneReductionRouteValidationContract> validation =
+      buildRVVStandaloneReductionRouteValidationContract(description);
+  if (!validation)
+    return std::nullopt;
+
+  const RVVStandaloneReductionRouteValidationContract &facts = *validation;
+  const bool isComputedMask =
+      facts.kind ==
+          RVVStandaloneReductionRouteValidationKind::ComputedMask ||
+      facts.kind == RVVStandaloneReductionRouteValidationKind::
+                        RuntimeScalarComputedMask;
+
+  RVVStandaloneReductionRouteMetadataMirrorContractSet contract;
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "rvv_selected_body_operation",
+      stringifyRVVSelectedBodyOperationKind(description.operation),
+      "selected typed RVV standalone reduction operation kind");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "rvv_selected_body_typed_compute_op",
+      facts.typedComputeOpName,
+      "selected typed RVV standalone reduction typed compute op");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan",
+      facts.routeOperandBindingPlanID,
+      "selected typed RVV standalone reduction binding plan");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands",
+      facts.routeOperandBindingSummary,
+      "selected typed RVV standalone reduction binding summary");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror",
+      facts.providerSupportedMirror,
+      "selected typed RVV standalone reduction provider support");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_route_family_plan",
+      facts.standaloneReductionRouteFamilyPlanID,
+      "selected typed RVV standalone reduction route-family plan");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_source_vector_type",
+      facts.sourceVectorTypeName,
+      "selected typed RVV standalone reduction source vector type");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_source_vector_c_type",
+      facts.sourceVectorCType,
+      "selected typed RVV standalone reduction source vector C type");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_scalar_c_type",
+      facts.scalarCType,
+      "selected typed RVV standalone reduction scalar C type");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_scalar_result_vector_type",
+      facts.scalarResultVectorTypeName,
+      "selected typed RVV standalone reduction scalar-result vector type");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
+      facts.scalarResultVectorCType,
+      "selected typed RVV standalone reduction scalar-result vector C type");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+      facts.scalarResultRuntimeBoundary,
+      "selected typed RVV standalone reduction scalar result boundary");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(facts.memoryForm),
+      "selected typed RVV standalone reduction memory form");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      facts.runtimeControlPlanID,
+      "selected typed RVV standalone reduction runtime AVL/VL control plan");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
+      "selected typed RVV standalone reduction runtime ABI order");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations",
+      facts.requiredHeaderDeclarations,
+      "selected typed RVV standalone reduction route header requirements");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping", facts.cTypeMappingSummary,
+      "selected typed RVV standalone reduction route type mapping summary");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.reduction_accumulator_layout",
+      facts.reductionAccumulatorLayout,
+      "selected typed RVV standalone reduction accumulator layout");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.reduction_result_layout",
+      facts.reductionResultLayout,
+      "selected typed RVV standalone reduction result layout");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.reduction_store_vl",
+      facts.reductionStoreVL,
+      "selected typed RVV standalone reduction store VL");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.vector_load_intrinsic",
+      facts.vectorLoadIntrinsic,
+      "selected typed RVV standalone reduction vector load leaf");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.source_splat_intrinsic",
+      facts.sourceSplatIntrinsic,
+      "selected typed RVV standalone reduction source splat leaf");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.scalar_seed_splat_intrinsic",
+      facts.scalarSeedSplatIntrinsic,
+      "selected typed RVV standalone reduction scalar seed splat leaf");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.reduction_intrinsic", facts.reductionIntrinsic,
+      "selected typed RVV standalone reduction intrinsic leaf");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.scalar_result_store_intrinsic",
+      facts.storeIntrinsic,
+      "selected typed RVV standalone reduction scalar-result store leaf");
+
+  if (isComputedMask) {
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.accumulation_route_family_plan",
+        facts.accumulationRouteFamilyPlanID,
+        "selected typed RVV computed-mask standalone accumulation route-family "
+        "plan");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.accumulation_compute_suffix",
+        facts.accumulationComputeSuffix,
+        "selected typed RVV computed-mask standalone accumulation compute "
+        "suffix");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.accumulation_mask_producer_source",
+        facts.accumulationMaskProducerSource,
+        "selected typed RVV computed-mask standalone accumulation mask "
+        "producer");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.accumulation_accumulator_contract",
+        facts.accumulationAccumulatorContract,
+        "selected typed RVV computed-mask standalone accumulation accumulator "
+        "contract");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.accumulation_result_contract",
+        facts.accumulationResultContract,
+        "selected typed RVV computed-mask standalone accumulation result "
+        "contract");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.accumulation_scalar_carry_contract",
+        facts.accumulationScalarCarryContract,
+        "selected typed RVV computed-mask standalone accumulation scalar carry "
+        "contract");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.mask_role", facts.maskRole,
+        "selected typed RVV computed-mask standalone reduction mask role");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.mask_source", facts.maskSource,
+        "selected typed RVV computed-mask standalone reduction mask source");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.mask_memory_form", facts.maskMemoryForm,
+        "selected typed RVV computed-mask standalone reduction mask memory "
+        "form");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.inactive_lane_zeroing_requirement",
+        facts.inactiveLaneRequirement,
+        "selected typed RVV computed-mask standalone reduction inactive lane "
+        "neutral requirement");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.compare_predicate_kind",
+        facts.comparePredicateKind,
+        "selected typed RVV computed-mask standalone reduction compare "
+        "predicate");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.compare_intrinsic", facts.compareIntrinsic,
+        "selected typed RVV computed-mask standalone reduction compare leaf");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.masked_merge_intrinsic",
+        facts.maskedMergeIntrinsic,
+        "selected typed RVV computed-mask standalone reduction merge leaf");
+    appendRVVStandaloneReductionMetadataMirror(
+        contract, "tcrv_rvv.rhs_broadcast_intrinsic",
+        facts.kind == RVVStandaloneReductionRouteValidationKind::
+                          RuntimeScalarComputedMask
+            ? llvm::StringRef(facts.rhsBroadcastIntrinsic)
+            : llvm::StringRef(),
+        "selected typed RVV runtime-scalar computed-mask standalone reduction "
+        "RHS broadcast leaf");
+  } else {
+    constexpr llvm::StringLiteral staleComputedMaskMirrors[] = {
+        "tcrv_rvv.accumulation_route_family_plan",
+        "tcrv_rvv.accumulation_compute_suffix",
+        "tcrv_rvv.accumulation_mask_producer_source",
+        "tcrv_rvv.accumulation_accumulator_contract",
+        "tcrv_rvv.accumulation_result_contract",
+        "tcrv_rvv.accumulation_scalar_carry_contract",
+        "tcrv_rvv.mask_role",
+        "tcrv_rvv.mask_source",
+        "tcrv_rvv.mask_memory_form",
+        "tcrv_rvv.inactive_lane_zeroing_requirement",
+        "tcrv_rvv.compare_predicate_kind",
+        "tcrv_rvv.compare_intrinsic",
+        "tcrv_rvv.masked_merge_intrinsic",
+        "tcrv_rvv.rhs_broadcast_intrinsic"};
+    for (llvm::StringRef key : staleComputedMaskMirrors)
+      appendRVVStandaloneReductionMetadataMirror(
+          contract, key, "",
+          "selected typed RVV computed-mask standalone reduction mirror");
+  }
+
+  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.widening_macc_relation",
+      "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_dot_reduction_store_vl"};
+  appendRVVStandaloneReductionStaleMetadataMirrors(
+      contract, staleRouteFamilyMirrors,
+      "selected typed RVV non-standalone route-family mirror");
+
+  return contract;
+}
+
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreTargetLeafProfile(
     "rvv-v1-typed-runtime-scalar-splat-store-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreProviderSupportedMirror(
@@ -18694,6 +19124,18 @@ llvm::Error verifySelectedRVVRoleSequence(
 }
 
 } // namespace
+
+std::optional<RVVStandaloneReductionRouteValidationContract>
+getRVVStandaloneReductionRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVStandaloneReductionRouteValidationContract(description);
+}
+
+std::optional<RVVStandaloneReductionRouteMetadataMirrorContractSet>
+getRVVStandaloneReductionRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVStandaloneReductionRouteMetadataMirrorContract(description);
+}
 
 std::optional<RVVWideningConversionRouteFacts>
 getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {

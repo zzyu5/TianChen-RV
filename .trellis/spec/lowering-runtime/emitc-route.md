@@ -1152,6 +1152,301 @@ selected typed tcrv_rvv widening dot-reduce body
   -> candidate metadata mirrors are checked separately as mirrors only
 ```
 
+### Standalone Reduction Route Validation Contract
+
+#### 1. Scope / Trigger
+
+When a selected RVV standalone reduction route is rebuilt as a
+`TCRVEmitCLowerableRoute`, target artifact validation must consume a
+provider-owned route validation contract for executable route payload facts.
+This contract is separate from candidate metadata mirrors and applies to the
+existing standalone reduction route families:
+
+```text
+standalone_reduce_{add,min,max}
+computed_mask_standalone_reduce_{add,min,max}
+runtime_scalar_computed_mask_standalone_reduce_{add,min,max}
+```
+
+The trigger is any target validator that checks standalone reduction route
+payload, header/type/intrinsic/profile, runtime ABI mapping, source/vector/
+scalar-result layout, reduction kind, mask/tail policy, inactive-lane neutral
+policy, passthrough or initial scalar-result policy, computed-mask producer
+facts, runtime-scalar RHS facts, or statement-plan shape. Those checks must not
+reconstruct standalone reduction truth from target-local constants, route
+names, artifact metadata, fixture names, descriptors, C strings, scripts, or
+intrinsic spellings.
+
+#### 2. Signatures
+
+The provider-owned API shape is:
+
+```c++
+enum class RVVStandaloneReductionRouteValidationKind {
+  Plain,
+  ComputedMask,
+  RuntimeScalarComputedMask,
+};
+
+struct RVVStandaloneReductionRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVStandaloneReductionRouteValidationContract {
+  RVVStandaloneReductionRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string standaloneReductionRouteFamilyPlanID;
+  std::string standaloneReductionSourceVectorTypeName;
+  std::string standaloneReductionSourceVectorCType;
+  std::string standaloneReductionScalarCType;
+  std::string standaloneReductionScalarResultVectorTypeName;
+  std::string standaloneReductionScalarResultVectorCType;
+  std::string standaloneReductionScalarResultRuntimeBoundary;
+  std::string reductionAccumulatorLayout;
+  std::string reductionResultLayout;
+  std::string reductionStoreVL;
+
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string accumulationRouteFamilyPlanID;
+  std::string accumulationComputeSuffix;
+  std::string accumulationMaskProducerSource;
+  std::string accumulationAccumulatorContract;
+  std::string accumulationResultContract;
+  std::string accumulationScalarCarryContract;
+  std::string inactiveLaneUse;
+  std::string inactiveLaneRequirement;
+  std::string inactiveLaneZeroingRequirement;
+  std::string inactiveNeutralLiteral;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string sourceSplatIntrinsic;
+  std::string rhsBroadcastIntrinsic;
+  std::string scalarSeedSplatIntrinsic;
+  std::string reductionIntrinsic;
+  std::string intrinsic;
+  std::string storeIntrinsic;
+  std::string compareIntrinsic;
+  std::string maskedMergeIntrinsic;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  std::string resultName;
+  std::string maskName;
+
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  llvm::SmallVector<RuntimeABIParameter, 6> runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVStandaloneReductionRouteTypeMappingContract, 5>
+      typeMappings;
+};
+
+std::optional<RVVStandaloneReductionRouteValidationContract>
+getRVVStandaloneReductionRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+struct RVVStandaloneReductionRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVStandaloneReductionRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVStandaloneReductionRouteMetadataMirrorContract, 40>
+      mirrors;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVStandaloneReductionRouteMetadataMirrorContractSet>
+getRVVStandaloneReductionRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+The validation contract must be built in the RVV provider layer from
+`RVVStandaloneReductionRouteFacts` plus the rebuilt provider route
+description. The metadata mirror contract must be built from the same provider
+facts and route description, but it remains a mirror-only candidate validation
+surface.
+
+#### 3. Contracts
+
+- The RVV provider builds the route validation contract from provider-owned
+  standalone reduction facts plus dynamic route-description payload names,
+  selected operation, selected SEW/LMUL/policy, and runtime ABI parameters.
+- The target validator consumes the contract to compare the rebuilt route,
+  rebuilt provider description, ABI mappings, type mappings, and statement-plan
+  shape. It must not keep duplicate standalone reduction expected-fact accessors
+  or local fallback constants for fields represented in the contract.
+- The contract must include common route facts: route token, memory form,
+  element type, SEW, LMUL, tail/mask policy, runtime-control plan, runtime ABI
+  order, target leaf profile, provider-supported mirror, required headers, C
+  type summary, operand-binding plan/summary, typed compute op, runtime ABI
+  parameters, and EmitC setvl/loop names.
+- The contract must include standalone reduction facts: route-family plan,
+  source vector type/C type, scalar type, scalar-result vector type/C type,
+  scalar-result runtime boundary, accumulator/result layout, reduction store
+  VL, load/splat/reduction/store intrinsics, result name, and pre-loop/loop
+  statement counts.
+- Computed-mask contracts must include compare predicate, mask role/source/
+  memory form, mask type/C type, compare and merge intrinsics, inactive-lane
+  requirement, inactive neutral literal, accumulation route-family plan,
+  accumulation compute suffix, mask producer source, accumulator/result/scalar
+  carry contracts, and ten loop-body statements.
+- Runtime-scalar computed-mask contracts must include the same computed-mask
+  facts plus provider-derived RHS scalar broadcast intrinsic and runtime ABI
+  role/order for `cmp_lhs,rhs_scalar,src,acc,out,n`.
+- Plain contracts must reject computed-mask and runtime-scalar residue fields
+  as stale facts; computed-mask contracts must reject cross-family MAcc,
+  widening dot, memory, compare/select, segment2, conversion, and contraction
+  residue fields.
+- Candidate metadata mirrors must use
+  `getRVVStandaloneReductionRouteMetadataMirrorContract(description)`. They may
+  mirror provider-derived contract fields, but they cannot prove rebuilt route
+  payload, ABI mappings, type mappings, or statement wiring.
+- Common EmitC/export may carry the provider-built route and metadata mirrors,
+  but must not choose standalone reduction semantics, reduction kind, ABI roles,
+  mask/tail behavior, inactive-lane policy, scalar-result layout, or statement
+  shape.
+
+#### 4. Validation & Error Matrix
+
+- Missing validation contract for an accepted standalone reduction route ->
+  fail before target artifact provider-fact validation.
+- Rebuilt route token differs from the provider contract -> fail before target
+  artifact acceptance.
+- Description memory form, typed compute op, SEW/LMUL, tail/mask policy,
+  runtime-control plan, runtime ABI order, target leaf profile,
+  provider-supported mirror, header/type summary, operand-binding plan/summary,
+  route-family plan, scalar-result boundary, layout, reduction store VL, or
+  intrinsic field differs from the contract -> fail before target artifact
+  acceptance.
+- Runtime ABI parameter count, order, role, C name, or C type differs from the
+  contract -> fail before target artifact acceptance with a diagnostic naming
+  the parameter index and provider-owned parameter.
+- Route headers or type mappings are missing from the rebuilt route -> fail
+  before target artifact acceptance.
+- Route ABI mappings do not mirror the provider-owned runtime ABI parameters
+  and value names -> fail before target artifact acceptance.
+- Plain standalone reduction carries computed-mask fields, mask type mapping,
+  compare/merge intrinsics, RHS broadcast, accumulation facts, or inactive-lane
+  facts -> fail as stale computed-mask residue.
+- Computed-mask standalone reduction is missing mask role/source/form, compare
+  predicate, compare/merge intrinsics, source splat, inactive neutral literal,
+  accumulation route-family plan, mask producer source, or accumulation
+  accumulator/result/scalar-carry contract -> fail before target artifact
+  acceptance.
+- Runtime-scalar computed-mask standalone reduction is missing RHS scalar
+  broadcast intrinsic, runtime-scalar ABI role/order, or runtime-scalar mask
+  producer facts -> fail before target artifact acceptance.
+- Candidate metadata is missing a provider mirror, carries a stale mirror from
+  another route family, or mirrors a stale standalone reduction contract field
+  -> fail before artifact acceptance.
+- Statement-plan pre-loop or loop-body step count differs from the contract,
+  or required setvl/load/splat/compare/merge/reduction/store steps are missing
+  or miswired -> fail before target artifact acceptance.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `standalone_reduce_add` consumes the plain contract for `lhs,acc,out,n`
+  ABI order, unit-stride standalone reduction memory form, scalar seed splat,
+  scalar-result store, reduction intrinsic, and five loop-body statements.
+- Good: `standalone_reduce_min` and `standalone_reduce_max` use provider facts
+  for reduction kind and inactive/initial scalar-result policy instead of target
+  validators branching on route names or intrinsic strings.
+- Good: `computed_mask_standalone_reduce_add` consumes the computed-mask
+  contract for `cmp_lhs,cmp_rhs,src,acc,out,n`, mask role/source/form, compare
+  predicate, inactive neutral literal, merge, reduction, scalar-result store,
+  and ten loop-body statements.
+- Good: `runtime_scalar_computed_mask_standalone_reduce_max` consumes the
+  runtime-scalar computed-mask contract for `rhs_scalar` ABI binding and RHS
+  scalar splat without target-local runtime-scalar special cases.
+- Base: candidate metadata mirror validation remains a second consumer of the
+  provider metadata mirror contract; it does not replace route payload
+  validation.
+- Bad: target validation accepts a route because candidate metadata mirrors
+  `provider_supported_mirror` while rebuilt route headers, type mappings, ABI
+  mappings, or statement plan disagree with the provider validation contract.
+- Bad: target validation uses route token, artifact name, test name,
+  descriptor residue, C string, or intrinsic spelling to decide which
+  standalone reduction facts should apply.
+
+#### 6. Tests Required
+
+- C++ provider/interface tests must cover representative positive validation
+  contracts for plain, computed-mask, and runtime-scalar computed-mask
+  standalone reductions, including ABI count, type mappings, required headers,
+  metadata mirror count, and statement-plan counts.
+- C++ target artifact tests must mutate provider descriptions for stale route
+  payload facts: memory form, typed compute op, reduction kind, runtime ABI
+  order/parameters, operand-binding plan/summary, target leaf profile,
+  provider-supported mirror, header/type summary, scalar-result vector type,
+  accumulator/result layout, mask producer source, inactive-lane policy, RHS
+  scalar broadcast, and cross-family residue fields.
+- C++ target artifact tests must mutate rebuilt route payloads where practical:
+  route token, headers, type mappings, ABI mappings, statement counts, and
+  statement operand wiring.
+- Focused lit/FileCheck or generated-bundle dry-run tests must continue to
+  expose representative standalone reduction route families.
+- Runtime `ssh rvv` is required only when route emission, generated C/C++,
+  runtime ABI order, standalone reduction computation, scalar-result layout,
+  mask/tail behavior, inactive-lane behavior, correctness, or performance
+  claims change.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  operation name looks like runtime_scalar_computed_mask_standalone_reduce_min
+  -> local target constants choose ABI order, mask producer, neutral literal,
+     scalar-result layout, and statements
+  -> candidate metadata mirror says supported
+  -> artifact accepted
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv standalone reduction body
+  -> RVV provider facts and route description
+  -> getRVVStandaloneReductionRouteValidationContract(description)
+  -> target validator consumes contract for rebuilt route payload
+  -> getRVVStandaloneReductionRouteMetadataMirrorContract(description)
+  -> candidate metadata mirrors are checked separately as mirrors only
+```
+
 ### Computed-Mask Strided Memory Fact Surface
 
 For `computed_masked_strided_store` and

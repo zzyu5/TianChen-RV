@@ -124,6 +124,41 @@ llvm::Error validateRVVProviderMAccRouteMetadataMirrorContract(
       candidate, contract.staleMirrorKeys, contract.staleMirrorLabel);
 }
 
+llvm::Error validateRVVStandaloneReductionRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<
+        plugin::rvv::RVVStandaloneReductionRouteMetadataMirrorContract>
+        mirrors) {
+  for (const plugin::rvv::RVVStandaloneReductionRouteMetadataMirrorContract
+           &mirror : mirrors)
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, mirror.key, mirror.expected, mirror.label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVStandaloneReductionRouteEmptyMetadataMirrors(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<llvm::StringRef> staleMirrorKeys, llvm::StringRef label) {
+  for (llvm::StringRef key : staleMirrorKeys)
+    if (llvm::Error error =
+            requireCandidateMetadataMirror(candidate, key, "", label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVProviderStandaloneReductionRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVStandaloneReductionRouteMetadataMirrorContractSet
+        &contract) {
+  if (llvm::Error error =
+          validateRVVStandaloneReductionRouteMetadataMirrorContract(
+              candidate, contract.mirrors))
+    return error;
+  return validateRVVStandaloneReductionRouteEmptyMetadataMirrors(
+      candidate, contract.staleMirrorKeys, contract.staleMirrorLabel);
+}
+
 llvm::Error requireRVVProviderDerivedField(llvm::StringRef consumerLabel,
                                            llvm::StringRef fieldLabel,
                                            llvm::StringRef value) {
@@ -147,16 +182,6 @@ llvm::Error requireRVVProviderCanonicalField(llvm::StringRef consumerLabel,
                                  " requires provider-derived " + fieldLabel +
                                  " '" + expected + "' but was '" + actual +
                                  "'");
-}
-
-llvm::Error requireRVVProviderDerivedCount(llvm::StringRef consumerLabel,
-                                           llvm::StringRef fieldLabel,
-                                           std::int64_t value) {
-  if (value != 0)
-    return llvm::Error::success();
-  return makeRVVTargetRouteError(llvm::Twine(consumerLabel) +
-                                 " requires provider-derived " + fieldLabel +
-                                 " before artifact export");
 }
 
 bool isRVVWideningDotReductionRouteFamilyOperation(
@@ -4482,40 +4507,66 @@ bool isRVVStandaloneReductionAccumulationTargetArtifactRouteFamilyConsumer(
       description.operation);
 }
 
+std::optional<plugin::rvv::RVVStandaloneReductionRouteValidationContract>
+getRVVStandaloneReductionTargetRouteValidationContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return plugin::rvv::getRVVStandaloneReductionRouteValidationContract(
+      description);
+}
+
+llvm::Error requireRVVStandaloneReductionContractStringField(
+    llvm::StringRef consumerLabel, llvm::StringRef fieldLabel,
+    llvm::StringRef actual, llvm::StringRef expected) {
+  return requireRVVProviderCanonicalField(consumerLabel, fieldLabel, actual,
+                                          expected);
+}
+
+llvm::Error requireRVVStandaloneReductionContractIntField(
+    llvm::StringRef consumerLabel, llvm::StringRef fieldLabel,
+    std::int64_t actual, std::int64_t expected) {
+  if (actual == expected && actual != 0)
+    return llvm::Error::success();
+  return makeRVVTargetRouteError(
+      llvm::Twine(consumerLabel) + " requires provider-derived " +
+      fieldLabel + " " + llvm::Twine(expected) + " but was " +
+      llvm::Twine(actual));
+}
+
+llvm::Error requireRVVStandaloneReductionEmptyResidue(
+    llvm::StringRef consumerLabel, llvm::StringRef fieldLabel,
+    llvm::StringRef actual) {
+  if (actual.empty())
+    return llvm::Error::success();
+  return makeRVVTargetRouteError(llvm::Twine(consumerLabel) +
+                                 " rejects stale " + fieldLabel);
+}
+
 llvm::Error validateRVVStandaloneReductionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef consumerLabel) {
-  std::optional<plugin::rvv::RVVStandaloneReductionRouteFacts> routeFacts =
-      plugin::rvv::getRVVStandaloneReductionRouteFacts(description.operation,
-                                                       description.sew);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
-        " requires provider-owned standalone reduction add/min/max canonical "
-        "route facts before artifact export");
-  if (description.runtimeABIOrder != routeFacts->runtimeABIOrder)
-    return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
-        " requires provider-derived runtime ABI order '" +
-        routeFacts->runtimeABIOrder + "' but was '" +
-        description.runtimeABIOrder + "'");
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &contract) {
+  if (llvm::Error error =
+          requireRVVStandaloneReductionContractStringField(
+              contract.consumerLabel, "runtime ABI order",
+              description.runtimeABIOrder, contract.runtimeABIOrder))
+    return error;
   if (description.runtimeABIParameters.size() !=
-      routeFacts->runtimeABIParameters.size())
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
+        llvm::Twine(contract.consumerLabel) +
         " requires provider-derived runtime ABI parameter count " +
-        llvm::Twine(routeFacts->runtimeABIParameters.size()) +
+        llvm::Twine(contract.runtimeABIParameters.size()) +
         " before artifact export");
 
-  for (size_t index = 0; index < routeFacts->runtimeABIParameters.size();
+  for (size_t index = 0; index < contract.runtimeABIParameters.size();
        ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
     const support::RuntimeABIParameter &expected =
-        routeFacts->runtimeABIParameters[index];
+        contract.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
-          llvm::Twine(consumerLabel) +
+          llvm::Twine(contract.consumerLabel) +
           " requires provider-derived runtime ABI parameter " +
           std::to_string(index) + " to bind " + expected.cName + " as " +
           support::stringifyRuntimeABIParameterRole(expected.role) +
@@ -4524,196 +4575,29 @@ llvm::Error validateRVVStandaloneReductionRuntimeABIFacts(
   return llvm::Error::success();
 }
 
-llvm::Error validateRVVPlainStandaloneReductionRoutePayloadFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (!isRVVPlainStandaloneReductionRouteFamilyOperation(
-          description.operation))
-    return llvm::Error::success();
-
-  constexpr llvm::StringLiteral consumerLabel(
-      "plain standalone reduction target artifact consumer");
-  std::optional<plugin::rvv::RVVStandaloneReductionRouteFacts> routeFacts =
-      plugin::rvv::getRVVStandaloneReductionRouteFacts(description.operation,
-                                                       description.sew);
-  if (!routeFacts)
+llvm::Error validateRVVStandaloneReductionDescriptionAgainstContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &contract) {
+  const llvm::StringRef consumerLabel = contract.consumerLabel;
+  if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
-        " requires provider-owned standalone reduction canonical route facts "
-        "before artifact export");
-  if (description.typedComputeOpName != routeFacts->typedComputeOpName ||
-      description.memoryForm != routeFacts->memoryForm)
-    return makeRVVTargetRouteError(
-        "plain standalone reduction target artifact consumer requires a "
-        "selected tcrv_rvv.standalone_reduce body with unit-stride standalone "
-        "reduction memory form");
+        " requires selected typed RVV memory form '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(contract.memoryForm) +
+        "' but was '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "typed compute op", description.typedComputeOpName,
+          contract.typedComputeOpName))
+    return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "element type", description.elementTypeName))
     return error;
-  if (llvm::Error error = requireRVVProviderDerivedCount(
-          consumerLabel, "SEW", description.sew))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "LMUL", description.lmul))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "vector type", description.vectorTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "vector C type", description.vectorCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction source vector type",
-          description.standaloneReductionSourceVectorTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction source vector C type",
-          description.standaloneReductionSourceVectorCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction scalar C type",
-          description.standaloneReductionScalarCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction scalar-result vector type",
-          description.standaloneReductionScalarResultVectorTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction scalar-result vector C type",
-          description.standaloneReductionScalarResultVectorCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror,
-          routeFacts->providerSupportedMirror))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "target leaf profile", description.targetLeafProfile))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "target leaf profile", description.targetLeafProfile,
-          routeFacts->targetLeafProfile))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction route-family plan",
-          description.standaloneReductionRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar-result runtime boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "scalar-result runtime boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary,
-          routeFacts->scalarResultRuntimeBoundary))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "required header declarations",
-          description.requiredHeaderDeclarations))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "required header declarations",
-          description.requiredHeaderDeclarations,
-          routeFacts->requiredHeaderDeclarations))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "C type mapping summary",
-          description.cTypeMappingSummary))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "C type mapping summary",
-          description.cTypeMappingSummary, routeFacts->cTypeMappingSummary))
-    return error;
-
-  if (description.routeOperandBindingPlanID !=
-          routeFacts->routeOperandBindingPlanID ||
-      description.routeOperandBindingSummary !=
-          routeFacts->routeOperandBindingSummary)
-    return makeRVVTargetRouteError(
-        llvm::Twine("plain standalone reduction target artifact consumer "
-                    "requires provider-derived route operand binding plan '") +
-        routeFacts->routeOperandBindingPlanID +
-        "' with lhs source, acc seed, out scalar result, and n bindings but "
-        "provider carried plan '" +
-        description.routeOperandBindingPlanID + "'");
-
-  if (llvm::Error error = validateRVVStandaloneReductionRuntimeABIFacts(
-          description, consumerLabel))
-    return error;
-
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction accumulator layout",
-          description.reductionAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction accumulator layout",
-          description.reductionAccumulatorLayout,
-          routeFacts->reductionAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction result layout",
-          description.reductionResultLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction result layout",
-          description.reductionResultLayout, routeFacts->reductionResultLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction store VL", description.reductionStoreVL))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction store VL", description.reductionStoreVL,
-          routeFacts->reductionStoreVL))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "vector load intrinsic",
-          description.vectorLoadIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar seed splat intrinsic",
-          description.scalarSeedSplatIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar result store intrinsic",
-          description.storeIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction intrinsic", description.intrinsic))
-    return error;
-
-  return llvm::Error::success();
-}
-
-llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (!isRVVVectorComputedMaskStandaloneReductionRouteFamilyOperation(
-          description.operation))
-    return llvm::Error::success();
-
-  constexpr llvm::StringLiteral consumerLabel(
-      "computed-mask standalone reduction target artifact consumer");
-  std::optional<plugin::rvv::RVVStandaloneReductionRouteFacts> routeFacts =
-      plugin::rvv::getRVVStandaloneReductionRouteFacts(description.operation,
-                                                       description.sew);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
-        " requires provider-owned standalone reduction canonical route facts "
-        "before artifact export");
-  if (description.typedComputeOpName != routeFacts->typedComputeOpName ||
-      description.memoryForm != routeFacts->memoryForm)
-    return makeRVVTargetRouteError(
-        "computed-mask standalone reduction target artifact consumer requires "
-        "a selected tcrv_rvv.masked_standalone_reduce body with "
-        "computed-mask unit-stride standalone reduction memory form");
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "element type", description.elementTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedCount(
-          consumerLabel, "SEW", description.sew))
+  if (llvm::Error error = requireRVVStandaloneReductionContractIntField(
+          consumerLabel, "SEW", description.sew, contract.sew))
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "LMUL", description.lmul))
@@ -4725,6 +4609,52 @@ llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
           consumerLabel, "mask policy", description.maskPolicy))
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
+          consumerLabel, "runtime AVL/VL control plan",
+          description.runtimeControlPlanID))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "provider-supported mirror",
+          description.providerSupportedMirror, contract.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "target leaf profile", description.targetLeafProfile,
+          contract.targetLeafProfile))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "standalone reduction route-family plan",
+          description.standaloneReductionRouteFamilyPlanID,
+          contract.standaloneReductionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "scalar-result runtime boundary",
+          description.standaloneReductionScalarResultRuntimeBoundary,
+          contract.scalarResultRuntimeBoundary))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "required header declarations",
+          description.requiredHeaderDeclarations,
+          contract.requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "C type mapping summary",
+          description.cTypeMappingSummary, contract.cTypeMappingSummary))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "route operand binding plan",
+          description.routeOperandBindingPlanID,
+          contract.routeOperandBindingPlanID))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "route operand binding summary",
+          description.routeOperandBindingSummary,
+          contract.routeOperandBindingSummary))
+    return error;
+
+  if (llvm::Error error = validateRVVStandaloneReductionRuntimeABIFacts(
+          description, contract))
+    return error;
+
+  if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "vector type", description.vectorTypeName))
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
@@ -4750,99 +4680,18 @@ llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
           consumerLabel, "standalone reduction scalar-result vector C type",
           description.standaloneReductionScalarResultVectorCType))
     return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask type", description.maskTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask C type", description.maskCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror,
-          routeFacts->providerSupportedMirror))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "target leaf profile", description.targetLeafProfile))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "target leaf profile", description.targetLeafProfile,
-          routeFacts->targetLeafProfile))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction route-family plan",
-          description.standaloneReductionRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar-result runtime boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "scalar-result runtime boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary,
-          routeFacts->scalarResultRuntimeBoundary))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "required header declarations",
-          description.requiredHeaderDeclarations))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "required header declarations",
-          description.requiredHeaderDeclarations,
-          routeFacts->requiredHeaderDeclarations))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "C type mapping summary",
-          description.cTypeMappingSummary))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "C type mapping summary",
-          description.cTypeMappingSummary, routeFacts->cTypeMappingSummary))
-    return error;
-
-  if (description.routeOperandBindingPlanID !=
-          routeFacts->routeOperandBindingPlanID ||
-      description.routeOperandBindingSummary !=
-          routeFacts->routeOperandBindingSummary)
-    return makeRVVTargetRouteError(
-        llvm::Twine("computed-mask standalone reduction target artifact "
-                    "consumer requires provider-derived route operand binding "
-                    "plan '") +
-        routeFacts->routeOperandBindingPlanID +
-        "' with cmp_lhs, cmp_rhs, src, acc seed, out scalar result, and n "
-        "bindings but provider carried plan '" +
-        description.routeOperandBindingPlanID + "'");
-
-  if (llvm::Error error = validateRVVStandaloneReductionRuntimeABIFacts(
-          description, consumerLabel))
-    return error;
-
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction accumulator layout",
-          description.reductionAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
           consumerLabel, "reduction accumulator layout",
           description.reductionAccumulatorLayout,
-          routeFacts->reductionAccumulatorLayout))
+          contract.reductionAccumulatorLayout))
     return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
           consumerLabel, "reduction result layout",
-          description.reductionResultLayout))
+          description.reductionResultLayout, contract.reductionResultLayout))
     return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction result layout",
-          description.reductionResultLayout, routeFacts->reductionResultLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction store VL", description.reductionStoreVL))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
           consumerLabel, "reduction store VL", description.reductionStoreVL,
-          routeFacts->reductionStoreVL))
+          contract.reductionStoreVL))
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "vector load intrinsic",
@@ -4863,422 +4712,208 @@ llvm::Error validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "reduction intrinsic", description.intrinsic))
     return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "compare intrinsic", description.compareIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "masked merge intrinsic",
-          description.maskedMergeIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask role", description.maskRole))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "mask role", description.maskRole,
-          routeFacts->maskRole))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask source", description.maskSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "mask source", description.maskSource,
-          routeFacts->maskSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask memory form", description.maskMemoryForm))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "mask memory form", description.maskMemoryForm,
-          routeFacts->maskMemoryForm))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "inactive-lane requirement",
-          description.inactiveLaneZeroingRequirement))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "inactive-lane requirement",
-          description.inactiveLaneZeroingRequirement,
-          routeFacts->inactiveLaneRequirement))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "compare predicate", description.comparePredicateKind))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "compare predicate", description.comparePredicateKind,
-          routeFacts->comparePredicateKind))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation route-family plan",
-          description.accumulationRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation route-family plan",
-          description.accumulationRouteFamilyPlanID,
-          routeFacts->accumulationRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation compute suffix",
-          description.accumulationComputeSuffix))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation compute suffix",
-          description.accumulationComputeSuffix,
-          routeFacts->accumulationComputeSuffix))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation producer source",
-          description.accumulationMaskProducerSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation producer source",
-          description.accumulationMaskProducerSource,
-          routeFacts->accumulationMaskProducerSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation accumulator contract",
-          description.accumulationAccumulatorContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation accumulator contract",
-          description.accumulationAccumulatorContract,
-          routeFacts->accumulationAccumulatorContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation result contract",
-          description.accumulationResultContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation result contract",
-          description.accumulationResultContract,
-          routeFacts->accumulationResultContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation scalar-carry contract",
-          description.accumulationScalarCarryContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation scalar-carry contract",
-          description.accumulationScalarCarryContract,
-          routeFacts->accumulationScalarCarryContract))
-    return error;
 
-  return llvm::Error::success();
-}
+  const bool isComputedMask =
+      contract.kind ==
+          plugin::rvv::RVVStandaloneReductionRouteValidationKind::
+              ComputedMask ||
+      contract.kind ==
+          plugin::rvv::RVVStandaloneReductionRouteValidationKind::
+              RuntimeScalarComputedMask;
+  if (isComputedMask) {
+    if (llvm::Error error = requireRVVProviderDerivedField(
+            consumerLabel, "mask type", description.maskTypeName))
+      return error;
+    if (llvm::Error error = requireRVVProviderDerivedField(
+            consumerLabel, "mask C type", description.maskCType))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel, "mask role", description.maskRole,
+                contract.maskRole))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel, "mask source", description.maskSource,
+                contract.maskSource))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel, "mask memory form", description.maskMemoryForm,
+                contract.maskMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel, "inactive-lane requirement",
+                description.inactiveLaneZeroingRequirement,
+                contract.inactiveLaneRequirement))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel, "compare predicate kind",
+                description.comparePredicateKind,
+                contract.comparePredicateKind))
+      return error;
+    if (llvm::Error error = requireRVVProviderDerivedField(
+            consumerLabel, "compare intrinsic", description.compareIntrinsic))
+      return error;
+    if (llvm::Error error =
+            requireRVVProviderDerivedField(consumerLabel,
+                                           "masked merge intrinsic",
+                                           description.maskedMergeIntrinsic))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel,
+                "computed-mask accumulation route-family plan",
+                description.accumulationRouteFamilyPlanID,
+                contract.accumulationRouteFamilyPlanID))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel,
+                "computed-mask accumulation compute suffix",
+                description.accumulationComputeSuffix,
+                contract.accumulationComputeSuffix))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel,
+                "computed-mask accumulation mask producer source",
+                description.accumulationMaskProducerSource,
+                contract.accumulationMaskProducerSource))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel,
+                "computed-mask accumulation accumulator contract",
+                description.accumulationAccumulatorContract,
+                contract.accumulationAccumulatorContract))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel, "computed-mask accumulation result contract",
+                description.accumulationResultContract,
+                contract.accumulationResultContract))
+      return error;
+    if (llvm::Error error =
+            requireRVVStandaloneReductionContractStringField(
+                consumerLabel,
+                "computed-mask accumulation scalar-carry contract",
+                description.accumulationScalarCarryContract,
+                contract.accumulationScalarCarryContract))
+      return error;
+    if (contract.kind == plugin::rvv::
+                             RVVStandaloneReductionRouteValidationKind::
+                                 RuntimeScalarComputedMask) {
+      if (llvm::Error error = requireRVVProviderDerivedField(
+              consumerLabel, "RHS scalar splat intrinsic",
+              description.rhsBroadcastIntrinsic))
+        return error;
+    } else if (!description.rhsBroadcastIntrinsic.empty()) {
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " rejects stale runtime-scalar RHS broadcast facts");
+    }
+  } else {
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask mask role", description.maskRole))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask mask source", description.maskSource))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask mask memory form",
+            description.maskMemoryForm))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask inactive-lane facts",
+            description.inactiveLaneZeroingRequirement))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask compare predicate",
+            description.comparePredicateKind))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask compare intrinsic",
+            description.compareIntrinsic))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask masked merge intrinsic",
+            description.maskedMergeIntrinsic))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask accumulation route-family plan",
+            description.accumulationRouteFamilyPlanID))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask accumulation compute suffix",
+            description.accumulationComputeSuffix))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask accumulation mask producer source",
+            description.accumulationMaskProducerSource))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask accumulation accumulator contract",
+            description.accumulationAccumulatorContract))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask accumulation result contract",
+            description.accumulationResultContract))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "computed-mask accumulation scalar-carry contract",
+            description.accumulationScalarCarryContract))
+      return error;
+    if (llvm::Error error = requireRVVStandaloneReductionEmptyResidue(
+            consumerLabel, "runtime-scalar RHS broadcast facts",
+            description.rhsBroadcastIntrinsic))
+      return error;
+  }
 
-llvm::Error
-validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.operation != plugin::rvv::RVVSelectedBodyOperationKind::
-                                   RuntimeScalarComputedMaskStandaloneReduceAdd &&
-      description.operation != plugin::rvv::RVVSelectedBodyOperationKind::
-                                   RuntimeScalarComputedMaskStandaloneReduceMin &&
-      description.operation != plugin::rvv::RVVSelectedBodyOperationKind::
-                                   RuntimeScalarComputedMaskStandaloneReduceMax)
-    return llvm::Error::success();
-
-  constexpr llvm::StringLiteral consumerLabel(
-      "runtime-scalar computed-mask standalone reduction target artifact "
-      "consumer");
-  std::optional<plugin::rvv::RVVStandaloneReductionRouteFacts> routeFacts =
-      plugin::rvv::getRVVStandaloneReductionRouteFacts(description.operation,
-                                                       description.sew);
-  if (!routeFacts)
+  if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.wideningDotProductRelation.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty())
     return makeRVVTargetRouteError(
-        "runtime-scalar computed-mask standalone reduction target artifact "
-        "consumer requires add/min/max canonical route facts before artifact "
-        "export");
-  if (description.typedComputeOpName != routeFacts->typedComputeOpName ||
-      description.memoryForm != routeFacts->memoryForm)
-    return makeRVVTargetRouteError(
-        "runtime-scalar computed-mask standalone reduction target artifact "
-        "consumer requires a selected tcrv_rvv.masked_standalone_reduce body "
-        "with runtime-scalar computed-mask unit-stride standalone reduction "
-        "memory form");
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "element type", description.elementTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedCount(
-          consumerLabel, "SEW", description.sew))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "LMUL", description.lmul))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "tail policy", description.tailPolicy))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask policy", description.maskPolicy))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "vector type", description.vectorTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "vector C type", description.vectorCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction source vector type",
-          description.standaloneReductionSourceVectorTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction source vector C type",
-          description.standaloneReductionSourceVectorCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction scalar C type",
-          description.standaloneReductionScalarCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction scalar-result vector type",
-          description.standaloneReductionScalarResultVectorTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction scalar-result vector C type",
-          description.standaloneReductionScalarResultVectorCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask type", description.maskTypeName))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask C type", description.maskCType))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "target leaf profile", description.targetLeafProfile))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "standalone reduction route-family plan",
-          description.standaloneReductionRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar-result runtime boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "required header declarations",
-          description.requiredHeaderDeclarations))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "C type mapping summary",
-          description.cTypeMappingSummary))
-    return error;
-  if (description.providerSupportedMirror !=
-          routeFacts->providerSupportedMirror ||
-      description.targetLeafProfile != routeFacts->targetLeafProfile ||
-      description.requiredHeaderDeclarations !=
-          routeFacts->requiredHeaderDeclarations ||
-      description.cTypeMappingSummary != routeFacts->cTypeMappingSummary)
-    return makeRVVTargetRouteError(
-        llvm::Twine("runtime-scalar computed-mask standalone reduction target "
-                    "artifact consumer requires canonical route facts for ") +
-        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
-            description.operation) +
-        " before artifact export");
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "scalar-result runtime boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary,
-          routeFacts->scalarResultRuntimeBoundary))
-    return error;
-
-  if (description.routeOperandBindingPlanID !=
-          routeFacts->routeOperandBindingPlanID ||
-      description.routeOperandBindingSummary !=
-          routeFacts->routeOperandBindingSummary)
-    return makeRVVTargetRouteError(
-        llvm::Twine("runtime-scalar computed-mask standalone reduction target "
-                    "artifact consumer requires provider-derived route operand "
-                    "binding plan '") +
-        routeFacts->routeOperandBindingPlanID +
-        "' with cmp_lhs, rhs_scalar, src, acc seed, out scalar result, and n "
-        "bindings but provider carried plan '" +
-        description.routeOperandBindingPlanID + "'");
-
-  if (llvm::Error error = validateRVVStandaloneReductionRuntimeABIFacts(
-          description, consumerLabel))
-    return error;
-
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction accumulator layout",
-          description.reductionAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction result layout",
-          description.reductionResultLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction store VL", description.reductionStoreVL))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction accumulator layout",
-          description.reductionAccumulatorLayout,
-          routeFacts->reductionAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction result layout",
-          description.reductionResultLayout, routeFacts->reductionResultLayout))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "reduction store VL", description.reductionStoreVL,
-          routeFacts->reductionStoreVL))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "vector load intrinsic",
-          description.vectorLoadIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "source splat intrinsic",
-          description.sourceSplatIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar seed splat intrinsic",
-          description.scalarSeedSplatIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "RHS scalar splat intrinsic",
-          description.rhsBroadcastIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "scalar result store intrinsic",
-          description.storeIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "reduction intrinsic", description.intrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "compare intrinsic", description.compareIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "masked merge intrinsic",
-          description.maskedMergeIntrinsic))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask role", description.maskRole))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask source", description.maskSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "mask memory form", description.maskMemoryForm))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "inactive-lane requirement",
-          description.inactiveLaneZeroingRequirement))
-    return error;
-  if (description.inactiveLaneZeroingRequirement !=
-      routeFacts->inactiveLaneRequirement)
-    return makeRVVTargetRouteError(
-        llvm::Twine("runtime-scalar computed-mask standalone reduction target "
-                    "artifact consumer requires canonical inactive-lane "
-                    "contract '") +
-        routeFacts->inactiveLaneRequirement + "' but provider carried '" +
-        description.inactiveLaneZeroingRequirement + "'");
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "compare predicate", description.comparePredicateKind))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "compare predicate", description.comparePredicateKind,
-          routeFacts->comparePredicateKind))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "mask role", description.maskRole,
-          routeFacts->maskRole))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "mask source", description.maskSource,
-          routeFacts->maskSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "mask memory form", description.maskMemoryForm,
-          routeFacts->maskMemoryForm))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation route-family plan",
-          description.accumulationRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation compute suffix",
-          description.accumulationComputeSuffix))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "runtime-scalar accumulation producer source",
-          description.accumulationMaskProducerSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation accumulator contract",
-          description.accumulationAccumulatorContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation result contract",
-          description.accumulationResultContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "computed-mask accumulation scalar-carry contract",
-          description.accumulationScalarCarryContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation route-family plan",
-          description.accumulationRouteFamilyPlanID,
-          routeFacts->accumulationRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation compute suffix",
-          description.accumulationComputeSuffix,
-          routeFacts->accumulationComputeSuffix))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "runtime-scalar accumulation producer source",
-          description.accumulationMaskProducerSource,
-          routeFacts->accumulationMaskProducerSource))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation accumulator contract",
-          description.accumulationAccumulatorContract,
-          routeFacts->accumulationAccumulatorContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation result contract",
-          description.accumulationResultContract,
-          routeFacts->accumulationResultContract))
-    return error;
-  if (llvm::Error error = requireRVVProviderCanonicalField(
-          consumerLabel, "computed-mask accumulation scalar-carry contract",
-          description.accumulationScalarCarryContract,
-          routeFacts->accumulationScalarCarryContract))
-    return error;
+        llvm::Twine(consumerLabel) +
+        " rejects stale non-standalone route-family facts");
 
   return llvm::Error::success();
 }
 
 llvm::Error validateRVVStandaloneReductionAccumulationRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.requiredHeaderDeclarations.empty())
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &contract) {
+  if (contract.requiredHeaderDeclarations.empty() ||
+      contract.requiredHeaders.empty())
     return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived required_header_declarations before accepting the "
-        "route artifact");
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived required_header_declarations before "
+        "accepting the route artifact");
 
-  llvm::SmallVector<llvm::StringRef, 4> headers;
-  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
-                                               /*KeepEmpty=*/false);
-  if (headers.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "at least one provider route header");
-
-  for (llvm::StringRef header : headers) {
-    llvm::StringRef trimmed = header.trim();
-    if (trimmed.empty())
+  for (llvm::StringRef header : contract.requiredHeaders) {
+    if (header.empty())
       return makeRVVTargetRouteError(
-          "standalone reduction/accumulation target artifact consumer saw an "
-          "empty provider route header declaration");
-    if (!routeHasHeader(route, trimmed))
+          llvm::Twine(contract.consumerLabel) +
+          " saw an empty provider route header declaration");
+    if (!routeHasHeader(route, header))
       return makeRVVTargetRouteError(
-          llvm::Twine("standalone reduction/accumulation target artifact "
-                      "consumer requires rebuilt provider route header '") +
-          trimmed + "' before artifact export");
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route header '" + header +
+          "' before artifact export");
   }
 
   return llvm::Error::success();
@@ -5286,73 +4921,26 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteHeaders(
 
 llvm::Error validateRVVStandaloneReductionAccumulationRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.vlCType.empty() || description.vectorTypeName.empty() ||
-      description.vectorCType.empty() || description.cTypeMappingSummary.empty())
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &contract) {
+  if (contract.cTypeMappingSummary.empty() || contract.typeMappings.empty())
     return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived VL, vector, and C type mapping facts before "
-        "artifact export");
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived route type mapping facts before artifact "
+        "export");
 
-  if (!routeHasTypeMapping(route, "!tcrv_rvv.vl", description.vlCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("standalone reduction/accumulation target artifact "
-                    "consumer requires rebuilt provider route type mapping "
-                    "'!tcrv_rvv.vl' -> '") +
-        description.vlCType + "'");
-  if (!routeHasTypeMapping(route, description.vectorTypeName,
-                           description.vectorCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("standalone reduction/accumulation target artifact "
-                    "consumer requires rebuilt provider route type mapping '") +
-        description.vectorTypeName + "' -> '" + description.vectorCType + "'");
-
-  if (description.standaloneReductionSourceVectorTypeName.empty() ||
-      description.standaloneReductionSourceVectorCType.empty() ||
-      description.standaloneReductionScalarResultVectorTypeName.empty() ||
-      description.standaloneReductionScalarResultVectorCType.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived source and scalar-result vector type mapping facts "
-        "before artifact export");
-  if (!routeHasTypeMapping(
-          route, description.standaloneReductionSourceVectorTypeName,
-          description.standaloneReductionSourceVectorCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("standalone reduction/accumulation target artifact "
-                    "consumer requires rebuilt provider route source type "
-                    "mapping '") +
-        description.standaloneReductionSourceVectorTypeName + "' -> '" +
-        description.standaloneReductionSourceVectorCType + "'");
-  if (!routeHasTypeMapping(
-          route, description.standaloneReductionScalarResultVectorTypeName,
-          description.standaloneReductionScalarResultVectorCType))
-    return makeRVVTargetRouteError(
-        llvm::Twine("standalone reduction/accumulation target artifact "
-                    "consumer requires rebuilt provider route scalar-result "
-                    "type mapping '") +
-        description.standaloneReductionScalarResultVectorTypeName + "' -> '" +
-        description.standaloneReductionScalarResultVectorCType + "'");
-
-  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
-          description.operation)) {
-    if (description.maskTypeName.empty() || description.maskCType.empty())
+  for (const plugin::rvv::RVVStandaloneReductionRouteTypeMappingContract
+           &mapping : contract.typeMappings) {
+    if (mapping.sourceType.empty() || mapping.cType.empty())
       return makeRVVTargetRouteError(
-          "computed-mask standalone reduction/accumulation target artifact "
-          "consumer requires provider-derived mask type mapping facts before "
-          "artifact export");
-    if (!routeHasTypeMapping(route, description.maskTypeName,
-                             description.maskCType))
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-derived " + mapping.label +
+          " facts before artifact export");
+    if (!routeHasTypeMapping(route, mapping.sourceType, mapping.cType))
       return makeRVVTargetRouteError(
-          llvm::Twine("computed-mask standalone reduction/accumulation target "
-                      "artifact consumer requires rebuilt provider route type "
-                      "mapping '") +
-          description.maskTypeName + "' -> '" + description.maskCType + "'");
-  } else if (!description.maskTypeName.empty() ||
-             !description.maskCType.empty()) {
-    return makeRVVTargetRouteError(
-        "plain standalone reduction/accumulation target artifact consumer "
-        "rejects stale mask type mapping facts");
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route type mapping '" +
+          mapping.sourceType + "' -> '" + mapping.cType + "'");
   }
 
   return llvm::Error::success();
@@ -5360,38 +4948,35 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteTypeMappings(
 
 llvm::Error validateRVVStandaloneReductionAccumulationRouteABIMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.runtimeABIOrder.empty() ||
-      description.runtimeABIParameters.empty())
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &contract) {
+  if (contract.runtimeABIOrder.empty() || contract.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived runtime ABI order and ABI parameters before "
-        "artifact export");
-  if (route.getABIMappings().size() != description.runtimeABIParameters.size())
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived runtime ABI order and ABI parameters "
+        "before artifact export");
+  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        llvm::Twine("standalone reduction/accumulation target artifact "
-                    "consumer requires rebuilt provider route ABI mapping "
-                    "count ") +
-        llvm::Twine(description.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route ABI mapping count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
         llvm::Twine(route.getABIMappings().size()));
 
   for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
     const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
         route.getABIMappings()[index];
     const support::RuntimeABIParameter &expected =
-        description.runtimeABIParameters[index];
+        contract.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(mapping.parameter, expected))
       return makeRVVTargetRouteError(
-          llvm::Twine("standalone reduction/accumulation target artifact "
-                      "consumer requires rebuilt provider route ABI "
-                      "mapping[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
           llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
           expected.cName + "'");
     if (mapping.valueName != expected.cName)
       return makeRVVTargetRouteError(
-          llvm::Twine("standalone reduction/accumulation target artifact "
-                      "consumer requires rebuilt provider route ABI "
-                      "mapping[") +
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
           llvm::Twine(index) +
           "] value name to use provider runtime ABI parameter '" +
           expected.cName + "' but was '" + mapping.valueName + "'");
@@ -5402,7 +4987,8 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteABIMappings(
 
 llvm::Error validateRVVStandaloneReductionPreLoopStatements(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &description,
     const support::RuntimeABIParameter &accumulator,
     const support::RuntimeABIParameter &out,
     const support::RuntimeABIParameter &runtimeN) {
@@ -5461,7 +5047,8 @@ llvm::Error validateRVVStandaloneReductionPreLoopStatements(
 
 llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
     const conversion::emitc::TCRVEmitCForLoop &loop,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &description,
     const support::RuntimeABIParameter &lhs,
     const support::RuntimeABIParameter &out,
     const support::RuntimeABIParameter &runtimeN) {
@@ -5534,7 +5121,8 @@ llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
 
 llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
     const conversion::emitc::TCRVEmitCForLoop &loop,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &description,
     const support::RuntimeABIParameter &cmpLHS,
     const support::RuntimeABIParameter &cmpRHS,
     const support::RuntimeABIParameter &source,
@@ -5607,17 +5195,7 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
           description.maskName, description.maskCType))
     return error;
 
-  std::optional<plugin::rvv::RVVStandaloneReductionRouteFacts> routeFacts =
-      plugin::rvv::getRVVStandaloneReductionRouteFacts(description.operation,
-                                                       description.sew);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
-        " requires provider-owned standalone reduction canonical route facts "
-        "before artifact export");
-  const llvm::StringRef inactiveNeutral =
-      description.sew == 64 ? routeFacts->inactiveNeutralLiteralSEW64
-                            : routeFacts->inactiveNeutralLiteralSEW32;
+  const llvm::StringRef inactiveNeutral = description.inactiveNeutralLiteral;
   if (inactiveNeutral.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -5687,7 +5265,8 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
 llvm::Error
 validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
     const conversion::emitc::TCRVEmitCForLoop &loop,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &description,
     const support::RuntimeABIParameter &cmpLHS,
     const support::RuntimeABIParameter &rhsScalar,
     const support::RuntimeABIParameter &source,
@@ -5758,17 +5337,7 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           description.maskName, description.maskCType))
     return error;
 
-  std::optional<plugin::rvv::RVVStandaloneReductionRouteFacts> routeFacts =
-      plugin::rvv::getRVVStandaloneReductionRouteFacts(description.operation,
-                                                       description.sew);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        llvm::Twine(consumerLabel) +
-        " requires provider-owned standalone reduction canonical route facts "
-        "before artifact export");
-  const llvm::StringRef inactiveNeutral =
-      description.sew == 64 ? routeFacts->inactiveNeutralLiteralSEW64
-                            : routeFacts->inactiveNeutralLiteralSEW32;
+  const llvm::StringRef inactiveNeutral = description.inactiveNeutralLiteral;
   if (inactiveNeutral.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -5837,7 +5406,8 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
 
 llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+    const plugin::rvv::RVVStandaloneReductionRouteValidationContract
+        &description) {
   const bool isPlainStandalone =
       isRVVPlainStandaloneReductionRouteFamilyOperation(description.operation);
   const bool isVectorComputedMaskStandalone =
@@ -5974,140 +5544,40 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
 llvm::Error validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (route.getRouteID() != description.emitCRouteID)
+  std::optional<plugin::rvv::RVVStandaloneReductionRouteValidationContract>
+      contract =
+          getRVVStandaloneReductionTargetRouteValidationContract(description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-owned route validation contract before artifact export");
+
+  if (route.getRouteID() != contract->emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine("standalone reduction/accumulation target artifact "
                     "consumer requires rebuilt provider route id '") +
-        description.emitCRouteID + "' but route carried '" +
+        contract->emitCRouteID + "' but route carried '" +
         route.getRouteID() + "'");
 
-  if (description.providerSupportedMirror.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "a provider-supported mirror label after route construction");
-  if (description.routeOperandBindingPlanID.empty() ||
-      description.routeOperandBindingSummary.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider route operand binding facts before artifact export");
-  if (description.standaloneReductionRouteFamilyPlanID.empty() ||
-      description.standaloneReductionScalarResultRuntimeBoundary.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived standalone reduction family and scalar-result "
-        "boundary mirrors before artifact export");
-  if (description.reductionAccumulatorLayout.empty() ||
-      description.reductionResultLayout.empty() ||
-      description.reductionStoreVL.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived reduction accumulator, result, and store-VL facts "
-        "before artifact export");
-  if (description.sourceSplatIntrinsic.empty() ||
-      description.scalarSeedSplatIntrinsic.empty() ||
-      description.intrinsic.empty() || description.storeIntrinsic.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer requires "
-        "provider-derived source splat, scalar seed, reduction intrinsic, and "
-        "store facts before artifact export");
   if (llvm::Error error =
-          validateRVVPlainStandaloneReductionRoutePayloadFacts(description))
+          validateRVVStandaloneReductionDescriptionAgainstContract(
+              description, *contract))
     return error;
-  if (llvm::Error error =
-          validateRVVComputedMaskStandaloneReductionRoutePayloadFacts(
-              description))
-    return error;
-  if (llvm::Error error =
-          validateRVVRuntimeScalarComputedMaskStandaloneReductionRoutePayloadFacts(
-              description))
-    return error;
-
-  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
-          description.operation)) {
-    if (description.maskRole.empty() || description.maskSource.empty() ||
-        description.maskMemoryForm.empty() ||
-        description.inactiveLaneZeroingRequirement.empty() ||
-        description.comparePredicateKind.empty() ||
-        description.compareIntrinsic.empty() ||
-        description.maskedMergeIntrinsic.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask standalone reduction/accumulation target artifact "
-          "consumer requires provider-derived mask, compare, and "
-          "inactive-lane facts before artifact export");
-  } else if (!description.maskRole.empty() || !description.maskSource.empty() ||
-             !description.maskMemoryForm.empty() ||
-             !description.inactiveLaneZeroingRequirement.empty() ||
-             !description.comparePredicateKind.empty() ||
-             !description.compareIntrinsic.empty() ||
-             !description.maskedMergeIntrinsic.empty()) {
-    return makeRVVTargetRouteError(
-        "plain standalone reduction/accumulation target artifact consumer "
-        "rejects stale computed-mask facts");
-  }
-
-  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
-          description.operation)) {
-    if (description.accumulationRouteFamilyPlanID.empty() ||
-        description.accumulationComputeSuffix.empty() ||
-        description.accumulationMaskProducerSource.empty() ||
-        description.accumulationAccumulatorContract.empty() ||
-        description.accumulationResultContract.empty() ||
-        description.accumulationScalarCarryContract.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask standalone accumulation target artifact consumer "
-          "requires provider-derived accumulation and scalar-carry facts "
-          "before artifact export");
-    if (isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
-            description.operation) &&
-        description.rhsBroadcastIntrinsic.empty())
-      return makeRVVTargetRouteError(
-          "runtime-scalar computed-mask standalone reduction/accumulation "
-          "target artifact consumer requires a provider-derived RHS scalar "
-          "splat intrinsic before artifact export");
-  } else if (!description.accumulationRouteFamilyPlanID.empty() ||
-             !description.accumulationComputeSuffix.empty() ||
-             !description.accumulationMaskProducerSource.empty() ||
-             !description.accumulationAccumulatorContract.empty() ||
-             !description.accumulationResultContract.empty() ||
-             !description.accumulationScalarCarryContract.empty() ||
-             !description.rhsBroadcastIntrinsic.empty()) {
-    return makeRVVTargetRouteError(
-        "plain standalone reduction/accumulation target artifact consumer "
-        "rejects stale accumulation, scalar-carry, or runtime-scalar facts");
-  }
-
-  if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
-      !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
-      !description.wideningConversionRouteFamilyPlanID.empty() ||
-      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
-      !description.plainMAccRouteFamilyPlanID.empty() ||
-      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
-      !description.wideningMAccRelation.empty() ||
-      !description.wideningDotProductRelation.empty() ||
-      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
-      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
-      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
-      !description.segment2MemoryRouteFamilyPlanID.empty() ||
-      !description.contractionRouteFamilyPlanID.empty() ||
-      !description.baseMemoryMovementRouteFamilyPlanID.empty())
-    return makeRVVTargetRouteError(
-        "standalone reduction/accumulation target artifact consumer rejects "
-        "stale non-standalone route-family facts");
 
   if (llvm::Error error =
           validateRVVStandaloneReductionAccumulationRouteHeaders(route,
-                                                                description))
+                                                                *contract))
     return error;
   if (llvm::Error error =
           validateRVVStandaloneReductionAccumulationRouteTypeMappings(
-              route, description))
+              route, *contract))
     return error;
   if (llvm::Error error =
           validateRVVStandaloneReductionAccumulationRouteABIMappings(
-              route, description))
+              route, *contract))
     return error;
   return validateRVVStandaloneReductionAccumulationRouteStatementPlan(
-      route, description);
+      route, *contract);
 }
 
 llvm::Error
@@ -6117,280 +5587,22 @@ validateRVVStandaloneReductionAccumulationTargetArtifactProviderFacts(
       context.route, context.description);
 }
 
-llvm::Error requireEmptyStandaloneReductionAccumulationStaleMirror(
-    const TargetArtifactCandidate &candidate, llvm::StringRef key,
-    llvm::StringRef label) {
-  return requireCandidateMetadataMirror(candidate, key, "", label);
-}
 
 llvm::Error
 validateRVVStandaloneReductionAccumulationTargetArtifactCandidateMirrors(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
-  const TargetArtifactCandidate &candidate = context.candidate;
-  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
-      context.description;
-
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "rvv_selected_body_operation",
-          plugin::rvv::stringifyRVVSelectedBodyOperationKind(
-              description.operation),
-          "selected typed RVV standalone reduction operation kind"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "rvv_selected_body_typed_compute_op",
-          description.typedComputeOpName,
-          "selected typed RVV standalone reduction typed compute op"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_plan",
-          description.routeOperandBindingPlanID,
-          "selected typed RVV standalone reduction binding plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_operands",
-          description.routeOperandBindingSummary,
-          "selected typed RVV standalone reduction binding summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.provider_supported_mirror",
-          description.providerSupportedMirror,
-          "selected typed RVV standalone reduction provider support"))
-    return error;
-
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.standalone_reduction_route_family_plan",
-          description.standaloneReductionRouteFamilyPlanID,
-          "selected typed RVV standalone reduction route-family plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.standalone_reduction_source_vector_type",
-          description.standaloneReductionSourceVectorTypeName,
-          "selected typed RVV standalone reduction source vector type"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.standalone_reduction_source_vector_c_type",
-          description.standaloneReductionSourceVectorCType,
-          "selected typed RVV standalone reduction source vector C type"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.standalone_reduction_scalar_c_type",
-          description.standaloneReductionScalarCType,
-          "selected typed RVV standalone reduction scalar C type"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.standalone_reduction_scalar_result_vector_type",
-          description.standaloneReductionScalarResultVectorTypeName,
-          "selected typed RVV standalone reduction scalar-result vector type"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate,
-          "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
-          description.standaloneReductionScalarResultVectorCType,
-          "selected typed RVV standalone reduction scalar-result vector C type"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate,
-          "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
-          description.standaloneReductionScalarResultRuntimeBoundary,
-          "selected typed RVV standalone reduction scalar result boundary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.memory_form",
-          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              description.memoryForm),
-          "selected typed RVV standalone reduction memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_control_plan",
-          description.runtimeControlPlanID,
-          "selected typed RVV standalone reduction runtime AVL/VL control plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
-          "selected typed RVV standalone reduction runtime ABI order"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.required_header_declarations",
-          description.requiredHeaderDeclarations,
-          "selected typed RVV standalone reduction route header requirements"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.c_type_mapping",
-          description.cTypeMappingSummary,
-          "selected typed RVV standalone reduction route type mapping summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.reduction_accumulator_layout",
-          description.reductionAccumulatorLayout,
-          "selected typed RVV standalone reduction accumulator layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.reduction_result_layout",
-          description.reductionResultLayout,
-          "selected typed RVV standalone reduction result layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.reduction_store_vl",
-          description.reductionStoreVL,
-          "selected typed RVV standalone reduction store VL"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.vector_load_intrinsic",
-          description.vectorLoadIntrinsic,
-          "selected typed RVV standalone reduction vector load leaf"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_splat_intrinsic",
-          description.sourceSplatIntrinsic,
-          "selected typed RVV standalone reduction source splat leaf"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.scalar_seed_splat_intrinsic",
-          description.scalarSeedSplatIntrinsic,
-          "selected typed RVV standalone reduction scalar seed splat leaf"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.reduction_intrinsic", description.intrinsic,
-          "selected typed RVV standalone reduction intrinsic leaf"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.scalar_result_store_intrinsic",
-          description.storeIntrinsic,
-          "selected typed RVV standalone reduction scalar-result store leaf"))
-    return error;
-
-  if (isRVVComputedMaskStandaloneReductionRouteFamilyOperation(
-          description.operation)) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_route_family_plan",
-            description.accumulationRouteFamilyPlanID,
-            "selected typed RVV computed-mask standalone accumulation "
-            "route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_compute_suffix",
-            description.accumulationComputeSuffix,
-            "selected typed RVV computed-mask standalone accumulation compute "
-            "suffix"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_mask_producer_source",
-            description.accumulationMaskProducerSource,
-            "selected typed RVV computed-mask standalone accumulation mask "
-            "producer"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_accumulator_contract",
-            description.accumulationAccumulatorContract,
-            "selected typed RVV computed-mask standalone accumulation "
-            "accumulator contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_result_contract",
-            description.accumulationResultContract,
-            "selected typed RVV computed-mask standalone accumulation result "
-            "contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_scalar_carry_contract",
-            description.accumulationScalarCarryContract,
-            "selected typed RVV computed-mask standalone accumulation scalar "
-            "carry contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_role", description.maskRole,
-            "selected typed RVV computed-mask standalone reduction mask role"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_source", description.maskSource,
-            "selected typed RVV computed-mask standalone reduction mask source"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_memory_form", description.maskMemoryForm,
-            "selected typed RVV computed-mask standalone reduction mask memory "
-            "form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.inactive_lane_zeroing_requirement",
-            description.inactiveLaneZeroingRequirement,
-            "selected typed RVV computed-mask standalone reduction inactive "
-            "lane neutral requirement"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.compare_predicate_kind",
-            description.comparePredicateKind,
-            "selected typed RVV computed-mask standalone reduction compare "
-            "predicate"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.compare_intrinsic",
-            description.compareIntrinsic,
-            "selected typed RVV computed-mask standalone reduction compare leaf"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.masked_merge_intrinsic",
-            description.maskedMergeIntrinsic,
-            "selected typed RVV computed-mask standalone reduction merge leaf"))
-      return error;
-    const llvm::StringRef expectedRHSBroadcast =
-        isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
-            description.operation)
-            ? description.rhsBroadcastIntrinsic
-            : llvm::StringRef();
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.rhs_broadcast_intrinsic",
-            expectedRHSBroadcast,
-            "selected typed RVV runtime-scalar computed-mask standalone "
-            "reduction RHS broadcast leaf"))
-      return error;
-  } else {
-    constexpr llvm::StringLiteral staleComputedMaskMirrors[] = {
-        "tcrv_rvv.accumulation_route_family_plan",
-        "tcrv_rvv.accumulation_compute_suffix",
-        "tcrv_rvv.accumulation_mask_producer_source",
-        "tcrv_rvv.accumulation_accumulator_contract",
-        "tcrv_rvv.accumulation_result_contract",
-        "tcrv_rvv.accumulation_scalar_carry_contract",
-        "tcrv_rvv.mask_role",
-        "tcrv_rvv.mask_source",
-        "tcrv_rvv.mask_memory_form",
-        "tcrv_rvv.inactive_lane_zeroing_requirement",
-        "tcrv_rvv.compare_predicate_kind",
-        "tcrv_rvv.compare_intrinsic",
-        "tcrv_rvv.masked_merge_intrinsic",
-        "tcrv_rvv.rhs_broadcast_intrinsic"};
-    for (llvm::StringRef key : staleComputedMaskMirrors)
-      if (llvm::Error error =
-              requireEmptyStandaloneReductionAccumulationStaleMirror(
-                  candidate, key,
-                  "selected typed RVV computed-mask standalone reduction "
-                  "mirror"))
-        return error;
-  }
-
-  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
-      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
-      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
-      "tcrv_rvv.widening_conversion_route_family_plan",
-      "tcrv_rvv.plain_compare_select_route_family_plan",
-      "tcrv_rvv.computed_mask_select_route_family_plan",
-      "tcrv_rvv.computed_mask_memory_route_family_plan",
-      "tcrv_rvv.segment2_memory_route_family_plan",
-      "tcrv_rvv.plain_macc_route_family_plan",
-      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
-      "tcrv_rvv.contraction_route_family_plan",
-      "tcrv_rvv.base_memory_movement_route_family_plan",
-      "tcrv_rvv.widening_macc_relation",
-      "tcrv_rvv.widening_dot_relation",
-      "tcrv_rvv.widening_dot_reduction_store_vl"};
-  for (llvm::StringRef key : staleRouteFamilyMirrors)
-    if (llvm::Error error =
-            requireEmptyStandaloneReductionAccumulationStaleMirror(
-                candidate, key,
-                "selected typed RVV non-standalone route-family mirror"))
-      return error;
-
-  return llvm::Error::success();
+  std::optional<
+      plugin::rvv::RVVStandaloneReductionRouteMetadataMirrorContractSet>
+      contract =
+          plugin::rvv::getRVVStandaloneReductionRouteMetadataMirrorContract(
+              context.description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "standalone reduction/accumulation target artifact consumer requires "
+        "provider-owned standalone reduction metadata mirror contract before "
+        "validating candidate mirrors");
+  return validateRVVProviderStandaloneReductionRouteMetadataMirrorContract(
+      context.candidate, *contract);
 }
 
 llvm::Error validateRVVCompareSelectMaskRouteHeaders(
