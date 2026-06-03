@@ -2286,6 +2286,9 @@ using RVVCompareSelectRouteMetadataMirrorContractSet =
 using RVVDualCompareSelectRouteFacts =
     tianchenrv::plugin::rvv::
         RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts;
+using RVVComputedMaskIndexedMemoryRouteValidationContract =
+    tianchenrv::plugin::rvv::
+        RVVComputedMaskIndexedMemoryRouteValidationContract;
 using RVVComputedMaskStridedMemoryRouteFacts =
     tianchenrv::plugin::rvv::RVVComputedMaskStridedMemoryRouteFacts;
 using RVVComputedMaskStridedMemoryRouteValidationContract =
@@ -16007,6 +16010,78 @@ bool expectRVVTargetArtifactExporterShape(
     return true;
   };
 
+  auto expectComputedMaskIndexedProviderContract =
+      [&](const RVVRouteDescription &manualDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskIndexedMemoryRouteValidationKind kind,
+          llvm::StringRef fixtureContext) -> bool {
+    std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>
+        contract =
+            tianchenrv::plugin::rvv::
+                getRVVComputedMaskIndexedMemoryRouteValidationContract(
+                    manualDescription);
+    if (!contract) {
+      llvm::errs() << fixtureContext
+                   << ": missing computed-mask indexed route validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->kind != kind ||
+        contract->operation != manualDescription.operation ||
+        llvm::StringRef(contract->runtimeABIOrder) !=
+            manualDescription.runtimeABIOrder ||
+        llvm::StringRef(contract->routeOperandBindingPlanID) !=
+            manualDescription.routeOperandBindingPlanID ||
+        llvm::StringRef(contract->routeOperandBindingSummary) !=
+            manualDescription.routeOperandBindingSummary ||
+        llvm::StringRef(contract->providerSupportedMirror) !=
+            manualDescription.providerSupportedMirror ||
+        llvm::StringRef(contract->targetLeafProfile) !=
+            manualDescription.targetLeafProfile ||
+        llvm::StringRef(contract->requiredHeaderDeclarations) !=
+            manualDescription.requiredHeaderDeclarations ||
+        llvm::StringRef(contract->cTypeMappingSummary) !=
+            manualDescription.cTypeMappingSummary ||
+        llvm::StringRef(contract->computedMaskMemoryRouteFamilyPlanID) !=
+            manualDescription.computedMaskMemoryRouteFamilyPlanID ||
+        llvm::StringRef(contract->computedMaskMemoryMaskProducerSource) !=
+            manualDescription.computedMaskMemoryMaskProducerSource ||
+        llvm::StringRef(contract->indexedMemoryLayout) !=
+            manualDescription.indexedMemoryLayout ||
+        llvm::StringRef(contract->indexSource) !=
+            manualDescription.indexSource ||
+        contract->indexEEW != manualDescription.indexEEW ||
+        llvm::StringRef(contract->offsetUnit) !=
+            manualDescription.offsetUnit ||
+        llvm::StringRef(contract->indexUniqueness) !=
+            manualDescription.indexUniqueness ||
+        llvm::StringRef(contract->indexedDataMemoryForm) !=
+            manualDescription.indexedDataMemoryForm ||
+        llvm::StringRef(contract->indexedDestinationMemoryForm) !=
+            manualDescription.indexedDestinationMemoryForm ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount == 0 ||
+        contract->runtimeABIParameters.size() !=
+            manualDescription.runtimeABIParameters.size() ||
+        contract->requiredHeaders.empty() || contract->typeMappings.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": malformed computed-mask indexed route validation "
+                      "contract\n";
+      return false;
+    }
+    std::optional<RVVMemoryRouteMetadataMirrorContractSet> mirrorContract =
+        tianchenrv::plugin::rvv::
+            getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
+                manualDescription);
+    if (!mirrorContract || mirrorContract->mirrors.empty() ||
+        mirrorContract->staleMirrorKeys.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": missing computed-mask indexed mirror contract\n";
+      return false;
+    }
+    return true;
+  };
+
   if (!expectCompareSelectProviderContract(
           manualPlainDescription,
           tianchenrv::plugin::rvv::
@@ -16024,6 +16099,20 @@ bool expectRVVTargetArtifactExporterShape(
           tianchenrv::plugin::rvv::
               RVVCompareSelectRouteValidationKind::RuntimeScalarDual,
           "runtime-scalar dual compare/select provider contract"))
+    return false;
+  if (!expectComputedMaskIndexedProviderContract(
+          manualIndexedDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskIndexedMemoryRouteValidationKind::
+                  IndexedGatherLoadUnitStore,
+          "computed-mask indexed gather provider contract"))
+    return false;
+  if (!expectComputedMaskIndexedProviderContract(
+          manualIndexedScatterDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskIndexedMemoryRouteValidationKind::
+                  IndexedScatterStoreUnitLoad,
+          "computed-mask indexed scatter provider contract"))
     return false;
   if (!expectComputedMaskStridedProviderContract(
           manualStridedStoreDescription,
@@ -17059,7 +17148,7 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale computed-mask indexed "
           "gather binding metadata",
           {"route_operand_binding_operands",
-           "selected typed RVV compare/select mask binding summary",
+           "selected typed RVV computed-mask indexed binding summary",
            "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 
@@ -17075,7 +17164,7 @@ bool expectRVVTargetArtifactExporterShape(
           "metadata on computed-mask indexed gather",
           {"base_memory_movement_route_family_plan",
            "must not carry",
-           "without selected typed RVV plain base-memory route-family plan"}))
+           "without selected typed RVV computed-mask indexed memory route"}))
     return false;
 
   TargetArtifactCandidate wrongComputedUnitBaseMemoryCandidate =
@@ -17137,7 +17226,7 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale computed-mask indexed "
           "gather typed compute metadata",
           {"rvv_selected_body_typed_compute_op",
-           "selected typed RVV compare/select mask typed compute op",
+           "selected typed RVV computed-mask indexed typed compute op",
            "tcrv_rvv.masked_indexed_load",
            "metadata-derived-masked-indexed-load"}))
     return false;
@@ -17260,7 +17349,7 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale indexed scatter typed "
           "compute metadata",
           {"rvv_selected_body_typed_compute_op",
-           "selected typed RVV compare/select mask typed compute op",
+           "selected typed RVV computed-mask indexed typed compute op",
            "tcrv_rvv.masked_indexed_store",
            "metadata-derived-masked-indexed-store"}))
     return false;
@@ -17327,7 +17416,7 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale computed-mask indexed "
           "scatter binding metadata",
           {"route_operand_binding_operands",
-           "selected typed RVV compare/select mask binding summary",
+           "selected typed RVV computed-mask indexed binding summary",
            "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"}))
     return false;
 

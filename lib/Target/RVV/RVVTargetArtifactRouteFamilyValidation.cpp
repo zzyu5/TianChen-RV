@@ -1604,55 +1604,58 @@ llvm::Error validateComputedMaskIndexedGatherHeaderBindingSummary(
       OperationKind::ComputedMaskIndexedGatherLoadUnitStore)
     return llvm::Error::success();
 
-  std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts> routeFacts =
-      plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-          description.operation);
-  if (!routeFacts)
+  std::optional<
+      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+      contract =
+          plugin::rvv::getRVVComputedMaskIndexedMemoryRouteValidationContract(
+              description);
+  if (!contract)
     return makeRVVTargetRouteError(
         "computed-mask indexed memory target artifact consumer requires "
-        "provider-owned indexed route facts before artifact export");
+        "provider-owned indexed route validation contract before artifact "
+        "export");
 
   const llvm::StringRef operationMnemonic =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
   if (llvm::StringRef(description.routeOperandBindingPlanID) !=
-      routeFacts->routeOperandBindingPlanID)
+      contract->routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+        contract->routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
   if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(routeFacts->routeOperandBindingPlanID))
+           .starts_with(contract->routeOperandBindingPlanID))
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+        contract->routeOperandBindingPlanID + "' before artifact export");
 
   if (description.runtimeABIParameters.size() !=
-          routeFacts->runtimeABIParameters.size() ||
-      routeFacts->logicalOperands.size() !=
-          routeFacts->runtimeABIParameters.size())
+          contract->runtimeABIParameters.size() ||
+      contract->logicalOperands.size() !=
+          contract->runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order before artifact export");
 
-  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
+  for (std::size_t index = 0; index < contract->logicalOperands.size();
        ++index)
     if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, routeFacts->logicalOperands[index],
+            description, operationMnemonic, contract->logicalOperands[index],
             description.runtimeABIParameters[index]))
       return error;
   if (description.routeOperandBindingSummary !=
-      routeFacts->routeOperandBindingSummary)
+      contract->routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must mirror provider-owned "
         "computed-mask indexed memory binding summary '" +
-        routeFacts->routeOperandBindingSummary + "' before artifact export");
+        contract->routeOperandBindingSummary + "' before artifact export");
   return llvm::Error::success();
 }
 
@@ -1663,55 +1666,58 @@ llvm::Error validateComputedMaskIndexedScatterHeaderBindingSummary(
       OperationKind::ComputedMaskIndexedScatterStoreUnitLoad)
     return llvm::Error::success();
 
-  std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts> routeFacts =
-      plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-          description.operation);
-  if (!routeFacts)
+  std::optional<
+      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+      contract =
+          plugin::rvv::getRVVComputedMaskIndexedMemoryRouteValidationContract(
+              description);
+  if (!contract)
     return makeRVVTargetRouteError(
         "computed-mask indexed memory target artifact consumer requires "
-        "provider-owned indexed route facts before artifact export");
+        "provider-owned indexed route validation contract before artifact "
+        "export");
 
   const llvm::StringRef operationMnemonic =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(description.operation);
   if (llvm::StringRef(description.routeOperandBindingPlanID) !=
-      routeFacts->routeOperandBindingPlanID)
+      contract->routeOperandBindingPlanID)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+        contract->routeOperandBindingPlanID + "' before artifact export");
   if (description.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary is required before artifact export");
   if (!llvm::StringRef(description.routeOperandBindingSummary)
-           .starts_with(routeFacts->routeOperandBindingPlanID))
+           .starts_with(contract->routeOperandBindingPlanID))
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must start with provider plan '" +
-        routeFacts->routeOperandBindingPlanID + "' before artifact export");
+        contract->routeOperandBindingPlanID + "' before artifact export");
 
   if (description.runtimeABIParameters.size() !=
-          routeFacts->runtimeABIParameters.size() ||
-      routeFacts->logicalOperands.size() !=
-          routeFacts->runtimeABIParameters.size())
+          contract->runtimeABIParameters.size() ||
+      contract->logicalOperands.size() !=
+          contract->runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary requires the provider runtime ABI "
         "order before artifact export");
 
-  for (std::size_t index = 0; index < routeFacts->logicalOperands.size();
+  for (std::size_t index = 0; index < contract->logicalOperands.size();
        ++index)
     if (llvm::Error error = requireIndexedBaseMemoryHeaderBindingSummaryEntry(
-            description, operationMnemonic, routeFacts->logicalOperands[index],
+            description, operationMnemonic, contract->logicalOperands[index],
             description.runtimeABIParameters[index]))
       return error;
   if (description.routeOperandBindingSummary !=
-      routeFacts->routeOperandBindingSummary)
+      contract->routeOperandBindingSummary)
     return makeRVVTargetRouteError(
         llvm::Twine(operationMnemonic) +
         " route operand binding summary must mirror provider-owned "
         "computed-mask indexed memory binding summary '" +
-        routeFacts->routeOperandBindingSummary + "' before artifact export");
+        contract->routeOperandBindingSummary + "' before artifact export");
   return llvm::Error::success();
 }
 
@@ -5738,13 +5744,6 @@ bool isRVVCompareSelectMaskStridedMemoryOperation(
                  ComputedMaskStridedLoadUnitStore;
 }
 
-std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-getRVVComputedMaskIndexedMemoryFactsForDescription(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  return plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-      description.operation);
-}
-
 std::optional<plugin::rvv::RVVUnitStrideMaskedMemoryRouteFacts>
 getRVVUnitStrideMaskedMemoryFactsForDescription(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -5802,12 +5801,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedRuntimeABIOrder(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->runtimeABIOrder : llvm::StringRef();
-  }
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -5904,13 +5899,6 @@ getRVVCompareSelectMaskExpectedRuntimeABIParameters(
     break;
   case OperationKind::ComputedMaskIndexedGatherLoadUnitStore:
   case OperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
-    if (std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-            routeFacts =
-                getRVVComputedMaskIndexedMemoryFactsForDescription(description)) {
-      for (const support::RuntimeABIParameter &parameter :
-           routeFacts->runtimeABIParameters)
-        add(parameter.cName, parameter.cType, parameter.role);
-    }
     break;
   default:
     break;
@@ -5930,11 +5918,20 @@ llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
     stridedContract =
         plugin::rvv::getRVVComputedMaskStridedMemoryRouteValidationContract(
             description);
+  std::optional<
+      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+      indexedContract;
+  if (isRVVCompareSelectMaskIndexedMemoryOperation(description.operation))
+    indexedContract =
+        plugin::rvv::getRVVComputedMaskIndexedMemoryRouteValidationContract(
+            description);
   llvm::StringRef expectedOrder =
       compareSelectFacts
           ? compareSelectFacts->runtimeABIOrder
       : stridedContract
           ? llvm::StringRef(stridedContract->runtimeABIOrder)
+      : indexedContract
+          ? llvm::StringRef(indexedContract->runtimeABIOrder)
           : getRVVCompareSelectMaskExpectedRuntimeABIOrder(
                 description.operation);
   if (expectedOrder.empty())
@@ -5964,10 +5961,16 @@ llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
       providerExpectedParameters.push_back(
           RVVExpectedCompareSelectMaskRuntimeABIParameter{
               parameter.cName, parameter.cType, parameter.role});
+  } else if (indexedContract) {
+    for (const support::RuntimeABIParameter &parameter :
+         indexedContract->runtimeABIParameters)
+      providerExpectedParameters.push_back(
+          RVVExpectedCompareSelectMaskRuntimeABIParameter{
+              parameter.cName, parameter.cType, parameter.role});
   }
   const llvm::ArrayRef<RVVExpectedCompareSelectMaskRuntimeABIParameter>
       expectedParameters =
-          (compareSelectFacts || stridedContract)
+          (compareSelectFacts || stridedContract || indexedContract)
               ? llvm::ArrayRef<RVVExpectedCompareSelectMaskRuntimeABIParameter>(
                     providerExpectedParameters)
               : llvm::ArrayRef<RVVExpectedCompareSelectMaskRuntimeABIParameter>(
@@ -6038,12 +6041,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedProviderSupportedMirror(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->providerSupportedMirror : llvm::StringRef();
-  }
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6080,12 +6079,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedTargetLeafProfile(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->targetLeafProfile : llvm::StringRef();
-  }
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6102,14 +6097,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
     return routeFacts ? routeFacts->requiredHeaderDeclarations
                       : llvm::StringRef();
   }
-  if (isRVVCompareSelectMaskIndexedMemoryOperation(operation)) {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->requiredHeaderDeclarations
-                      : llvm::StringRef();
-  }
-  if (isRVVCompareSelectMaskStridedMemoryOperation(operation))
+  if (isRVVCompareSelectMaskIndexedMemoryOperation(operation) ||
+      isRVVCompareSelectMaskStridedMemoryOperation(operation))
     return {};
   if (isRVVCompareSelectMaskRouteFamilyOperation(operation))
     return "stddef.h,stdint.h,riscv_vector.h";
@@ -6148,12 +6137,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedCTypeMappingSummary(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->cTypeMappingSummary : llvm::StringRef();
-  }
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6188,13 +6173,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedMaskProducerSource(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->computedMaskMemoryMaskProducerSource
-                      : llvm::StringRef();
-  }
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6219,26 +6199,15 @@ llvm::StringRef getRVVCompareSelectMaskExpectedSourceMemoryForm(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad:
-    if (isRVVCompareSelectMaskIndexedMemoryOperation(operation)) {
-      std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-          routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-              operation);
-      return routeFacts ? routeFacts->sourceMemoryForm : llvm::StringRef();
-    }
     return "unit-stride-load";
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskStridedLoadUnitStore:
-    return {};
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedGatherLoadUnitStore: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->sourceMemoryForm : llvm::StringRef();
-  }
+      ComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6262,29 +6231,17 @@ llvm::StringRef getRVVCompareSelectMaskExpectedDestinationMemoryForm(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedGatherLoadUnitStore:
-    if (isRVVCompareSelectMaskIndexedMemoryOperation(operation)) {
-      std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-          routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-              operation);
-      return routeFacts ? routeFacts->destinationMemoryForm
-                        : llvm::StringRef();
-    }
     return "unit-stride-store";
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
     return "masked-unit-store";
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskStridedLoadUnitStore:
-    return {};
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->destinationMemoryForm : llvm::StringRef();
-  }
+      ComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6300,26 +6257,15 @@ llvm::StringRef getRVVCompareSelectMaskExpectedInactiveLaneContract(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedGatherLoadUnitStore:
-    if (isRVVCompareSelectMaskIndexedMemoryOperation(operation)) {
-      std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-          routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-              operation);
-      return routeFacts ? routeFacts->inactiveLaneContract : llvm::StringRef();
-    }
     return "masked-off-lanes-preserve-old-destination";
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskStridedLoadUnitStore:
-    return {};
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->inactiveLaneContract : llvm::StringRef();
-  }
+      ComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6335,27 +6281,15 @@ llvm::StringRef getRVVCompareSelectMaskExpectedPassthroughLayout(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedGatherLoadUnitStore:
-    if (isRVVCompareSelectMaskIndexedMemoryOperation(operation)) {
-      std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-          routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-              operation);
-      return routeFacts ? routeFacts->maskedPassthroughLayout
-                        : llvm::StringRef();
-    }
     return "old-destination-vector-preserves-inactive-lanes";
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskStridedLoadUnitStore:
-    return {};
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->maskedPassthroughLayout : llvm::StringRef();
-  }
+      ComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6374,16 +6308,11 @@ llvm::StringRef getRVVCompareSelectMaskExpectedMaskedMemoryLayout(
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskStridedLoadUnitStore:
-    return {};
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad: {
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        routeFacts = plugin::rvv::getRVVComputedMaskIndexedMemoryRouteFacts(
-            operation);
-    return routeFacts ? routeFacts->indexedMemoryLayout : llvm::StringRef();
-  }
+      ComputedMaskIndexedScatterStoreUnitLoad:
+    return {};
   default:
     return {};
   }
@@ -6952,253 +6881,420 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
   return llvm::Error::success();
 }
 
-llvm::Error validateRVVComputedMaskIndexedMemoryCanonicalProviderFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (!isRVVCompareSelectMaskIndexedMemoryOperation(description.operation))
-    return llvm::Error::success();
-
-  std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-      routeFacts = getRVVComputedMaskIndexedMemoryFactsForDescription(description);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        "computed-mask indexed memory target artifact consumer requires "
-        "provider-owned canonical route facts before artifact export");
-
-  if (description.memoryForm != routeFacts->memoryForm)
-    return makeRVVTargetRouteError(
-        llvm::Twine("computed-mask indexed memory target artifact consumer "
-                    "requires provider-owned memory form '") +
-        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(routeFacts->memoryForm) +
-        "' but was '" +
-        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
-        "'");
-  if (description.sew != routeFacts->sew)
-    return makeRVVTargetRouteError(
-        llvm::Twine("computed-mask indexed memory target artifact consumer "
-                    "requires provider-derived SEW '") +
-        llvm::Twine(routeFacts->sew) + "' but was '" +
-        llvm::Twine(description.sew) + "'");
-
+llvm::Error validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract
+        &contract) {
   auto require = [&](llvm::StringRef label, llvm::StringRef actual,
                      llvm::StringRef expected) -> llvm::Error {
     return requireRVVCompareSelectMaskProviderField(label, actual, expected);
   };
 
-  if (llvm::Error error = require("LMUL", description.lmul, routeFacts->lmul))
+  if (description.operation != contract.operation)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned operation '" +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            contract.operation) +
+        "' but was '" +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            description.operation) +
+        "'");
+  if (description.emitCRouteID != contract.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned route id '" + contract.emitCRouteID +
+        "' but description carried '" + description.emitCRouteID + "'");
+  if (description.memoryForm != contract.memoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned memory form '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            contract.memoryForm) +
+        "' but was '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+  if (description.sew != contract.sew)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived SEW '" + llvm::Twine(contract.sew) +
+        "' but was '" + llvm::Twine(description.sew) + "'");
+
+  if (llvm::Error error =
+          require("element type", description.elementTypeName,
+                  contract.elementTypeName))
+    return error;
+  if (llvm::Error error = require("LMUL", description.lmul, contract.lmul))
     return error;
   if (llvm::Error error =
           require("tail policy", description.tailPolicy,
-                  routeFacts->tailPolicy))
+                  contract.tailPolicy))
     return error;
   if (llvm::Error error =
           require("mask policy", description.maskPolicy,
-                  routeFacts->maskPolicy))
+                  contract.maskPolicy))
     return error;
+  if (description.configContractID != contract.configContractID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned config contract '" +
+        contract.configContractID + "' but description carried '" +
+        description.configContractID + "'");
   if (llvm::Error error =
           require("runtime AVL/VL control plan",
                   description.runtimeControlPlanID,
-                  routeFacts->runtimeControlPlanID))
+                  contract.runtimeControlPlanID))
     return error;
   if (llvm::Error error =
           require("runtime ABI order", description.runtimeABIOrder,
-                  routeFacts->runtimeABIOrder))
+                  contract.runtimeABIOrder))
     return error;
   if (llvm::Error error =
           require("provider_supported_mirror",
                   description.providerSupportedMirror,
-                  routeFacts->providerSupportedMirror))
+                  contract.providerSupportedMirror))
     return error;
   if (llvm::Error error = require("target_leaf_profile",
                                   description.targetLeafProfile,
-                                  routeFacts->targetLeafProfile))
+                                  contract.targetLeafProfile))
     return error;
   if (llvm::Error error =
           require("required header declarations",
                   description.requiredHeaderDeclarations,
-                  routeFacts->requiredHeaderDeclarations))
+                  contract.requiredHeaderDeclarations))
     return error;
   if (llvm::Error error =
           require("C type mapping summary", description.cTypeMappingSummary,
-                  routeFacts->cTypeMappingSummary))
+                  contract.cTypeMappingSummary))
     return error;
   if (llvm::Error error =
           require("route operand binding plan",
                   description.routeOperandBindingPlanID,
-                  routeFacts->routeOperandBindingPlanID))
+                  contract.routeOperandBindingPlanID))
     return error;
   if (llvm::Error error =
           require("route operand binding facts",
                   description.routeOperandBindingSummary,
-                  llvm::StringRef(routeFacts->routeOperandBindingSummary)))
+                  contract.routeOperandBindingSummary))
     return error;
   if (llvm::Error error = require("typed compute op",
                                   description.typedComputeOpName,
-                                  routeFacts->typedComputeOpName))
+                                  contract.typedComputeOpName))
     return error;
   if (llvm::Error error =
-          require("VL C type", description.vlCType, routeFacts->vlCType))
+          require("VL C type", description.vlCType, contract.vlCType))
     return error;
   if (llvm::Error error =
           require("vector type", description.vectorTypeName,
-                  routeFacts->vectorTypeName))
+                  contract.vectorTypeName))
     return error;
   if (llvm::Error error =
           require("vector C type", description.vectorCType,
-                  routeFacts->vectorCType))
+                  contract.vectorCType))
     return error;
   if (llvm::Error error =
           require("index vector type", description.indexVectorTypeName,
-                  routeFacts->indexVectorTypeName))
+                  contract.indexVectorTypeName))
     return error;
   if (llvm::Error error =
           require("index vector C type", description.indexVectorCType,
-                  routeFacts->indexVectorCType))
+                  contract.indexVectorCType))
     return error;
   if (llvm::Error error =
           require("mask type", description.maskTypeName,
-                  routeFacts->maskTypeName))
+                  contract.maskTypeName))
     return error;
   if (llvm::Error error =
-          require("mask C type", description.maskCType, routeFacts->maskCType))
+          require("mask C type", description.maskCType, contract.maskCType))
     return error;
   if (llvm::Error error =
           require("setvl callee", description.setVLIntrinsic,
-                  routeFacts->setVLIntrinsic))
+                  contract.setVLIntrinsic))
     return error;
   if (llvm::Error error =
           require("vector load callee", description.vectorLoadIntrinsic,
-                  routeFacts->vectorLoadIntrinsic))
+                  contract.vectorLoadIntrinsic))
     return error;
   if (llvm::Error error =
           require("index load callee", description.indexLoadIntrinsic,
-                  routeFacts->indexLoadIntrinsic))
+                  contract.indexLoadIntrinsic))
     return error;
   if (llvm::Error error =
           require("index scale callee", description.indexScaleIntrinsic,
-                  routeFacts->indexScaleIntrinsic))
+                  contract.indexScaleIntrinsic))
     return error;
   if (llvm::Error error =
           require("masked indexed load callee",
                   description.maskedLoadIntrinsic,
-                  routeFacts->maskedIndexedLoadIntrinsic))
+                  contract.maskedIndexedLoadIntrinsic))
     return error;
   if (llvm::Error error =
           require("masked indexed store callee",
                   description.indexedStoreIntrinsic,
-                  routeFacts->maskedIndexedStoreIntrinsic))
+                  contract.maskedIndexedStoreIntrinsic))
     return error;
-  if (llvm::Error error =
-          require("store callee", description.storeIntrinsic,
-                  routeFacts->maskedStoreIntrinsic))
+  if (llvm::Error error = require("store callee",
+                                  description.storeIntrinsic,
+                                  contract.maskedStoreIntrinsic))
     return error;
   if (llvm::Error error =
           require("compare callee", description.compareIntrinsic,
-                  routeFacts->compareIntrinsic))
+                  contract.compareIntrinsic))
     return error;
   if (llvm::Error error =
           require("compare predicate", description.comparePredicateKind,
-                  routeFacts->comparePredicateKind))
+                  contract.comparePredicateKind))
     return error;
   if (llvm::Error error =
           require("computed-mask memory route-family plan",
                   description.computedMaskMemoryRouteFamilyPlanID,
-                  routeFacts->computedMaskMemoryRouteFamilyPlanID))
+                  contract.computedMaskMemoryRouteFamilyPlanID))
     return error;
   if (llvm::Error error =
           require("computed-mask memory producer source",
                   description.computedMaskMemoryMaskProducerSource,
-                  routeFacts->computedMaskMemoryMaskProducerSource))
+                  contract.computedMaskMemoryMaskProducerSource))
     return error;
   if (llvm::Error error =
           require("mask/tail policy route-family plan",
                   description.maskTailPolicyRouteFamilyPlanID,
-                  routeFacts->maskTailPolicyRouteFamilyPlanID))
+                  contract.maskTailPolicyRouteFamilyPlanID))
     return error;
   if (llvm::Error error =
           require("mask/tail policy owner", description.maskTailPolicyOwner,
-                  routeFacts->maskTailPolicyOwner))
+                  contract.maskTailPolicyOwner))
     return error;
   if (llvm::Error error =
-          require("mask role", description.maskRole, routeFacts->maskRole))
+          require("mask role", description.maskRole, contract.maskRole))
     return error;
   if (llvm::Error error =
-          require("mask source", description.maskSource, routeFacts->maskSource))
+          require("mask source", description.maskSource, contract.maskSource))
     return error;
   if (llvm::Error error = require("mask memory form",
                                   description.maskMemoryForm,
-                                  routeFacts->maskMemoryForm))
+                                  contract.maskMemoryForm))
     return error;
   if (llvm::Error error =
           require("inactive-lane contract", description.inactiveLaneContract,
-                  routeFacts->inactiveLaneContract))
+                  contract.inactiveLaneContract))
     return error;
   if (llvm::Error error =
           require("masked passthrough layout",
                   description.maskedPassthroughLayout,
-                  routeFacts->maskedPassthroughLayout))
+                  contract.maskedPassthroughLayout))
     return error;
   if (llvm::Error error =
           require("masked memory layout", description.indexedMemoryLayout,
-                  routeFacts->indexedMemoryLayout))
+                  contract.indexedMemoryLayout))
     return error;
   if (llvm::Error error = require("source memory form",
                                   description.sourceMemoryForm,
-                                  routeFacts->sourceMemoryForm))
+                                  contract.sourceMemoryForm))
     return error;
-  if (llvm::Error error = require("destination memory form",
-                                  description.destinationMemoryForm,
-                                  routeFacts->destinationMemoryForm))
+  if (llvm::Error error =
+          require("destination memory form", description.destinationMemoryForm,
+                  contract.destinationMemoryForm))
     return error;
-  if (description.indexEEW != routeFacts->indexEEW)
+  if (description.indexEEW != contract.indexEEW)
     return makeRVVTargetRouteError(
-        llvm::Twine("computed-mask indexed memory target artifact consumer "
-                    "requires provider-derived index EEW '") +
-        llvm::Twine(routeFacts->indexEEW) + "' but was '" +
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived index EEW '" +
+        llvm::Twine(contract.indexEEW) + "' but was '" +
         llvm::Twine(description.indexEEW) + "'");
   if (llvm::Error error =
-          require("offset unit", description.offsetUnit, routeFacts->offsetUnit))
+          require("offset unit", description.offsetUnit, contract.offsetUnit))
     return error;
   if (llvm::Error error =
           require("index source", description.indexSource,
-                  routeFacts->indexSource))
+                  contract.indexSource))
     return error;
   if (llvm::Error error =
           require("index uniqueness", description.indexUniqueness,
-                  routeFacts->indexUniqueness))
+                  contract.indexUniqueness))
     return error;
   if (llvm::Error error =
           require("indexed data memory form",
                   description.indexedDataMemoryForm,
-                  routeFacts->indexedDataMemoryForm))
+                  contract.indexedDataMemoryForm))
     return error;
   if (llvm::Error error =
           require("indexed destination memory form",
                   description.indexedDestinationMemoryForm,
-                  routeFacts->indexedDestinationMemoryForm))
+                  contract.indexedDestinationMemoryForm))
+    return error;
+  if (llvm::Error error =
+          require("plain compare-select route-family plan",
+                  description.plainCompareSelectRouteFamilyPlanID, ""))
+    return error;
+  if (llvm::Error error =
+          require("computed-mask select route-family plan",
+                  description.computedMaskSelectRouteFamilyPlanID, ""))
+    return error;
+  if (!description.baseMemoryMovementRouteFamilyPlanID.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " rejects stale plain base-memory route-family facts");
+  if (llvm::Error error =
+          require("segment2 route-family plan",
+                  description.segment2MemoryRouteFamilyPlanID, ""))
+    return error;
+  if (llvm::Error error =
+          require("strided memory layout", description.stridedMemoryLayout, ""))
+    return error;
+  if (llvm::Error error =
+          require("source stride source", description.sourceStrideSource, ""))
+    return error;
+  if (llvm::Error error =
+          require("destination stride source", description.outStrideSource, ""))
     return error;
 
   if (description.runtimeABIParameters.size() !=
-      routeFacts->runtimeABIParameters.size())
+      contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
-        llvm::Twine("computed-mask indexed memory target artifact consumer "
-                    "requires ") +
-        llvm::Twine(routeFacts->runtimeABIParameters.size()) +
-        " provider-owned runtime ABI parameters before artifact export but saw " +
+        llvm::Twine(contract.consumerLabel) + " requires " +
+        llvm::Twine(contract.runtimeABIParameters.size()) +
+        " provider-owned runtime ABI parameters before artifact export but "
+        "saw " +
         llvm::Twine(description.runtimeABIParameters.size()));
-  for (std::size_t index = 0; index < routeFacts->runtimeABIParameters.size();
+  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
        ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
     const support::RuntimeABIParameter &expected =
-        routeFacts->runtimeABIParameters[index];
+        contract.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
-          llvm::Twine("computed-mask indexed memory target artifact consumer "
-                      "requires runtime ABI parameter[") +
-          llvm::Twine(index) + "] to mirror provider-owned parameter '" +
-          expected.cName + "' before artifact export");
+          llvm::Twine(contract.consumerLabel) +
+          " requires runtime ABI parameter[" + llvm::Twine(index) +
+          "] to mirror provider-owned parameter '" + expected.cName +
+          "' as " + support::stringifyRuntimeABIParameterRole(expected.role) +
+          " with C type '" + expected.cType +
+          "' before artifact export but saw '" + actual.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(actual.role) +
+          " with C type '" + actual.cType + "'");
   }
 
+  if (contract.expectedPreLoopStepCount == 0 ||
+      contract.expectedLoopBodyStepCount == 0)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned statement-plan expectations before artifact "
+        "export");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskIndexedMemoryCanonicalProviderFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVCompareSelectMaskIndexedMemoryOperation(description.operation))
+    return llvm::Error::success();
+
+  std::optional<
+      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+      contract =
+          plugin::rvv::getRVVComputedMaskIndexedMemoryRouteValidationContract(
+              description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "computed-mask indexed memory target artifact consumer requires "
+        "provider-owned route validation contract before artifact export");
+  return validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
+      description, *contract);
+}
+
+llvm::Error validateRVVComputedMaskIndexedMemoryRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract
+        &contract) {
+  if (contract.requiredHeaderDeclarations.empty() ||
+      contract.requiredHeaders.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived required_header_declarations before "
+        "accepting the route artifact");
+  for (llvm::StringRef header : contract.requiredHeaders)
+    if (!routeHasHeader(route, header))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route header '" + header + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskIndexedMemoryRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract
+        &contract) {
+  if (contract.cTypeMappingSummary.empty() || contract.typeMappings.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived c_type_mapping facts before accepting "
+        "the route artifact");
+  for (const auto &mapping : contract.typeMappings)
+    if (!routeHasTypeMapping(route, mapping.sourceType, mapping.cType))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route type mapping '" +
+          mapping.sourceType + "' -> '" + mapping.cType + "' for " +
+          mapping.label);
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskIndexedMemoryRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract
+        &contract) {
+  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route ABI mapping count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        contract.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
+          llvm::Twine(index) +
+          "] to mirror provider runtime ABI parameter '" + expected.cName +
+          "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVComputedMaskIndexedMemoryRouteStatementPlanShape(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract
+        &contract) {
+  if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-built pre-loop to carry exactly " +
+        llvm::Twine(contract.expectedPreLoopStepCount) + " statement(s)");
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires exactly one provider-built runtime AVL/VL loop");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.bodySteps.size() != contract.expectedLoopBodyStepCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-built loop body to carry exactly " +
+        llvm::Twine(contract.expectedLoopBodyStepCount) +
+        " statements but saw " + llvm::Twine(loop.bodySteps.size()));
   return llvm::Error::success();
 }
 
@@ -8594,6 +8690,45 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
     return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
   }
 
+  if (isRVVCompareSelectMaskIndexedMemoryOperation(description.operation)) {
+    std::optional<
+        plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+        contract =
+            plugin::rvv::
+                getRVVComputedMaskIndexedMemoryRouteValidationContract(
+                    description);
+    if (!contract)
+      return makeRVVTargetRouteError(
+          "computed-mask indexed memory target artifact consumer requires "
+          "provider-owned route validation contract from typed "
+          "body/config/runtime facts before artifact export");
+    if (route.getRouteID() != contract->emitCRouteID)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract->consumerLabel) +
+          " requires rebuilt provider route id '" + contract->emitCRouteID +
+          "' but route carried '" + route.getRouteID() + "'");
+    if (llvm::Error error =
+            validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
+                description, *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVComputedMaskIndexedMemoryRouteHeaders(route, *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVComputedMaskIndexedMemoryRouteTypeMappings(route,
+                                                                  *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVComputedMaskIndexedMemoryRouteABIMappings(route,
+                                                                 *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVComputedMaskIndexedMemoryRouteStatementPlanShape(
+                route, *contract))
+      return error;
+    return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
+  }
+
   if (isRVVCompareSelectMaskStridedMemoryOperation(description.operation)) {
     std::optional<
         plugin::rvv::RVVComputedMaskStridedMemoryRouteValidationContract>
@@ -8905,50 +9040,27 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
             getRVVCompareSelectMaskExpectedDestinationStrideSource(
                 description.operation)))
       return error;
-    std::optional<plugin::rvv::RVVComputedMaskIndexedMemoryRouteFacts>
-        indexedRouteFacts;
-    if (isRVVCompareSelectMaskIndexedMemoryOperation(description.operation)) {
-      indexedRouteFacts =
-          getRVVComputedMaskIndexedMemoryFactsForDescription(description);
-      if (!indexedRouteFacts)
-        return makeRVVTargetRouteError(
-            "computed-mask indexed memory target artifact consumer requires "
-            "provider-owned indexed route facts before artifact export");
-    }
-    const std::int64_t expectedIndexEEW =
-        indexedRouteFacts ? indexedRouteFacts->indexEEW : 0;
-    if (description.indexEEW != expectedIndexEEW)
+    if (description.indexEEW != 0)
       return makeRVVTargetRouteError(
           llvm::Twine("compare-produced computed-mask memory target artifact "
                       "consumer requires provider-derived index EEW '") +
-          llvm::Twine(expectedIndexEEW) + "' but was '" +
+          llvm::Twine(0) + "' but was '" +
           llvm::Twine(description.indexEEW) + "'");
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "offset unit", description.offsetUnit,
-            indexedRouteFacts ? indexedRouteFacts->offsetUnit
-                              : llvm::StringRef()))
+            "offset unit", description.offsetUnit, ""))
       return error;
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "index source", description.indexSource,
-            indexedRouteFacts ? indexedRouteFacts->indexSource
-                              : llvm::StringRef()))
+            "index source", description.indexSource, ""))
       return error;
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "index uniqueness", description.indexUniqueness,
-            indexedRouteFacts ? indexedRouteFacts->indexUniqueness
-                              : llvm::StringRef()))
+            "index uniqueness", description.indexUniqueness, ""))
       return error;
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "indexed data memory form", description.indexedDataMemoryForm,
-            indexedRouteFacts ? indexedRouteFacts->indexedDataMemoryForm
-                              : llvm::StringRef()))
+            "indexed data memory form", description.indexedDataMemoryForm, ""))
       return error;
     if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
             "indexed destination memory form",
-            description.indexedDestinationMemoryForm,
-            indexedRouteFacts
-                ? indexedRouteFacts->indexedDestinationMemoryForm
-                : llvm::StringRef()))
+            description.indexedDestinationMemoryForm, ""))
       return error;
   }
 
@@ -9016,6 +9128,21 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
           "validating candidate mirrors");
     return validateRVVProviderCompareSelectRouteMetadataMirrorContract(
         candidate, *contract);
+  }
+
+  if (isRVVCompareSelectMaskIndexedMemoryOperation(description.operation)) {
+    std::optional<plugin::rvv::RVVMemoryRouteMetadataMirrorContractSet>
+        contract =
+            plugin::rvv::
+                getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
+                    description);
+    if (!contract)
+      return makeRVVTargetRouteError(
+          "computed-mask indexed memory target artifact consumer requires "
+          "provider-owned metadata mirror contract before validating "
+          "candidate mirrors");
+    return validateRVVProviderMemoryRouteMetadataMirrorContract(candidate,
+                                                               *contract);
   }
 
   if (isRVVCompareSelectMaskStridedMemoryOperation(description.operation)) {

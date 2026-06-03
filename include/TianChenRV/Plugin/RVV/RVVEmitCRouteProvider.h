@@ -666,6 +666,103 @@ std::optional<RVVComputedMaskIndexedMemoryRouteFacts>
 getRVVComputedMaskIndexedMemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
+enum class RVVComputedMaskIndexedMemoryRouteValidationKind {
+  IndexedGatherLoadUnitStore,
+  IndexedScatterStoreUnitLoad,
+};
+
+struct RVVComputedMaskIndexedMemoryRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVComputedMaskIndexedMemoryRouteValidationContract {
+  RVVComputedMaskIndexedMemoryRouteValidationKind kind =
+      RVVComputedMaskIndexedMemoryRouteValidationKind::
+          IndexedGatherLoadUnitStore;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string computedMaskMemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryMaskProducerSource;
+  std::string maskTailPolicyRouteFamilyPlanID;
+  std::string maskTailPolicyOwner;
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  std::string indexedMemoryLayout;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::int64_t indexEEW = 0;
+  std::string offsetUnit;
+  std::string indexSource;
+  std::string indexUniqueness;
+  std::string indexedDataMemoryForm;
+  std::string indexedDestinationMemoryForm;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string indexVectorTypeName;
+  std::string indexVectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string indexLoadIntrinsic;
+  std::string indexScaleIntrinsic;
+  std::string maskedIndexedLoadIntrinsic;
+  std::string maskedIndexedStoreIntrinsic;
+  std::string maskedStoreIntrinsic;
+  std::string compareIntrinsic;
+  std::string resultName;
+  std::string maskName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameterRole, 8>
+      runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVComputedMaskIndexedMemoryRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>
+getRVVComputedMaskIndexedMemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVComputedMaskStridedMemoryRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -1169,6 +1266,10 @@ getRVVBaseMemoryRouteMetadataMirrorContract(
 
 std::optional<RVVMemoryRouteMetadataMirrorContractSet>
 getRVVComputedMaskStridedMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
 std::optional<RVVMemoryRouteMetadataMirrorContractSet>

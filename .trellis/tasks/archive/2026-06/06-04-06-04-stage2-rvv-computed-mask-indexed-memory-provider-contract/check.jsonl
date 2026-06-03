@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV authority and Stage 2 scope after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify provider/target/common boundary remains plugin-owned and fail-closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify computed-mask indexed route validation contract, mirror validation, and test/error matrix."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-strided-memory-provider-contract/prd.md", "reason": "Compare against the predecessor contract extraction pattern and focused evidence expectations."}

@@ -19980,6 +19980,172 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
   return facts;
 }
 
+static RVVComputedMaskIndexedMemoryRouteValidationKind
+getComputedMaskIndexedMemoryRouteValidationKind(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return RVVComputedMaskIndexedMemoryRouteValidationKind::
+        IndexedGatherLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return RVVComputedMaskIndexedMemoryRouteValidationKind::
+        IndexedScatterStoreUnitLoad;
+  default:
+    llvm_unreachable(
+        "unsupported computed-mask indexed memory validation operation");
+  }
+}
+
+static std::size_t getComputedMaskIndexedMemoryExpectedLoopBodyStepCount(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return 9;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return 8;
+  default:
+    return 0;
+  }
+}
+
+static void appendComputedMaskIndexedMemoryValidationHeaders(
+    RVVComputedMaskIndexedMemoryRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendComputedMaskIndexedMemoryValidationTypeMapping(
+    RVVComputedMaskIndexedMemoryRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void appendComputedMaskIndexedMemoryValidationRuntimeABIRoles(
+    RVVComputedMaskIndexedMemoryRouteValidationContract &contract) {
+  for (const support::RuntimeABIParameter &parameter :
+       contract.runtimeABIParameters)
+    contract.runtimeABIParameterRoles.push_back(parameter.role);
+}
+
+std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>
+getRVVComputedMaskIndexedMemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVComputedMaskIndexedMemoryRouteFacts> routeFacts =
+      getRVVComputedMaskIndexedMemoryRouteFacts(description.operation);
+  if (!routeFacts)
+    return std::nullopt;
+
+  RVVComputedMaskIndexedMemoryRouteValidationContract contract;
+  contract.kind =
+      getComputedMaskIndexedMemoryRouteValidationKind(description.operation);
+  contract.operation = routeFacts->operation;
+  contract.consumerLabel =
+      "computed-mask indexed memory target artifact consumer";
+  contract.emitCRouteID = description.emitCRouteID.str();
+  contract.memoryForm = routeFacts->memoryForm;
+  contract.elementTypeName =
+      getRVVSelectedBodyIntegerElementTypeName(routeFacts->sew).str();
+  contract.sew = routeFacts->sew;
+  contract.lmul = routeFacts->lmul.str();
+  contract.tailPolicy = routeFacts->tailPolicy.str();
+  contract.maskPolicy = routeFacts->maskPolicy.str();
+  contract.configContractID = description.configContractID.str();
+  contract.runtimeControlPlanID = routeFacts->runtimeControlPlanID.str();
+  contract.runtimeABIOrder = routeFacts->runtimeABIOrder.str();
+  contract.targetLeafProfile = routeFacts->targetLeafProfile.str();
+  contract.providerSupportedMirror =
+      routeFacts->providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      routeFacts->requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = routeFacts->cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      routeFacts->routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = routeFacts->routeOperandBindingSummary;
+  contract.typedComputeOpName = routeFacts->typedComputeOpName.str();
+
+  contract.computedMaskMemoryRouteFamilyPlanID =
+      routeFacts->computedMaskMemoryRouteFamilyPlanID.str();
+  contract.computedMaskMemoryMaskProducerSource =
+      routeFacts->computedMaskMemoryMaskProducerSource.str();
+  contract.maskTailPolicyRouteFamilyPlanID =
+      routeFacts->maskTailPolicyRouteFamilyPlanID.str();
+  contract.maskTailPolicyOwner = routeFacts->maskTailPolicyOwner.str();
+  contract.comparePredicateKind = routeFacts->comparePredicateKind.str();
+  contract.maskRole = routeFacts->maskRole.str();
+  contract.maskSource = routeFacts->maskSource.str();
+  contract.maskMemoryForm = routeFacts->maskMemoryForm.str();
+  contract.inactiveLaneContract = routeFacts->inactiveLaneContract.str();
+  contract.maskedPassthroughLayout =
+      routeFacts->maskedPassthroughLayout.str();
+  contract.indexedMemoryLayout = routeFacts->indexedMemoryLayout.str();
+  contract.sourceMemoryForm = routeFacts->sourceMemoryForm.str();
+  contract.destinationMemoryForm = routeFacts->destinationMemoryForm.str();
+  contract.indexEEW = routeFacts->indexEEW;
+  contract.offsetUnit = routeFacts->offsetUnit.str();
+  contract.indexSource = routeFacts->indexSource.str();
+  contract.indexUniqueness = routeFacts->indexUniqueness.str();
+  contract.indexedDataMemoryForm = routeFacts->indexedDataMemoryForm.str();
+  contract.indexedDestinationMemoryForm =
+      routeFacts->indexedDestinationMemoryForm.str();
+
+  contract.vlCType = routeFacts->vlCType.str();
+  contract.vectorTypeName = routeFacts->vectorTypeName.str();
+  contract.vectorCType = routeFacts->vectorCType.str();
+  contract.indexVectorTypeName = routeFacts->indexVectorTypeName.str();
+  contract.indexVectorCType = routeFacts->indexVectorCType.str();
+  contract.maskTypeName = routeFacts->maskTypeName.str();
+  contract.maskCType = routeFacts->maskCType.str();
+  contract.setVLIntrinsic = routeFacts->setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = routeFacts->vectorLoadIntrinsic.str();
+  contract.indexLoadIntrinsic = routeFacts->indexLoadIntrinsic.str();
+  contract.indexScaleIntrinsic = routeFacts->indexScaleIntrinsic.str();
+  contract.maskedIndexedLoadIntrinsic =
+      routeFacts->maskedIndexedLoadIntrinsic.str();
+  contract.maskedIndexedStoreIntrinsic =
+      routeFacts->maskedIndexedStoreIntrinsic.str();
+  contract.maskedStoreIntrinsic = routeFacts->maskedStoreIntrinsic.str();
+  contract.compareIntrinsic = routeFacts->compareIntrinsic.str();
+  contract.resultName = description.resultName.str();
+  contract.maskName = description.maskName.str();
+
+  contract.emitCFullChunkVLName = description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount =
+      getComputedMaskIndexedMemoryExpectedLoopBodyStepCount(
+          description.operation);
+
+  contract.logicalOperands.append(routeFacts->logicalOperands.begin(),
+                                  routeFacts->logicalOperands.end());
+  contract.runtimeABIParameters.append(
+      routeFacts->runtimeABIParameters.begin(),
+      routeFacts->runtimeABIParameters.end());
+  appendComputedMaskIndexedMemoryValidationRuntimeABIRoles(contract);
+  appendComputedMaskIndexedMemoryValidationHeaders(
+      contract, contract.requiredHeaderDeclarations);
+  appendComputedMaskIndexedMemoryValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", contract.vlCType,
+      "selected typed RVV computed-mask indexed VL type");
+  appendComputedMaskIndexedMemoryValidationTypeMapping(
+      contract, contract.vectorTypeName, contract.vectorCType,
+      "selected typed RVV computed-mask indexed vector type");
+  appendComputedMaskIndexedMemoryValidationTypeMapping(
+      contract, contract.indexVectorTypeName, contract.indexVectorCType,
+      "selected typed RVV computed-mask indexed index vector type");
+  appendComputedMaskIndexedMemoryValidationTypeMapping(
+      contract, contract.maskTypeName, contract.maskCType,
+      "selected typed RVV computed-mask indexed mask type");
+
+  return contract;
+}
+
 std::optional<RVVComputedMaskStridedMemoryRouteFacts>
 getRVVComputedMaskStridedMemoryRouteFacts(
     RVVSelectedBodyOperationKind operation) {
@@ -20726,6 +20892,144 @@ static void appendRVVMemoryRouteMetadataMirror(
     RVVMemoryRouteMetadataMirrorContractSet &contract, llvm::StringRef key,
     llvm::StringRef expected, llvm::StringRef label) {
   contract.mirrors.push_back({key, expected.str(), label});
+}
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>
+      validation =
+          getRVVComputedMaskIndexedMemoryRouteValidationContract(description);
+  if (!validation)
+    return std::nullopt;
+
+  RVVMemoryRouteMetadataMirrorContractSet contract;
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.compare_predicate_kind",
+      validation->comparePredicateKind,
+      "selected typed RVV computed-mask indexed compare predicate");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan",
+      validation->routeOperandBindingPlanID,
+      "selected typed RVV computed-mask indexed binding plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands",
+      validation->routeOperandBindingSummary,
+      "selected typed RVV computed-mask indexed binding summary");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror",
+      validation->providerSupportedMirror,
+      "selected typed RVV computed-mask indexed provider support");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.target_leaf_profile",
+      validation->targetLeafProfile,
+      "selected typed RVV computed-mask indexed target leaf profile");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "rvv_selected_body_typed_compute_op",
+      validation->typedComputeOpName,
+      "selected typed RVV computed-mask indexed typed compute op");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.computed_mask_memory_route_family_plan",
+      validation->computedMaskMemoryRouteFamilyPlanID,
+      "selected typed RVV computed-mask indexed memory route-family plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.computed_mask_memory_mask_producer_source",
+      validation->computedMaskMemoryMaskProducerSource,
+      "selected typed RVV computed-mask indexed memory producer source");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_tail_policy_route_family_plan",
+      validation->maskTailPolicyRouteFamilyPlanID,
+      "selected typed RVV computed-mask indexed mask/tail policy plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_tail_policy_owner",
+      validation->maskTailPolicyOwner,
+      "selected typed RVV computed-mask indexed mask/tail policy owner");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(validation->memoryForm),
+      "selected typed RVV computed-mask indexed memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      validation->runtimeControlPlanID,
+      "selected typed RVV computed-mask indexed runtime AVL/VL control plan");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", validation->runtimeABIOrder,
+      "selected typed RVV computed-mask indexed runtime ABI order");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations",
+      validation->requiredHeaderDeclarations,
+      "selected typed RVV computed-mask indexed route header requirements");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping",
+      validation->cTypeMappingSummary,
+      "selected typed RVV computed-mask indexed route type mapping summary");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_role", validation->maskRole,
+      "selected typed RVV computed-mask indexed mask role");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_source", validation->maskSource,
+      "selected typed RVV computed-mask indexed mask source");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.mask_memory_form", validation->maskMemoryForm,
+      "selected typed RVV computed-mask indexed mask memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.source_memory_form",
+      validation->sourceMemoryForm,
+      "selected typed RVV computed-mask indexed source memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.destination_memory_form",
+      validation->destinationMemoryForm,
+      "selected typed RVV computed-mask indexed destination memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.inactive_lane_contract",
+      validation->inactiveLaneContract,
+      "selected typed RVV computed-mask indexed inactive lane contract");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.masked_passthrough_layout",
+      validation->maskedPassthroughLayout,
+      "selected typed RVV computed-mask indexed passthrough layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.masked_memory_layout",
+      validation->indexedMemoryLayout,
+      "selected typed RVV computed-mask indexed masked memory layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_memory_layout",
+      validation->indexedMemoryLayout,
+      "selected typed RVV computed-mask indexed memory layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.index_source", validation->indexSource,
+      "selected typed RVV computed-mask indexed index source");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.index_eew",
+      llvm::Twine(validation->indexEEW).str(),
+      "selected typed RVV computed-mask indexed index EEW");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.offset_unit", validation->offsetUnit,
+      "selected typed RVV computed-mask indexed offset unit");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.index_uniqueness", validation->indexUniqueness,
+      "selected typed RVV computed-mask indexed uniqueness");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_data_memory_form",
+      validation->indexedDataMemoryForm,
+      "selected typed RVV computed-mask indexed data memory form");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_destination_memory_form",
+      validation->indexedDestinationMemoryForm,
+      "selected typed RVV computed-mask indexed destination memory form");
+
+  contract.staleMirrorKeys.append(
+      {"tcrv_rvv.plain_compare_select_route_family_plan",
+       "tcrv_rvv.computed_mask_select_route_family_plan",
+       "tcrv_rvv.computed_mask_select_mask_producer_source",
+       "tcrv_rvv.base_memory_movement_route_family_plan",
+       "tcrv_rvv.segment2_memory_route_family_plan",
+       "tcrv_rvv.segment_memory_layout", "tcrv_rvv.strided_memory_layout",
+       "tcrv_rvv.source_stride_source",
+       "tcrv_rvv.destination_stride_source"});
+  contract.staleMirrorLabel =
+      "selected typed RVV computed-mask indexed memory route";
+  return contract;
 }
 
 std::optional<RVVMemoryRouteMetadataMirrorContractSet>

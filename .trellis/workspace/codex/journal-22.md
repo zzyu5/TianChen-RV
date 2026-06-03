@@ -59,6 +59,52 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 426: Stage2 RVV computed-mask indexed-memory provider contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask indexed-memory provider contract extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned computed-mask indexed memory route validation and
+mirror contracts for gather/load-unit-store and scatter/store-unit-load,
+rewired target artifact validation to consume them before candidate mirrors,
+updated lowering-runtime spec, and passed focused build/C++/lit checks. No
+`ssh rvv` run because this changed validation ownership only, not emitted C,
+runtime ABI, mask/index behavior, correctness, or performance claims.
+
+### Main Changes
+
+- Added computed-mask indexed validation/mirror contract provider APIs.
+- Removed direct target-validator consumption of computed-mask indexed route
+  facts.
+- Added focused C++ contract and stale mirror coverage.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused computed-mask indexed lit/generated-bundle filter: 8 passed, 469 excluded
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 425: Stage2 RVV vector-reduction executable artifact closeout
 
 **Date**: 2026-06-04

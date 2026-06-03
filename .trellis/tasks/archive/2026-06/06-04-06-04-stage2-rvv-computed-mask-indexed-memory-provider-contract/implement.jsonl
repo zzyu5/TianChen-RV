@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 scope, and no descriptor/common-EmitC authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin/provider ownership for typed body legality, realization, route support, intrinsic/type/ABI mapping, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract plus computed-mask indexed memory fact surface and computed-mask strided validation contract pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-strided-memory-provider-contract/prd.md", "reason": "Immediate predecessor implementing the same validation-contract extraction pattern for computed-mask strided memory."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Prior computed-mask indexed provider fact-surface and target validation closeout."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-indexed-memory-provider-owned-fact-surface-completion/prd.md", "reason": "Indexed-memory provider-owned fact surface completion context and non-goals."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-indexed-memory-production-validation-boundary/prd.md", "reason": "Four-route indexed production validation boundary and stale plain-vs-computed-mask rejection context."}
