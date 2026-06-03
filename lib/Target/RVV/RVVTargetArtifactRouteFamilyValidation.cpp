@@ -60,6 +60,35 @@ llvm::Error requireCandidateMetadataMirror(
   return llvm::Error::success();
 }
 
+struct RVVMemoryRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  llvm::StringRef expected;
+  llvm::StringRef label;
+};
+
+// Packages provider-derived memory mirror checks without defining route
+// semantics in the target validator.
+llvm::Error validateRVVMemoryRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<RVVMemoryRouteMetadataMirrorContract> mirrors) {
+  for (const RVVMemoryRouteMetadataMirrorContract &mirror : mirrors)
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, mirror.key, mirror.expected, mirror.label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMemoryRouteEmptyMetadataMirrors(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<llvm::StringLiteral> staleMirrorKeys,
+    llvm::StringRef label) {
+  for (llvm::StringRef key : staleMirrorKeys)
+    if (llvm::Error error =
+            requireCandidateMetadataMirror(candidate, key, "", label))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error requireRVVProviderDerivedField(llvm::StringRef consumerLabel,
                                            llvm::StringRef fieldLabel,
                                            llvm::StringRef value) {
@@ -2545,12 +2574,6 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactProviderFacts(
                                                         context.description);
 }
 
-llvm::Error requireEmptyBaseMemoryMovementStaleMirror(
-    const TargetArtifactCandidate &candidate, llvm::StringRef key,
-    llvm::StringRef label) {
-  return requireCandidateMetadataMirror(candidate, key, "", label);
-}
-
 llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   const TargetArtifactCandidate &candidate = context.candidate;
@@ -2567,55 +2590,104 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
           validateRVVUnitStrideMaskedMemoryCanonicalProviderFacts(description))
     return error;
 
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_plan",
-          routeFacts->routeOperandBindingPlanID,
-          "selected typed RVV base-memory binding plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_operands",
-          routeFacts->routeOperandBindingSummary,
-          "selected typed RVV base-memory binding summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.provider_supported_mirror",
-          routeFacts->providerSupportedMirror,
-          "selected typed RVV base-memory provider support"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.base_memory_movement_route_family_plan",
-          routeFacts->routeFamilyPlanID,
-          "selected typed RVV base-memory route-family plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.memory_form",
-          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              routeFacts->memoryForm),
-          "selected typed RVV base-memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.target_leaf_profile",
-          routeFacts->targetLeafProfile,
-          "selected typed RVV base-memory target leaf profile"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_control_plan",
-          description.runtimeControlPlanID,
-          "selected typed RVV base-memory runtime AVL/VL control plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_abi_order",
-          routeFacts->runtimeABIOrder,
-          "selected typed RVV base-memory runtime ABI order"))
-    return error;
-  if (isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
-          description.operation)) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "rvv_selected_body_typed_compute_op",
-            routeFacts->typedComputeOpName,
-            "selected typed RVV base-memory typed compute op"))
-      return error;
-  }
+  const std::string indexEEWMirror =
+      routeFacts->indexEEW == 0 ? "" : llvm::Twine(routeFacts->indexEEW).str();
+  llvm::SmallVector<RVVMemoryRouteMetadataMirrorContract, 32> mirrorContract = {
+      {"tcrv_rvv.route_operand_binding_plan",
+       routeFacts->routeOperandBindingPlanID,
+       "selected typed RVV base-memory binding plan"},
+      {"tcrv_rvv.route_operand_binding_operands",
+       routeFacts->routeOperandBindingSummary,
+       "selected typed RVV base-memory binding summary"},
+      {"tcrv_rvv.provider_supported_mirror",
+       routeFacts->providerSupportedMirror,
+       "selected typed RVV base-memory provider support"},
+      {"tcrv_rvv.base_memory_movement_route_family_plan",
+       routeFacts->routeFamilyPlanID,
+       "selected typed RVV base-memory route-family plan"},
+      {"tcrv_rvv.memory_form",
+       plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+           routeFacts->memoryForm),
+       "selected typed RVV base-memory form"},
+      {"tcrv_rvv.target_leaf_profile",
+       routeFacts->targetLeafProfile,
+       "selected typed RVV base-memory target leaf profile"},
+      {"tcrv_rvv.runtime_control_plan",
+       routeFacts->runtimeControlPlanID,
+       "selected typed RVV base-memory runtime AVL/VL control plan"},
+      {"tcrv_rvv.runtime_abi_order",
+       routeFacts->runtimeABIOrder,
+       "selected typed RVV base-memory runtime ABI order"},
+      {"tcrv_rvv.required_header_declarations",
+       routeFacts->requiredHeaderDeclarations,
+       "selected typed RVV base-memory route header requirements"},
+      {"tcrv_rvv.c_type_mapping",
+       routeFacts->cTypeMappingSummary,
+       "selected typed RVV base-memory route type mapping summary"},
+      {"tcrv_rvv.source_memory_form",
+       routeFacts->sourceMemoryForm,
+       "selected typed RVV base-memory source memory form"},
+      {"tcrv_rvv.destination_memory_form",
+       routeFacts->destinationMemoryForm,
+       "selected typed RVV base-memory destination memory form"},
+      {"tcrv_rvv.strided_memory_layout",
+       routeFacts->stridedMemoryLayout,
+       "selected typed RVV base-memory strided layout"},
+      {"tcrv_rvv.source_stride_source",
+       routeFacts->sourceStrideSource,
+       "selected typed RVV base-memory source stride binding"},
+      {"tcrv_rvv.destination_stride_source",
+       routeFacts->destinationStrideSource,
+       "selected typed RVV base-memory destination stride binding"},
+      {"tcrv_rvv.index_source",
+       routeFacts->indexSource,
+       "selected typed RVV base-memory index source"},
+      {"tcrv_rvv.index_eew",
+       indexEEWMirror,
+       "selected typed RVV base-memory index EEW"},
+      {"tcrv_rvv.offset_unit",
+       routeFacts->offsetUnit,
+       "selected typed RVV base-memory offset unit"},
+      {"tcrv_rvv.index_uniqueness",
+       routeFacts->indexUniqueness,
+       "selected typed RVV base-memory index uniqueness"},
+      {"tcrv_rvv.indexed_data_memory_form",
+       routeFacts->indexedDataMemoryForm,
+       "selected typed RVV base-memory indexed data memory form"},
+      {"tcrv_rvv.indexed_destination_memory_form",
+       routeFacts->indexedDestinationMemoryForm,
+       "selected typed RVV base-memory indexed destination memory form"},
+      {"tcrv_rvv.mask_role",
+       routeFacts->maskRole,
+       "selected typed RVV base-memory mask role"},
+      {"tcrv_rvv.mask_source",
+       routeFacts->maskSource,
+       "selected typed RVV base-memory mask source"},
+      {"tcrv_rvv.mask_memory_form",
+       routeFacts->maskMemoryForm,
+       "selected typed RVV base-memory mask memory form"},
+      {"tcrv_rvv.inactive_lane_contract",
+       routeFacts->inactiveLaneContract,
+       "selected typed RVV base-memory inactive lane contract"},
+      {"tcrv_rvv.masked_passthrough_layout",
+       routeFacts->maskedPassthroughLayout,
+       "selected typed RVV base-memory masked passthrough layout"},
+      {"tcrv_rvv.indexed_memory_layout",
+       isRVVIndexedBaseMemoryMovementRouteFamilyOperation(description.operation)
+           ? routeFacts->indexedMemoryLayout
+           : llvm::StringRef(),
+       "selected typed RVV base-memory indexed layout"},
+      {"tcrv_rvv.masked_memory_layout",
+       isRVVMaskedBaseMemoryMovementRouteFamilyOperation(description.operation)
+           ? routeFacts->indexedMemoryLayout
+           : llvm::StringRef(),
+       "selected typed RVV base-memory masked layout"},
+  };
+  if (isRVVIndexedBaseMemoryMovementRouteFamilyOperation(description.operation))
+    mirrorContract.push_back(
+        {"rvv_selected_body_typed_compute_op",
+         routeFacts->typedComputeOpName,
+         "selected typed RVV base-memory typed compute op"});
   if (isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
           description.operation)) {
     std::optional<plugin::rvv::RVVUnitStrideMaskedMemoryRouteFacts>
@@ -2626,115 +2698,14 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
           "unit-stride masked memory target artifact consumer requires "
           "provider-owned canonical route facts before checking typed-compute "
           "candidate mirrors");
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "rvv_selected_body_typed_compute_op",
-            maskedRouteFacts->typedComputeOpName,
-            "selected typed RVV unit-stride masked-memory typed compute op"))
-      return error;
+    mirrorContract.push_back(
+        {"rvv_selected_body_typed_compute_op",
+         maskedRouteFacts->typedComputeOpName,
+         "selected typed RVV unit-stride masked-memory typed compute op"});
   }
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.required_header_declarations",
-          routeFacts->requiredHeaderDeclarations,
-          "selected typed RVV base-memory route header requirements"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.c_type_mapping",
-          routeFacts->cTypeMappingSummary,
-          "selected typed RVV base-memory route type mapping summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_memory_form",
-          routeFacts->sourceMemoryForm,
-          "selected typed RVV base-memory source memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.destination_memory_form",
-          routeFacts->destinationMemoryForm,
-          "selected typed RVV base-memory destination memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.strided_memory_layout",
-          routeFacts->stridedMemoryLayout,
-          "selected typed RVV base-memory strided layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_stride_source",
-          routeFacts->sourceStrideSource,
-          "selected typed RVV base-memory source stride binding"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.destination_stride_source",
-          routeFacts->destinationStrideSource,
-          "selected typed RVV base-memory destination stride binding"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.indexed_memory_layout",
-          isRVVIndexedBaseMemoryMovementRouteFamilyOperation(
-              description.operation)
-              ? routeFacts->indexedMemoryLayout
-              : llvm::StringRef(),
-          "selected typed RVV base-memory indexed layout"))
-    return error;
-
-  std::string indexEEWMirror =
-      routeFacts->indexEEW == 0 ? "" : llvm::Twine(routeFacts->indexEEW).str();
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.index_source", routeFacts->indexSource,
-          "selected typed RVV base-memory index source"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.index_eew", indexEEWMirror,
-          "selected typed RVV base-memory index EEW"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.offset_unit", routeFacts->offsetUnit,
-          "selected typed RVV base-memory offset unit"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.index_uniqueness",
-          routeFacts->indexUniqueness,
-          "selected typed RVV base-memory index uniqueness"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.indexed_data_memory_form",
-          routeFacts->indexedDataMemoryForm,
-          "selected typed RVV base-memory indexed data memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.indexed_destination_memory_form",
-          routeFacts->indexedDestinationMemoryForm,
-          "selected typed RVV base-memory indexed destination memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.masked_memory_layout",
-          isRVVMaskedBaseMemoryMovementRouteFamilyOperation(
-              description.operation)
-              ? routeFacts->indexedMemoryLayout
-              : llvm::StringRef(),
-          "selected typed RVV base-memory masked layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_role", routeFacts->maskRole,
-          "selected typed RVV base-memory mask role"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_source", routeFacts->maskSource,
-          "selected typed RVV base-memory mask source"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_memory_form",
-          routeFacts->maskMemoryForm,
-          "selected typed RVV base-memory mask memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.inactive_lane_contract",
-          routeFacts->inactiveLaneContract,
-          "selected typed RVV base-memory inactive lane contract"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.masked_passthrough_layout",
-          routeFacts->maskedPassthroughLayout,
-          "selected typed RVV base-memory masked passthrough layout"))
+  if (llvm::Error error =
+          validateRVVMemoryRouteMetadataMirrorContract(candidate,
+                                                       mirrorContract))
     return error;
 
   constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
@@ -2755,13 +2726,9 @@ llvm::Error validateRVVBaseMemoryMovementTargetArtifactCandidateMirrors(
       "tcrv_rvv.mask_tail_policy_owner",
       "tcrv_rvv.widening_macc_relation",
       "tcrv_rvv.widening_dot_relation"};
-  for (llvm::StringRef key : staleRouteFamilyMirrors)
-    if (llvm::Error error = requireEmptyBaseMemoryMovementStaleMirror(
-            candidate, key,
-            "selected typed RVV non-base-memory route-family mirror"))
-      return error;
-
-  return llvm::Error::success();
+  return validateRVVMemoryRouteEmptyMetadataMirrors(
+      candidate, staleRouteFamilyMirrors,
+      "selected typed RVV non-base-memory route-family mirror");
 }
 
 std::optional<plugin::rvv::RVVWideningDotReduceRouteFacts>
@@ -12324,12 +12291,6 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactProviderFactsImpl(
                                                     context.description);
 }
 
-llvm::Error requireEmptySegment2MemoryStaleMirror(
-    const TargetArtifactCandidate &candidate, llvm::StringRef key,
-    llvm::StringRef label) {
-  return requireCandidateMetadataMirror(candidate, key, "", label);
-}
-
 llvm::Error validateRVVPlainSegment2MemoryTargetArtifactCandidateMirrors(
     const TargetArtifactCandidate &candidate,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
@@ -12341,128 +12302,93 @@ llvm::Error validateRVVPlainSegment2MemoryTargetArtifactCandidateMirrors(
         "provider-owned canonical route facts before checking candidate "
         "mirrors");
 
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.segment_tuple_c_type",
-          routeFacts->segmentTupleCType,
-          "selected typed RVV plain segment2 tuple C type"))
-    return error;
+  llvm::SmallVector<RVVMemoryRouteMetadataMirrorContract, 16> mirrorContract = {
+      {"tcrv_rvv.segment_tuple_c_type",
+       routeFacts->segmentTupleCType,
+       "selected typed RVV plain segment2 tuple C type"},
+  };
 
   if (routeFacts->usesDeinterleaveLoad) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_load_intrinsic",
-            routeFacts->segmentLoadIntrinsic,
-            "selected typed RVV plain segment2 load callee"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_store_intrinsic",
-            routeFacts->segmentStoreIntrinsic,
-            "selected typed RVV plain segment2 store callee"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_field_extract_intrinsic",
-            routeFacts->segmentFieldExtractIntrinsic,
-            "selected typed RVV plain segment2 field extract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
-            routeFacts->usesInterleaveStore
-                ? routeFacts->segmentFieldExtractIntrinsic
-                : llvm::StringRef(),
-            "selected typed RVV plain segment2 tuple create"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_destination_memory_form",
-            routeFacts->field0DestinationMemoryForm,
-            "selected typed RVV plain segment2 field0 destination memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_destination_memory_form",
-            routeFacts->field1DestinationMemoryForm,
-            "selected typed RVV plain segment2 field1 destination memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_source_memory_form",
-            routeFacts->field0SourceMemoryForm,
-            "selected typed RVV plain segment2 field0 source memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_source_memory_form",
-            routeFacts->field1SourceMemoryForm,
-            "selected typed RVV plain segment2 field1 source memory form"))
-      return error;
+    mirrorContract.append(
+        {{"tcrv_rvv.segment_load_intrinsic",
+          routeFacts->segmentLoadIntrinsic,
+          "selected typed RVV plain segment2 load callee"},
+         {"tcrv_rvv.segment_store_intrinsic",
+          routeFacts->segmentStoreIntrinsic,
+          "selected typed RVV plain segment2 store callee"},
+         {"tcrv_rvv.segment_field_extract_intrinsic",
+          routeFacts->segmentFieldExtractIntrinsic,
+          "selected typed RVV plain segment2 field extract"},
+         {"tcrv_rvv.segment_tuple_create_intrinsic",
+          routeFacts->usesInterleaveStore
+              ? routeFacts->segmentFieldExtractIntrinsic
+              : llvm::StringRef(),
+          "selected typed RVV plain segment2 tuple create"},
+         {"tcrv_rvv.field0_destination_memory_form",
+          routeFacts->field0DestinationMemoryForm,
+          "selected typed RVV plain segment2 field0 destination memory form"},
+         {"tcrv_rvv.field1_destination_memory_form",
+          routeFacts->field1DestinationMemoryForm,
+          "selected typed RVV plain segment2 field1 destination memory form"},
+         {"tcrv_rvv.field0_source_memory_form",
+          routeFacts->field0SourceMemoryForm,
+          "selected typed RVV plain segment2 field0 source memory form"},
+         {"tcrv_rvv.field1_source_memory_form",
+          routeFacts->field1SourceMemoryForm,
+          "selected typed RVV plain segment2 field1 source memory form"}});
   } else if (routeFacts->usesInterleaveStore) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_load_intrinsic",
-            routeFacts->segmentLoadIntrinsic,
-            "selected typed RVV plain segment2 load callee"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_store_intrinsic",
-            routeFacts->segmentStoreIntrinsic,
-            "selected typed RVV plain segment2 store callee"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_field_extract_intrinsic",
-            routeFacts->usesDeinterleaveLoad
-                ? routeFacts->segmentFieldExtractIntrinsic
-                : llvm::StringRef(),
-            "selected typed RVV plain segment2 field extract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
-            routeFacts->segmentFieldExtractIntrinsic,
-            "selected typed RVV plain segment2 tuple create"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_source_memory_form",
-            routeFacts->field0SourceMemoryForm,
-            "selected typed RVV plain segment2 field0 source memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_source_memory_form",
-            routeFacts->field1SourceMemoryForm,
-            "selected typed RVV plain segment2 field1 source memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_destination_memory_form",
-            routeFacts->field0DestinationMemoryForm,
-            "selected typed RVV plain segment2 field0 destination memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_destination_memory_form",
-            routeFacts->field1DestinationMemoryForm,
-            "selected typed RVV plain segment2 field1 destination memory form"))
-      return error;
+    mirrorContract.append(
+        {{"tcrv_rvv.segment_load_intrinsic",
+          routeFacts->segmentLoadIntrinsic,
+          "selected typed RVV plain segment2 load callee"},
+         {"tcrv_rvv.segment_store_intrinsic",
+          routeFacts->segmentStoreIntrinsic,
+          "selected typed RVV plain segment2 store callee"},
+         {"tcrv_rvv.segment_field_extract_intrinsic",
+          routeFacts->usesDeinterleaveLoad
+              ? routeFacts->segmentFieldExtractIntrinsic
+              : llvm::StringRef(),
+          "selected typed RVV plain segment2 field extract"},
+         {"tcrv_rvv.segment_tuple_create_intrinsic",
+          routeFacts->segmentFieldExtractIntrinsic,
+          "selected typed RVV plain segment2 tuple create"},
+         {"tcrv_rvv.field0_source_memory_form",
+          routeFacts->field0SourceMemoryForm,
+          "selected typed RVV plain segment2 field0 source memory form"},
+         {"tcrv_rvv.field1_source_memory_form",
+          routeFacts->field1SourceMemoryForm,
+          "selected typed RVV plain segment2 field1 source memory form"},
+         {"tcrv_rvv.field0_destination_memory_form",
+          routeFacts->field0DestinationMemoryForm,
+          "selected typed RVV plain segment2 field0 destination memory form"},
+         {"tcrv_rvv.field1_destination_memory_form",
+          routeFacts->field1DestinationMemoryForm,
+          "selected typed RVV plain segment2 field1 destination memory form"}});
   } else {
     llvm_unreachable("validated non-plain segment2 candidate as plain segment2");
   }
 
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field0_role", routeFacts->field0Role,
-          "selected typed RVV plain segment2 field0 role"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field1_role", routeFacts->field1Role,
-          "selected typed RVV plain segment2 field1 role"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field0_name", routeFacts->field0Name,
-          "selected typed RVV plain segment2 field0 binding"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.field1_name", routeFacts->field1Name,
-          "selected typed RVV plain segment2 field1 binding"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.segment2_update_arithmetic_kind", "",
-          "selected typed RVV computed-mask segment2 update arithmetic kind"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.segment2_update_arithmetic_intrinsic", "",
-          "selected typed RVV computed-mask segment2 update arithmetic callee"))
-    return error;
-
-  return llvm::Error::success();
+  mirrorContract.append(
+      {{"tcrv_rvv.field0_role",
+        routeFacts->field0Role,
+        "selected typed RVV plain segment2 field0 role"},
+       {"tcrv_rvv.field1_role",
+        routeFacts->field1Role,
+        "selected typed RVV plain segment2 field1 role"},
+       {"tcrv_rvv.field0_name",
+        routeFacts->field0Name,
+        "selected typed RVV plain segment2 field0 binding"},
+       {"tcrv_rvv.field1_name",
+        routeFacts->field1Name,
+        "selected typed RVV plain segment2 field1 binding"},
+       {"tcrv_rvv.segment2_update_arithmetic_kind",
+        "",
+        "selected typed RVV computed-mask segment2 update arithmetic kind"},
+       {"tcrv_rvv.segment2_update_arithmetic_intrinsic",
+        "",
+        "selected typed RVV computed-mask segment2 update arithmetic callee"}});
+  return validateRVVMemoryRouteMetadataMirrorContract(candidate,
+                                                      mirrorContract);
 }
 
 llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
@@ -12471,25 +12397,26 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
 
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_plan",
-          description.routeOperandBindingPlanID,
-          "selected typed RVV segment2-memory binding plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_operands",
-          description.routeOperandBindingSummary,
-          "selected typed RVV segment2-memory binding summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.provider_supported_mirror",
-          description.providerSupportedMirror,
-          "selected typed RVV segment2-memory provider support"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.target_leaf_profile",
-          description.targetLeafProfile,
-          "selected typed RVV segment2-memory target leaf profile"))
+  const std::string segmentCountMirror =
+      description.segmentCount == 0
+          ? ""
+          : llvm::Twine(description.segmentCount).str();
+  const RVVMemoryRouteMetadataMirrorContract commonDescriptionMirrors[] = {
+      {"tcrv_rvv.route_operand_binding_plan",
+       description.routeOperandBindingPlanID,
+       "selected typed RVV segment2-memory binding plan"},
+      {"tcrv_rvv.route_operand_binding_operands",
+       description.routeOperandBindingSummary,
+       "selected typed RVV segment2-memory binding summary"},
+      {"tcrv_rvv.provider_supported_mirror",
+       description.providerSupportedMirror,
+       "selected typed RVV segment2-memory provider support"},
+      {"tcrv_rvv.target_leaf_profile",
+       description.targetLeafProfile,
+       "selected typed RVV segment2-memory target leaf profile"},
+  };
+  if (llvm::Error error = validateRVVMemoryRouteMetadataMirrorContract(
+          candidate, commonDescriptionMirrors))
     return error;
 
   if (isRVVPlainSegment2MemoryRouteFamilyOperation(description.operation)) {
@@ -12733,51 +12660,37 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
       return error;
   }
 
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.memory_form",
-          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              description.memoryForm),
-          "selected typed RVV segment2-memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_control_plan",
-          description.runtimeControlPlanID,
-          "selected typed RVV segment2-memory runtime AVL/VL control plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_abi_order",
-          description.runtimeABIOrder,
-          "selected typed RVV segment2-memory runtime ABI order"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.required_header_declarations",
-          description.requiredHeaderDeclarations,
-          "selected typed RVV segment2-memory route header requirements"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.c_type_mapping",
-          description.cTypeMappingSummary,
-          "selected typed RVV segment2-memory route type mapping summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.segment_memory_layout",
-          description.segmentMemoryLayout,
-          "selected typed RVV segment2 memory layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_memory_form",
-          description.sourceMemoryForm,
-          "selected typed RVV segment2 source memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.destination_memory_form",
-          description.destinationMemoryForm,
-          "selected typed RVV segment2 destination memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.segment_count",
-          llvm::Twine(description.segmentCount).str(),
-          "selected typed RVV segment2 count"))
+  const RVVMemoryRouteMetadataMirrorContract commonSegmentMirrors[] = {
+      {"tcrv_rvv.memory_form",
+       plugin::rvv::stringifyRVVSelectedBodyMemoryForm(description.memoryForm),
+       "selected typed RVV segment2-memory form"},
+      {"tcrv_rvv.runtime_control_plan",
+       description.runtimeControlPlanID,
+       "selected typed RVV segment2-memory runtime AVL/VL control plan"},
+      {"tcrv_rvv.runtime_abi_order",
+       description.runtimeABIOrder,
+       "selected typed RVV segment2-memory runtime ABI order"},
+      {"tcrv_rvv.required_header_declarations",
+       description.requiredHeaderDeclarations,
+       "selected typed RVV segment2-memory route header requirements"},
+      {"tcrv_rvv.c_type_mapping",
+       description.cTypeMappingSummary,
+       "selected typed RVV segment2-memory route type mapping summary"},
+      {"tcrv_rvv.segment_memory_layout",
+       description.segmentMemoryLayout,
+       "selected typed RVV segment2 memory layout"},
+      {"tcrv_rvv.source_memory_form",
+       description.sourceMemoryForm,
+       "selected typed RVV segment2 source memory form"},
+      {"tcrv_rvv.destination_memory_form",
+       description.destinationMemoryForm,
+       "selected typed RVV segment2 destination memory form"},
+      {"tcrv_rvv.segment_count",
+       segmentCountMirror,
+       "selected typed RVV segment2 count"},
+  };
+  if (llvm::Error error = validateRVVMemoryRouteMetadataMirrorContract(
+          candidate, commonSegmentMirrors))
     return error;
 
   if (!isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
@@ -12812,15 +12725,16 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
       return error;
   }
 
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_tail_policy_route_family_plan",
-          description.maskTailPolicyRouteFamilyPlanID,
-          "selected typed RVV segment2-memory mask/tail policy plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.mask_tail_policy_owner",
-          description.maskTailPolicyOwner,
-          "selected typed RVV segment2-memory mask/tail policy owner"))
+  const RVVMemoryRouteMetadataMirrorContract maskTailMirrors[] = {
+      {"tcrv_rvv.mask_tail_policy_route_family_plan",
+       description.maskTailPolicyRouteFamilyPlanID,
+       "selected typed RVV segment2-memory mask/tail policy plan"},
+      {"tcrv_rvv.mask_tail_policy_owner",
+       description.maskTailPolicyOwner,
+       "selected typed RVV segment2-memory mask/tail policy owner"},
+  };
+  if (llvm::Error error = validateRVVMemoryRouteMetadataMirrorContract(
+          candidate, maskTailMirrors))
     return error;
 
   constexpr llvm::StringLiteral staleMirrors[] = {
@@ -12837,13 +12751,9 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
       "tcrv_rvv.base_memory_movement_route_family_plan",
       "tcrv_rvv.widening_macc_relation",
       "tcrv_rvv.widening_dot_relation"};
-  for (llvm::StringRef key : staleMirrors)
-    if (llvm::Error error = requireEmptySegment2MemoryStaleMirror(
-            candidate, key,
-            "selected typed RVV non-segment2 route-family mirror"))
-      return error;
-
-  return llvm::Error::success();
+  return validateRVVMemoryRouteEmptyMetadataMirrors(
+      candidate, staleMirrors,
+      "selected typed RVV non-segment2 route-family mirror");
 }
 
 bool isRVVSegment2LoadTargetArtifactFamilyConsumer(

@@ -60,6 +60,60 @@ Tightened computed-mask segment2 store target artifact provider/candidate valida
 - None - task complete
 
 
+## Session 415: Stage2 RVV memory route-family validation contract consolidation
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV memory route-family validation contract consolidation
+**Branch**: `main`
+
+### Summary
+
+Consolidated repeated RVV memory target artifact candidate mirror validation
+into a shared target-side memory metadata mirror contract helper while keeping
+provider facts and family-specific route validation as the authority.
+
+### Main Changes
+
+- Added `RVVMemoryRouteMetadataMirrorContract` plus helper functions for
+  provider-derived metadata mirror checks and stale mirror rejection.
+- Rewired base-memory candidate mirrors for strided, indexed, and masked unit
+  memory routes to use the shared contract populated from provider facts.
+- Rewired plain segment2 lane/field candidate mirrors and segment2 common/stale
+  mirror checks to use the same helper while preserving existing family
+  dispatch, provider-fact validation, and statement-plan checks.
+- Archived Trellis task
+  `stage2-rvv-memory-route-family-validation-contract-consolidation`.
+
+### Git Commits
+
+included-in-this-commit
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter '(strided-load-unit-store|unit-load-strided-store|indexed-gather-unit-store|indexed-scatter-unit-load|masked-unit-(load-store|store)|segment2-(deinterleave|interleave)|computed-masked-segment2-(load|store|update))'` from `build/test`, selected 60 tests and passed 60.
+- [OK] `rtk git diff --check`
+- [OK] Bounded old-authority scan over added lines: only the required
+  `provider_supported_mirror` contract key matched `supported`; no new legacy
+  `i32m1`, source-front-door, source-export, descriptor/direct-C,
+  route-id/artifact-name, or mirror-only authority was introduced.
+
+No `ssh rvv` rerun: this changed target-side metadata mirror validation shape
+only and did not change provider route facts, route emission, generated runtime
+semantics, runtime ABI order, emitted intrinsics, mask/tail behavior,
+passthrough behavior, destination preservation, or any runtime/performance
+claim.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 405: Stage2 RVV widening MAcc production validation boundary
 
 **Date**: 2026-06-03
