@@ -287,6 +287,112 @@ struct RVVSelectedBodyEmitCRouteDescription {
       runtimeABIParameters;
 };
 
+enum class RVVElementwiseArithmeticRouteValidationKind {
+  Plain,
+  Masked,
+  ScalarBroadcast,
+  Strided,
+};
+
+struct RVVElementwiseArithmeticRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVElementwiseArithmeticRouteValidationContract {
+  RVVElementwiseArithmeticRouteValidationKind kind =
+      RVVElementwiseArithmeticRouteValidationKind::Plain;
+  RVVSelectedBodyOperationKind operation = RVVSelectedBodyOperationKind::Add;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string elementwiseArithmeticRouteFamilyPlanID;
+  std::string scalarBroadcastElementwiseRouteFamilyPlanID;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string stridedMemoryLayout;
+  std::string lhsStrideSource;
+  std::string rhsStrideSource;
+  std::string outStrideSource;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string stridedLoadIntrinsic;
+  std::string rhsBroadcastIntrinsic;
+  std::string intrinsic;
+  std::string compareIntrinsic;
+  std::string maskedMergeIntrinsic;
+  std::string storeIntrinsic;
+  std::string stridedStoreIntrinsic;
+  std::string resultName;
+  std::string maskName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameterRole, 8>
+      runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVElementwiseArithmeticRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVElementwiseArithmeticRouteValidationContract>
+getRVVElementwiseArithmeticRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+struct RVVElementwiseArithmeticRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVElementwiseArithmeticRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVElementwiseArithmeticRouteMetadataMirrorContract, 40>
+      mirrors;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVElementwiseArithmeticRouteMetadataMirrorContractSet>
+getRVVElementwiseArithmeticRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVBaseMemoryMovementRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

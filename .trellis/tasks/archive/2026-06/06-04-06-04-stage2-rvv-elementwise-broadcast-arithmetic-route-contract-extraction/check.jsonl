@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global authority and no legacy route-authority drift checks"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin/provider contract compliance and common EmitC neutrality"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Route validation contract and target consumer compliance"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required build, C++ test, focused lit/dry-run, runtime-evidence judgment"}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-elementwise-broadcast-arithmetic-production-validation/prd.md", "reason": "Regression surface for existing elementwise/broadcast validation"}
+{"command": "cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2", "result": "passed", "notes": "Existing enum switch/unused-function warnings only."}
+{"command": "./build/bin/tianchenrv-target-artifact-export-test", "result": "passed", "notes": "Failed once on an over-narrow typed compute contract and once on the new ABI-role negative fixture setup; both were repaired and rerun successfully."}
+{"command": "./build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'selected-body-artifact-(add|sub|mul|masked-add|masked-sub|masked-mul|scalar-broadcast-add|scalar-broadcast-sub|scalar-broadcast-mul)'", "result": "passed", "notes": "18 tests passed, 459 excluded."}
+{"command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-abi-e2e-(selected-body|pre-realized|masked-add|pre-realized-masked-add|scalar-broadcast-add|pre-realized-scalar-broadcast-add|pre-realized-scalar-broadcast-sub)-dry-run'", "result": "passed", "notes": "7 tests passed, 470 excluded."}
+{"command": "git diff --check", "result": "passed"}
+{"command": "git diff -U0 -- touched source/test files | rg added old-authority tokens", "result": "passed", "notes": "No added positive legacy i32m1, descriptor, source-front-door, source-artifact, exact-intrinsic, common-EmitC, or mirror-only route authority tokens."}
+{"command": "ssh rvv", "result": "not_run", "notes": "No runtime ABI, emitted C/C++, arithmetic computation, scalar-broadcast, layout, dtype/config, mask/tail, correctness, or performance behavior changed."}

@@ -3453,8 +3453,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleScalarBroadcastAddBinding,
           "scalar-broadcast add registry rejects stale binding summary "
           "provider facts",
-          {"scalar_broadcast_add", "route operand binding summary",
-           "materialized use[0]", "provider-owned use 'abi'"}))
+          {"scalar-broadcast elementwise arithmetic target artifact consumer",
+           "binding facts", "header-mirror"}))
     return false;
 
   TargetArtifactCandidate staleScalarBroadcastAddBindingMirror =
@@ -3470,7 +3470,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleScalarBroadcastAddBindingMirror,
           "scalar-broadcast add registry rejects stale binding mirror",
           {"route_operand_binding_operands",
-           "selected typed RVV elementwise binding summary",
+           "selected typed RVV elementwise arithmetic binding summary",
            "header-mirror"}))
     return false;
 
@@ -3508,8 +3508,8 @@ bool expectRVVTargetArtifactExporterShape(
               validateRVVTargetArtifactRouteFamilyProviderFacts(
                   stalePlainMulBindingPlanContext),
           "plain multiply registry rejects operation-mismatched binding plan",
-          {"mul", "route operand binding summary", "provider plan",
-           "rvv-route-operand-binding:mul.v1"}))
+          {"elementwise arithmetic target artifact consumer", "binding facts",
+           "rvv-route-operand-binding:add.v1"}))
     return false;
 
   RVVTargetArtifactCandidateFixture maskedSubFixture(
@@ -3555,8 +3555,8 @@ bool expectRVVTargetArtifactExporterShape(
               validateRVVTargetArtifactRouteFamilyProviderFacts(
                   staleMaskedSubBindingUsesContext),
           "masked subtract registry rejects operation-mismatched binding use",
-          {"masked_sub", "materialized use[3]",
-           "masked-sub-lhs-call"}))
+          {"masked elementwise arithmetic target artifact consumer",
+           "binding facts", "masked-add-lhs-call"}))
     return false;
 
   RVVTargetArtifactCandidateFixture scalarBroadcastSubFixture(
@@ -3593,6 +3593,169 @@ bool expectRVVTargetArtifactExporterShape(
           "scalar-broadcast subtract registry accepts candidate mirrors"))
     return false;
 
+  auto expectElementwiseProviderContract =
+      [](const RVVRouteDescription &description,
+         tianchenrv::plugin::rvv::
+             RVVElementwiseArithmeticRouteValidationKind expectedKind,
+         std::size_t expectedLoopBodyStepCount,
+         llvm::StringRef fixtureContext) -> bool {
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVElementwiseArithmeticRouteValidationContract>
+        contract = tianchenrv::plugin::rvv::
+            getRVVElementwiseArithmeticRouteValidationContract(description);
+    if (!contract) {
+      llvm::errs() << fixtureContext
+                   << ": missing elementwise arithmetic route validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->kind != expectedKind ||
+        contract->operation != description.operation ||
+        contract->emitCRouteID != description.emitCRouteID ||
+        contract->memoryForm != description.memoryForm ||
+        contract->runtimeABIOrder != description.runtimeABIOrder ||
+        contract->routeOperandBindingPlanID !=
+            description.routeOperandBindingPlanID ||
+        contract->routeOperandBindingSummary !=
+            description.routeOperandBindingSummary ||
+        contract->providerSupportedMirror !=
+            description.providerSupportedMirror ||
+        contract->targetLeafProfile != description.targetLeafProfile ||
+        contract->requiredHeaderDeclarations !=
+            description.requiredHeaderDeclarations ||
+        contract->cTypeMappingSummary != description.cTypeMappingSummary ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount != expectedLoopBodyStepCount ||
+        contract->runtimeABIParameters.size() !=
+            description.runtimeABIParameters.size() ||
+        contract->runtimeABIParameterRoles.size() !=
+            description.runtimeABIParameters.size() ||
+        contract->requiredHeaders.size() != 3 ||
+        contract->typeMappings.size() < 2) {
+      llvm::errs() << fixtureContext
+                   << ": malformed elementwise arithmetic route validation "
+                      "contract\n";
+      return false;
+    }
+    if (!tianchenrv::support::runtimeABIParametersEqual(
+            contract->runtimeABIParameters,
+            description.runtimeABIParameters)) {
+      llvm::errs() << fixtureContext
+                   << ": malformed elementwise runtime ABI contract\n";
+      return false;
+    }
+    for (std::size_t index = 0,
+                     count = contract->runtimeABIParameters.size();
+         index < count; ++index)
+      if (contract->runtimeABIParameterRoles[index] !=
+          description.runtimeABIParameters[index].role) {
+        llvm::errs() << fixtureContext
+                     << ": malformed elementwise runtime ABI role contract\n";
+        return false;
+      }
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVElementwiseArithmeticRouteMetadataMirrorContractSet>
+        mirrorContract = tianchenrv::plugin::rvv::
+            getRVVElementwiseArithmeticRouteMetadataMirrorContract(
+                description);
+    if (!mirrorContract || mirrorContract->mirrors.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": missing elementwise arithmetic metadata mirror "
+                      "contract\n";
+      return false;
+    }
+    auto mirrorHas = [&](llvm::StringRef key, llvm::StringRef expected) {
+      for (const tianchenrv::plugin::rvv::
+               RVVElementwiseArithmeticRouteMetadataMirrorContract &mirror :
+           mirrorContract->mirrors)
+        if (mirror.key == key && mirror.expected == expected)
+          return true;
+      return false;
+    };
+    auto staleMirrorHas = [&](llvm::StringRef key) {
+      for (llvm::StringRef staleKey : mirrorContract->staleMirrorKeys)
+        if (staleKey == key)
+          return true;
+      return false;
+    };
+    if (!mirrorHas("tcrv_rvv.route_operand_binding_operands",
+                   description.routeOperandBindingSummary) ||
+        !mirrorHas("tcrv_rvv.provider_supported_mirror",
+                   description.providerSupportedMirror) ||
+        !mirrorHas("tcrv_rvv.target_leaf_profile",
+                   description.targetLeafProfile) ||
+        !mirrorHas("tcrv_rvv.memory_form",
+                   tianchenrv::plugin::rvv::
+                       stringifyRVVSelectedBodyMemoryForm(
+                           description.memoryForm)) ||
+        !staleMirrorHas(
+            "tcrv_rvv.widening_conversion_route_family_plan") ||
+        !staleMirrorHas("tcrv_rvv.conversion_relation")) {
+      llvm::errs() << fixtureContext
+                   << ": malformed elementwise arithmetic metadata mirror "
+                      "contract\n";
+      return false;
+    }
+    return true;
+  };
+
+  using RVVElementwiseContractKind =
+      tianchenrv::plugin::rvv::
+          RVVElementwiseArithmeticRouteValidationKind;
+  if (!expectElementwiseProviderContract(
+          plainMulDescription, RVVElementwiseContractKind::Plain, 5,
+          "plain multiply elementwise provider contract"))
+    return false;
+  if (!expectElementwiseProviderContract(
+          maskedSubDescription, RVVElementwiseContractKind::Masked, 7,
+          "masked subtract elementwise provider contract"))
+    return false;
+  if (!expectElementwiseProviderContract(
+          scalarBroadcastSubDescription,
+          RVVElementwiseContractKind::ScalarBroadcast, 5,
+          "scalar-broadcast subtract elementwise provider contract"))
+    return false;
+  RVVRouteDescription nonElementwiseContractDescription =
+      scalarBroadcastSubDescription;
+  nonElementwiseContractDescription.operation = RVVOperationKind::WidenI32ToI64;
+  if (tianchenrv::plugin::rvv::
+          getRVVElementwiseArithmeticRouteValidationContract(
+              nonElementwiseContractDescription) ||
+      tianchenrv::plugin::rvv::
+          getRVVElementwiseArithmeticRouteMetadataMirrorContract(
+              nonElementwiseContractDescription)) {
+    llvm::errs() << "elementwise arithmetic provider contract accepted "
+                    "non-elementwise operation\n";
+    return false;
+  }
+  RVVRouteDescription staleScalarBroadcastSubRuntimeRole =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubRuntimeRole.runtimeABIParameters[1].role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  size_t staleScalarBroadcastSubRuntimeRoleSummaryPos =
+      staleScalarBroadcastSubRuntimeRole.routeOperandBindingSummary.find(
+          "rhs-scalar-value");
+  if (staleScalarBroadcastSubRuntimeRoleSummaryPos == std::string::npos) {
+    llvm::errs() << "scalar-broadcast subtract route fixture did not contain "
+                    "rhs-scalar-value binding role\n";
+    return false;
+  }
+  staleScalarBroadcastSubRuntimeRole.routeOperandBindingSummary.replace(
+      staleScalarBroadcastSubRuntimeRoleSummaryPos,
+      llvm::StringRef("rhs-scalar-value").size(), "rhs-input-buffer");
+  RVVRouteValidationContext staleScalarBroadcastSubRuntimeRoleContext{
+      scalarBroadcastSubFixture.candidate, scalarBroadcastSubRoute,
+      staleScalarBroadcastSubRuntimeRole};
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  staleScalarBroadcastSubRuntimeRoleContext),
+          "scalar-broadcast subtract registry rejects stale RHS scalar ABI "
+          "role",
+          {"runtime ABI parameter[1]", "rhs-scalar-value",
+           "rhs-input-buffer", "rhs_scalar"}))
+    return false;
+
   RVVRouteDescription staleScalarBroadcastSubBindingPlan =
       scalarBroadcastSubDescription;
   staleScalarBroadcastSubBindingPlan.routeOperandBindingPlanID =
@@ -3605,8 +3768,9 @@ bool expectRVVTargetArtifactExporterShape(
               validateRVVTargetArtifactRouteFamilyProviderFacts(
                   staleScalarBroadcastSubBindingPlanContext),
           "scalar-broadcast subtract registry rejects stale add binding plan",
-          {"scalar_broadcast_sub", "route operand binding summary",
-           "rvv-route-operand-binding:scalar_broadcast_sub.v1"}))
+          {"scalar-broadcast elementwise arithmetic target artifact consumer",
+           "binding facts",
+           "rvv-route-operand-binding:scalar_broadcast_add.v1"}))
     return false;
 
   TargetArtifactCandidate staleScalarBroadcastSubBindingMirror =
@@ -3628,7 +3792,7 @@ bool expectRVVTargetArtifactExporterShape(
                   staleScalarBroadcastSubBindingMirrorContext),
           "scalar-broadcast subtract registry rejects stale binding mirror",
           {"route_operand_binding_operands",
-           "selected typed RVV elementwise binding summary",
+           "selected typed RVV elementwise arithmetic binding summary",
            "scalar_broadcast_add"}))
     return false;
 

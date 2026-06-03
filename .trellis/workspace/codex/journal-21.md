@@ -59,6 +59,68 @@ Tightened computed-mask segment2 store target artifact provider/candidate valida
 
 - None - task complete
 
+---
+
+## Session: Stage2 RVV elementwise/broadcast arithmetic route-family provider contract extraction
+
+**Date**: 2026-06-04
+**Task**: `06-04-stage2-rvv-elementwise-broadcast-arithmetic-route-contract-extraction`
+**Branch**: `main`
+
+### Summary
+
+Extracted the provider-owned RVV elementwise arithmetic validation and metadata
+mirror contract surface, then rewired target artifact validation to consume it
+for existing plain, masked, scalar-broadcast, and connected strided arithmetic
+route descriptions.
+
+### Main Changes
+
+- Added `RVVElementwiseArithmeticRouteValidationContract` and
+  `RVVElementwiseArithmeticRouteMetadataMirrorContractSet` to the RVV provider
+  interface.
+- Built provider contracts from existing elementwise/scalar-broadcast route
+  facts, including route identity, typed compute op, dtype/config, memory and
+  mask facts, intrinsic leaves, binding plan/summary, runtime ABI order and
+  expected ABI role order, metadata mirrors, stale mirror keys, and statement
+  expectations.
+- Rewired target artifact provider-fact and candidate-mirror validation to
+  consume the provider contract instead of target-local elementwise truth.
+- Added focused C++ coverage for positive contract access and stale binding,
+  metadata mirror, non-elementwise, and scalar-broadcast ABI-role failures.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused selected-body artifact lit filter for add/sub/mul, masked
+  add/sub/mul, and scalar-broadcast add/sub/mul
+- [OK] focused generated-bundle dry-run lit filter for selected-body,
+  pre-realized, masked-add, scalar-broadcast-add, and
+  pre-realized-scalar-broadcast-sub fixtures
+- [OK] `rtk git diff --check`
+- [OK] diff-only old-authority scan over touched source/test files found no
+  added positive legacy authority tokens.
+
+No `ssh rvv` rerun: this round changed validation contract ownership and
+target consumption only. It did not change emitted C/C++, runtime ABI order,
+arithmetic computation, scalar-broadcast behavior, source/result layout,
+dtype/config relation, mask/tail behavior, correctness, or performance claims.
+
+### Self-Repair
+
+- Fixed an over-narrow typed compute contract that initially rejected existing
+  masked arithmetic fixtures by deriving `tcrv_rvv.masked_binary` for masked
+  elementwise routes.
+- Adjusted a stale ABI-role negative fixture so it exercised the new runtime
+  ABI role-order contract instead of stopping earlier at binding-summary
+  mismatch.
+
+### Status
+
+[OK] Completed and ready to archive
+
 
 ## Session 421: Stage2 RVV conversion dtype-policy route-family provider contract extraction
 

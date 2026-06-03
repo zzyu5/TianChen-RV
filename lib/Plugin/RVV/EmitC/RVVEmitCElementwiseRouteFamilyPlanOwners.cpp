@@ -3,9 +3,11 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <cstdint>
 #include <optional>
@@ -369,6 +371,17 @@ getElementwiseArithmeticCTypeMappingSummary(RVVSelectedBodyOperationKind op) {
     return kRVVMaskedElementwiseArithmeticCTypeMappingSummary;
   if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op))
     return kRVVPlainElementwiseArithmeticCTypeMappingSummary;
+  return {};
+}
+
+llvm::StringRef
+getElementwiseArithmeticTypedComputeOpName(RVVSelectedBodyOperationKind op) {
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(op))
+    return "tcrv_rvv.masked_binary";
+  if (op == RVVSelectedBodyOperationKind::StridedAdd ||
+      isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op) ||
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(op))
+    return "tcrv_rvv.binary";
   return {};
 }
 
@@ -2307,6 +2320,400 @@ llvm::Error verifyRVVSelectedBodyElementwiseRouteDescriptionMirrors(
   return requireRouteDescriptionField(context, "compute intrinsic",
                                       description.intrinsic,
                                       *expectedArithmeticIntrinsic);
+}
+
+static RVVElementwiseArithmeticRouteValidationKind
+getElementwiseArithmeticValidationKind(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          description.operation))
+    return RVVElementwiseArithmeticRouteValidationKind::ScalarBroadcast;
+  if (description.operation == RVVSelectedBodyOperationKind::StridedAdd)
+    return RVVElementwiseArithmeticRouteValidationKind::Strided;
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
+          description.operation))
+    return RVVElementwiseArithmeticRouteValidationKind::Masked;
+  return RVVElementwiseArithmeticRouteValidationKind::Plain;
+}
+
+static llvm::StringRef getElementwiseArithmeticValidationConsumerLabel(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (getElementwiseArithmeticValidationKind(description)) {
+  case RVVElementwiseArithmeticRouteValidationKind::ScalarBroadcast:
+    return "scalar-broadcast elementwise arithmetic target artifact consumer";
+  case RVVElementwiseArithmeticRouteValidationKind::Masked:
+    return "masked elementwise arithmetic target artifact consumer";
+  case RVVElementwiseArithmeticRouteValidationKind::Strided:
+    return "strided elementwise arithmetic target artifact consumer";
+  case RVVElementwiseArithmeticRouteValidationKind::Plain:
+    return "elementwise arithmetic target artifact consumer";
+  }
+  llvm_unreachable("unknown elementwise validation kind");
+}
+
+static void appendElementwiseArithmeticValidationHeaders(
+    RVVElementwiseArithmeticRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendElementwiseArithmeticValidationTypeMapping(
+    RVVElementwiseArithmeticRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void appendElementwiseArithmeticValidationRuntimeABIRoles(
+    RVVElementwiseArithmeticRouteValidationContract &contract) {
+  using Role = support::RuntimeABIParameterRole;
+  contract.runtimeABIParameterRoles.push_back(Role::LHSInputBuffer);
+  if (contract.kind ==
+      RVVElementwiseArithmeticRouteValidationKind::ScalarBroadcast)
+    contract.runtimeABIParameterRoles.push_back(Role::RHSScalarValue);
+  else
+    contract.runtimeABIParameterRoles.push_back(Role::RHSInputBuffer);
+  contract.runtimeABIParameterRoles.push_back(Role::OutputBuffer);
+  contract.runtimeABIParameterRoles.push_back(Role::RuntimeElementCount);
+  if (contract.kind == RVVElementwiseArithmeticRouteValidationKind::Strided) {
+    contract.runtimeABIParameterRoles.push_back(Role::LHSInputStride);
+    contract.runtimeABIParameterRoles.push_back(Role::RHSInputStride);
+    contract.runtimeABIParameterRoles.push_back(Role::OutputStride);
+  }
+}
+
+static std::size_t getElementwiseArithmeticExpectedLoopBodyStepCount(
+    RVVElementwiseArithmeticRouteValidationKind kind) {
+  switch (kind) {
+  case RVVElementwiseArithmeticRouteValidationKind::Masked:
+    return 7;
+  case RVVElementwiseArithmeticRouteValidationKind::Plain:
+  case RVVElementwiseArithmeticRouteValidationKind::ScalarBroadcast:
+  case RVVElementwiseArithmeticRouteValidationKind::Strided:
+    return 5;
+  }
+  llvm_unreachable("unknown elementwise validation kind");
+}
+
+static std::optional<RVVRouteOperandBindingPlan>
+buildElementwiseArithmeticRouteOperandBindingPlanForContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<llvm::StringRef> expectedPlanID =
+      getExpectedRVVSelectedBodyElementwiseRouteOperandBindingPlanID(
+          description.operation);
+  std::optional<llvm::ArrayRef<llvm::StringLiteral>> expectedOperands =
+      getExpectedRVVSelectedBodyElementwiseRouteOperandBindingLogicalOperands(
+          description.operation);
+  if (!expectedPlanID || !expectedOperands)
+    return std::nullopt;
+  if (description.runtimeABIParameters.size() != expectedOperands->size())
+    return std::nullopt;
+
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = expectedPlanID->str();
+  for (auto indexedOperand : llvm::enumerate(*expectedOperands)) {
+    llvm::StringRef logicalOperand = indexedOperand.value();
+    std::optional<llvm::ArrayRef<llvm::StringLiteral>> expectedUses =
+        getExpectedRVVSelectedBodyElementwiseRouteOperandBindingUses(
+            description.operation, logicalOperand);
+    if (!expectedUses)
+      return std::nullopt;
+
+    RVVRouteOperandBinding binding;
+    binding.logicalOperand = logicalOperand.str();
+    binding.parameter = description.runtimeABIParameters[indexedOperand.index()];
+    for (llvm::StringLiteral use : *expectedUses)
+      binding.materializedUses.push_back(use.str());
+    plan.bindings.push_back(std::move(binding));
+  }
+  return plan;
+}
+
+static std::optional<RVVElementwiseArithmeticRouteValidationContract>
+buildRVVElementwiseArithmeticRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  const bool isElementwise =
+      isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          description.operation, description.memoryForm);
+  const bool isScalarBroadcast =
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          description.operation);
+  if (!isElementwise && !isScalarBroadcast)
+    return std::nullopt;
+
+  std::optional<RVVRouteOperandBindingPlan> bindingPlan =
+      buildElementwiseArithmeticRouteOperandBindingPlanForContract(description);
+  if (!bindingPlan)
+    return std::nullopt;
+
+  RVVElementwiseArithmeticRouteValidationContract contract;
+  contract.kind = getElementwiseArithmeticValidationKind(description);
+  contract.operation = description.operation;
+  contract.consumerLabel =
+      getElementwiseArithmeticValidationConsumerLabel(description);
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  contract.memoryForm = description.memoryForm;
+  contract.elementTypeName = description.elementTypeName.str();
+  contract.sew = description.sew;
+  contract.lmul = description.lmul.str();
+  contract.tailPolicy = description.tailPolicy.str();
+  contract.maskPolicy = description.maskPolicy.str();
+  contract.configContractID = description.configContractID.str();
+  contract.runtimeControlPlanID = description.runtimeControlPlanID.str();
+  contract.runtimeABIOrder =
+      isScalarBroadcast ? kRVVScalarBroadcastRuntimeABIOrder.str()
+                        : getElementwiseArithmeticRuntimeABIOrder(
+                              description.operation)
+                              .str();
+  contract.targetLeafProfile =
+      isScalarBroadcast
+          ? kRVVScalarBroadcastElementwiseTargetLeafProfile.str()
+          : getElementwiseArithmeticTargetLeafProfile(description.operation)
+                .str();
+  contract.providerSupportedMirror =
+      isScalarBroadcast
+          ? kRVVScalarBroadcastElementwiseProviderSupportedMirror.str()
+          : getElementwiseArithmeticProviderSupportedMirror(
+                description.operation)
+                .str();
+  contract.requiredHeaderDeclarations =
+      isScalarBroadcast
+          ? kRVVScalarBroadcastElementwiseRequiredHeaderDeclarations.str()
+          : kRVVElementwiseArithmeticRequiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary =
+      isScalarBroadcast
+          ? kRVVScalarBroadcastElementwiseCTypeMappingSummary.str()
+          : getElementwiseArithmeticCTypeMappingSummary(description.operation)
+                .str();
+  contract.routeOperandBindingPlanID = bindingPlan->planID;
+  contract.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(*bindingPlan);
+  contract.typedComputeOpName =
+      getElementwiseArithmeticTypedComputeOpName(description.operation).str();
+
+  contract.elementwiseArithmeticRouteFamilyPlanID =
+      isScalarBroadcast
+          ? std::string()
+          : kRVVElementwiseArithmeticRouteFamilyPlanID.str();
+  contract.scalarBroadcastElementwiseRouteFamilyPlanID =
+      isScalarBroadcast
+          ? kRVVScalarBroadcastElementwiseRouteFamilyPlanID.str()
+          : std::string();
+  contract.sourceMemoryForm = description.sourceMemoryForm.str();
+  contract.destinationMemoryForm = description.destinationMemoryForm.str();
+  contract.stridedMemoryLayout = description.stridedMemoryLayout.str();
+  contract.lhsStrideSource = description.lhsStrideSource.str();
+  contract.rhsStrideSource = description.rhsStrideSource.str();
+  contract.outStrideSource = description.outStrideSource.str();
+  contract.maskRole = description.maskRole.str();
+  contract.maskSource = description.maskSource.str();
+  contract.maskMemoryForm = description.maskMemoryForm.str();
+  contract.inactiveLaneContract =
+      description.inactiveLaneContract.str();
+  contract.maskedPassthroughLayout =
+      description.maskedPassthroughLayout.str();
+
+  contract.vlCType = description.vlCType.str();
+  contract.vectorTypeName = description.vectorTypeName.str();
+  contract.vectorCType = description.vectorCType.str();
+  contract.maskTypeName = description.maskTypeName.str();
+  contract.maskCType = description.maskCType.str();
+  contract.setVLIntrinsic = description.setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = description.vectorLoadIntrinsic.str();
+  contract.stridedLoadIntrinsic = description.stridedLoadIntrinsic.str();
+  if (isScalarBroadcast ||
+      description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
+    std::optional<std::string> rhsBroadcastIntrinsic =
+        deriveElementwiseScalarSplatIntrinsic(description.sew,
+                                             description.lmul);
+    if (!rhsBroadcastIntrinsic)
+      return std::nullopt;
+    contract.rhsBroadcastIntrinsic = *rhsBroadcastIntrinsic;
+  }
+  std::optional<std::string> arithmeticIntrinsic =
+      deriveElementwiseArithmeticIntrinsic(description.operation,
+                                           description.sew, description.lmul);
+  if (!arithmeticIntrinsic)
+    return std::nullopt;
+  contract.intrinsic = *arithmeticIntrinsic;
+  contract.compareIntrinsic = description.compareIntrinsic.str();
+  contract.maskedMergeIntrinsic =
+      description.maskedMergeIntrinsic.str();
+  contract.storeIntrinsic = description.storeIntrinsic.str();
+  contract.stridedStoreIntrinsic =
+      description.stridedStoreIntrinsic.str();
+  contract.resultName = description.resultName.str();
+  contract.maskName = description.maskName.str();
+
+  contract.emitCFullChunkVLName =
+      description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount =
+      getElementwiseArithmeticExpectedLoopBodyStepCount(contract.kind);
+  appendElementwiseArithmeticValidationRuntimeABIRoles(contract);
+  contract.runtimeABIParameters.append(description.runtimeABIParameters.begin(),
+                                       description.runtimeABIParameters.end());
+
+  appendElementwiseArithmeticValidationHeaders(
+      contract, contract.requiredHeaderDeclarations);
+  appendElementwiseArithmeticValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", description.vlCType,
+      "selected typed RVV elementwise VL type");
+  appendElementwiseArithmeticValidationTypeMapping(
+      contract, description.vectorTypeName, description.vectorCType,
+      "selected typed RVV elementwise vector type");
+  if (contract.kind == RVVElementwiseArithmeticRouteValidationKind::Masked)
+    appendElementwiseArithmeticValidationTypeMapping(
+        contract, description.maskTypeName, description.maskCType,
+        "selected typed RVV masked elementwise mask type");
+  return contract;
+}
+
+static void appendElementwiseArithmeticMetadataMirror(
+    RVVElementwiseArithmeticRouteMetadataMirrorContractSet &contract,
+    llvm::StringRef key, llvm::StringRef expected,
+    llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
+static std::optional<
+    RVVElementwiseArithmeticRouteMetadataMirrorContractSet>
+buildRVVElementwiseArithmeticRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVElementwiseArithmeticRouteValidationContract> validation =
+      buildRVVElementwiseArithmeticRouteValidationContract(description);
+  if (!validation)
+    return std::nullopt;
+
+  const RVVElementwiseArithmeticRouteValidationContract &facts = *validation;
+  RVVElementwiseArithmeticRouteMetadataMirrorContractSet contract;
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "rvv_selected_body_typed_compute_op",
+      facts.typedComputeOpName,
+      "selected typed RVV elementwise arithmetic typed compute op");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan",
+      facts.routeOperandBindingPlanID,
+      "selected typed RVV elementwise arithmetic binding plan");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands",
+      facts.routeOperandBindingSummary,
+      "selected typed RVV elementwise arithmetic binding summary");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror",
+      facts.providerSupportedMirror,
+      "selected typed RVV elementwise arithmetic provider support");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.target_leaf_profile", facts.targetLeafProfile,
+      "selected typed RVV elementwise arithmetic target leaf profile");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      facts.elementwiseArithmeticRouteFamilyPlanID,
+      "selected typed RVV elementwise arithmetic route-family plan");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      facts.scalarBroadcastElementwiseRouteFamilyPlanID,
+      "selected typed RVV scalar-broadcast elementwise route-family plan");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(facts.memoryForm),
+      "selected typed RVV elementwise arithmetic memory form");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      facts.runtimeControlPlanID,
+      "selected typed RVV elementwise arithmetic runtime AVL/VL control plan");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
+      "selected typed RVV elementwise arithmetic runtime ABI order");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations",
+      facts.requiredHeaderDeclarations,
+      "selected typed RVV elementwise arithmetic route header requirements");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping", facts.cTypeMappingSummary,
+      "selected typed RVV elementwise arithmetic route type mapping summary");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.source_memory_form", facts.sourceMemoryForm,
+      "selected typed RVV elementwise arithmetic source memory form");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.destination_memory_form",
+      facts.destinationMemoryForm,
+      "selected typed RVV elementwise arithmetic destination memory form");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.mask_role", facts.maskRole,
+      "selected typed RVV masked elementwise mask role");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.mask_source", facts.maskSource,
+      "selected typed RVV masked elementwise mask source");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.mask_memory_form", facts.maskMemoryForm,
+      "selected typed RVV masked elementwise mask memory form");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.inactive_lane_contract",
+      facts.inactiveLaneContract,
+      "selected typed RVV masked elementwise inactive lane contract");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.masked_passthrough_layout",
+      facts.maskedPassthroughLayout,
+      "selected typed RVV masked elementwise passthrough layout");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.strided_memory_layout",
+      facts.stridedMemoryLayout,
+      "selected typed RVV strided elementwise memory layout");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.lhs_stride_source", facts.lhsStrideSource,
+      "selected typed RVV strided elementwise lhs stride source");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.rhs_stride_source", facts.rhsStrideSource,
+      "selected typed RVV strided elementwise rhs stride source");
+  appendElementwiseArithmeticMetadataMirror(
+      contract, "tcrv_rvv.out_stride_source", facts.outStrideSource,
+      "selected typed RVV strided elementwise output stride source");
+
+  constexpr llvm::StringLiteral staleMirrorKeys[] = {
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.contraction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.source_sew",
+      "tcrv_rvv.source_lmul",
+      "tcrv_rvv.dest_sew",
+      "tcrv_rvv.dest_lmul",
+      "tcrv_rvv.conversion_relation",
+      "tcrv_rvv.widening_macc_relation",
+      "tcrv_rvv.widening_dot_relation"};
+  for (llvm::StringRef key : staleMirrorKeys)
+    contract.staleMirrorKeys.push_back(key);
+  contract.staleMirrorLabel =
+      "selected typed RVV non-elementwise route-family mirror";
+  return contract;
+}
+
+std::optional<RVVElementwiseArithmeticRouteValidationContract>
+getRVVElementwiseArithmeticRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVElementwiseArithmeticRouteValidationContract(description);
+}
+
+std::optional<RVVElementwiseArithmeticRouteMetadataMirrorContractSet>
+getRVVElementwiseArithmeticRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVElementwiseArithmeticRouteMetadataMirrorContract(description);
 }
 
 } // namespace tianchenrv::plugin::rvv

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and Stage 2 RVV boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV provider ownership, elementwise statement-plan boundary, fail-closed route rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route validation and metadata mirror contract patterns"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/runtime evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-conversion-dtype-policy-route-contract-extraction/prd.md", "reason": "Closest completed provider contract extraction pattern"}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-elementwise-broadcast-arithmetic-production-validation/prd.md", "reason": "Existing elementwise/broadcast target validation gap and acceptance surface"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "change": "Added provider-owned elementwise arithmetic route validation and metadata mirror contract structs/accessors."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp", "change": "Built elementwise arithmetic validation and metadata mirror contracts from existing provider-owned route facts, including ABI role order and stale cross-family mirror keys."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "change": "Rewired elementwise provider-fact and candidate mirror validation to consume provider contracts for route payload, headers, type mappings, ABI mappings, source/memory/mask facts, intrinsic leaves, binding facts, and statement plan."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "change": "Added positive provider-contract checks and stale binding/mirror/runtime-ABI-role negative coverage for representative plain, masked, and scalar-broadcast elementwise routes."}
