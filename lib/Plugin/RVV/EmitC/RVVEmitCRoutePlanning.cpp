@@ -30938,6 +30938,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
           RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
       description.operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd) {
+    metadata.push_back({"tcrv_rvv.macc_arithmetic_kind",
+                        description.maccArithmeticKind});
     metadata.push_back({"tcrv_rvv.macc_accumulator_layout",
                         description.maccAccumulatorLayout});
     metadata.push_back(

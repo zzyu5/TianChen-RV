@@ -755,6 +755,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"macc_result_layout", "tcrv_rvv.macc_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"macc_arithmetic_kind", "tcrv_rvv.macc_arithmetic_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_macc_accumulator_layout",
        "tcrv_rvv.widening_macc_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

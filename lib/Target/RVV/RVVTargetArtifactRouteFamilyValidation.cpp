@@ -4551,12 +4551,12 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
   const std::optional<plugin::rvv::RVVComputedMaskMAccRouteFacts>
       computedMaskMAccFacts =
           plugin::rvv::getRVVComputedMaskMAccRouteFacts(
-              description.operation);
+              description.operation, description.sew, description.lmul);
   const std::optional<
       plugin::rvv::RVVRuntimeScalarComputedMaskMAccRouteFacts>
       runtimeScalarMAccFacts =
           plugin::rvv::getRVVRuntimeScalarComputedMaskMAccRouteFacts(
-              description.operation);
+              description.operation, description.sew, description.lmul);
   const llvm::StringRef expectedComputedMaskMAccBindingSummary =
       computedMaskMAccFacts
           ? llvm::StringRef(computedMaskMAccFacts->routeOperandBindingSummary)
@@ -4596,11 +4596,12 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "MAcc target artifact consumer requires provider route operand "
         "binding facts before artifact export");
-  if (description.maccAccumulatorLayout.empty() ||
+  if (description.maccArithmeticKind.empty() ||
+      description.maccAccumulatorLayout.empty() ||
       description.maccResultLayout.empty())
     return makeRVVTargetRouteError(
-        "MAcc target artifact consumer requires provider-derived accumulator "
-        "and result layout facts before artifact export");
+        "MAcc target artifact consumer requires provider-derived arithmetic, "
+        "accumulator, and result layout facts before artifact export");
 
   const llvm::StringRef expectedRuntimeABIOrder =
       getRVVMAccExpectedRuntimeABIOrder(description.operation);
@@ -4616,10 +4617,16 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
       getRVVMAccExpectedTypedComputeOp(description.operation);
   const llvm::StringRef expectedComparePredicateKind =
       getRVVMAccExpectedComparePredicateKind(description.operation);
+  const llvm::StringRef expectedMAccArithmeticKind =
+      unitStrideMAccFacts ? unitStrideMAccFacts->arithmeticKind
+      : computedMaskMAccFacts ? computedMaskMAccFacts->arithmeticKind
+      : runtimeScalarMAccFacts ? runtimeScalarMAccFacts->arithmeticKind
+                              : llvm::StringRef();
   if (expectedRuntimeABIOrder.empty() || expectedOperandBindingPlanID.empty() ||
       expectedTargetLeafProfile.empty() ||
       expectedProviderSupportedMirror.empty() ||
-      expectedCTypeMappingSummary.empty() || expectedTypedComputeOp.empty())
+      expectedCTypeMappingSummary.empty() || expectedTypedComputeOp.empty() ||
+      expectedMAccArithmeticKind.empty())
     return makeRVVTargetRouteError(
         "MAcc target artifact consumer requires a known provider MAcc route "
         "family before artifact export");
@@ -4676,6 +4683,12 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
         llvm::Twine("MAcc target artifact consumer requires typed compute op '") +
         expectedTypedComputeOp + "' but was '" +
         description.typedComputeOpName + "'");
+  if (description.maccArithmeticKind != expectedMAccArithmeticKind)
+    return makeRVVTargetRouteError(
+        llvm::Twine("MAcc target artifact consumer requires provider-owned "
+                    "multiply-add arithmetic kind '") +
+        expectedMAccArithmeticKind + "' but was '" +
+        description.maccArithmeticKind + "'");
   if (!expectedComparePredicateKind.empty() &&
       description.comparePredicateKind != expectedComparePredicateKind)
     return makeRVVTargetRouteError(
@@ -4823,6 +4836,36 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
           "export");
   } else if (isRVVComputedMaskMAccRouteFamilyOperation(
                  description.operation)) {
+    if (computedMaskMAccFacts &&
+        (description.memoryForm != computedMaskMAccFacts->memoryForm ||
+         description.sew != computedMaskMAccFacts->sew ||
+         description.lmul != computedMaskMAccFacts->lmul ||
+         description.tailPolicy != computedMaskMAccFacts->tailPolicy ||
+         description.maskPolicy != computedMaskMAccFacts->maskPolicy ||
+         description.runtimeControlPlanID !=
+             computedMaskMAccFacts->runtimeControlPlanID ||
+         !support::runtimeABIParametersEqual(
+             description.runtimeABIParameters,
+             computedMaskMAccFacts->runtimeABIParameters)))
+      return makeRVVTargetRouteError(
+          "computed-mask MAcc target artifact consumer requires "
+          "provider-owned vector computed-mask MAcc typed config and runtime "
+          "ABI parameter facts before artifact export");
+    if (runtimeScalarMAccFacts &&
+        (description.memoryForm != runtimeScalarMAccFacts->memoryForm ||
+         description.sew != runtimeScalarMAccFacts->sew ||
+         description.lmul != runtimeScalarMAccFacts->lmul ||
+         description.tailPolicy != runtimeScalarMAccFacts->tailPolicy ||
+         description.maskPolicy != runtimeScalarMAccFacts->maskPolicy ||
+         description.runtimeControlPlanID !=
+             runtimeScalarMAccFacts->runtimeControlPlanID ||
+         !support::runtimeABIParametersEqual(
+             description.runtimeABIParameters,
+             runtimeScalarMAccFacts->runtimeABIParameters)))
+      return makeRVVTargetRouteError(
+          "runtime-scalar computed-mask MAcc target artifact consumer requires "
+          "provider-owned runtime scalar ABI parameter roles and memory-form "
+          "facts before artifact export");
     const llvm::StringRef expectedAccumulationRouteFamilyPlanID =
         computedMaskMAccFacts
             ? computedMaskMAccFacts->accumulationRouteFamilyPlanID
@@ -5118,6 +5161,11 @@ llvm::Error validateRVVMAccTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.c_type_mapping",
           description.cTypeMappingSummary,
           "selected typed RVV MAcc route type mapping summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.macc_arithmetic_kind",
+          description.maccArithmeticKind,
+          "selected typed RVV MAcc arithmetic kind"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.macc_accumulator_layout",

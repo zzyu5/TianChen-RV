@@ -302,6 +302,26 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation,
                               llvm::StringRef lmul);
 ```
 
+For computed-mask MAcc, this applies to both the vector-compare and
+runtime-scalar compare variants because `runtime_scalar_cmp_masked_macc_add`
+has supported LMUL-specific artifacts such as LMUL m2:
+
+```c++
+std::optional<RVVComputedMaskMAccRouteFacts>
+getRVVComputedMaskMAccRouteFacts(RVVSelectedBodyOperationKind operation,
+                                 std::int64_t sew, llvm::StringRef lmul);
+
+std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
+getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul);
+```
+
+The no-argument accessor may remain as the default SEW32/LMUL m1 convenience
+surface, but provider and target validators that have a rebuilt route
+description must call the parameterized accessor with the actual selected
+`sew` and `lmul`.
+
 ### 3. Contracts
 
 - The accessor is implemented in the RVV plugin/provider layer and is derived
@@ -319,6 +339,13 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation,
 - A runtime-scalar variant and a vector/vector variant of the same route class
   should each have explicit facts when their ABI roles, predicates, or mask
   producer sources differ.
+- Computed-mask MAcc facts include selected SEW/LMUL/policy/runtime-control,
+  arithmetic kind, compare and runtime-scalar threshold roles, accumulator and
+  output roles, mask producer/source/form, runtime ABI parameters, header/type
+  summaries, target leaf profile, and `provider_supported_mirror`.
+- Runtime-scalar computed-mask MAcc validation must reject an unsupported
+  selected LMUL by missing provider facts rather than accepting the route via
+  default LMUL m1 facts, route ids, candidate metadata, or intrinsic strings.
 
 ### 4. Validation & Error Matrix
 
@@ -329,6 +356,9 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation,
 - Candidate mirror carries stale runtime-scalar facts for a vector/vector
   route, or stale vector facts for a runtime-scalar route -> fail before
   bundle acceptance.
+- Provider or target validation uses a no-argument/default facts accessor while
+  the rebuilt route description carries LMUL m2 or another non-default selected
+  configuration -> fail or fix the validator to use the parameterized accessor.
 - Binding summary, ABI order, predicate, mask source, layout, header, or type
   mapping differs from the provider facts -> fail before target artifact
   acceptance.
@@ -343,6 +373,11 @@ getRVV<RouteFamily>RouteFacts(RVVSelectedBodyOperationKind operation,
   `cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n`, `slt`, vector compare mask source,
   accumulator passthrough, binding summary, headers, and C type mapping; both
   provider and target validation consume those facts.
+- Good: `runtime_scalar_cmp_masked_macc_add` with selected SEW32/LMUL m2 gets
+  runtime-scalar facts through the parameterized accessor, including
+  `rhs_scalar` as `rhs-scalar-value`, `sle`, runtime-scalar splat compare
+  source, accumulator passthrough, binding summary, headers, type mapping, and
+  LMUL m2 typed config mirrors.
 - Good: `widening_macc_add` gets canonical facts for `lhs,rhs,acc,out,n`,
   `tcrv_rvv.widening_macc`, `i16mf2` lhs/rhs sources, `i32m1` accumulator and
   result vectors, `signed-i16mf2xi16mf2-plus-i32m1-to-i32m1`,

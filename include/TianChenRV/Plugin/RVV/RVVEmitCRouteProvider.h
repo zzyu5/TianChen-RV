@@ -231,6 +231,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef standaloneReductionScalarResultRuntimeBoundary;
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::StringRef wideningMAccAccumulatorLayout;
   llvm::StringRef wideningMAccResultLayout;
   llvm::StringRef wideningMAccRelation;
@@ -581,6 +582,11 @@ getRVVUnitStrideMAccRouteFacts(RVVSelectedBodyOperationKind operation);
 struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -588,7 +594,17 @@ struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef typedComputeOpName;
+  llvm::StringRef arithmeticKind;
   llvm::StringRef comparePredicateKind;
+  llvm::StringRef compareLhsRole;
+  llvm::StringRef compareRhsRole;
+  llvm::StringRef lhsRole;
+  llvm::StringRef rhsRole;
+  llvm::StringRef accumulatorRole;
+  llvm::StringRef outputRole;
+  llvm::StringRef runtimeCountRole;
+  bool usesVectorCompareRHSLoad = false;
+  bool usesRuntimeScalarCompareThreshold = false;
   llvm::StringRef accumulationRouteFamilyPlanID;
   llvm::StringRef accumulationComputeSuffix;
   llvm::StringRef accumulationMaskProducerSource;
@@ -605,11 +621,18 @@ struct RVVRuntimeScalarComputedMaskMAccRouteFacts {
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
+      runtimeABIParameters;
 };
 
 struct RVVComputedMaskMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -617,7 +640,17 @@ struct RVVComputedMaskMAccRouteFacts {
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef typedComputeOpName;
+  llvm::StringRef arithmeticKind;
   llvm::StringRef comparePredicateKind;
+  llvm::StringRef compareLhsRole;
+  llvm::StringRef compareRhsRole;
+  llvm::StringRef lhsRole;
+  llvm::StringRef rhsRole;
+  llvm::StringRef accumulatorRole;
+  llvm::StringRef outputRole;
+  llvm::StringRef runtimeCountRole;
+  bool usesVectorCompareRHSLoad = false;
+  bool usesRuntimeScalarCompareThreshold = false;
   llvm::StringRef accumulationRouteFamilyPlanID;
   llvm::StringRef accumulationComputeSuffix;
   llvm::StringRef accumulationMaskProducerSource;
@@ -634,14 +667,25 @@ struct RVVComputedMaskMAccRouteFacts {
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
+      runtimeABIParameters;
 };
 
 std::optional<RVVComputedMaskMAccRouteFacts>
 getRVVComputedMaskMAccRouteFacts(RVVSelectedBodyOperationKind operation);
 
+std::optional<RVVComputedMaskMAccRouteFacts>
+getRVVComputedMaskMAccRouteFacts(RVVSelectedBodyOperationKind operation,
+                                 std::int64_t sew, llvm::StringRef lmul);
+
 std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
 getRVVRuntimeScalarComputedMaskMAccRouteFacts(
     RVVSelectedBodyOperationKind operation);
+
+std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts>
+getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    llvm::StringRef lmul);
 
 struct RVVWideningConversionRouteFacts {
   RVVSelectedBodyOperationKind operation;

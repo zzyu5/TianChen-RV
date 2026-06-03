@@ -429,6 +429,7 @@ struct RVVSelectedBodyPlainMAccRouteFamilyPlan {
   llvm::StringRef resultName;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
@@ -462,6 +463,7 @@ struct RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan {
   llvm::StringRef resultName;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
@@ -837,6 +839,7 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
   llvm::StringRef indexedMemoryLayout;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::StringRef accumulatorContract;
   llvm::StringRef resultContract;
   llvm::StringRef inactiveLaneContract;

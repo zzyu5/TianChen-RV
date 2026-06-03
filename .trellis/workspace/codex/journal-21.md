@@ -857,3 +857,36 @@ Added provider-owned unit-stride MAcc route facts, rewired target validation to 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 404: Stage2 RVV computed-mask MAcc production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV computed-mask MAcc production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Added provider-owned computed-mask MAcc route facts and parameterized runtime-scalar facts, rewired MAcc target validation to consume provider facts, added focused fail-closed C++ coverage, updated EmitC route spec, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

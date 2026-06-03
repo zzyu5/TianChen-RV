@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture, RVV-first chain, and Stage 2 scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "computed-mask MAcc provider ownership, statement-plan boundary, and fail-closed matrix"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-owned route fact surface, target validation, and Common EmitC neutrality contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++/lit/generated-bundle and RVV evidence requirements"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "plugin-local RVV semantics and no common/core semantic drift"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "typed tcrv_rvv body authority and no descriptor-driven compute"}
