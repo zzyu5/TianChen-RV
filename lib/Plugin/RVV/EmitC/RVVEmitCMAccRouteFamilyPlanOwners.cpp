@@ -1862,6 +1862,312 @@ getRVVMAccRouteMetadataMirrorContract(
   return std::nullopt;
 }
 
+static void appendRVVMAccValidationHeaders(
+    RVVMAccRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRVVMAccValidationTypeMapping(
+    RVVMAccRouteValidationContract &contract, llvm::StringRef sourceType,
+    llvm::StringRef cType, llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void copyRVVMAccDynamicDescriptionPayload(
+    RVVMAccRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  contract.vlCType = description.vlCType.str();
+  contract.vectorTypeName = description.vectorTypeName.str();
+  contract.vectorCType = description.vectorCType.str();
+  contract.sourceVectorTypeName = description.sourceVectorTypeName.str();
+  contract.sourceVectorCType = description.sourceVectorCType.str();
+  contract.maskTypeName = description.maskTypeName.str();
+  contract.maskCType = description.maskCType.str();
+  contract.setVLIntrinsic = description.setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = description.vectorLoadIntrinsic.str();
+  contract.sourceVectorLoadIntrinsic = description.sourceVectorLoadIntrinsic.str();
+  contract.rhsBroadcastIntrinsic = description.rhsBroadcastIntrinsic.str();
+  contract.compareIntrinsic = description.compareIntrinsic.str();
+  contract.maskedMergeIntrinsic = description.maskedMergeIntrinsic.str();
+  contract.intrinsic = description.intrinsic.str();
+  contract.storeIntrinsic = description.storeIntrinsic.str();
+  contract.emitCFullChunkVLName = description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName = description.emitCLoopInductionName.str();
+  contract.resultName = description.resultName.str();
+  contract.maskName = description.maskName.str();
+}
+
+static void populateRVVMAccCommonValidationContract(
+    RVVMAccRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    RVVMAccRouteValidationKind kind, llvm::StringRef consumerLabel,
+    RVVSelectedBodyMemoryForm memoryForm, std::int64_t sew,
+    llvm::StringRef lmul, llvm::StringRef tailPolicy,
+    llvm::StringRef maskPolicy, llvm::StringRef runtimeControlPlanID,
+    llvm::StringRef runtimeABIOrder, llvm::StringRef targetLeafProfile,
+    llvm::StringRef providerSupportedMirror,
+    llvm::StringRef requiredHeaderDeclarations,
+    llvm::StringRef cTypeMappingSummary,
+    llvm::StringRef routeOperandBindingPlanID,
+    llvm::StringRef routeOperandBindingSummary,
+    llvm::StringRef typedComputeOpName, llvm::StringRef arithmeticKind,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
+  contract.kind = kind;
+  contract.consumerLabel = consumerLabel;
+  contract.memoryForm = memoryForm;
+  contract.sew = sew;
+  contract.lmul = lmul.str();
+  contract.tailPolicy = tailPolicy.str();
+  contract.maskPolicy = maskPolicy.str();
+  contract.runtimeControlPlanID = runtimeControlPlanID.str();
+  contract.runtimeABIOrder = runtimeABIOrder.str();
+  contract.targetLeafProfile = targetLeafProfile.str();
+  contract.providerSupportedMirror = providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations = requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID = routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = routeOperandBindingSummary.str();
+  contract.typedComputeOpName = typedComputeOpName.str();
+  contract.arithmeticKind = arithmeticKind.str();
+  contract.maccAccumulatorLayout = accumulatorLayout.str();
+  contract.maccResultLayout = resultLayout.str();
+  contract.runtimeABIParameters.append(runtimeABIParameters.begin(),
+                                       runtimeABIParameters.end());
+  contract.expectedPreLoopStepCount = 1;
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  copyRVVMAccDynamicDescriptionPayload(contract, description);
+  appendRVVMAccValidationHeaders(contract, requiredHeaderDeclarations);
+  appendRVVMAccValidationTypeMapping(contract, "!tcrv_rvv.vl",
+                                     description.vlCType,
+                                     "selected typed RVV MAcc VL type");
+  appendRVVMAccValidationTypeMapping(
+      contract, description.vectorTypeName, description.vectorCType,
+      "selected typed RVV MAcc vector type");
+}
+
+static void populateRVVMAccUnitStrideValidationContract(
+    RVVMAccRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVUnitStrideMAccRouteFacts &facts) {
+  const bool isPlain = facts.operation == RVVSelectedBodyOperationKind::MAccAdd;
+  populateRVVMAccCommonValidationContract(
+      contract, description,
+      isPlain ? RVVMAccRouteValidationKind::Plain
+              : RVVMAccRouteValidationKind::ScalarBroadcast,
+      isPlain ? llvm::StringRef("plain MAcc target artifact consumer")
+              : llvm::StringRef(
+                    "scalar-broadcast MAcc target artifact consumer"),
+      facts.memoryForm, facts.sew, facts.lmul, facts.tailPolicy,
+      facts.maskPolicy, facts.runtimeControlPlanID, facts.runtimeABIOrder,
+      facts.targetLeafProfile, facts.providerSupportedMirror,
+      facts.requiredHeaderDeclarations, facts.cTypeMappingSummary,
+      facts.routeOperandBindingPlanID, facts.routeOperandBindingSummary,
+      facts.typedComputeOpName, facts.arithmeticKind,
+      facts.maccAccumulatorLayout, facts.maccResultLayout,
+      facts.runtimeABIParameters);
+  contract.plainMAccRouteFamilyPlanID =
+      isPlain ? facts.routeFamilyPlanID.str() : std::string();
+  contract.scalarBroadcastMAccRouteFamilyPlanID =
+      isPlain ? std::string() : facts.routeFamilyPlanID.str();
+  contract.lhsVectorName = "lhs_vec";
+  contract.rhsVectorName = "rhs_vec";
+  contract.accumulatorVectorName = "acc_vec";
+  contract.expectedLoopBodyStepCount = 6;
+}
+
+static void populateRVVMAccComputedMaskValidationContract(
+    RVVMAccRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVComputedMaskMAccRouteFacts &facts) {
+  populateRVVMAccCommonValidationContract(
+      contract, description, RVVMAccRouteValidationKind::ComputedMask,
+      "computed-mask MAcc target artifact consumer", facts.memoryForm,
+      facts.sew, facts.lmul, facts.tailPolicy, facts.maskPolicy,
+      facts.runtimeControlPlanID, facts.runtimeABIOrder,
+      facts.targetLeafProfile, facts.providerSupportedMirror,
+      facts.requiredHeaderDeclarations, facts.cTypeMappingSummary,
+      facts.routeOperandBindingPlanID, facts.routeOperandBindingSummary,
+      facts.typedComputeOpName, facts.arithmeticKind,
+      facts.maccAccumulatorLayout, facts.maccResultLayout,
+      facts.runtimeABIParameters);
+  contract.comparePredicateKind = facts.comparePredicateKind.str();
+  contract.accumulationRouteFamilyPlanID =
+      facts.accumulationRouteFamilyPlanID.str();
+  contract.accumulationComputeSuffix = facts.accumulationComputeSuffix.str();
+  contract.accumulationMaskProducerSource =
+      facts.accumulationMaskProducerSource.str();
+  contract.accumulationAccumulatorContract =
+      facts.accumulationAccumulatorContract.str();
+  contract.accumulationResultContract = facts.accumulationResultContract.str();
+  contract.maskRole = facts.maskRole.str();
+  contract.maskSource = facts.maskSource.str();
+  contract.maskMemoryForm = facts.maskMemoryForm.str();
+  contract.inactiveLaneContract = facts.inactiveLaneContract.str();
+  contract.maskedPassthroughLayout = facts.maskedPassthroughLayout.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.indexedMemoryLayout = facts.indexedMemoryLayout.str();
+  contract.lhsVectorName = "lhs_vec";
+  contract.rhsVectorName = "rhs_vec";
+  contract.maccLHSVectorName = "macc_lhs_vec";
+  contract.maccRHSVectorName = "macc_rhs_vec";
+  contract.accumulatorVectorName = "acc_vec";
+  contract.activeMAccVectorName = "active_macc_vec";
+  contract.expectedLoopBodyStepCount = 10;
+  appendRVVMAccValidationTypeMapping(
+      contract, description.maskTypeName, description.maskCType,
+      "selected typed RVV computed-mask MAcc mask type");
+}
+
+static void populateRVVMAccRuntimeScalarComputedMaskValidationContract(
+    RVVMAccRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVRuntimeScalarComputedMaskMAccRouteFacts &facts) {
+  populateRVVMAccCommonValidationContract(
+      contract, description,
+      RVVMAccRouteValidationKind::RuntimeScalarComputedMask,
+      "runtime-scalar computed-mask MAcc target artifact consumer",
+      facts.memoryForm, facts.sew, facts.lmul, facts.tailPolicy,
+      facts.maskPolicy, facts.runtimeControlPlanID, facts.runtimeABIOrder,
+      facts.targetLeafProfile, facts.providerSupportedMirror,
+      facts.requiredHeaderDeclarations, facts.cTypeMappingSummary,
+      facts.routeOperandBindingPlanID, facts.routeOperandBindingSummary,
+      facts.typedComputeOpName, facts.arithmeticKind,
+      facts.maccAccumulatorLayout, facts.maccResultLayout,
+      facts.runtimeABIParameters);
+  contract.comparePredicateKind = facts.comparePredicateKind.str();
+  contract.accumulationRouteFamilyPlanID =
+      facts.accumulationRouteFamilyPlanID.str();
+  contract.accumulationComputeSuffix = facts.accumulationComputeSuffix.str();
+  contract.accumulationMaskProducerSource =
+      facts.accumulationMaskProducerSource.str();
+  contract.accumulationAccumulatorContract =
+      facts.accumulationAccumulatorContract.str();
+  contract.accumulationResultContract = facts.accumulationResultContract.str();
+  contract.maskRole = facts.maskRole.str();
+  contract.maskSource = facts.maskSource.str();
+  contract.maskMemoryForm = facts.maskMemoryForm.str();
+  contract.inactiveLaneContract = facts.inactiveLaneContract.str();
+  contract.maskedPassthroughLayout = facts.maskedPassthroughLayout.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.indexedMemoryLayout = facts.indexedMemoryLayout.str();
+  contract.lhsVectorName = "lhs_vec";
+  contract.rhsVectorName = "rhs_vec";
+  contract.maccLHSVectorName = "macc_lhs_vec";
+  contract.maccRHSVectorName = "macc_rhs_vec";
+  contract.accumulatorVectorName = "acc_vec";
+  contract.activeMAccVectorName = "active_macc_vec";
+  contract.expectedLoopBodyStepCount = 10;
+  appendRVVMAccValidationTypeMapping(
+      contract, description.maskTypeName, description.maskCType,
+      "selected typed RVV runtime-scalar computed-mask MAcc mask type");
+}
+
+static void populateRVVMAccWideningValidationContract(
+    RVVMAccRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVWideningMAccRouteFacts &facts) {
+  populateRVVMAccCommonValidationContract(
+      contract, description, RVVMAccRouteValidationKind::Widening,
+      "widening MAcc contraction target artifact consumer", facts.memoryForm,
+      facts.resultSEW, facts.resultLMUL, facts.tailPolicy, facts.maskPolicy,
+      facts.runtimeControlPlanID, facts.runtimeABIOrder,
+      facts.targetLeafProfile, facts.providerSupportedMirror,
+      facts.requiredHeaderDeclarations, facts.cTypeMappingSummary,
+      facts.routeOperandBindingPlanID, facts.routeOperandBindingSummary,
+      facts.typedComputeOpName, facts.wideningMAccArithmeticKind,
+      facts.wideningMAccAccumulatorLayout, facts.wideningMAccResultLayout,
+      facts.runtimeABIParameters);
+  contract.maccAccumulatorLayout.clear();
+  contract.maccResultLayout.clear();
+  contract.contractionRouteFamilyPlanID =
+      facts.contractionRouteFamilyPlanID.str();
+  contract.sourceSEW = facts.sourceSEW;
+  contract.sourceLMUL = facts.sourceLMUL.str();
+  contract.accumulatorSEW = facts.accumulatorSEW;
+  contract.accumulatorLMUL = facts.accumulatorLMUL.str();
+  contract.resultSEW = facts.resultSEW;
+  contract.resultLMUL = facts.resultLMUL.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.wideningMAccAccumulatorLayout =
+      facts.wideningMAccAccumulatorLayout.str();
+  contract.wideningMAccResultLayout = facts.wideningMAccResultLayout.str();
+  contract.wideningMAccRelation = facts.wideningMAccRelation.str();
+  contract.vlCType = facts.vlCType.str();
+  contract.vectorTypeName = facts.resultVectorTypeName.str();
+  contract.vectorCType = facts.resultVectorCType.str();
+  contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
+  contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.setVLIntrinsic = facts.setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = facts.accumulatorVectorLoadIntrinsic.str();
+  contract.sourceVectorLoadIntrinsic = facts.sourceVectorLoadIntrinsic.str();
+  contract.intrinsic = facts.wideningMAccIntrinsic.str();
+  contract.storeIntrinsic = facts.storeIntrinsic.str();
+  contract.lhsVectorName = "lhs_vec";
+  contract.rhsVectorName = "rhs_vec";
+  contract.accumulatorVectorName = "acc_vec";
+  contract.expectedLoopBodyStepCount = 6;
+  contract.typeMappings.clear();
+  appendRVVMAccValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", facts.vlCType,
+      "selected typed RVV widening MAcc VL type");
+  appendRVVMAccValidationTypeMapping(
+      contract, facts.resultVectorTypeName, facts.resultVectorCType,
+      "selected typed RVV widening MAcc result vector type");
+  appendRVVMAccValidationTypeMapping(
+      contract, facts.sourceVectorTypeName, facts.sourceVectorCType,
+      "selected typed RVV widening MAcc source vector type");
+}
+
+std::optional<RVVMAccRouteValidationContract>
+getRVVMAccRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  RVVMAccRouteValidationContract contract;
+
+  if (std::optional<RVVUnitStrideMAccRouteFacts> routeFacts =
+          getRVVUnitStrideMAccRouteFacts(description.operation)) {
+    populateRVVMAccUnitStrideValidationContract(contract, description,
+                                               *routeFacts);
+    return contract;
+  }
+
+  if (std::optional<RVVComputedMaskMAccRouteFacts> routeFacts =
+          getRVVComputedMaskMAccRouteFacts(description.operation,
+                                          description.sew,
+                                          description.lmul)) {
+    populateRVVMAccComputedMaskValidationContract(contract, description,
+                                                 *routeFacts);
+    return contract;
+  }
+
+  if (std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts> routeFacts =
+          getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+              description.operation, description.sew, description.lmul)) {
+    populateRVVMAccRuntimeScalarComputedMaskValidationContract(
+        contract, description, *routeFacts);
+    return contract;
+  }
+
+  if (std::optional<RVVWideningMAccRouteFacts> routeFacts =
+          getRVVWideningMAccRouteFacts(description.operation)) {
+    populateRVVMAccWideningValidationContract(contract, description,
+                                             *routeFacts);
+    return contract;
+  }
+
+  return std::nullopt;
+}
+
 llvm::Error validateRVVSelectedBodyPlainMAccRouteFamilyPlan(
     const RVVSelectedBodyPlainMAccRouteFamilyPlan &plan) {
   if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(

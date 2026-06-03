@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and RVV stage authority boundaries for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV provider, MAcc owner, route-family validator, and artifact mirror authority contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route, provider fact surface, runtime ABI, header/type, and MAcc metadata/route contract requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-macc-route-contract-completion/prd.md", "reason": "Current task requirements and acceptance criteria."}

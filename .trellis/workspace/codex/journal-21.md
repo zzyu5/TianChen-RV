@@ -1608,3 +1608,82 @@ No `ssh rvv` rerun: this changed provider/target validation contract ownership o
 ### Next Steps
 
 - None - task complete
+
+
+## Session 418: Stage2 RVV MAcc route-contract completion beyond mirrors
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV MAcc route-contract completion beyond mirrors
+**Branch**: `main`
+
+### Summary
+
+Completed provider-owned MAcc route validation contract beyond mirrors: added RVV provider contract API, rewired target MAcc provider-fact validation to consume route payload/header/type/runtime ABI/statement-plan contract data, updated focused MAcc diagnostics, added code-spec, and passed focused target/plugin/lit checks. No ssh rvv rerun because runtime emission semantics did not change.
+
+### Main Changes
+
+- Added `RVVMAccRouteValidationContract`,
+  `RVVMAccRouteTypeMappingContract`, `RVVMAccRouteValidationKind`, and
+  `getRVVMAccRouteValidationContract(...)` in the RVV provider API.
+- Built provider-owned MAcc route validation contracts for plain,
+  scalar-broadcast, computed-mask, runtime-scalar computed-mask, and widening
+  MAcc from provider facts plus the rebuilt provider route description.
+- Rewired non-widening and widening MAcc target provider-fact validation to
+  consume the provider contract for route payload, header/type, runtime ABI,
+  accumulator/passthrough, mask/tail, widening, and statement-plan fields.
+- Removed target-local MAcc expected-fact helpers/constants for fields now
+  represented by the provider contract, while keeping candidate metadata mirror
+  validation on the previous provider-owned mirror contract.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable
+  MAcc route validation contract.
+
+### Git Commits
+
+This session is intended to be committed as the final repair/closeout commit
+for the MAcc route-contract completion task.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter '(macc-add|scalar-broadcast-macc-add|computed-masked-macc-add|runtime-scalar-cmp-masked-macc-add|widening-macc-add)'` from `build/test`, 28 passed.
+- [OK] Bounded diff-only old-authority scan over touched production/test files.
+- [OK] `rtk git diff --check`
+
+No `ssh rvv` rerun: this changed provider/target validation contract ownership
+and diagnostics only and did not change route emission, generated runtime
+semantics, runtime ABI order, emitted intrinsics, MAcc computation, mask/tail
+behavior, passthrough behavior, destination preservation, runtime correctness,
+or performance behavior.
+
+### Self-Repair
+
+- Positive plain MAcc target validation showed unit-stride plain/scalar MAcc
+  route descriptions do not carry source/destination memory-form fields, so the
+  unit-stride contract now leaves those fields empty while computed-mask and
+  widening MAcc still validate memory forms.
+- Widening MAcc initially inherited ordinary MAcc accumulator/result layout
+  expectations; the widening contract now validates widening-specific
+  layout/relation fields.
+- Focused C++ diagnostics were updated from target-local wording to
+  provider-contract field names and expected/actual values.
+- The MAcc contract route token expectation now derives through the RVV
+  provider route helper rather than using target artifact metadata or a
+  target-local route-name decision.
+- Repair closeout added an explicit MAcc contract runtime ABI parameter-count
+  guard so missing provider ABI contract fields fail closed before
+  statement-plan validation indexes family-specific ABI parameters.
+- Repair closeout corrected the task PRD's stale "initial clean" note with the
+  actual dirty-state inventory and kept the existing archived task instead of
+  creating a competing Trellis task.
+- Repair closeout fixed archived-task `implement.jsonl` and `check.jsonl`
+  context pointers so Trellis validation resolves the archived PRD path.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

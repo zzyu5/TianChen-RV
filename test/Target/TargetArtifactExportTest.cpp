@@ -8284,7 +8284,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccProviderSupport,
           "widening-MAcc registry rejects metadata-only provider support",
-          {"provider-owned contraction support",
+          {"provider-supported mirror",
            "metadata-only-widening-macc"}))
     return false;
 
@@ -8328,8 +8328,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccBinding,
           "widening-MAcc registry rejects stale operand binding facts",
-          {"operand binding facts", "lhs/rhs i16mf2 sources", "i32m1 "
-           "accumulator"}))
+          {"operand binding facts", "src-i16mf2", "acc-i32m1"}))
     return false;
 
   RVVRouteDescription staleWideningMAccSourceDType =
@@ -8338,7 +8337,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccSourceDType,
           "widening-MAcc registry rejects stale source/result dtype relation",
-          {"i16mf2 source", "i32m1 accumulator/result"}))
+          {"source SEW", "16", "32"}))
     return false;
 
   RVVRouteDescription staleWideningMAccResultLMUL = wideningMAccDescription;
@@ -8346,7 +8345,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccResultLMUL,
           "widening-MAcc registry rejects stale accumulator/result LMUL",
-          {"i16mf2 source", "i32m1 accumulator/result", "m2"}))
+          {"LMUL", "m1", "m2"}))
     return false;
 
   RVVRouteDescription staleWideningMAccArithmeticKind =
@@ -8366,8 +8365,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccMemoryForm,
           "widening-MAcc registry rejects stale source memory form",
-          {"source/destination memory forms", "unit-stride-load",
-           "unit-stride-store"}))
+          {"source memory form", "unit-stride-load", "strided-load"}))
     return false;
 
   RVVRouteDescription staleWideningMAccHeader =
@@ -8377,7 +8375,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccHeader,
           "widening-MAcc registry rejects stale header facts",
-          {"provider-owned contraction support", "headers",
+          {"required header declarations", "stddef.h,stdint.h,riscv_vector.h",
            "stddef.h,stdint.h"}))
     return false;
 
@@ -8388,7 +8386,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccRelation,
           "widening-MAcc registry rejects stale widening relation",
-          {"widening MAcc layout and relation",
+          {"widening MAcc relation",
            "metadata-derived-widening-macc-relation"}))
     return false;
 
@@ -8399,7 +8397,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccProviderFailure(
           staleWideningMAccNonFamily,
           "widening-MAcc registry rejects stale non-widening provider facts",
-          {"stale", "non-widening-MAcc route-family facts"}))
+          {"stale", "plain MAcc route-family plan"}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -9094,8 +9092,7 @@ bool expectRVVTargetArtifactExporterShape(
           maccFixture.candidate, maccRoute, stalePlainMAccScalarBinding,
           "MAcc registry rejects stale scalar-broadcast binding summary on "
           "plain MAcc",
-          {"unit-stride MAcc target artifact consumer requires provider route "
-           "operand binding summary",
+          {"route operand binding facts",
            plainMAccFacts->routeOperandBindingSummary,
            scalarBroadcastMAccFacts->routeOperandBindingSummary}))
     return false;
@@ -9107,7 +9104,7 @@ bool expectRVVTargetArtifactExporterShape(
           maccFixture.candidate, maccRoute, stalePlainMAccScalarRouteFamily,
           "MAcc registry rejects stale scalar-broadcast route facts on plain "
           "MAcc",
-          {"stale scalar-broadcast MAcc route facts"}))
+          {"stale scalar-broadcast MAcc route-family plan facts"}))
     return false;
 
   RVVRouteDescription stalePlainMAccTargetProfile = maccDescription;
@@ -9148,7 +9145,9 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectMAccProviderFailure(
           maccFixture.candidate, maccRoute, stalePlainMAccAccumulatorRole,
           "MAcc registry rejects stale plain MAcc accumulator ABI role",
-          {"runtime ABI parameter roles", "C bindings"}))
+          {"provider-derived runtime ABI parameter 2",
+           "provider-owned parameter 'acc'", "accumulator-input-buffer",
+           "const int32_t *"}))
     return false;
 
   RVVRouteDescription stalePlainMAccComputedMaskResidue = maccDescription;
@@ -9157,7 +9156,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectMAccProviderFailure(
           maccFixture.candidate, maccRoute, stalePlainMAccComputedMaskResidue,
           "MAcc registry rejects stale computed-mask residue on plain MAcc",
-          {"stale computed-mask", "route-family facts"}))
+          {"stale computed-mask MAcc route-family plan facts"}))
     return false;
 
   RVVRouteDescription staleScalarBroadcastMAccBinding =
@@ -9186,7 +9185,7 @@ bool expectRVVTargetArtifactExporterShape(
           scalarBroadcastMAccFixture.candidate, scalarBroadcastMAccRoute,
           staleScalarBroadcastMAccBindingSummary,
           "MAcc registry rejects stale scalar-broadcast binding summary",
-          {"provider route operand binding summary",
+          {"route operand binding facts",
            "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr",
            "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs;"}))
     return false;
@@ -9200,7 +9199,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleScalarBroadcastPlainRouteFamily,
           "MAcc registry rejects stale plain route facts on scalar-broadcast "
           "MAcc",
-          {"stale plain MAcc route facts"}))
+          {"stale plain MAcc route-family plan facts"}))
     return false;
 
   RVVRouteDescription staleScalarBroadcastVectorRHSFacts =
@@ -9212,7 +9211,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleScalarBroadcastVectorRHSFacts,
           "MAcc registry rejects stale vector-RHS memory form on "
           "scalar-broadcast MAcc",
-          {"memory form", "vector-RHS", "scalar-broadcast"}))
+          {"selected typed RVV memory form", "rhs-scalar-broadcast-macc",
+           "vector-rhs-load"}))
     return false;
 
   RVVRouteDescription staleComputedMaskedMAccAccumulation =
@@ -9223,7 +9223,7 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskedMAccFixture.candidate, computedMaskedMAccRoute,
           staleComputedMaskedMAccAccumulation,
           "MAcc registry rejects stale computed-mask accumulation plan",
-          {"accumulation route-family plan",
+          {"computed-mask MAcc route-family plan",
            "rvv-computed-mask-accumulation-route-family-plan.v1",
            "metadata-derived-computed-mask-macc-plan"}))
     return false;
@@ -9243,8 +9243,7 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskedMAccFixture.candidate, computedMaskedMAccRoute,
           staleComputedMaskedMAccBindingSummary,
           "MAcc registry rejects stale computed-mask binding summary",
-          {"computed-mask MAcc target artifact consumer requires provider "
-           "route operand binding summary",
+          {"route operand binding facts",
            "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr",
            "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call;"}))
     return false;
@@ -9265,8 +9264,7 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccRoute,
           staleRuntimeScalarMAccBindingSummary,
           "MAcc registry rejects stale runtime-scalar binding summary",
-          {"runtime-scalar computed-mask MAcc target artifact consumer "
-           "requires provider route operand binding summary",
+          {"route operand binding facts",
            "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr",
            "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs;"}))
     return false;
@@ -9279,7 +9277,8 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccFixture.candidate,
           runtimeScalarComputedMAccRoute, staleRuntimeScalarMAccMaskProducer,
           "MAcc registry rejects stale runtime-scalar mask producer",
-          {"provider-derived exact mask", "passthrough"}))
+          {"accumulation mask producer", "runtime-scalar-splat-compare-rhs",
+           "metadata-derived-runtime-scalar-mask-producer"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarMAccTypedCompute =
@@ -9314,7 +9313,7 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccRoute,
           staleRuntimeScalarMAccStandaloneResidue,
           "MAcc registry rejects stale standalone reduction residue",
-          {"stale standalone-reduction", "scalar-carry facts"}))
+          {"stale standalone-reduction route-family facts"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarMAccScalarCarryResidue =
@@ -9326,7 +9325,7 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccRoute,
           staleRuntimeScalarMAccScalarCarryResidue,
           "MAcc registry rejects stale scalar carry residue",
-          {"stale standalone-reduction", "scalar-carry facts"}))
+          {"stale accumulation scalar carry facts"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarMAccSourceMemory =
@@ -9337,7 +9336,8 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccFixture.candidate,
           runtimeScalarComputedMAccRoute, staleRuntimeScalarMAccSourceMemory,
           "MAcc registry rejects stale runtime-scalar source memory form",
-          {"source/destination memory", "artifact export"}))
+          {"source memory form", "unit-stride-load",
+           "metadata-derived-source-memory"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarMAccAccumulatorLayout =
@@ -9362,7 +9362,7 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeScalarComputedMAccRoute, unsupportedRuntimeScalarMAccLMUL,
           "MAcc registry rejects runtime-scalar MAcc without provider facts "
           "for selected LMUL",
-          {"known provider MAcc route family"}))
+          {"provider-owned MAcc route validation contract"}))
     return false;
 
   TargetArtifactCandidate staleRuntimeScalarMAccM2LMULMirror =

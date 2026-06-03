@@ -648,6 +648,247 @@ provider-built route description carries operation + sew + lmul
   -> target validator iterates the contract
 ```
 
+### MAcc Route Validation Contract
+
+#### 1. Scope / Trigger
+
+When a selected RVV MAcc route is rebuilt as a
+`TCRVEmitCLowerableRoute`, target artifact validation must consume a
+provider-owned route validation contract for executable route payload facts.
+This contract is separate from candidate metadata mirrors and applies to the
+existing MAcc route families:
+
+```text
+macc_add
+scalar_broadcast_macc_add
+computed_masked_macc_add
+runtime_scalar_cmp_masked_macc_add
+widening_macc_add
+```
+
+The trigger is any target validator that checks MAcc route payload,
+header/type/intrinsic/profile, runtime ABI mapping, accumulator/passthrough,
+mask/tail, or statement-plan shape. Those checks must not reconstruct MAcc
+truth from target-local constants, route names, artifact metadata, fixture
+names, descriptors, C strings, scripts, or intrinsic spellings.
+
+#### 2. Signatures
+
+The provider-owned API shape is:
+
+```c++
+enum class RVVMAccRouteValidationKind {
+  Plain,
+  ScalarBroadcast,
+  ComputedMask,
+  RuntimeScalarComputedMask,
+  Widening,
+};
+
+struct RVVMAccRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVMAccRouteValidationContract {
+  RVVMAccRouteValidationKind kind;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string arithmeticKind;
+
+  // Family-specific plain/scalar/computed-mask/widening fields.
+  std::string plainMAccRouteFamilyPlanID;
+  std::string scalarBroadcastMAccRouteFamilyPlanID;
+  std::string accumulationRouteFamilyPlanID;
+  std::string contractionRouteFamilyPlanID;
+  std::string maccAccumulatorLayout;
+  std::string maccResultLayout;
+  std::string comparePredicateKind;
+  std::string accumulationMaskProducerSource;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  std::int64_t sourceSEW;
+  std::string sourceLMUL;
+  std::int64_t resultSEW;
+  std::string resultLMUL;
+  std::string wideningMAccRelation;
+
+  // Rebuilt route payload expectations.
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string sourceVectorLoadIntrinsic;
+  std::string rhsBroadcastIntrinsic;
+  std::string compareIntrinsic;
+  std::string maskedMergeIntrinsic;
+  std::string intrinsic;
+  std::string storeIntrinsic;
+
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVMAccRouteTypeMappingContract, 4> typeMappings;
+};
+
+std::optional<RVVMAccRouteValidationContract>
+getRVVMAccRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+Computed-mask and runtime-scalar computed-mask contracts must use the selected
+`sew` and `lmul` from the rebuilt provider description when obtaining facts.
+The route token must be derived through the RVV provider route helper for the
+selected operation, not by treating target artifact metadata as authority.
+
+#### 3. Contracts
+
+- The RVV provider builds the validation contract from provider-owned MAcc
+  route facts plus the rebuilt provider route description.
+- The target validator consumes the contract to compare the rebuilt route,
+  rebuilt provider description, and statement-plan shape. It must not keep
+  duplicate MAcc expected-fact accessors or local fallback constants for fields
+  already represented in the contract.
+- The contract must include common route facts: route token, memory form,
+  SEW/LMUL, tail/mask policy, runtime-control plan, runtime ABI order,
+  target leaf profile, provider-supported mirror, required headers, C type
+  summary, operand-binding plan/summary, typed compute op, arithmetic kind,
+  accumulator/result layout, and runtime ABI parameters.
+- The contract must include family-specific facts for plain, scalar-broadcast,
+  computed-mask, runtime-scalar computed-mask, and widening MAcc. Empty fields
+  are explicit stale-residue rejection points for non-consumer families.
+- The contract must include route payload requirements for rebuilt headers,
+  type mappings, ABI mappings, source provenance, and statement-plan step
+  counts. Candidate metadata mirrors are not enough to prove those payloads.
+- Common EmitC/export may carry the provider-built route and metadata mirrors,
+  but must not choose MAcc semantics, header/type facts, ABI roles, mask/tail
+  behavior, accumulator passthrough, or statement shape.
+
+#### 4. Validation & Error Matrix
+
+- Missing validation contract for an accepted MAcc route -> fail before target
+  artifact provider-fact validation.
+- Rebuilt route token differs from the provider contract -> fail before target
+  artifact acceptance.
+- Description memory form, SEW/LMUL, tail/mask policy, runtime-control plan,
+  runtime ABI order, target leaf profile, provider-supported mirror,
+  header/type summary, operand-binding plan/summary, typed compute op,
+  arithmetic kind, or layout differs from the contract -> fail before target
+  artifact acceptance.
+- Runtime ABI parameter count, order, role, C name, or C type differs from the
+  contract -> fail before target artifact acceptance with a diagnostic naming
+  the parameter index and provider-owned parameter.
+- Route headers or type mappings are missing from the rebuilt route -> fail
+  before target artifact acceptance.
+- Route ABI mappings do not mirror the provider-owned runtime ABI parameters
+  and value names -> fail before target artifact acceptance.
+- Plain MAcc carries scalar-broadcast, computed-mask, runtime-scalar, or
+  widening residue fields -> fail as stale cross-family facts.
+- Scalar-broadcast MAcc carries plain, computed-mask, runtime-scalar, or
+  widening residue fields -> fail as stale cross-family facts.
+- Computed-mask and runtime-scalar computed-mask MAcc carry stale standalone
+  reduction, scalar-carry, plain, scalar-broadcast, or widening residue fields
+  -> fail as stale cross-family facts.
+- Widening MAcc carries non-widening MAcc route-family facts, stale
+  source/result SEW-LMUL, stale widening relation, stale source/destination
+  memory form, or stale header/type facts -> fail before target artifact
+  acceptance.
+- Statement-plan pre-loop or loop-body step count differs from the contract,
+  or required setvl/load/splat/compare/MAcc/merge/store steps are missing or
+  miswired -> fail before target artifact acceptance.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `macc_add` consumes the provider contract for plain route family plan,
+  vector RHS memory form, `lhs,rhs,acc,out,n` ABI order, headers, type mapping,
+  accumulator layout, and six loop-body statement steps.
+- Good: `scalar_broadcast_macc_add` consumes the scalar-broadcast contract for
+  RHS scalar ABI role, splat leaf, scalar-broadcast memory form, operand
+  binding summary, and stale plain route-family rejection.
+- Good: `computed_masked_macc_add` consumes the computed-mask contract for
+  compare predicate, mask producer/source/form, inactive-lane passthrough,
+  mask type mapping, active MAcc/merge/store statement plan, and stale
+  runtime-scalar or standalone-reduction residue rejection.
+- Good: `runtime_scalar_cmp_masked_macc_add` with LMUL m2 obtains a
+  parameterized runtime-scalar contract and rejects unsupported LMULs by
+  missing provider facts rather than falling back to LMUL m1.
+- Good: `widening_macc_add` consumes the widening contract for `i16mf2`
+  sources, `i32m1` accumulator/result, widening relation, contraction plan,
+  source/result type mappings, and exact source/result statement plan.
+- Base: candidate metadata mirror validation remains a second consumer of the
+  provider metadata mirror contract; it does not replace route payload
+  validation.
+- Bad: target validation accepts a route because candidate metadata mirrors
+  `provider_supported_mirror` while rebuilt route headers, type mappings, ABI
+  mappings, or statement plan disagree with the provider contract.
+- Bad: target validation uses route token, artifact name, test name,
+  descriptor residue, C string, or intrinsic spelling to decide which MAcc
+  facts should apply.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must cover positive contract consumption for
+  plain, scalar-broadcast, computed-mask, runtime-scalar computed-mask,
+  LMUL-specific runtime-scalar computed-mask, and widening MAcc candidates.
+- C++ target artifact tests must mutate provider descriptions for stale route
+  payload facts: memory form, route-family plan, runtime ABI order/parameters,
+  operand-binding plan/summary, target leaf profile, provider-supported mirror,
+  header/type summary, typed compute op, arithmetic kind, accumulator/result
+  layout, mask/passthrough fields, widening source/result facts, and
+  cross-family residue fields.
+- C++ target artifact tests must mutate rebuilt route payloads where practical:
+  route token, headers, type mappings, ABI mappings, statement counts, and
+  statement operand wiring.
+- Focused lit/FileCheck or generated-bundle dry-run tests must continue to
+  expose representative MAcc route families.
+- Runtime `ssh rvv` is required only when route emission, generated C/C++,
+  runtime ABI order, accumulator/passthrough behavior, mask/tail behavior,
+  correctness, or performance claims change.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  operation name looks like runtime_scalar_cmp_masked_macc_add
+  -> local target constants choose ABI order, mask producer, and statements
+  -> candidate metadata mirror says supported
+  -> artifact accepted
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv MAcc body
+  -> RVV provider facts and route description
+  -> getRVVMAccRouteValidationContract(description)
+  -> target validator consumes contract for rebuilt route payload
+  -> candidate metadata mirrors are checked separately as mirrors only
+```
+
 ### Computed-Mask Strided Memory Fact Surface
 
 For `computed_masked_strided_store` and

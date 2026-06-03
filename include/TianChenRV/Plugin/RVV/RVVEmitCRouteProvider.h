@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -1013,6 +1014,114 @@ struct RVVMAccRouteMetadataMirrorContractSet {
 
 std::optional<RVVMAccRouteMetadataMirrorContractSet>
 getRVVMAccRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+enum class RVVMAccRouteValidationKind {
+  Plain,
+  ScalarBroadcast,
+  ComputedMask,
+  RuntimeScalarComputedMask,
+  Widening,
+};
+
+struct RVVMAccRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVMAccRouteValidationContract {
+  RVVMAccRouteValidationKind kind = RVVMAccRouteValidationKind::Plain;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string arithmeticKind;
+
+  std::string plainMAccRouteFamilyPlanID;
+  std::string scalarBroadcastMAccRouteFamilyPlanID;
+  std::string accumulationRouteFamilyPlanID;
+  std::string contractionRouteFamilyPlanID;
+
+  std::string maccAccumulatorLayout;
+  std::string maccResultLayout;
+  std::string comparePredicateKind;
+  std::string accumulationComputeSuffix;
+  std::string accumulationMaskProducerSource;
+  std::string accumulationAccumulatorContract;
+  std::string accumulationResultContract;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string indexedMemoryLayout;
+
+  std::int64_t sourceSEW = 0;
+  std::string sourceLMUL;
+  std::int64_t accumulatorSEW = 0;
+  std::string accumulatorLMUL;
+  std::int64_t resultSEW = 0;
+  std::string resultLMUL;
+  std::string wideningMAccAccumulatorLayout;
+  std::string wideningMAccResultLayout;
+  std::string wideningMAccRelation;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string sourceVectorLoadIntrinsic;
+  std::string rhsBroadcastIntrinsic;
+  std::string compareIntrinsic;
+  std::string maskedMergeIntrinsic;
+  std::string intrinsic;
+  std::string storeIntrinsic;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  std::string resultName;
+  std::string maskName;
+  std::string lhsVectorName;
+  std::string rhsVectorName;
+  std::string maccLHSVectorName;
+  std::string maccRHSVectorName;
+  std::string accumulatorVectorName;
+  std::string activeMAccVectorName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVMAccRouteTypeMappingContract, 4> typeMappings;
+};
+
+std::optional<RVVMAccRouteValidationContract>
+getRVVMAccRouteValidationContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
 struct RVVWideningDotReduceRouteFacts {
