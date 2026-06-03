@@ -514,9 +514,14 @@ getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(
 llvm::StringRef getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
     RVVSelectedBodyOperationKind operation, std::int64_t sew);
 
-struct RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts {
+struct RVVCompareSelectRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef elementTypeName;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef runtimeControlPlanID;
   llvm::StringRef targetLeafProfile;
@@ -525,6 +530,13 @@ struct RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts {
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef typedComputeOpName;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef comparePredicateKind;
   llvm::StringRef secondaryComparePredicateKind;
   llvm::StringRef rhsScalarSplatIntrinsic;
@@ -533,6 +545,9 @@ struct RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts {
   llvm::StringRef maskAndIntrinsic;
   llvm::StringRef selectIntrinsic;
   llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::StringRef plainCompareSelectRouteFamilyPlanID;
   llvm::StringRef computedMaskSelectRouteFamilyPlanID;
   llvm::StringRef computedMaskSelectMaskProducerSource;
   llvm::StringRef maskTailPolicyRouteFamilyPlanID;
@@ -541,13 +556,33 @@ struct RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts {
   llvm::StringRef maskSource;
   llvm::StringRef maskMemoryForm;
   llvm::StringRef maskComposition;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef selectLayout;
+  llvm::StringRef trueValueRole;
+  llvm::StringRef falseValueRole;
+  llvm::StringRef selectedResultRole;
+  llvm::StringRef runtimeScalarThresholdRole;
+  llvm::StringRef runtimeScalarThresholdCType;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
   std::string routeOperandBindingSummary;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
       runtimeABIParameters;
 };
+
+std::optional<RVVCompareSelectRouteFacts>
+getRVVCompareSelectRouteFacts(RVVSelectedBodyOperationKind operation);
+
+std::optional<RVVCompareSelectRouteFacts>
+getRVVCompareSelectRouteFacts(RVVSelectedBodyOperationKind operation,
+                              std::int64_t sew, llvm::StringRef lmul,
+                              llvm::StringRef comparePredicateKind,
+                              llvm::StringRef secondaryComparePredicateKind);
+
+using RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts =
+    RVVCompareSelectRouteFacts;
 
 std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
 getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(

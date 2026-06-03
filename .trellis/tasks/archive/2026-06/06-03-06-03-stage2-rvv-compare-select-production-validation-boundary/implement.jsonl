@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed compare/select body ownership, provider fact ownership, and common-boundary separation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route fact surface, operand binding, header/type summary, and target validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Compare/select generated-bundle evidence, C++ target artifact checks, and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected RVV variant and selected-body realization authority boundaries."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-widening-conversion-production-validation-boundary/prd.md", "reason": "Closest completed provider-owned production validation boundary pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-compare-select-selected-body-realization-boundary/prd.md", "reason": "Existing compare/select selected-body realization boundary and route evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi/prd.md", "reason": "Existing runtime_scalar_cmp_select artifact ABI and ssh rvv evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-runtime-scalar-dual-cmp-mask-and-select-artifact-abi-boundary/prd.md", "reason": "Dual compare/select continuation boundary if already coherent with this surface."}

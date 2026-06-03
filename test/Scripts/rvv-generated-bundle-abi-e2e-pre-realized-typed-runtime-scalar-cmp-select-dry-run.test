@@ -101,13 +101,13 @@
 # I64HARNESS: tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_i64_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select_i64(lhs, rhs_scalar, true_value, false_value, out, n);
 # I64HARNESS: int64_t expected =
 # I64HARNESS: (lhs[index] <= rhs_scalar ? true_value[index] : false_value[index])
-# I64HARNESS: runtime_scalar_cmp_select_i64 select coverage missing
 # I64HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # I64HARNESS: const int64_t rhs_scalar_values[]
+# I64HARNESS: runtime_scalar_cmp_select_i64 aggregate runtime scalar select coverage missing
 
 # M2HARNESS: tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_lmul_m2_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select_lmul_m2(lhs, rhs_scalar, true_value, false_value, out, n);
 # M2HARNESS: int32_t expected =
 # M2HARNESS: (lhs[index] <= rhs_scalar ? true_value[index] : false_value[index])
-# M2HARNESS: runtime_scalar_cmp_select_lmul_m2 select coverage missing
 # M2HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # M2HARNESS: const int32_t rhs_scalar_values[]
+# M2HARNESS: runtime_scalar_cmp_select_lmul_m2 aggregate runtime scalar select coverage missing

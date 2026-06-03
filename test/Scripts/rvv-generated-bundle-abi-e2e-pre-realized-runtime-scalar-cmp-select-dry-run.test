@@ -74,8 +74,8 @@
 # HARNESS: tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select(lhs, rhs_scalar, true_value, false_value, out, n);
 # HARNESS: (lhs[index] <= rhs_scalar ? true_value[index] : false_value[index])
 # HARNESS: touched tail sentinel
-# HARNESS: runtime_scalar_cmp_select select coverage missing
 # HARNESS: select_true_lanes
 # HARNESS: select_false_lanes
 # HARNESS: const size_t counts[] = {0, 1, 16, 23, 257};
 # HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: runtime_scalar_cmp_select aggregate runtime scalar select coverage missing

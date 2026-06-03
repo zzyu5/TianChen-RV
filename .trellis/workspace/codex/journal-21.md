@@ -927,7 +927,7 @@ Added provider-owned computed-mask MAcc route facts and parameterized runtime-sc
 
 | Hash | Message |
 |------|---------|
-| `pending` | (see git log) |
+| `b385ddf8` | (see git log) |
 
 ### Testing
 
@@ -1062,6 +1062,39 @@ Added provider-owned widening conversion route facts, target artifact validation
 | Hash | Message |
 |------|---------|
 | `d9737e90` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 406: Stage2 RVV compare/select production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV compare/select production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Canonicalized compare/select provider facts across route planning, target validation, and artifact mirror checks; validated target export and focused cmp-select/runtime-scalar/computed-mask lit dry-runs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| included-in-this-commit | (see git log) |
 
 ### Testing
 

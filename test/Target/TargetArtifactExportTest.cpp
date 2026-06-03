@@ -2225,6 +2225,8 @@ using RVVManualRouteDescription =
 using RVVManualOperationKind =
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
 using RVVManualMemoryForm = tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+using RVVCompareSelectRouteFacts =
+    tianchenrv::plugin::rvv::RVVCompareSelectRouteFacts;
 using RVVDualCompareSelectRouteFacts =
     tianchenrv::plugin::rvv::
         RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts;
@@ -2353,74 +2355,153 @@ TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
   return candidate;
 }
 
-RVVManualRouteDescription makeRVVManualRuntimeScalarCompareSelectDescription() {
-  RVVManualRouteDescription description;
-  description.operation = RVVManualOperationKind::RuntimeScalarCompareSelect;
-  description.memoryForm = RVVManualMemoryForm::RuntimeScalarCompareSelect;
-  description.elementTypeName = "i32";
-  description.sew = 32;
-  description.lmul = "m1";
-  description.tailPolicy = "agnostic";
-  description.maskPolicy = "agnostic";
-  description.emitCRouteID = "manual-runtime-scalar-compare-select-route";
-  description.providerSupportedMirror =
-      "provider_supported_mirror:rvv-runtime-scalar-cmp-select-plan-validated";
-  description.targetLeafProfile =
-      "rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1";
+void applyRVVManualCompareSelectRouteFacts(
+    RVVManualRouteDescription &description,
+    const RVVCompareSelectRouteFacts &routeFacts,
+    llvm::StringRef emitCRouteID) {
+  description.operation = routeFacts.operation;
+  description.memoryForm = routeFacts.memoryForm;
+  description.elementTypeName = routeFacts.elementTypeName;
+  description.sew = routeFacts.sew;
+  description.lmul = routeFacts.lmul;
+  description.tailPolicy = routeFacts.tailPolicy;
+  description.maskPolicy = routeFacts.maskPolicy;
+  description.emitCRouteID = emitCRouteID;
+  description.providerSupportedMirror = routeFacts.providerSupportedMirror;
+  description.targetLeafProfile = routeFacts.targetLeafProfile;
   description.routeOperandBindingPlanID =
-      "rvv-runtime-scalar-compare-select-operand-binding-plan.v1";
+      routeFacts.routeOperandBindingPlanID.str();
   description.routeOperandBindingSummary =
-      "lhs,rhs_scalar,true_value,false_value,out,n";
-  description.runtimeControlPlanID = "rvv-runtime-avl-vl-control-plan.v1";
-  description.runtimeABIOrder = "lhs,rhs_scalar,true_value,false_value,out,n";
+      routeFacts.routeOperandBindingSummary;
+  description.runtimeControlPlanID = routeFacts.runtimeControlPlanID;
+  description.runtimeABIOrder = routeFacts.runtimeABIOrder;
+  description.plainCompareSelectRouteFamilyPlanID =
+      routeFacts.plainCompareSelectRouteFamilyPlanID;
   description.computedMaskSelectRouteFamilyPlanID =
-      "rvv-computed-mask-select-route-family-plan.v1";
+      routeFacts.computedMaskSelectRouteFamilyPlanID;
   description.computedMaskSelectMaskProducerSource =
-      "runtime-scalar-splat-compare-rhs";
+      routeFacts.computedMaskSelectMaskProducerSource;
   description.maskTailPolicyRouteFamilyPlanID =
-      "rvv-mask-tail-policy-route-family-plan.v1";
-  description.maskTailPolicyOwner = "computed-mask select mask/tail policy";
-  description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
-  description.cTypeMappingSummary =
-      "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,true_false:typed-vector,result:typed-vector";
-  description.vlCType = "size_t";
-  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
-  description.vectorCType = "vint32m1_t";
-  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
-  description.maskCType = "vbool32_t";
-  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
-  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
-  description.rhsBroadcastIntrinsic = "__riscv_vmv_v_x_i32m1";
-  description.storeIntrinsic = "__riscv_vse32_v_i32m1";
-  description.intrinsic = "__riscv_vmerge_vvm_i32m1";
-  description.comparePredicateKind = "sle";
-  description.compareIntrinsic = "__riscv_vmsle_vv_i32m1_b32";
-  description.resultName = "runtime_scalar_cmp_select_selected_vec";
-  description.maskName = "runtime_scalar_cmp_select_mask";
-  description.maskRole = "predicate-mask-produced-by-compare";
-  description.maskSource = "compare-produced-mask-same-vl-scope";
-  description.maskMemoryForm = "compare-produced-mask";
-  description.selectLayout = "select-true-value-when-mask-else-false-value";
-  description.sourceMemoryForm = "unit-stride-load";
-  description.destinationMemoryForm = "unit-stride-store";
+      routeFacts.maskTailPolicyRouteFamilyPlanID;
+  description.maskTailPolicyOwner = routeFacts.maskTailPolicyOwner;
+  description.requiredHeaderDeclarations =
+      routeFacts.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = routeFacts.cTypeMappingSummary;
+  description.vlCType = routeFacts.vlCType;
+  description.vectorTypeName = routeFacts.vectorTypeName;
+  description.vectorCType = routeFacts.vectorCType;
+  description.maskTypeName = routeFacts.maskTypeName;
+  description.maskCType = routeFacts.maskCType;
+  description.setVLIntrinsic = routeFacts.setVLIntrinsic;
+  description.vectorLoadIntrinsic = routeFacts.vectorLoadIntrinsic;
+  description.rhsBroadcastIntrinsic = routeFacts.rhsScalarSplatIntrinsic;
+  description.storeIntrinsic = routeFacts.storeIntrinsic;
+  description.intrinsic = routeFacts.selectIntrinsic;
+  description.typedComputeOpName = routeFacts.typedComputeOpName;
+  description.comparePredicateKind = routeFacts.comparePredicateKind;
+  description.compareIntrinsic = routeFacts.compareIntrinsic;
+  description.secondaryComparePredicateKind =
+      routeFacts.secondaryComparePredicateKind;
+  description.secondaryCompareIntrinsic =
+      routeFacts.secondaryCompareIntrinsic;
+  description.maskAndIntrinsic = routeFacts.maskAndIntrinsic;
+  description.resultName = routeFacts.resultName;
+  description.maskName = routeFacts.maskName;
+  description.maskRole = routeFacts.maskRole;
+  description.maskSource = routeFacts.maskSource;
+  description.maskMemoryForm = routeFacts.maskMemoryForm;
+  description.maskComposition = routeFacts.maskComposition;
+  description.selectLayout = routeFacts.selectLayout;
+  description.inactiveLaneContract = routeFacts.inactiveLaneContract;
+  description.maskedPassthroughLayout = routeFacts.maskedPassthroughLayout;
+  description.sourceMemoryForm = routeFacts.sourceMemoryForm;
+  description.destinationMemoryForm = routeFacts.destinationMemoryForm;
+  description.indexedMemoryLayout = routeFacts.indexedMemoryLayout;
   description.emitCLoopInductionName = "i";
   description.emitCFullChunkVLName = "vl_full";
   description.emitCLoopVLName = "vl";
-  addRVVManualRuntimeABIParameter(description, "lhs", "const int32_t *",
-                                  RuntimeABIParameterRole::LHSInputBuffer);
-  addRVVManualRuntimeABIParameter(description, "rhs_scalar", "int32_t",
-                                  RuntimeABIParameterRole::RHSScalarValue);
-  addRVVManualRuntimeABIParameter(
-      description, "true_value", "const int32_t *",
-      RuntimeABIParameterRole::TrueValueInputBuffer);
-  addRVVManualRuntimeABIParameter(
-      description, "false_value", "const int32_t *",
-      RuntimeABIParameterRole::FalseValueInputBuffer);
-  addRVVManualRuntimeABIParameter(description, "out", "int32_t *",
-                                  RuntimeABIParameterRole::OutputBuffer);
-  addRVVManualRuntimeABIParameter(
-      description, "n", "size_t",
-      RuntimeABIParameterRole::RuntimeElementCount);
+  description.runtimeABIParameters.clear();
+  for (const RuntimeABIParameter &parameter : routeFacts.runtimeABIParameters)
+    description.runtimeABIParameters.push_back(parameter);
+}
+
+RVVManualRouteDescription makeRVVManualPlainCompareSelectDescription() {
+  std::optional<RVVCompareSelectRouteFacts> routeFacts =
+      tianchenrv::plugin::rvv::getRVVCompareSelectRouteFacts(
+          RVVManualOperationKind::CmpSelect);
+  if (!routeFacts)
+    llvm::report_fatal_error(
+        "test fixture requires provider-owned plain compare/select route "
+        "facts");
+
+  RVVManualRouteDescription description;
+  applyRVVManualCompareSelectRouteFacts(
+      description, *routeFacts, "manual-plain-compare-select-route");
+  return description;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualPlainCompareSelectRoute(
+    const RVVManualRouteDescription &description) {
+  using Operand = tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  route.addCallOpaqueStep(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n", "size_t"}},
+      description.emitCFullChunkVLName, description.vlCType, "configure"));
+  tianchenrv::conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = description.emitCLoopInductionName.str();
+  loop.lowerBound = {"0", description.vlCType.str()};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {description.emitCFullChunkVLName.str(),
+               description.vlCType.str()};
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.emitCLoopVLName, description.vlCType, "configure"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"lhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "lhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{"rhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      "rhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.compareIntrinsic,
+      {Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{"rhs_vec", description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      description.maskName, description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.intrinsic,
+      {Operand{"rhs_vec", description.vectorCType.str()},
+       Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{description.maskName.str(), description.maskCType.str()},
+       Operand{"vl", "size_t"}},
+      description.resultName, description.vectorCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.storeIntrinsic,
+      {Operand{"out + i", "int32_t *"},
+       Operand{description.resultName.str(), description.vectorCType.str()},
+       Operand{"vl", "size_t"}},
+      {}, {}, "store"));
+  route.addForLoop(loop);
+  return route;
+}
+
+RVVManualRouteDescription makeRVVManualRuntimeScalarCompareSelectDescription() {
+  std::optional<RVVCompareSelectRouteFacts> routeFacts =
+      tianchenrv::plugin::rvv::getRVVCompareSelectRouteFacts(
+          RVVManualOperationKind::RuntimeScalarCompareSelect);
+  if (!routeFacts)
+    llvm::report_fatal_error(
+        "test fixture requires provider-owned runtime-scalar compare/select "
+        "route facts");
+
+  RVVManualRouteDescription description;
+  applyRVVManualCompareSelectRouteFacts(
+      description, *routeFacts, "manual-runtime-scalar-compare-select-route");
   return description;
 }
 
@@ -2494,64 +2575,8 @@ RVVManualRouteDescription makeRVVManualDualCompareSelectDescription() {
         "test fixture requires provider-owned dual compare/select route facts");
 
   RVVManualRouteDescription description;
-  description.operation = routeFacts->operation;
-  description.memoryForm = routeFacts->memoryForm;
-  description.elementTypeName = "i32";
-  description.sew = 32;
-  description.lmul = "m1";
-  description.tailPolicy = "agnostic";
-  description.maskPolicy = "agnostic";
-  description.emitCRouteID = "manual-dual-compare-select-route";
-  description.providerSupportedMirror = routeFacts->providerSupportedMirror;
-  description.targetLeafProfile = routeFacts->targetLeafProfile;
-  description.routeOperandBindingPlanID =
-      routeFacts->routeOperandBindingPlanID.str();
-  description.routeOperandBindingSummary =
-      routeFacts->routeOperandBindingSummary;
-  description.runtimeControlPlanID = routeFacts->runtimeControlPlanID;
-  description.runtimeABIOrder = routeFacts->runtimeABIOrder;
-  description.computedMaskSelectRouteFamilyPlanID =
-      routeFacts->computedMaskSelectRouteFamilyPlanID;
-  description.computedMaskSelectMaskProducerSource =
-      routeFacts->computedMaskSelectMaskProducerSource;
-  description.maskTailPolicyRouteFamilyPlanID =
-      routeFacts->maskTailPolicyRouteFamilyPlanID;
-  description.maskTailPolicyOwner = routeFacts->maskTailPolicyOwner;
-  description.requiredHeaderDeclarations =
-      routeFacts->requiredHeaderDeclarations;
-  description.cTypeMappingSummary = routeFacts->cTypeMappingSummary;
-  description.vlCType = "size_t";
-  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
-  description.vectorCType = "vint32m1_t";
-  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
-  description.maskCType = "vbool32_t";
-  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
-  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
-  description.rhsBroadcastIntrinsic = routeFacts->rhsScalarSplatIntrinsic;
-  description.storeIntrinsic = routeFacts->storeIntrinsic;
-  description.intrinsic = routeFacts->selectIntrinsic;
-  description.typedComputeOpName = routeFacts->typedComputeOpName;
-  description.comparePredicateKind = routeFacts->comparePredicateKind;
-  description.compareIntrinsic = routeFacts->compareIntrinsic;
-  description.secondaryComparePredicateKind =
-      routeFacts->secondaryComparePredicateKind;
-  description.secondaryCompareIntrinsic =
-      routeFacts->secondaryCompareIntrinsic;
-  description.maskAndIntrinsic = routeFacts->maskAndIntrinsic;
-  description.resultName = "runtime_scalar_mask_and_selected_vec";
-  description.maskName = "runtime_scalar_dual_cmp_mask_and_select_mask";
-  description.maskRole = routeFacts->maskRole;
-  description.maskSource = routeFacts->maskSource;
-  description.maskMemoryForm = routeFacts->maskMemoryForm;
-  description.maskComposition = routeFacts->maskComposition;
-  description.selectLayout = routeFacts->selectLayout;
-  description.sourceMemoryForm = routeFacts->sourceMemoryForm;
-  description.destinationMemoryForm = routeFacts->destinationMemoryForm;
-  description.emitCLoopInductionName = "i";
-  description.emitCFullChunkVLName = "vl_full";
-  description.emitCLoopVLName = "vl";
-  for (const RuntimeABIParameter &parameter : routeFacts->runtimeABIParameters)
-    description.runtimeABIParameters.push_back(parameter);
+  applyRVVManualCompareSelectRouteFacts(
+      description, *routeFacts, "manual-dual-compare-select-route");
   return description;
 }
 
@@ -14420,6 +14445,12 @@ bool expectRVVTargetArtifactExporterShape(
            "candidate metadata mirrors"}))
     return false;
 
+  RVVRouteDescription manualPlainDescription =
+      makeRVVManualPlainCompareSelectDescription();
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute manualPlainRoute =
+      makeRVVManualPlainCompareSelectRoute(manualPlainDescription);
+  TargetArtifactCandidate manualPlainCandidate =
+      makeRVVManualTargetArtifactCandidate(manualPlainDescription);
   RVVRouteDescription manualDualDescription =
       makeRVVManualDualCompareSelectDescription();
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute manualDualRoute =
@@ -14525,6 +14556,10 @@ bool expectRVVTargetArtifactExporterShape(
   TargetArtifactCandidate manualRuntimeScalarCandidate =
       makeRVVManualTargetArtifactCandidate(manualRuntimeScalarDescription);
   if (!expectManualCompareSelectMaskPositive(
+          manualPlainCandidate, manualPlainRoute, manualPlainDescription,
+          "plain compare/select"))
+    return false;
+  if (!expectManualCompareSelectMaskPositive(
           manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
           manualRuntimeScalarDescription, "runtime-scalar compare/select"))
     return false;
@@ -14545,6 +14580,93 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectManualCompareSelectMaskPositive(
           manualStridedStoreCandidate, manualStridedStoreRoute,
           manualStridedStoreDescription, "computed-mask strided store"))
+    return false;
+
+  RVVRouteDescription stalePlainComputedMaskPlan = manualPlainDescription;
+  stalePlainComputedMaskPlan.computedMaskSelectRouteFamilyPlanID =
+      "rvv-computed-mask-select-route-family-plan.v1";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute,
+          stalePlainComputedMaskPlan,
+          "compare/select mask registry rejects stale computed-mask plan on "
+          "plain compare/select",
+          {"stale provider-derived computed-mask select route-family plan",
+           "rvv-computed-mask-select-route-family-plan.v1"}))
+    return false;
+
+  RVVRouteDescription stalePlainBindingSummary = manualPlainDescription;
+  stalePlainBindingSummary.routeOperandBindingSummary =
+      "metadata-only-plain-binding-summary";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainBindingSummary,
+          "compare/select mask registry rejects stale plain binding summary",
+          {"route operand binding facts",
+           "rvv-route-operand-binding:cmp_select.v1",
+           "metadata-only-plain-binding-summary"}))
+    return false;
+
+  RVVRouteDescription stalePlainProviderMirror = manualPlainDescription;
+  stalePlainProviderMirror.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-plain-select";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainProviderMirror,
+          "compare/select mask registry rejects stale plain provider mirror",
+          {"provider_supported_mirror",
+           "provider_supported_mirror:rvv-plain-compare-select-plan-validated",
+           "metadata-only-plain-select"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarPlainPlan =
+      manualRuntimeScalarDescription;
+  staleRuntimeScalarPlainPlan.plainCompareSelectRouteFamilyPlanID =
+      "rvv-plain-compare-select-route-family-plan.v1";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          staleRuntimeScalarPlainPlan,
+          "compare/select mask registry rejects stale plain plan on "
+          "runtime-scalar compare/select",
+          {"stale provider-derived plain compare-select route-family plan",
+           "rvv-plain-compare-select-route-family-plan.v1"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarBindingPlan =
+      manualRuntimeScalarDescription;
+  staleRuntimeScalarBindingPlan.routeOperandBindingPlanID =
+      "metadata-only-runtime-scalar-binding-plan";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          staleRuntimeScalarBindingPlan,
+          "compare/select mask registry rejects stale runtime-scalar binding "
+          "plan",
+          {"route operand binding plan",
+           "rvv-route-operand-binding:runtime_scalar_cmp_select.v1",
+           "metadata-only-runtime-scalar-binding-plan"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarPredicate =
+      manualRuntimeScalarDescription;
+  staleRuntimeScalarPredicate.comparePredicateKind = "slt";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          staleRuntimeScalarPredicate,
+          "compare/select mask registry rejects stale runtime-scalar "
+          "predicate",
+          {"requires provider-owned compare/select facts",
+           "typed body/config/runtime facts"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarTargetLeaf =
+      manualRuntimeScalarDescription;
+  staleRuntimeScalarTargetLeaf.targetLeafProfile =
+      "metadata-only-runtime-scalar-leaf";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarCandidate, manualRuntimeScalarRoute,
+          staleRuntimeScalarTargetLeaf,
+          "compare/select mask registry rejects stale runtime-scalar target "
+          "leaf",
+          {"target_leaf_profile",
+           "rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1",
+           "metadata-only-runtime-scalar-leaf"}))
     return false;
 
   RVVRouteDescription staleDualABIOrder = manualDualDescription;
@@ -14647,9 +14769,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarSecondaryPredicate,
           "compare/select mask registry rejects stale non-dual secondary "
           "predicate provider fact",
-          {"stale provider-derived dual compare/select secondary compare "
-           "predicate",
-           "metadata-derived-secondary-predicate", "non-dual"}))
+          {"requires provider-owned compare/select facts",
+           "typed body/config/runtime facts"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarMaskComposition =
@@ -14672,8 +14793,8 @@ bool expectRVVTargetArtifactExporterShape(
           missingDualSecondaryPredicate,
           "compare/select mask registry rejects missing dual secondary "
           "predicate provider fact",
-          {"requires provider-derived secondary compare predicate",
-           "mask-and callee", "mask composition"}))
+          {"requires provider-owned compare/select facts",
+           "typed body/config/runtime facts"}))
     return false;
 
   if (!expectManualCompareSelectMaskRouteFailure(
@@ -15101,6 +15222,37 @@ bool expectRVVTargetArtifactExporterShape(
           manualStridedStoreDescription,
           "compare/select mask registry rejects wrong strided store stride",
           {"masked strided store", "operand[2]", "dst_stride_bytes", "4"}))
+    return false;
+
+  TargetArtifactCandidate wrongPlainBindingSummaryCandidate =
+      manualPlainCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongPlainBindingSummaryCandidate,
+          "tcrv_rvv.route_operand_binding_operands",
+          "metadata-only-plain-binding-summary"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongPlainBindingSummaryCandidate, manualPlainRoute,
+          manualPlainDescription,
+          "compare/select mask registry rejects stale plain binding metadata",
+          {"route_operand_binding_operands",
+           "rvv-route-operand-binding:cmp_select.v1",
+           "metadata-only-plain-binding-summary"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarPlanCandidate =
+      manualRuntimeScalarCandidate;
+  wrongRuntimeScalarPlanCandidate.artifactMetadata.emplace_back(
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "rvv-plain-compare-select-route-family-plan.v1");
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarPlanCandidate, manualRuntimeScalarRoute,
+          manualRuntimeScalarDescription,
+          "compare/select mask registry rejects stale runtime-scalar plain "
+          "plan metadata",
+          {"plain_compare_select_route_family_plan",
+           "must not carry",
+           "without selected typed RVV plain compare-select route-family plan"}))
     return false;
 
   TargetArtifactCandidate wrongDualProviderMirrorCandidate =

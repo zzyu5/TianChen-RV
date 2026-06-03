@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify compare/select semantics remain RVV-plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify provider fact, operand binding, header/type, and target validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify focused lit/C++ tests and ssh rvv reuse/rerun rationale."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-widening-conversion-production-validation-boundary/prd.md", "reason": "Check consistency with the latest production validation boundary pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-runtime-scalar-cmp-select-artifact-abi/prd.md", "reason": "Check runtime_scalar_cmp_select existing executable evidence is preserved."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-runtime-scalar-dual-cmp-mask-and-select-artifact-abi-boundary/prd.md", "reason": "Check whether dual compare/select was included or left as truthful continuation."}
