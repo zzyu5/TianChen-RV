@@ -4500,6 +4500,12 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           support::runtimeABIParametersEqual(
               facts.runtimeABIParameters,
               runtimeScalarStandaloneReductionI64Parameters);
+    } else if (route->operationMnemonic == "widening_macc_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 5>
+          wideningMAccParameters =
+              tcrv::rvv::getRVVSelectedBodyWideningMAccRuntimeABIParameters();
+      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
+          facts.runtimeABIParameters, wideningMAccParameters);
     }
     if (!acceptsTypedI64Parameters)
       return makeRVVConstructionError(

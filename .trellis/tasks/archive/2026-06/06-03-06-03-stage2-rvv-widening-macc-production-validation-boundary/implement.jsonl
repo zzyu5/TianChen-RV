@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body realization, and provider-owned route support rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type summary, and route-family fact surface contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-signed-widening-macc-add-artifact-abi-boundary/prd.md", "reason": "Existing executable widening_macc_add ABI, generated-bundle, and ssh rvv evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-unit-stride-macc-production-validation-boundary/prd.md", "reason": "Adjacent provider-owned MAcc production validation pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-computed-mask-macc-production-validation-boundary/prd.md", "reason": "Immediately previous computed-mask MAcc provider fact and target validation pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Extended RVVWideningMAccRouteFacts with provider-owned runtime ABI, type, policy, role, memory-form, and operand-binding facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added widening MAcc arithmetic kind to the contraction route-family plan."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Derived and validated widening MAcc provider facts from typed body/config/runtime facts before route construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCControlPolicyPlanOwners.cpp", "reason": "Kept widening MAcc unit-stride memory facts separate from strided-input contraction facts in route-control validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Mirrored widening MAcc arithmetic and source/destination memory facts into generated route metadata."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Accepted provider-owned widening MAcc runtime ABI parameters during construction metadata verification."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Rewired widening MAcc target artifact validation and candidate mirror checks to consume provider-owned facts."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added focused canonical fact and fail-closed mutation coverage for widening MAcc provider-to-target validation."}

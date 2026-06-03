@@ -60,6 +60,56 @@ Tightened computed-mask segment2 store target artifact provider/candidate valida
 - None - task complete
 
 
+## Session 405: Stage2 RVV widening MAcc production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV widening MAcc production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the widening MAcc provider-to-target validation boundary by exposing
+provider-owned widening MAcc facts, deriving route-family plan facts from the
+typed RVV body/config/runtime surface, rewiring target artifact validation to
+consume those facts, and adding focused fail-closed coverage.
+
+### Main Changes
+
+- Extended `RVVWideningMAccRouteFacts` with runtime ABI parameters, source and
+  wide element type facts, policy/runtime-control facts, arithmetic kind,
+  operand roles, memory forms, binding summary, headers/types, target profile,
+  and explicit provider mirror.
+- Rewired contraction route-family and route-control validation so
+  `widening_macc_add` carries unit-stride source/destination memory facts
+  without being treated as a strided-input dot route.
+- Rewired target artifact validation and candidate mirror checks to reject stale
+  widening MAcc ABI, arithmetic, memory, header/type, profile, provider mirror,
+  computed-mask, and widening-dot residue facts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | rvv: validate widening macc route facts |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter widening-macc-add` from `build/test`
+- [OK] bounded old-authority scan over touched source/test files plus diff-only old-authority scan
+- [OK] `rtk git diff --check`
+- [OK] No new `ssh rvv` run: validation tightened without changing generated C runtime ABI semantics or runtime behavior; archived signed widening MAcc evidence remains the runtime evidence source.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 388: Stage2 RVV runtime-scalar cmp masked standalone reduce-min artifact ABI boundary
 
 **Date**: 2026-06-02

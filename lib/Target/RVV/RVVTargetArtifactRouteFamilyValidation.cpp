@@ -13127,32 +13127,26 @@ llvm::Error validateRVVWideningMAccContractionRuntimeABIFacts(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived runtime ABI parameters for lhs, rhs, accumulator, "
         "out, and n before artifact export");
+  if (routeFacts->runtimeABIParameters.size() != 5)
+    return makeRVVTargetRouteError(
+        "widening MAcc contraction target artifact consumer requires "
+        "provider-owned runtime ABI parameter facts for lhs, rhs, accumulator, "
+        "out, and n before artifact export");
 
-  struct ExpectedRuntimeABIParameterRole {
-    llvm::StringRef cName;
-    support::RuntimeABIParameterRole role;
-  };
-  const ExpectedRuntimeABIParameterRole expectedRoles[] = {
-      {"lhs", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"rhs", support::RuntimeABIParameterRole::RHSInputBuffer},
-      {"acc", support::RuntimeABIParameterRole::AccumulatorInputBuffer},
-      {"out", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-  };
-  constexpr size_t expectedRoleCount =
-      sizeof(expectedRoles) / sizeof(expectedRoles[0]);
-  for (size_t index = 0; index < expectedRoleCount; ++index) {
+  for (size_t index = 0; index < routeFacts->runtimeABIParameters.size();
+       ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
-    if (actual.cName != expectedRoles[index].cName ||
-        actual.role != expectedRoles[index].role)
+    const support::RuntimeABIParameter &expected =
+        routeFacts->runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
           llvm::Twine("widening MAcc contraction target artifact consumer "
                       "requires provider-derived runtime ABI parameter ") +
-          std::to_string(index) + " to bind " + expectedRoles[index].cName +
-          " as " +
-          support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
-          " before artifact export");
+          std::to_string(index) + " to mirror provider-owned parameter '" +
+          expected.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(expected.role) +
+          " with C type '" + expected.cType + "' before artifact export");
   }
   return llvm::Error::success();
 }
@@ -13429,6 +13423,16 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires "
         "provider-derived runtime AVL/VL facts before artifact export");
+  if (description.runtimeControlPlanID != routeFacts->runtimeControlPlanID ||
+      description.tailPolicy != routeFacts->tailPolicy ||
+      description.maskPolicy != routeFacts->maskPolicy)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived runtime control and policy "
+                    "facts '") +
+        routeFacts->runtimeControlPlanID + "', tail '" +
+        routeFacts->tailPolicy + "', mask '" + routeFacts->maskPolicy +
+        "' before artifact export");
   if (llvm::Error error =
           validateRVVWideningMAccContractionRuntimeABIFacts(description))
     return error;
@@ -13453,6 +13457,21 @@ llvm::Error validateRVVWideningMAccContractionRoutePayloadFacts(
         llvm::Twine(description.sourceSEW) + "/" + description.sourceLMUL +
         " and result " + llvm::Twine(description.sew) + "/" +
         description.lmul);
+  if (description.maccArithmeticKind !=
+      routeFacts->wideningMAccArithmeticKind)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived widening arithmetic kind '") +
+        routeFacts->wideningMAccArithmeticKind + "' but was '" +
+        description.maccArithmeticKind + "'");
+  if (description.sourceMemoryForm != routeFacts->sourceMemoryForm ||
+      description.destinationMemoryForm != routeFacts->destinationMemoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening MAcc contraction target artifact consumer "
+                    "requires provider-derived source/destination memory "
+                    "forms '") +
+        routeFacts->sourceMemoryForm + "' and '" +
+        routeFacts->destinationMemoryForm + "' before artifact export");
   if (description.wideningMAccAccumulatorLayout !=
           routeFacts->wideningMAccAccumulatorLayout ||
       description.wideningMAccResultLayout !=
@@ -13572,7 +13591,7 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_control_plan",
-          description.runtimeControlPlanID,
+          routeFacts->runtimeControlPlanID,
           "selected typed RVV widening MAcc runtime AVL/VL control plan"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
@@ -13614,6 +13633,21 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
           "selected typed RVV widening MAcc result LMUL"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_macc_arithmetic_kind",
+          routeFacts->wideningMAccArithmeticKind,
+          "selected typed RVV widening MAcc arithmetic kind"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_memory_form",
+          routeFacts->sourceMemoryForm,
+          "selected typed RVV widening MAcc source memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_memory_form",
+          routeFacts->destinationMemoryForm,
+          "selected typed RVV widening MAcc destination memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.widening_macc_accumulator_layout",
           routeFacts->wideningMAccAccumulatorLayout,
           "selected typed RVV widening MAcc accumulator layout"))
@@ -13643,7 +13677,13 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
       "tcrv_rvv.accumulation_route_family_plan",
       "tcrv_rvv.standalone_reduction_route_family_plan",
       "tcrv_rvv.base_memory_movement_route_family_plan",
-      "tcrv_rvv.widening_dot_relation"};
+      "tcrv_rvv.mask_role",
+      "tcrv_rvv.mask_source",
+      "tcrv_rvv.mask_memory_form",
+      "tcrv_rvv.widening_dot_accumulator_layout",
+      "tcrv_rvv.widening_dot_result_layout",
+      "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_product_intrinsic"};
   for (llvm::StringRef key : staleRouteFamilyMirrors)
     if (llvm::Error error = requireEmptyWideningMAccContractionStaleMirror(
             candidate, key,

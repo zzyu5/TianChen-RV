@@ -3501,6 +3501,78 @@ bool expectRVVTargetArtifactExporterShape(
           "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr",
           /*expectedScalarBroadcast=*/true))
     return false;
+  auto expectWideningMAccCanonicalFacts =
+      [](llvm::StringRef context) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVWideningMAccRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVWideningMAccRouteFacts(
+                RVVOperationKind::WideningMAccAdd);
+    if (!routeFacts) {
+      llvm::errs() << context
+                   << ": missing widening MAcc canonical route facts\n";
+      return false;
+    }
+    if (routeFacts->operation != RVVOperationKind::WideningMAccAdd ||
+        routeFacts->memoryForm !=
+            tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                VectorRHSLoad ||
+        routeFacts->sourceElementTypeName != "i16" ||
+        routeFacts->accumulatorElementTypeName != "i32" ||
+        routeFacts->resultElementTypeName != "i32" ||
+        routeFacts->tailPolicy != "agnostic" ||
+        routeFacts->maskPolicy != "agnostic" ||
+        routeFacts->runtimeControlPlanID !=
+            "rvv-runtime-avl-vl-control-plan.v1" ||
+        routeFacts->runtimeABIOrder != "lhs,rhs,acc,out,n" ||
+        routeFacts->providerSupportedMirror !=
+            "provider_supported_mirror:rvv-contraction-family-plan-validated" ||
+        routeFacts->routeOperandBindingPlanID !=
+            "rvv-route-operand-binding:widening_macc_add.v1" ||
+        routeFacts->contractionRouteFamilyPlanID !=
+            "rvv-contraction-route-family-plan.v1" ||
+        routeFacts->typedComputeOpName != "tcrv_rvv.widening_macc" ||
+        routeFacts->wideningMAccArithmeticKind !=
+            "signed_widening_macc_add" ||
+        routeFacts->lhsRole != "lhs-input-buffer" ||
+        routeFacts->rhsRole != "rhs-input-buffer" ||
+        routeFacts->accumulatorRole != "accumulator-input-buffer" ||
+        routeFacts->outputRole != "output-buffer" ||
+        routeFacts->runtimeCountRole != "runtime-element-count" ||
+        routeFacts->sourceSEW != 16 || routeFacts->sourceLMUL != "mf2" ||
+        routeFacts->accumulatorSEW != 32 ||
+        routeFacts->accumulatorLMUL != "m1" ||
+        routeFacts->resultSEW != 32 || routeFacts->resultLMUL != "m1" ||
+        routeFacts->sourceMemoryForm != "unit-stride-load" ||
+        routeFacts->rhsMemoryForm != "unit-stride-load" ||
+        routeFacts->accumulatorMemoryForm != "unit-stride-load" ||
+        routeFacts->destinationMemoryForm != "unit-stride-store" ||
+        routeFacts->wideningMAccAccumulatorLayout !=
+            "separate-i32-vector-accumulator-input" ||
+        routeFacts->wideningMAccResultLayout !=
+            "store-widening-multiply-accumulate-result-to-output-buffer" ||
+        routeFacts->wideningMAccRelation !=
+            "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1" ||
+        routeFacts->runtimeABIParameters.size() != 5 ||
+        routeFacts->runtimeABIParameters[0].cName != "lhs" ||
+        routeFacts->runtimeABIParameters[0].cType != "const int16_t *" ||
+        routeFacts->runtimeABIParameters[2].cName != "acc" ||
+        routeFacts->runtimeABIParameters[2].cType != "const int32_t *" ||
+        routeFacts->runtimeABIParameters[4].cName != "n" ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(
+                 "lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr") ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(
+                 "acc=accumulator-input-buffer:acc:abi|acc-load|wmacc-acc|acc-i32m1|hdr")) {
+      llvm::errs() << context
+                   << ": malformed widening MAcc canonical route facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectWideningMAccCanonicalFacts(
+          "widening MAcc canonical route facts"))
+    return false;
   auto expectRouteFamilyValidationPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture) -> bool {
@@ -7466,6 +7538,16 @@ bool expectRVVTargetArtifactExporterShape(
           {"runtime ABI parameter 2", "acc", "accumulator-input-buffer"}))
     return false;
 
+  RVVRouteDescription staleWideningMAccAccumulatorCType =
+      wideningMAccDescription;
+  staleWideningMAccAccumulatorCType.runtimeABIParameters[2].cType =
+      "const int16_t *";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccAccumulatorCType,
+          "widening-MAcc registry rejects stale accumulator ABI C type",
+          {"runtime ABI parameter 2", "acc", "const int32_t *"}))
+    return false;
+
   RVVRouteDescription staleWideningMAccBinding = wideningMAccDescription;
   staleWideningMAccBinding.routeOperandBindingSummary =
       "rvv-route-operand-binding:widening_macc_add.v1;"
@@ -7488,6 +7570,46 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningMAccSourceDType,
           "widening-MAcc registry rejects stale source/result dtype relation",
           {"i16mf2 source", "i32m1 accumulator/result"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccResultLMUL = wideningMAccDescription;
+  staleWideningMAccResultLMUL.lmul = "m2";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccResultLMUL,
+          "widening-MAcc registry rejects stale accumulator/result LMUL",
+          {"i16mf2 source", "i32m1 accumulator/result", "m2"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccArithmeticKind =
+      wideningMAccDescription;
+  staleWideningMAccArithmeticKind.maccArithmeticKind =
+      "metadata-derived-widening-macc-kind";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccArithmeticKind,
+          "widening-MAcc registry rejects stale arithmetic kind",
+          {"widening arithmetic kind", "signed_widening_macc_add",
+           "metadata-derived-widening-macc-kind"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccMemoryForm =
+      wideningMAccDescription;
+  staleWideningMAccMemoryForm.sourceMemoryForm = "strided-load";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccMemoryForm,
+          "widening-MAcc registry rejects stale source memory form",
+          {"source/destination memory forms", "unit-stride-load",
+           "unit-stride-store"}))
+    return false;
+
+  RVVRouteDescription staleWideningMAccHeader =
+      wideningMAccDescription;
+  staleWideningMAccHeader.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectWideningMAccProviderFailure(
+          staleWideningMAccHeader,
+          "widening-MAcc registry rejects stale header facts",
+          {"provider-owned contraction support", "headers",
+           "stddef.h,stdint.h"}))
     return false;
 
   RVVRouteDescription staleWideningMAccRelation =
@@ -7685,6 +7807,54 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-widening-macc-relation"}))
     return false;
 
+  TargetArtifactCandidate staleWideningMAccArithmeticMirror =
+      wideningMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningMAccArithmeticMirror,
+          "tcrv_rvv.widening_macc_arithmetic_kind",
+          "metadata-derived-widening-macc-kind")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc arithmetic "
+                    "kind metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccArithmeticMirror,
+          "widening-MAcc registry rejects stale arithmetic kind mirror",
+          {"widening_macc_arithmetic_kind", "signed_widening_macc_add",
+           "metadata-derived-widening-macc-kind"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningMAccSourceMemoryMirror =
+      wideningMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningMAccSourceMemoryMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "strided-load")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc source memory "
+                    "form metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccSourceMemoryMirror,
+          "widening-MAcc registry rejects stale source memory mirror",
+          {"source_memory_form", "unit-stride-load", "strided-load"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningMAccHeaderMirror =
+      wideningMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningMAccHeaderMirror,
+                                    "tcrv_rvv.required_header_declarations",
+                                    "stddef.h,stdint.h")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc header "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccHeaderMirror,
+          "widening-MAcc registry rejects stale header mirror",
+          {"required_header_declarations", "riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
   TargetArtifactCandidate staleWideningMAccNonFamilyMirror =
       wideningMAccFixture.candidate;
   staleWideningMAccNonFamilyMirror.artifactMetadata.push_back(
@@ -7694,6 +7864,18 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccCandidateFailure(
           staleWideningMAccNonFamilyMirror,
           "widening-MAcc registry rejects stale non-family mirror",
+          {"must not carry",
+           "selected typed RVV non-widening-MAcc route-family mirror"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningMAccComputedMaskMirror =
+      wideningMAccFixture.candidate;
+  staleWideningMAccComputedMaskMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry("tcrv_rvv.mask_role",
+                                                 "metadata-derived-mask"));
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccComputedMaskMirror,
+          "widening-MAcc registry rejects stale computed-mask mirror",
           {"must not carry",
            "selected typed RVV non-widening-MAcc route-family mirror"}))
     return false;

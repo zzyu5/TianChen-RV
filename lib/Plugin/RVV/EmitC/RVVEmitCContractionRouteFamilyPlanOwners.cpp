@@ -50,6 +50,8 @@ constexpr llvm::StringLiteral kRVVStridedInputWideningDotMemoryLayout(
 constexpr llvm::StringLiteral
     kRVVComputedMaskStridedInputWideningDotMemoryLayout(
         "unit-stride-compare-element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
+constexpr llvm::StringLiteral kRVVUnitStrideSourceMemoryForm(
+    "unit-stride-load");
 constexpr llvm::StringLiteral kRVVLHSStrideSource("runtime_abi:lhs_stride");
 constexpr llvm::StringLiteral kRVVRHSStrideSource("runtime_abi:rhs_stride");
 constexpr llvm::StringLiteral kRVVStridedInputDotSourceMemoryForm(
@@ -668,6 +670,12 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
     const RVVSelectedBodyEmitCRouteDescription &description =
         analysis.description;
     if (description.memoryForm != wideningMAccFacts->memoryForm ||
+        description.maccArithmeticKind !=
+            wideningMAccFacts->wideningMAccArithmeticKind ||
+        description.tailPolicy != wideningMAccFacts->tailPolicy ||
+        description.maskPolicy != wideningMAccFacts->maskPolicy ||
+        description.runtimeControlPlanID !=
+            wideningMAccFacts->runtimeControlPlanID ||
         description.runtimeABIOrder != wideningMAccFacts->runtimeABIOrder ||
         description.targetLeafProfile !=
             wideningMAccFacts->targetLeafProfile ||
@@ -689,6 +697,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         description.sourceLMUL != wideningMAccFacts->sourceLMUL ||
         description.sew != wideningMAccFacts->resultSEW ||
         description.lmul != wideningMAccFacts->resultLMUL ||
+        description.sourceMemoryForm !=
+            wideningMAccFacts->sourceMemoryForm ||
+        description.destinationMemoryForm !=
+            wideningMAccFacts->destinationMemoryForm ||
         description.wideningMAccAccumulatorLayout !=
             wideningMAccFacts->wideningMAccAccumulatorLayout ||
         description.wideningMAccResultLayout !=
@@ -907,6 +919,14 @@ getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   RVVWideningMAccRouteFacts facts;
   facts.operation = operation;
   facts.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  facts.sourceElementTypeName = getContractionIntegerElementTypeName(kSourceSEW);
+  facts.accumulatorElementTypeName =
+      getContractionIntegerElementTypeName(kResultSEW);
+  facts.resultElementTypeName =
+      getContractionIntegerElementTypeName(kResultSEW);
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
   facts.runtimeABIOrder = kRVVWideningMAccRuntimeABIOrder;
   facts.targetLeafProfile =
       getContractionTargetLeafProfile(kSourceSEW, kSourceLMUL, kResultSEW,
@@ -919,12 +939,22 @@ getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.routeOperandBindingPlanID = kRVVWideningMAccOperandBindingPlanID;
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
   facts.typedComputeOpName = "tcrv_rvv.widening_macc";
+  facts.wideningMAccArithmeticKind = kRVVPreRealizedWideningMAccOpKind;
+  facts.lhsRole = "lhs-input-buffer";
+  facts.rhsRole = "rhs-input-buffer";
+  facts.accumulatorRole = kRVVPreRealizedAccumulatorRole;
+  facts.outputRole = "output-buffer";
+  facts.runtimeCountRole = "runtime-element-count";
   facts.sourceSEW = kSourceSEW;
   facts.sourceLMUL = kSourceLMUL;
   facts.accumulatorSEW = kResultSEW;
   facts.accumulatorLMUL = kResultLMUL;
   facts.resultSEW = kResultSEW;
   facts.resultLMUL = kResultLMUL;
+  facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.rhsMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.accumulatorMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.destinationMemoryForm = kRVVDestinationMemoryForm;
   facts.wideningMAccAccumulatorLayout = kRVVWideningMAccAccumulatorLayout;
   facts.wideningMAccResultLayout = kRVVWideningMAccResultLayout;
   facts.wideningMAccRelation = relation;
@@ -945,6 +975,30 @@ getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
       getContractionVectorTypeName(kResultSEW, kResultLMUL);
   facts.resultVectorCType =
       getContractionSignedVectorCType(kResultSEW, kResultLMUL);
+  facts.logicalOperands.push_back("lhs");
+  facts.logicalOperands.push_back("rhs");
+  facts.logicalOperands.push_back("acc");
+  facts.logicalOperands.push_back("out");
+  facts.logicalOperands.push_back("n");
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "lhs", kRVVContractionI16PointerCType,
+      support::RuntimeABIParameterRole::LHSInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "rhs", kRVVContractionI16PointerCType,
+      support::RuntimeABIParameterRole::RHSInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "acc", kRVVContractionI32PointerCType,
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "out", kRVVContractionOutputI32PointerCType,
+      support::RuntimeABIParameterRole::OutputBuffer,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+      "n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount,
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned));
   facts.routeOperandBindingSummary =
       (llvm::Twine(facts.routeOperandBindingPlanID) +
        ";lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr;"
@@ -2149,7 +2203,17 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
                      plan, "strided source-load leaf",
                      plan.stridedLoadIntrinsic, ""))
     return error;
-  if (!plan.usesStridedInputs) {
+  if (plan.usesWideningMAcc) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "source memory form", plan.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "destination memory form", plan.destinationMemoryForm,
+            kRVVDestinationMemoryForm))
+      return error;
+  }
+  if (!plan.usesStridedInputs && !plan.usesWideningMAcc) {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "strided memory layout", plan.stridedMemoryLayout, ""))
       return error;
@@ -2168,6 +2232,11 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
   }
 
   if (plan.usesWideningMAcc) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening macc arithmetic kind",
+            plan.wideningMAccArithmeticKind,
+            kRVVPreRealizedWideningMAccOpKind))
+      return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "accumulator layout", plan.accumulatorLayout,
             kRVVWideningMAccAccumulatorLayout))
@@ -2433,10 +2502,14 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   }
 
   if (plan.usesWideningMAcc) {
+    plan.wideningMAccArithmeticKind =
+        analysis.slice.wideningMAccOp.getKind();
     plan.accumulatorLayout =
         analysis.slice.wideningMAccOp.getAccumulatorLayout();
     plan.resultLayout = analysis.slice.wideningMAccOp.getResultLayout();
     plan.relation = analysis.slice.wideningMAccOp.getMaccRelation();
+    plan.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+    plan.destinationMemoryForm = kRVVDestinationMemoryForm;
     plan.contractionComputeIntrinsic =
         getContractionWideningMAccIntrinsic(
             plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
@@ -2538,6 +2611,9 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
                                           plan.runtimeABIParameters.end());
 
   if (plan.usesWideningMAcc) {
+    description.maccArithmeticKind = plan.wideningMAccArithmeticKind;
+    description.sourceMemoryForm = plan.sourceMemoryForm;
+    description.destinationMemoryForm = plan.destinationMemoryForm;
     description.wideningMAccAccumulatorLayout = plan.accumulatorLayout;
     description.wideningMAccResultLayout = plan.resultLayout;
     description.wideningMAccRelation = plan.relation;
@@ -2658,6 +2734,18 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     return error;
 
   if (usesWideningMAcc) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening multiply-accumulate arithmetic kind",
+            description.maccArithmeticKind, kRVVPreRealizedWideningMAccOpKind))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "destination memory form",
+            description.destinationMemoryForm, kRVVDestinationMemoryForm))
+      return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening multiply-accumulate accumulator layout",
             description.wideningMAccAccumulatorLayout,

@@ -1300,6 +1300,20 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           "layout and stride-source facts from the verified route-family "
           "plan before provider route construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (isWideningMAcc) {
+    if (!description.stridedMemoryLayout.empty() ||
+        !description.lhsStrideSource.empty() ||
+        !description.rhsStrideSource.empty() ||
+        contractionPlan.sourceMemoryForm != description.sourceMemoryForm ||
+        contractionPlan.destinationMemoryForm !=
+            description.destinationMemoryForm)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires widening MAcc "
+          "source/destination memory facts from the verified route-family plan "
+          "and no strided-input layout or stride-source facts before provider "
+          "route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   } else if (!description.stridedMemoryLayout.empty() ||
              !description.lhsStrideSource.empty() ||
              !description.rhsStrideSource.empty() ||

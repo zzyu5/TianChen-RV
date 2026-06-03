@@ -722,6 +722,12 @@ getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
 struct RVVWideningMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef accumulatorElementTypeName;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -730,12 +736,22 @@ struct RVVWideningMAccRouteFacts {
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef contractionRouteFamilyPlanID;
   llvm::StringRef typedComputeOpName;
+  llvm::StringRef wideningMAccArithmeticKind;
+  llvm::StringRef lhsRole;
+  llvm::StringRef rhsRole;
+  llvm::StringRef accumulatorRole;
+  llvm::StringRef outputRole;
+  llvm::StringRef runtimeCountRole;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
   std::int64_t accumulatorSEW = 0;
   llvm::StringRef accumulatorLMUL;
   std::int64_t resultSEW = 0;
   llvm::StringRef resultLMUL;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef rhsMemoryForm;
+  llvm::StringRef accumulatorMemoryForm;
+  llvm::StringRef destinationMemoryForm;
   llvm::StringRef wideningMAccAccumulatorLayout;
   llvm::StringRef wideningMAccResultLayout;
   llvm::StringRef wideningMAccRelation;
@@ -750,6 +766,9 @@ struct RVVWideningMAccRouteFacts {
   llvm::StringRef resultVectorTypeName;
   llvm::StringRef resultVectorCType;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 5> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+      runtimeABIParameters;
 };
 
 std::optional<RVVWideningMAccRouteFacts>

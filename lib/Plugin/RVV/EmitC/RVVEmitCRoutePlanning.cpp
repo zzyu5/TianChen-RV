@@ -30955,6 +30955,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.result_sew", llvm::Twine(description.sew).str()});
     metadata.push_back({"tcrv_rvv.result_lmul", description.lmul});
+    metadata.push_back({"tcrv_rvv.widening_macc_arithmetic_kind",
+                        description.maccArithmeticKind});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
     metadata.push_back({"tcrv_rvv.widening_macc_accumulator_layout",
                         description.wideningMAccAccumulatorLayout});
     metadata.push_back({"tcrv_rvv.widening_macc_result_layout",
