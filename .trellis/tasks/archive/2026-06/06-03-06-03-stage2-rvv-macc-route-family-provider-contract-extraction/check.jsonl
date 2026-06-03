@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check no new route authority, descriptor path, source-front-door path, or common EmitC RVV semantic inference was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin/provider remains the owner of MAcc legality, facts, route support, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check target artifact validation consumes provider-owned MAcc route facts and mirror contracts without reconstructing route-family truth."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-provider-owned-memory-route-contract-extraction/prd.md", "reason": "Compare extraction shape, evidence, and no-runtime-change rationale with the previous normalized memory contract extraction."}

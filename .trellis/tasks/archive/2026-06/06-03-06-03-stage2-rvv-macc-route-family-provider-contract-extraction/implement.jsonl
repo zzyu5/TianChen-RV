@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth, RVV-first stage order, and core route authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body to provider route chain, MAcc/accumulation selected-body and provider authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract, provider-owned route-family fact surfaces, MAcc route-family validation contract, and memory mirror contract pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-provider-owned-memory-route-contract-extraction/prd.md", "reason": "Immediate prior provider-owned normalized mirror contract extraction pattern and evidence plan."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-unit-stride-macc-production-validation-boundary/prd.md", "reason": "Existing unit-stride MAcc provider facts, target validation, and stale-brief closeout evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-computed-mask-macc-production-validation-boundary/prd.md", "reason": "Existing computed-mask and runtime-scalar computed-mask MAcc provider/target validation boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widening-macc-production-validation-boundary/prd.md", "reason": "Existing widening MAcc provider/target validation boundary and fail-closed coverage."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-masked-macc-accumulation-artifact-abi-boundary/prd.md", "reason": "Runtime-scalar computed-mask MAcc canonical fact and artifact ABI evidence baseline."}

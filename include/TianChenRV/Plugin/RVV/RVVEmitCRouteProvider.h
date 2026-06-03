@@ -999,6 +999,22 @@ struct RVVWideningMAccRouteFacts {
 std::optional<RVVWideningMAccRouteFacts>
 getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation);
 
+struct RVVMAccRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVMAccRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVMAccRouteMetadataMirrorContract, 40> mirrors;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVMAccRouteMetadataMirrorContractSet>
+getRVVMAccRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVWideningDotReduceRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

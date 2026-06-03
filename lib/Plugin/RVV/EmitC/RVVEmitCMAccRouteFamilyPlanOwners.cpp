@@ -1406,6 +1406,462 @@ getRVVRuntimeScalarComputedMaskMAccRouteFacts(
   return facts;
 }
 
+static void appendRVVMAccRouteMetadataMirror(
+    RVVMAccRouteMetadataMirrorContractSet &contract, llvm::StringRef key,
+    llvm::StringRef expected, llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
+static void appendRVVMAccStaleMetadataMirrors(
+    RVVMAccRouteMetadataMirrorContractSet &contract,
+    llvm::ArrayRef<llvm::StringLiteral> staleMirrorKeys,
+    llvm::StringRef staleMirrorLabel) {
+  for (llvm::StringRef key : staleMirrorKeys)
+    contract.staleMirrorKeys.push_back(key);
+  contract.staleMirrorLabel = staleMirrorLabel;
+}
+
+static void appendRVVMAccCommonDescriptionMirrors(
+    RVVMAccRouteMetadataMirrorContractSet &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef bindingPlanID, llvm::StringRef bindingSummary,
+    llvm::StringRef providerSupportedMirror, llvm::StringRef targetLeafProfile,
+    llvm::StringRef typedComputeOpName, llvm::StringRef runtimeABIOrder,
+    llvm::StringRef requiredHeaders, llvm::StringRef cTypeMapping,
+    llvm::StringRef arithmeticKind, llvm::StringRef accumulatorLayout,
+    llvm::StringRef resultLayout) {
+  const std::string sew = llvm::Twine(description.sew).str();
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan", bindingPlanID,
+      "selected typed RVV MAcc binding plan");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands", bindingSummary,
+      "selected typed RVV MAcc binding summary");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror", providerSupportedMirror,
+      "selected typed RVV MAcc provider support");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.target_leaf_profile", targetLeafProfile,
+      "selected typed RVV MAcc target leaf profile");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "rvv_selected_body_typed_compute_op", typedComputeOpName,
+      "selected typed RVV MAcc compute operation");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.config_contract", description.configContractID,
+      "selected typed RVV MAcc config contract");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.element_type", description.elementTypeName,
+      "selected typed RVV MAcc element type");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.sew", sew,
+      "selected typed RVV MAcc SEW");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.lmul", description.lmul,
+      "selected typed RVV MAcc LMUL");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.bounded_slice", description.boundedSlice,
+      "selected typed RVV MAcc bounded slice");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm),
+      "selected typed RVV MAcc memory form");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      description.runtimeControlPlanID,
+      "selected typed RVV MAcc runtime AVL/VL control plan");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", runtimeABIOrder,
+      "selected typed RVV MAcc runtime ABI order");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations", requiredHeaders,
+      "selected typed RVV MAcc route header requirements");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping", cTypeMapping,
+      "selected typed RVV MAcc route type mapping summary");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.macc_arithmetic_kind", arithmeticKind,
+      "selected typed RVV MAcc arithmetic kind");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.macc_accumulator_layout", accumulatorLayout,
+      "selected typed RVV MAcc accumulator layout");
+  appendRVVMAccRouteMetadataMirror(
+      contract, "tcrv_rvv.macc_result_layout", resultLayout,
+      "selected typed RVV MAcc result layout");
+}
+
+std::optional<RVVMAccRouteMetadataMirrorContractSet>
+getRVVMAccRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  RVVMAccRouteMetadataMirrorContractSet contract;
+
+  if (std::optional<RVVUnitStrideMAccRouteFacts> routeFacts =
+          getRVVUnitStrideMAccRouteFacts(description.operation)) {
+    const bool isPlain =
+        description.operation == RVVSelectedBodyOperationKind::MAccAdd;
+    appendRVVMAccCommonDescriptionMirrors(
+        contract, description, routeFacts->routeOperandBindingPlanID,
+        routeFacts->routeOperandBindingSummary,
+        routeFacts->providerSupportedMirror, routeFacts->targetLeafProfile,
+        routeFacts->typedComputeOpName, routeFacts->runtimeABIOrder,
+        routeFacts->requiredHeaderDeclarations, routeFacts->cTypeMappingSummary,
+        routeFacts->arithmeticKind, routeFacts->maccAccumulatorLayout,
+        routeFacts->maccResultLayout);
+
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.plain_macc_route_family_plan",
+        isPlain ? routeFacts->routeFamilyPlanID : llvm::StringRef(),
+        "selected typed RVV plain MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+        isPlain ? llvm::StringRef() : routeFacts->routeFamilyPlanID,
+        "selected typed RVV scalar-broadcast MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_route_family_plan", "",
+        "selected typed RVV computed-mask MAcc route-family plan");
+
+    constexpr llvm::StringLiteral staleUnitStrideMirrors[] = {
+        "tcrv_rvv.compare_predicate_kind",
+        "tcrv_rvv.accumulation_compute_suffix",
+        "tcrv_rvv.accumulation_mask_producer_source",
+        "tcrv_rvv.accumulation_accumulator_contract",
+        "tcrv_rvv.accumulation_result_contract",
+        "tcrv_rvv.accumulation_scalar_carry_contract",
+        "tcrv_rvv.mask_role",
+        "tcrv_rvv.mask_source",
+        "tcrv_rvv.mask_memory_form",
+        "tcrv_rvv.inactive_lane_contract",
+        "tcrv_rvv.masked_passthrough_layout",
+        "tcrv_rvv.source_memory_form",
+        "tcrv_rvv.destination_memory_form",
+        "tcrv_rvv.indexed_memory_layout",
+        "tcrv_rvv.widening_macc_arithmetic_kind",
+        "tcrv_rvv.widening_macc_accumulator_layout",
+        "tcrv_rvv.widening_macc_result_layout",
+        "tcrv_rvv.widening_macc_relation",
+        "tcrv_rvv.contraction_route_family_plan",
+        "tcrv_rvv.standalone_reduction_route_family_plan",
+        "tcrv_rvv.base_memory_movement_route_family_plan",
+        "tcrv_rvv.segment2_memory_route_family_plan",
+        "tcrv_rvv.computed_mask_memory_route_family_plan"};
+    appendRVVMAccStaleMetadataMirrors(
+        contract, staleUnitStrideMirrors,
+        "selected typed RVV stale non-unit-stride MAcc route-family mirror");
+    return contract;
+  }
+
+  if (std::optional<RVVComputedMaskMAccRouteFacts> routeFacts =
+          getRVVComputedMaskMAccRouteFacts(description.operation,
+                                          description.sew,
+                                          description.lmul)) {
+    appendRVVMAccCommonDescriptionMirrors(
+        contract, description, routeFacts->routeOperandBindingPlanID,
+        routeFacts->routeOperandBindingSummary,
+        routeFacts->providerSupportedMirror, routeFacts->targetLeafProfile,
+        routeFacts->typedComputeOpName, routeFacts->runtimeABIOrder,
+        routeFacts->requiredHeaderDeclarations, routeFacts->cTypeMappingSummary,
+        routeFacts->arithmeticKind, routeFacts->maccAccumulatorLayout,
+        routeFacts->maccResultLayout);
+
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.compare_predicate_kind",
+        routeFacts->comparePredicateKind,
+        "selected typed RVV computed-mask MAcc compare predicate");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_route_family_plan",
+        routeFacts->accumulationRouteFamilyPlanID,
+        "selected typed RVV computed-mask MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_compute_suffix",
+        routeFacts->accumulationComputeSuffix,
+        "selected typed RVV computed-mask MAcc compute suffix");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_mask_producer_source",
+        routeFacts->accumulationMaskProducerSource,
+        "selected typed RVV computed-mask MAcc mask producer");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_accumulator_contract",
+        routeFacts->accumulationAccumulatorContract,
+        "selected typed RVV computed-mask MAcc accumulator contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_result_contract",
+        routeFacts->accumulationResultContract,
+        "selected typed RVV computed-mask MAcc result contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_scalar_carry_contract", "",
+        "selected typed RVV computed-mask MAcc scalar carry contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.plain_macc_route_family_plan", "",
+        "selected typed RVV plain MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.scalar_broadcast_macc_route_family_plan", "",
+        "selected typed RVV scalar-broadcast MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_role", routeFacts->maskRole,
+        "selected typed RVV computed-mask MAcc mask role");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_source", routeFacts->maskSource,
+        "selected typed RVV computed-mask MAcc mask source");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_memory_form", routeFacts->maskMemoryForm,
+        "selected typed RVV computed-mask MAcc mask memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.inactive_lane_contract",
+        routeFacts->inactiveLaneContract,
+        "selected typed RVV computed-mask MAcc inactive lane contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.masked_passthrough_layout",
+        routeFacts->maskedPassthroughLayout,
+        "selected typed RVV computed-mask MAcc passthrough layout");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.source_memory_form",
+        routeFacts->sourceMemoryForm,
+        "selected typed RVV computed-mask MAcc source memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.destination_memory_form",
+        routeFacts->destinationMemoryForm,
+        "selected typed RVV computed-mask MAcc destination memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.indexed_memory_layout",
+        routeFacts->indexedMemoryLayout,
+        "selected typed RVV computed-mask MAcc memory layout");
+
+    constexpr llvm::StringLiteral staleComputedMaskMirrors[] = {
+        "tcrv_rvv.widening_macc_arithmetic_kind",
+        "tcrv_rvv.widening_macc_accumulator_layout",
+        "tcrv_rvv.widening_macc_result_layout",
+        "tcrv_rvv.widening_macc_relation",
+        "tcrv_rvv.contraction_route_family_plan",
+        "tcrv_rvv.standalone_reduction_route_family_plan",
+        "tcrv_rvv.base_memory_movement_route_family_plan",
+        "tcrv_rvv.segment2_memory_route_family_plan",
+        "tcrv_rvv.computed_mask_memory_route_family_plan"};
+    appendRVVMAccStaleMetadataMirrors(
+        contract, staleComputedMaskMirrors,
+        "selected typed RVV stale non-computed-mask-MAcc route-family mirror");
+    return contract;
+  }
+
+  if (std::optional<RVVRuntimeScalarComputedMaskMAccRouteFacts> routeFacts =
+          getRVVRuntimeScalarComputedMaskMAccRouteFacts(
+              description.operation, description.sew, description.lmul)) {
+    appendRVVMAccCommonDescriptionMirrors(
+        contract, description,
+        routeFacts->routeOperandBindingPlanID,
+        routeFacts->routeOperandBindingSummary,
+        routeFacts->providerSupportedMirror, routeFacts->targetLeafProfile,
+        routeFacts->typedComputeOpName, routeFacts->runtimeABIOrder,
+        routeFacts->requiredHeaderDeclarations, routeFacts->cTypeMappingSummary,
+        routeFacts->arithmeticKind, routeFacts->maccAccumulatorLayout,
+        routeFacts->maccResultLayout);
+
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.compare_predicate_kind",
+        routeFacts->comparePredicateKind,
+        "selected typed RVV runtime-scalar computed-mask MAcc compare "
+        "predicate");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_route_family_plan",
+        routeFacts->accumulationRouteFamilyPlanID,
+        "selected typed RVV runtime-scalar computed-mask MAcc route-family "
+        "plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_compute_suffix",
+        routeFacts->accumulationComputeSuffix,
+        "selected typed RVV runtime-scalar computed-mask MAcc compute suffix");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_mask_producer_source",
+        routeFacts->accumulationMaskProducerSource,
+        "selected typed RVV runtime-scalar computed-mask MAcc mask producer");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_accumulator_contract",
+        routeFacts->accumulationAccumulatorContract,
+        "selected typed RVV runtime-scalar computed-mask MAcc accumulator "
+        "contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_result_contract",
+        routeFacts->accumulationResultContract,
+        "selected typed RVV runtime-scalar computed-mask MAcc result "
+        "contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulation_scalar_carry_contract", "",
+        "selected typed RVV runtime-scalar computed-mask MAcc scalar carry "
+        "contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.plain_macc_route_family_plan", "",
+        "selected typed RVV plain MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.scalar_broadcast_macc_route_family_plan", "",
+        "selected typed RVV scalar-broadcast MAcc route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_role", routeFacts->maskRole,
+        "selected typed RVV runtime-scalar computed-mask MAcc mask role");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_source", routeFacts->maskSource,
+        "selected typed RVV runtime-scalar computed-mask MAcc mask source");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.mask_memory_form", routeFacts->maskMemoryForm,
+        "selected typed RVV runtime-scalar computed-mask MAcc mask memory "
+        "form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.inactive_lane_contract",
+        routeFacts->inactiveLaneContract,
+        "selected typed RVV runtime-scalar computed-mask MAcc inactive lane "
+        "contract");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.masked_passthrough_layout",
+        routeFacts->maskedPassthroughLayout,
+        "selected typed RVV runtime-scalar computed-mask MAcc passthrough "
+        "layout");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.source_memory_form",
+        routeFacts->sourceMemoryForm,
+        "selected typed RVV runtime-scalar computed-mask MAcc source memory "
+        "form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.destination_memory_form",
+        routeFacts->destinationMemoryForm,
+        "selected typed RVV runtime-scalar computed-mask MAcc destination "
+        "memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.indexed_memory_layout",
+        routeFacts->indexedMemoryLayout,
+        "selected typed RVV runtime-scalar computed-mask MAcc memory layout");
+
+    constexpr llvm::StringLiteral staleRuntimeScalarMirrors[] = {
+        "tcrv_rvv.widening_macc_arithmetic_kind",
+        "tcrv_rvv.widening_macc_accumulator_layout",
+        "tcrv_rvv.widening_macc_result_layout",
+        "tcrv_rvv.widening_macc_relation",
+        "tcrv_rvv.contraction_route_family_plan",
+        "tcrv_rvv.standalone_reduction_route_family_plan",
+        "tcrv_rvv.base_memory_movement_route_family_plan",
+        "tcrv_rvv.segment2_memory_route_family_plan",
+        "tcrv_rvv.computed_mask_memory_route_family_plan"};
+    appendRVVMAccStaleMetadataMirrors(
+        contract, staleRuntimeScalarMirrors,
+        "selected typed RVV stale non-runtime-scalar-MAcc route-family mirror");
+    return contract;
+  }
+
+  if (std::optional<RVVWideningMAccRouteFacts> routeFacts =
+          getRVVWideningMAccRouteFacts(description.operation)) {
+    const std::string sourceSEW = llvm::Twine(routeFacts->sourceSEW).str();
+    const std::string accumulatorSEW =
+        llvm::Twine(routeFacts->accumulatorSEW).str();
+    const std::string resultSEW = llvm::Twine(routeFacts->resultSEW).str();
+
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.route_operand_binding_plan",
+        routeFacts->routeOperandBindingPlanID,
+        "selected typed RVV widening MAcc binding plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.route_operand_binding_operands",
+        routeFacts->routeOperandBindingSummary,
+        "selected typed RVV widening MAcc binding summary");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.provider_supported_mirror",
+        routeFacts->providerSupportedMirror,
+        "selected typed RVV widening MAcc provider support");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.target_leaf_profile",
+        routeFacts->targetLeafProfile,
+        "selected typed RVV widening MAcc target leaf profile");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.contraction_route_family_plan",
+        routeFacts->contractionRouteFamilyPlanID,
+        "selected typed RVV widening MAcc contraction route-family plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.memory_form",
+        stringifyRVVSelectedBodyMemoryForm(routeFacts->memoryForm),
+        "selected typed RVV widening MAcc memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.runtime_control_plan",
+        routeFacts->runtimeControlPlanID,
+        "selected typed RVV widening MAcc runtime AVL/VL control plan");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.runtime_abi_order",
+        routeFacts->runtimeABIOrder,
+        "selected typed RVV widening MAcc runtime ABI order");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.required_header_declarations",
+        routeFacts->requiredHeaderDeclarations,
+        "selected typed RVV widening MAcc route header requirements");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.c_type_mapping", routeFacts->cTypeMappingSummary,
+        "selected typed RVV widening MAcc route type mapping summary");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.source_sew", sourceSEW,
+        "selected typed RVV widening MAcc source SEW");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.source_lmul", routeFacts->sourceLMUL,
+        "selected typed RVV widening MAcc source LMUL");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulator_sew", accumulatorSEW,
+        "selected typed RVV widening MAcc accumulator SEW");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.accumulator_lmul", routeFacts->accumulatorLMUL,
+        "selected typed RVV widening MAcc accumulator LMUL");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.result_sew", resultSEW,
+        "selected typed RVV widening MAcc result SEW");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.result_lmul", routeFacts->resultLMUL,
+        "selected typed RVV widening MAcc result LMUL");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.widening_macc_arithmetic_kind",
+        routeFacts->wideningMAccArithmeticKind,
+        "selected typed RVV widening MAcc arithmetic kind");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.source_memory_form",
+        routeFacts->sourceMemoryForm,
+        "selected typed RVV widening MAcc source memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.destination_memory_form",
+        routeFacts->destinationMemoryForm,
+        "selected typed RVV widening MAcc destination memory form");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.widening_macc_accumulator_layout",
+        routeFacts->wideningMAccAccumulatorLayout,
+        "selected typed RVV widening MAcc accumulator layout");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.widening_macc_result_layout",
+        routeFacts->wideningMAccResultLayout,
+        "selected typed RVV widening MAcc result layout");
+    appendRVVMAccRouteMetadataMirror(
+        contract, "tcrv_rvv.widening_macc_relation",
+        routeFacts->wideningMAccRelation,
+        "selected typed RVV widening MAcc relation");
+
+    constexpr llvm::StringLiteral staleWideningMirrors[] = {
+        "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+        "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+        "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+        "tcrv_rvv.widening_conversion_route_family_plan",
+        "tcrv_rvv.plain_compare_select_route_family_plan",
+        "tcrv_rvv.computed_mask_select_route_family_plan",
+        "tcrv_rvv.computed_mask_memory_route_family_plan",
+        "tcrv_rvv.segment2_memory_route_family_plan",
+        "tcrv_rvv.plain_macc_route_family_plan",
+        "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+        "tcrv_rvv.accumulation_route_family_plan",
+        "tcrv_rvv.standalone_reduction_route_family_plan",
+        "tcrv_rvv.base_memory_movement_route_family_plan",
+        "tcrv_rvv.mask_role",
+        "tcrv_rvv.mask_source",
+        "tcrv_rvv.mask_memory_form",
+        "tcrv_rvv.widening_dot_accumulator_layout",
+        "tcrv_rvv.widening_dot_result_layout",
+        "tcrv_rvv.widening_dot_relation",
+        "tcrv_rvv.widening_product_intrinsic"};
+    appendRVVMAccStaleMetadataMirrors(
+        contract, staleWideningMirrors,
+        "selected typed RVV non-widening-MAcc route-family mirror");
+    return contract;
+  }
+
+  return std::nullopt;
+}
+
 llvm::Error validateRVVSelectedBodyPlainMAccRouteFamilyPlan(
     const RVVSelectedBodyPlainMAccRouteFamilyPlan &plan) {
   if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(

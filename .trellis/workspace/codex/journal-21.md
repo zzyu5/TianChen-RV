@@ -60,6 +60,70 @@ Tightened computed-mask segment2 store target artifact provider/candidate valida
 - None - task complete
 
 
+## Session 417: Stage2 RVV MAcc route-family provider contract extraction
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV MAcc route-family provider contract extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted existing RVV MAcc candidate metadata mirror validation into a
+provider-owned normalized contract and rewired target artifact validation to
+consume that contract.
+
+### Main Changes
+
+- Added provider-owned `RVVMAccRouteMetadataMirrorContract` /
+  `RVVMAccRouteMetadataMirrorContractSet` API.
+- Added `getRVVMAccRouteMetadataMirrorContract(...)` for plain,
+  scalar-broadcast, computed-mask, runtime-scalar computed-mask, and widening
+  MAcc route families.
+- Rewired non-widening MAcc and widening MAcc target candidate mirror
+  validators to consume provider contract sets.
+- Preserved existing route payload, header/type, runtime ABI mapping, and
+  statement-plan validation.
+- Updated `lowering-runtime/emitc-route.md` with the concrete MAcc metadata
+  mirror contract.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter '(macc-add|scalar-broadcast-macc-add|computed-masked-macc-add|runtime-scalar-cmp-masked-macc-add|widening-macc-add)'` from `build/test`, 28 passed.
+- [OK] `rtk git diff --check`
+- [OK] Diff-only bounded old-authority scan over touched source/test files.
+
+No `ssh rvv` rerun: this changed provider/target validation contract
+ownership only and did not change route emission, generated runtime semantics,
+runtime ABI order, emitted intrinsics, MAcc computation, mask/tail behavior,
+passthrough behavior, destination preservation, runtime correctness, or
+performance behavior.
+
+### Self-Repair
+
+- Initial build failed on an ambiguous empty-string overload in the MAcc mirror
+  append helper. Removed the `std::string` overload and kept immediate
+  `StringRef` copying.
+- Replaced temporary string labels with stable string literals because contract
+  labels are stored as `StringRef`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 415: Stage2 RVV memory route-family validation contract consolidation
 
 **Date**: 2026-06-03

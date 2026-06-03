@@ -517,6 +517,137 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact/evidence mirrors match exactly
 ```
 
+### MAcc Metadata Mirror Contract
+
+#### 1. Scope / Trigger
+
+When a selected RVV MAcc route emits target artifact metadata, candidate
+metadata validation must consume a provider-owned normalized MAcc mirror
+contract. This applies to the existing MAcc route families:
+
+```text
+macc_add
+scalar_broadcast_macc_add
+computed_masked_macc_add
+runtime_scalar_cmp_masked_macc_add
+widening_macc_add
+```
+
+The contract is used after the route description has been rebuilt from the
+provider-built `TCRVEmitCLowerableRoute`. It is not a route-construction input
+and is not artifact metadata authority.
+
+#### 2. Signatures
+
+The provider-owned API shape is:
+
+```c++
+struct RVVMAccRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVMAccRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVMAccRouteMetadataMirrorContract, 40> mirrors;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVMAccRouteMetadataMirrorContractSet>
+getRVVMAccRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+Computed-mask and runtime-scalar computed-mask MAcc contracts must use the
+actual selected `sew` and `lmul` from the rebuilt route description when
+obtaining provider facts. A runtime-scalar LMUL m2 route must not be validated
+through default LMUL m1 facts.
+
+#### 3. Contracts
+
+- The RVV provider builds the mirror contract from the same MAcc route facts
+  and rebuilt route description fields used by provider route validation.
+- Target artifact validation may iterate contract entries and stale keys, but
+  must not rebuild MAcc mirror truth from route names, artifact metadata,
+  fixture names, descriptors, C strings, scripts, or intrinsic spellings.
+- The contract covers route operand binding plan/summary, provider support
+  mirror, target leaf profile, typed compute op, config/element/SEW/LMUL,
+  memory form, runtime-control plan, runtime ABI order, header/type summary,
+  MAcc arithmetic kind, accumulator/result layout, and family-specific
+  plain/scalar-broadcast/computed-mask/widening facts.
+- Stale mirror keys are provider-owned rejection lists. They are used to fail
+  closed on cross-family facts such as plain vs scalar-broadcast MAcc,
+  computed-mask vs non-mask MAcc, runtime-scalar vs vector computed-mask MAcc,
+  and widening vs non-widening MAcc.
+- Rebuilt route payload validation remains separate: headers/types, runtime
+  ABI mappings, statement plans, accumulator/passthrough behavior, and
+  intrinsic/type payloads are still checked against provider facts before
+  artifact acceptance.
+
+#### 4. Validation & Error Matrix
+
+- Missing MAcc contract for an accepted MAcc route -> fail before candidate
+  artifact acceptance.
+- Candidate mirror value differs from provider contract entry -> fail before
+  artifact acceptance.
+- Candidate carries a key in the provider-owned stale-key list -> fail before
+  artifact acceptance.
+- Runtime-scalar computed-mask MAcc selected LMUL is unsupported by provider
+  facts -> fail rather than falling back to default LMUL m1 facts.
+- Target-local constants disagree with provider MAcc fact accessors -> remove
+  the target-local constants and validate against the provider contract.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `runtime_scalar_cmp_masked_macc_add` with LMUL m2 builds a mirror
+  contract from parameterized runtime-scalar MAcc provider facts, including
+  LMUL m2 config/type/intrinsic mirrors and the runtime-scalar binding summary.
+- Good: `widening_macc_add` validates source/result SEW/LMUL, widening MAcc
+  relation, accumulator/result layouts, route operand binding, target profile,
+  and stale non-widening MAcc mirrors through the provider contract.
+- Base: MAcc provider payload and statement-plan validators remain separate
+  checks because candidate metadata mirrors do not prove executable behavior.
+- Bad: target validation accepts `computed_masked_macc_add` because candidate
+  metadata says `provider_supported_mirror` while the provider contract is
+  missing or mismatched.
+- Bad: target validation accepts LMUL m2 runtime-scalar MAcc candidate metadata
+  by comparing against default LMUL m1 computed-mask facts.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must cover positive provider-contract consumption
+  for plain, scalar-broadcast, computed-mask, runtime-scalar computed-mask,
+  LMUL-specific runtime-scalar computed-mask, and widening MAcc candidates.
+- C++ target artifact tests must mutate candidate mirrors for runtime ABI
+  order, typed config, typed compute op, predicate/mask/source/passthrough
+  facts, widening source/result facts, header/type mapping, provider support,
+  route operand binding, and stale cross-family keys.
+- Focused lit/FileCheck or generated-bundle dry-run tests must continue to
+  expose representative MAcc metadata mirrors.
+- Runtime `ssh rvv` is required only when route emission, generated C/C++,
+  runtime ABI, accumulator/passthrough behavior, correctness, or performance
+  claims change.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  route id looks like runtime_scalar_cmp_masked_macc_add
+  -> compare candidate mirrors against default m1 constants
+```
+
+Correct:
+
+```text
+provider-built route description carries operation + sew + lmul
+  -> getRVVMAccRouteMetadataMirrorContract(description)
+  -> parameterized provider facts build mirror/stale-key contract
+  -> target validator iterates the contract
+```
+
 ### Computed-Mask Strided Memory Fact Surface
 
 For `computed_masked_strided_store` and

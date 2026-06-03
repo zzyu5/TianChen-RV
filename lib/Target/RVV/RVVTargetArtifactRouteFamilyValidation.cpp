@@ -92,6 +92,38 @@ llvm::Error validateRVVProviderMemoryRouteMetadataMirrorContract(
       candidate, contract.staleMirrorKeys, contract.staleMirrorLabel);
 }
 
+llvm::Error validateRVVMAccRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<plugin::rvv::RVVMAccRouteMetadataMirrorContract> mirrors) {
+  for (const plugin::rvv::RVVMAccRouteMetadataMirrorContract &mirror :
+       mirrors)
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, mirror.key, mirror.expected, mirror.label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMAccRouteEmptyMetadataMirrors(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<llvm::StringRef> staleMirrorKeys, llvm::StringRef label) {
+  for (llvm::StringRef key : staleMirrorKeys)
+    if (llvm::Error error =
+            requireCandidateMetadataMirror(candidate, key, "", label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVProviderMAccRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVMAccRouteMetadataMirrorContractSet &contract) {
+  if (llvm::Error error =
+          validateRVVMAccRouteMetadataMirrorContract(candidate,
+                                                     contract.mirrors))
+    return error;
+  return validateRVVMAccRouteEmptyMetadataMirrors(
+      candidate, contract.staleMirrorKeys, contract.staleMirrorLabel);
+}
+
 llvm::Error requireRVVProviderDerivedField(llvm::StringRef consumerLabel,
                                            llvm::StringRef fieldLabel,
                                            llvm::StringRef value) {
@@ -5033,192 +5065,14 @@ llvm::Error validateRVVMAccTargetArtifactProviderFacts(
 
 llvm::Error validateRVVMAccTargetArtifactCandidateMirrors(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
-  const TargetArtifactCandidate &candidate = context.candidate;
-  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
-      context.description;
-  const std::string sew = llvm::Twine(description.sew).str();
-
-  if (description.operation ==
-      plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.plain_macc_route_family_plan",
-            description.plainMAccRouteFamilyPlanID,
-            "selected typed RVV plain MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.scalar_broadcast_macc_route_family_plan", "",
-            "selected typed RVV scalar-broadcast MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_route_family_plan", "",
-            "selected typed RVV accumulation route-family plan"))
-      return error;
-  } else if (isRVVScalarBroadcastMAccRouteFamilyOperation(
-                 description.operation)) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
-            description.scalarBroadcastMAccRouteFamilyPlanID,
-            "selected typed RVV scalar-broadcast MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.plain_macc_route_family_plan", "",
-            "selected typed RVV plain MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_route_family_plan", "",
-            "selected typed RVV accumulation route-family plan"))
-      return error;
-  } else if (isRVVComputedMaskMAccRouteFamilyOperation(description.operation)) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.compare_predicate_kind",
-            description.comparePredicateKind,
-            "selected typed RVV computed-mask MAcc compare predicate"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_route_family_plan",
-            description.accumulationRouteFamilyPlanID,
-            "selected typed RVV computed-mask MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_compute_suffix",
-            description.accumulationComputeSuffix,
-            "selected typed RVV computed-mask MAcc compute suffix"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_mask_producer_source",
-            description.accumulationMaskProducerSource,
-            "selected typed RVV computed-mask MAcc mask producer"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_accumulator_contract",
-            description.accumulationAccumulatorContract,
-            "selected typed RVV computed-mask MAcc accumulator contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_result_contract",
-            description.accumulationResultContract,
-            "selected typed RVV computed-mask MAcc result contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.accumulation_scalar_carry_contract",
-            description.accumulationScalarCarryContract,
-            "selected typed RVV computed-mask MAcc scalar carry contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.plain_macc_route_family_plan", "",
-            "selected typed RVV plain MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.scalar_broadcast_macc_route_family_plan", "",
-            "selected typed RVV scalar-broadcast MAcc route-family plan"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_role", description.maskRole,
-            "selected typed RVV computed-mask MAcc mask role"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_source", description.maskSource,
-            "selected typed RVV computed-mask MAcc mask source"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_memory_form",
-            description.maskMemoryForm,
-            "selected typed RVV computed-mask MAcc mask memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.inactive_lane_contract",
-            description.inactiveLaneContract,
-            "selected typed RVV computed-mask MAcc inactive lane contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.masked_passthrough_layout",
-            description.maskedPassthroughLayout,
-            "selected typed RVV computed-mask MAcc passthrough layout"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.source_memory_form",
-            description.sourceMemoryForm,
-            "selected typed RVV computed-mask MAcc source memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.destination_memory_form",
-            description.destinationMemoryForm,
-            "selected typed RVV computed-mask MAcc destination memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.indexed_memory_layout",
-            description.indexedMemoryLayout,
-            "selected typed RVV computed-mask MAcc memory layout"))
-      return error;
-  }
-
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "rvv_selected_body_typed_compute_op",
-          description.typedComputeOpName,
-          "selected typed RVV MAcc compute operation"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.config_contract",
-          description.configContractID,
-          "selected typed RVV MAcc config contract"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.element_type", description.elementTypeName,
-          "selected typed RVV MAcc element type"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.sew", sew, "selected typed RVV MAcc SEW"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.lmul", description.lmul,
-          "selected typed RVV MAcc LMUL"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.bounded_slice", description.boundedSlice,
-          "selected typed RVV MAcc bounded slice"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.memory_form",
-          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              description.memoryForm),
-          "selected typed RVV MAcc memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_control_plan",
-          description.runtimeControlPlanID,
-          "selected typed RVV MAcc runtime AVL/VL control plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
-          "selected typed RVV MAcc runtime ABI order"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.required_header_declarations",
-          description.requiredHeaderDeclarations,
-          "selected typed RVV MAcc route header requirements"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.c_type_mapping",
-          description.cTypeMappingSummary,
-          "selected typed RVV MAcc route type mapping summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.macc_arithmetic_kind",
-          description.maccArithmeticKind,
-          "selected typed RVV MAcc arithmetic kind"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.macc_accumulator_layout",
-          description.maccAccumulatorLayout,
-          "selected typed RVV MAcc accumulator layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.macc_result_layout",
-          description.maccResultLayout,
-          "selected typed RVV MAcc result layout"))
-    return error;
-
-  return llvm::Error::success();
+  std::optional<plugin::rvv::RVVMAccRouteMetadataMirrorContractSet> contract =
+      plugin::rvv::getRVVMAccRouteMetadataMirrorContract(context.description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "MAcc target artifact consumer requires provider-owned MAcc metadata "
+        "mirror contract before validating candidate mirrors");
+  return validateRVVProviderMAccRouteMetadataMirrorContract(context.candidate,
+                                                            *contract);
 }
 
 bool isRVVStandaloneReductionAccumulationTargetArtifactRouteFamilyConsumer(
@@ -13860,154 +13714,17 @@ llvm::Error validateRVVWideningMAccContractionTargetArtifactProviderFacts(
       context.route, context.description);
 }
 
-llvm::Error requireEmptyWideningMAccContractionStaleMirror(
-    const TargetArtifactCandidate &candidate, llvm::StringRef key,
-    llvm::StringRef label) {
-  return requireCandidateMetadataMirror(candidate, key, "", label);
-}
-
 llvm::Error validateRVVWideningMAccContractionTargetArtifactCandidateMirrors(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
-  const TargetArtifactCandidate &candidate = context.candidate;
-  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
-      context.description;
-  std::optional<plugin::rvv::RVVWideningMAccRouteFacts> routeFacts =
-      getRVVWideningMAccTargetRouteFacts(description.operation);
-  if (!routeFacts)
+  std::optional<plugin::rvv::RVVMAccRouteMetadataMirrorContractSet> contract =
+      plugin::rvv::getRVVMAccRouteMetadataMirrorContract(context.description);
+  if (!contract)
     return makeRVVTargetRouteError(
         "widening MAcc contraction target artifact consumer requires "
-        "provider-owned canonical route facts before validating candidate "
-        "mirrors");
-  const std::string sourceSEW = llvm::Twine(routeFacts->sourceSEW).str();
-  const std::string resultSEW = llvm::Twine(routeFacts->resultSEW).str();
-
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_plan",
-          routeFacts->routeOperandBindingPlanID,
-          "selected typed RVV widening MAcc binding plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.route_operand_binding_operands",
-          routeFacts->routeOperandBindingSummary,
-          "selected typed RVV widening MAcc binding summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.provider_supported_mirror",
-          routeFacts->providerSupportedMirror,
-          "selected typed RVV widening MAcc provider support"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.contraction_route_family_plan",
-          routeFacts->contractionRouteFamilyPlanID,
-          "selected typed RVV widening MAcc contraction route-family plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.memory_form",
-          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
-              routeFacts->memoryForm),
-          "selected typed RVV widening MAcc memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_control_plan",
-          routeFacts->runtimeControlPlanID,
-          "selected typed RVV widening MAcc runtime AVL/VL control plan"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
-          "selected typed RVV widening MAcc runtime ABI order"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.required_header_declarations",
-          routeFacts->requiredHeaderDeclarations,
-          "selected typed RVV widening MAcc route header requirements"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.c_type_mapping",
-          routeFacts->cTypeMappingSummary,
-          "selected typed RVV widening MAcc route type mapping summary"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_sew", sourceSEW,
-          "selected typed RVV widening MAcc source SEW"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_lmul", routeFacts->sourceLMUL,
-          "selected typed RVV widening MAcc source LMUL"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.accumulator_sew", resultSEW,
-          "selected typed RVV widening MAcc accumulator SEW"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.accumulator_lmul", routeFacts->accumulatorLMUL,
-          "selected typed RVV widening MAcc accumulator LMUL"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.result_sew", resultSEW,
-          "selected typed RVV widening MAcc result SEW"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.result_lmul", routeFacts->resultLMUL,
-          "selected typed RVV widening MAcc result LMUL"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_macc_arithmetic_kind",
-          routeFacts->wideningMAccArithmeticKind,
-          "selected typed RVV widening MAcc arithmetic kind"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.source_memory_form",
-          routeFacts->sourceMemoryForm,
-          "selected typed RVV widening MAcc source memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.destination_memory_form",
-          routeFacts->destinationMemoryForm,
-          "selected typed RVV widening MAcc destination memory form"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_macc_accumulator_layout",
-          routeFacts->wideningMAccAccumulatorLayout,
-          "selected typed RVV widening MAcc accumulator layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_macc_result_layout",
-          routeFacts->wideningMAccResultLayout,
-          "selected typed RVV widening MAcc result layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_macc_relation",
-          routeFacts->wideningMAccRelation,
-          "selected typed RVV widening MAcc relation"))
-    return error;
-
-  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
-      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
-      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
-      "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
-      "tcrv_rvv.widening_conversion_route_family_plan",
-      "tcrv_rvv.plain_compare_select_route_family_plan",
-      "tcrv_rvv.computed_mask_select_route_family_plan",
-      "tcrv_rvv.computed_mask_memory_route_family_plan",
-      "tcrv_rvv.segment2_memory_route_family_plan",
-      "tcrv_rvv.plain_macc_route_family_plan",
-      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
-      "tcrv_rvv.accumulation_route_family_plan",
-      "tcrv_rvv.standalone_reduction_route_family_plan",
-      "tcrv_rvv.base_memory_movement_route_family_plan",
-      "tcrv_rvv.mask_role",
-      "tcrv_rvv.mask_source",
-      "tcrv_rvv.mask_memory_form",
-      "tcrv_rvv.widening_dot_accumulator_layout",
-      "tcrv_rvv.widening_dot_result_layout",
-      "tcrv_rvv.widening_dot_relation",
-      "tcrv_rvv.widening_product_intrinsic"};
-  for (llvm::StringRef key : staleRouteFamilyMirrors)
-    if (llvm::Error error = requireEmptyWideningMAccContractionStaleMirror(
-            candidate, key,
-            "selected typed RVV non-widening-MAcc route-family mirror"))
-      return error;
-  return llvm::Error::success();
+        "provider-owned MAcc metadata mirror contract before validating "
+        "candidate mirrors");
+  return validateRVVProviderMAccRouteMetadataMirrorContract(context.candidate,
+                                                            *contract);
 }
 
 bool isRVVWideningDotReductionTargetArtifactRouteFamilyConsumer(
