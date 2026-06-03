@@ -403,6 +403,19 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
   predicate kind, inactive-lane zeroing, mask type/C type, masked product, and
   merge facts. Non-computed-mask variants must carry empty mask facts and fail
   closed when stale mask facts are present.
+- Standalone reduction facts include the plain, computed-mask, and
+  runtime-scalar computed-mask standalone reduce add/min/max operations.
+  Provider facts carry typed compute op, memory form, selected SEW-derived
+  scalar ABI parameter types, runtime ABI order and parameters, route operand
+  binding plan/summary, accumulator/result layout, scalar-result runtime
+  boundary, reduction store VL, header/type summary, target leaf profile, and
+  `provider_supported_mirror`.
+- Computed-mask standalone reduction facts add compare predicate,
+  mask producer/source/form, inactive-lane zeroing versus neutral-lane
+  requirement, operation-specific inactive neutral literal by SEW, accumulation
+  carry contracts, and vector-compare or runtime-scalar mask producer source.
+  Plain standalone reduction facts must carry empty mask/accumulation fields
+  and fail closed when stale masked facts are present.
 
 ### 4. Validation & Error Matrix
 
@@ -429,6 +442,12 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
   stale route operand binding, stale header/type mapping, stale target profile,
   stale provider mirror, or stale candidate metadata mirrors -> fail before
   target artifact acceptance.
+- For standalone reduction routes, stale dot-reduce or MAcc facts, stale plain
+  facts on masked routes, stale masked facts on plain routes, cross-operation
+  add/min/max binding or inactive-lane facts, missing scalar-result boundary
+  facts, stale neutral literal facts, stale route operand binding, stale
+  header/type mapping, stale target profile, stale provider mirror, or stale
+  candidate metadata mirrors -> fail before target artifact acceptance.
 
 ### 5. Good/Base/Bad Cases
 
@@ -449,6 +468,15 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
   route-family plan, route operand binding summary, header declarations, C
   type mapping, and explicit `provider_supported_mirror`; provider and target
   validation consume the same accessor surface.
+- Good: standalone reduce add/min/max routes get canonical facts for
+  `lhs,acc,out,n`, `tcrv_rvv.standalone_reduce`, scalar seed/result layout,
+  `scalar-result-out0` runtime boundary, route operand binding summary, header
+  declarations, C type mapping, and explicit `provider_supported_mirror`.
+  Computed-mask variants get additional canonical facts for
+  `cmp_lhs,cmp_rhs,src,acc,out,n`, `sle`, compare-produced mask source,
+  inactive-lane zeroing or neutral-lane requirement, and accumulation carry
+  contracts. Runtime-scalar computed-mask variants use `rhs_scalar` and the
+  runtime-scalar mask producer facts rather than vector RHS facts.
 - Base: a route family with only one consumer may keep local constants until
   those facts are shared across provider, target, scripts, or evidence.
 - Bad: target validation defines its own `computed_masked_macc_add` ABI order

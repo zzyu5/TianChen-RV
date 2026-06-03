@@ -461,9 +461,10 @@ std::optional<RVVComputedMaskSegment2MemoryRouteFacts>
 getRVVComputedMaskSegment2MemoryRouteFacts(
     RVVSelectedBodyOperationKind operation);
 
-struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
+struct RVVStandaloneReductionRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef typedComputeOpName;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -484,11 +485,24 @@ struct RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts {
   llvm::StringRef inactiveLaneRequirement;
   llvm::StringRef inactiveNeutralLiteralSEW32;
   llvm::StringRef inactiveNeutralLiteralSEW64;
+  llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef scalarResultRuntimeBoundary;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+      runtimeABIParameters;
 };
+
+std::optional<RVVStandaloneReductionRouteFacts>
+getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation);
+
+std::optional<RVVStandaloneReductionRouteFacts>
+getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
+                                    std::int64_t sew);
+
+using RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts =
+    RVVStandaloneReductionRouteFacts;
 
 std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
 getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(

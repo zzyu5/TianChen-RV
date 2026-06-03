@@ -3238,75 +3238,207 @@ bool expectRVVTargetArtifactExporterShape(
            "header-mirror"}))
     return false;
 
-  auto expectRuntimeScalarStandaloneReductionCanonicalFacts =
-      [](RVVOperationKind op, llvm::StringRef expectedPlanID,
+  auto expectStandaloneReductionCanonicalFacts =
+      [](RVVOperationKind op,
+         tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm,
+         llvm::StringRef expectedTypedComputeOp,
+         llvm::StringRef expectedRuntimeABIOrder,
+         llvm::StringRef expectedPlanID,
+         llvm::StringRef expectedProviderMirror,
+         llvm::StringRef expectedCTypeMapping,
          llvm::StringRef expectedInactiveUse,
          llvm::StringRef expectedInactiveRequirement,
          llvm::StringRef expectedI32InactiveNeutral,
          llvm::StringRef expectedI64InactiveNeutral,
          llvm::StringRef context) -> bool {
-    std::optional<tianchenrv::plugin::rvv::
-                      RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
-        routeFacts = tianchenrv::plugin::rvv::
-            getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(op);
+    std::optional<tianchenrv::plugin::rvv::RVVStandaloneReductionRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVStandaloneReductionRouteFacts(op, 32);
     if (!routeFacts) {
       llvm::errs() << context
-                   << ": missing runtime-scalar standalone reduction canonical "
+                   << ": missing standalone reduction canonical "
                       "route facts\n";
       return false;
     }
     if (routeFacts->operation != op ||
-        routeFacts->memoryForm !=
-            tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
-                RuntimeScalarComputedMaskUnitStrideStandaloneReduction ||
-        routeFacts->runtimeABIOrder != "cmp_lhs,rhs_scalar,src,acc,out,n" ||
+        routeFacts->memoryForm != expectedMemoryForm ||
+        routeFacts->typedComputeOpName != expectedTypedComputeOp ||
+        routeFacts->runtimeABIOrder != expectedRuntimeABIOrder ||
         routeFacts->routeOperandBindingPlanID != expectedPlanID ||
+        routeFacts->providerSupportedMirror != expectedProviderMirror ||
+        routeFacts->requiredHeaderDeclarations !=
+            "stddef.h,stdint.h,riscv_vector.h" ||
+        routeFacts->cTypeMappingSummary != expectedCTypeMapping ||
+        routeFacts->scalarResultRuntimeBoundary !=
+            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1" ||
+        routeFacts->reductionAccumulatorLayout !=
+            "scalar-i32-seed-lane0-from-accumulator-input" ||
+        routeFacts->reductionResultLayout !=
+            "store-standalone-reduction-lane0-to-output-scalar" ||
+        routeFacts->reductionStoreVL != "1" ||
         routeFacts->inactiveLaneUse != expectedInactiveUse ||
         routeFacts->inactiveLaneRequirement != expectedInactiveRequirement ||
         !llvm::StringRef(routeFacts->routeOperandBindingSummary)
              .contains(expectedInactiveUse) ||
         !llvm::StringRef(routeFacts->routeOperandBindingSummary)
              .contains(expectedPlanID) ||
-        routeFacts->providerSupportedMirror !=
-            "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated" ||
-        routeFacts->requiredHeaderDeclarations !=
-            "stddef.h,stdint.h,riscv_vector.h" ||
         routeFacts->inactiveNeutralLiteralSEW32 !=
             expectedI32InactiveNeutral ||
         routeFacts->inactiveNeutralLiteralSEW64 !=
-            expectedI64InactiveNeutral ||
-        tianchenrv::plugin::rvv::
-                getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
-                    op, 32) != expectedI32InactiveNeutral ||
-        tianchenrv::plugin::rvv::
-                getRVVSelectedBodyStandaloneReductionInactiveNeutralLiteral(
-                    op, 64) != expectedI64InactiveNeutral) {
+            expectedI64InactiveNeutral) {
       llvm::errs() << context
-                   << ": malformed runtime-scalar standalone reduction "
+                   << ": malformed standalone reduction "
                       "canonical route facts\n";
       return false;
     }
+    if (routeFacts->runtimeABIParameters.empty() ||
+        routeFacts->runtimeABIParameters.back().cName != "n" ||
+        routeFacts->runtimeABIParameters.back().cType != "size_t") {
+      llvm::errs() << context
+                   << ": malformed standalone reduction runtime ABI facts\n";
+      return false;
+    }
+    if (expectedInactiveUse.empty() &&
+        llvm::StringRef(routeFacts->routeOperandBindingSummary)
+            .contains("inactive")) {
+      llvm::errs() << context
+                   << ": plain standalone reduction facts carried stale "
+                      "inactive-lane binding tokens\n";
+      return false;
+    }
+    std::optional<tianchenrv::plugin::rvv::RVVStandaloneReductionRouteFacts>
+        defaultFacts =
+            tianchenrv::plugin::rvv::getRVVStandaloneReductionRouteFacts(op);
+    if (!defaultFacts ||
+        defaultFacts->routeOperandBindingPlanID != expectedPlanID ||
+        defaultFacts->runtimeABIOrder != expectedRuntimeABIOrder) {
+      llvm::errs() << context
+                   << ": malformed standalone reduction default route facts\n";
+      return false;
+    }
+    if (op == RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd ||
+        op == RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceMin ||
+        op == RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceMax) {
+      std::optional<tianchenrv::plugin::rvv::
+                        RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
+          runtimeFacts = tianchenrv::plugin::rvv::
+              getRVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts(op);
+      if (!runtimeFacts ||
+          runtimeFacts->routeOperandBindingPlanID != expectedPlanID ||
+          runtimeFacts->runtimeABIOrder != expectedRuntimeABIOrder) {
+        llvm::errs()
+            << context
+            << ": malformed runtime-scalar standalone reduction compatibility "
+               "route facts\n";
+        return false;
+      }
+    }
     return true;
   };
-  if (!expectRuntimeScalarStandaloneReductionCanonicalFacts(
+  using RVVMemoryForm = tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  if (!expectStandaloneReductionCanonicalFacts(
+          RVVOperationKind::StandaloneReduceAdd,
+          RVVMemoryForm::UnitStrideStandaloneReduction,
+          "tcrv_rvv.standalone_reduce", "lhs,acc,out,n",
+          "rvv-route-operand-binding:standalone_reduce_add.v1",
+          "provider_supported_mirror:rvv-standalone-reduction-plan-validated",
+          "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector",
+          "", "", "", "",
+          "standalone reduce_add canonical route facts"))
+    return false;
+  if (!expectStandaloneReductionCanonicalFacts(
+          RVVOperationKind::StandaloneReduceMin,
+          RVVMemoryForm::UnitStrideStandaloneReduction,
+          "tcrv_rvv.standalone_reduce", "lhs,acc,out,n",
+          "rvv-route-operand-binding:standalone_reduce_min.v1",
+          "provider_supported_mirror:rvv-standalone-reduction-plan-validated",
+          "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector",
+          "", "", "", "",
+          "standalone reduce_min canonical route facts"))
+    return false;
+  if (!expectStandaloneReductionCanonicalFacts(
+          RVVOperationKind::StandaloneReduceMax,
+          RVVMemoryForm::UnitStrideStandaloneReduction,
+          "tcrv_rvv.standalone_reduce", "lhs,acc,out,n",
+          "rvv-route-operand-binding:standalone_reduce_max.v1",
+          "provider_supported_mirror:rvv-standalone-reduction-plan-validated",
+          "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector",
+          "", "", "", "",
+          "standalone reduce_max canonical route facts"))
+    return false;
+  if (!expectStandaloneReductionCanonicalFacts(
+          RVVOperationKind::ComputedMaskStandaloneReduceAdd,
+          RVVMemoryForm::ComputedMaskUnitStrideStandaloneReduction,
+          "tcrv_rvv.masked_standalone_reduce",
+          "cmp_lhs,cmp_rhs,src,acc,out,n",
+          "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1",
+          "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated",
+          "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
+          "zero-inactive",
+          "masked-standalone-reduction-zero-inactive-lanes-before-reduction",
+          "0", "0",
+          "computed-mask standalone reduce_add canonical route facts"))
+    return false;
+  if (!expectStandaloneReductionCanonicalFacts(
+          RVVOperationKind::ComputedMaskStandaloneReduceMin,
+          RVVMemoryForm::ComputedMaskUnitStrideStandaloneReduction,
+          "tcrv_rvv.masked_standalone_reduce",
+          "cmp_lhs,cmp_rhs,src,acc,out,n",
+          "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1",
+          "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated",
+          "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
+          "neutral-inactive",
+          "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
+          "2147483647", "9223372036854775807",
+          "computed-mask standalone reduce_min canonical route facts"))
+    return false;
+  if (!expectStandaloneReductionCanonicalFacts(
+          RVVOperationKind::ComputedMaskStandaloneReduceMax,
+          RVVMemoryForm::ComputedMaskUnitStrideStandaloneReduction,
+          "tcrv_rvv.masked_standalone_reduce",
+          "cmp_lhs,cmp_rhs,src,acc,out,n",
+          "rvv-route-operand-binding:computed_mask_standalone_reduce_max.v1",
+          "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated",
+          "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
+          "neutral-inactive",
+          "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
+          "(-2147483647-1)", "(-9223372036854775807-1)",
+          "computed-mask standalone reduce_max canonical route facts"))
+    return false;
+  if (!expectStandaloneReductionCanonicalFacts(
           RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd,
+          RVVMemoryForm::RuntimeScalarComputedMaskUnitStrideStandaloneReduction,
+          "tcrv_rvv.masked_standalone_reduce",
+          "cmp_lhs,rhs_scalar,src,acc,out,n",
           "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1",
+          "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated",
+          "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
           "zero-inactive",
           "masked-standalone-reduction-zero-inactive-lanes-before-reduction",
           "0", "0",
           "runtime-scalar standalone reduce_add canonical route facts"))
     return false;
-  if (!expectRuntimeScalarStandaloneReductionCanonicalFacts(
+  if (!expectStandaloneReductionCanonicalFacts(
           RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceMin,
+          RVVMemoryForm::RuntimeScalarComputedMaskUnitStrideStandaloneReduction,
+          "tcrv_rvv.masked_standalone_reduce",
+          "cmp_lhs,rhs_scalar,src,acc,out,n",
           "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1",
+          "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated",
+          "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
           "neutral-inactive",
           "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
           "2147483647", "9223372036854775807",
           "runtime-scalar standalone reduce_min canonical route facts"))
     return false;
-  if (!expectRuntimeScalarStandaloneReductionCanonicalFacts(
+  if (!expectStandaloneReductionCanonicalFacts(
           RVVOperationKind::RuntimeScalarComputedMaskStandaloneReduceMax,
+          RVVMemoryForm::RuntimeScalarComputedMaskUnitStrideStandaloneReduction,
+          "tcrv_rvv.masked_standalone_reduce",
+          "cmp_lhs,rhs_scalar,src,acc,out,n",
           "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1",
+          "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated",
+          "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector",
           "neutral-inactive",
           "masked-standalone-reduction-neutral-inactive-lanes-before-reduction",
           "(-2147483647-1)", "(-9223372036854775807-1)",

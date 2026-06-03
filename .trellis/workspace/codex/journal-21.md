@@ -988,3 +988,56 @@ bundle harness assertion; and prepared the task for archive.
 ### Next Steps
 
 - Archive task and commit this completed round.
+
+
+## Session 406: Stage2 RVV standalone reduction production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV standalone reduction production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the standalone reduction provider-to-target validation boundary by adding
+a provider-owned route facts surface for plain, computed-mask, and
+runtime-scalar computed-mask standalone reduce add/min/max variants; rewired
+provider planning and RVV target artifact validation to consume those facts; and
+updated the EmitC route spec with the durable standalone reduction fact
+contract.
+
+### Main Changes
+
+- Added `RVVStandaloneReductionRouteFacts` and kept the runtime-scalar facts
+  name as a compatibility alias.
+- Rewired standalone reduction route operand binding, route-family plan
+  derivation, provider validation, initial route ABI selection, and route
+  mirror verification to consume provider-owned facts.
+- Rewired target artifact payload/runtime-ABI validation to consume provider
+  facts and removed target-local standalone reduction ABI/binding helper
+  constants.
+- Extended target artifact tests with canonical fact assertions for all nine
+  standalone reduction variants.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with standalone
+  reduction provider/target fact-surface rules.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | `rvv: validate standalone reduction route facts` |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter standalone-reduce` from `build/test` (42 passed, 435 excluded)
+- [OK] `rtk git diff --check`
+- [OK] diff-only old-authority scan over touched source/test files
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit this completed round.
