@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and RVV stage-order invariants after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider/realization authority and common-boundary separation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned facts, operand binding, header/type summary, and target validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Check that this validation round preserves existing widen_i16_to_i32 executable evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widen-i32-to-i64-conversion-artifact-abi-boundary/prd.md", "reason": "Check consistency with the existing widen_i32_to_i64 production validation boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Check provider-owned widening conversion route fact surface declarations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Check widening conversion route-family plan and route description propagation types."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check widening conversion provider fact derivation and validation."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Check target artifact validation consumes provider-owned widening conversion facts."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Check focused fail-closed mutation coverage for stale provider/target facts."}

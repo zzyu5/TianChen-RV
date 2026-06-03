@@ -980,6 +980,11 @@ must use the provider-owned surface:
 struct RVVWideningConversionRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -992,7 +997,10 @@ struct RVVWideningConversionRouteFacts {
   llvm::StringRef sourceLMUL;
   std::int64_t resultSEW;
   llvm::StringRef resultLMUL;
+  llvm::StringRef conversionKind;
   llvm::StringRef conversionRelation;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef conversionIntrinsic;
   llvm::StringRef storeIntrinsic;
@@ -1004,6 +1012,7 @@ struct RVVWideningConversionRouteFacts {
   llvm::StringRef resultVectorCType;
   llvm::StringRef resultName;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<RuntimeABIParameter, 3> runtimeABIParameters;
 };
 
 std::optional<RVVWideningConversionRouteFacts>
@@ -1012,19 +1021,24 @@ getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
 
 The accessor is the canonical provider-owned fact surface for
 `widen_i32_to_i64` and `widen_i16_to_i32`. `widen_i32_to_i64` facts must include
-runtime ABI order `lhs,out,n`, source `i32/m1`, result `i64/m2`, conversion
-relation `signed-i32m1-to-i64m2`, typed compute op
-`tcrv_rvv.widening_convert`, unit-stride conversion memory form, route family
-plan, route operand binding plan/summary, required headers, C type mapping,
-target leaf profile, and explicit `provider_supported_mirror`.
+runtime ABI order `lhs,out,n`, source `i32/m1`, result `i64/m2`,
+source/result element type names, tail/mask policy, source/destination memory
+forms, conversion kind `widen_i32_to_i64`, conversion relation
+`signed-i32m1-to-i64m2`, typed compute op `tcrv_rvv.widening_convert`, route
+family plan, route operand binding plan/summary, required headers, C type
+mapping, target leaf profile, runtime ABI parameter facts, and explicit
+`provider_supported_mirror`. `widen_i16_to_i32` facts must carry the analogous
+source `i16/mf2`, result `i32/m1`, conversion kind `sign_extend_widen_vf2`,
+and relation `signed-i16mf2-to-i32m1` facts.
 
 Provider route-family plan derivation may use typed body/config/runtime facts
 to select the operation, but every shared constant above must be copied from
 `getRVVWideningConversionRouteFacts(...)` or validated against it. Target
 artifact validation must consume this same accessor and reject stale local
-copies of source/result SEW-LMUL, conversion relation, header/type mapping,
-target profile, provider mirror, route-family plan, or operand binding summary
-before accepting a bundle.
+copies of source/result element type, source/result SEW-LMUL, tail/mask
+policy, conversion kind/relation, source/destination memory form, runtime ABI
+parameter facts, header/type mapping, target profile, provider mirror,
+route-family plan, or operand binding summary before accepting a bundle.
 
 Good:
 
@@ -1046,9 +1060,10 @@ target validator local table says source=i32/m1 result=i64/m2
 Required tests:
 
 - C++ target/provider tests must fail closed for stale provider mirror, target
-  leaf/profile, source/result SEW-LMUL, conversion relation, route-family plan,
-  route operand binding plan/summary, and stale non-conversion route-family
-  mirrors.
+  leaf/profile, source/result element type, source/result SEW-LMUL,
+  tail/mask policy, conversion kind/relation, source/destination memory form,
+  route-family plan, route operand binding plan/summary, runtime ABI parameter
+  facts, and stale non-conversion route-family mirrors.
 - Generated-bundle dry-run must expose provider-derived conversion facts and
   mirror fields.
 - Runtime RVV correctness claims still require real `ssh rvv` execution after

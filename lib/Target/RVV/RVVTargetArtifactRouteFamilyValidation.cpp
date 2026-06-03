@@ -9589,42 +9589,39 @@ llvm::Error validateRVVConversionDtypePolicyRouteABIMappings(
 }
 
 llvm::Error validateRVVConversionDtypePolicyRuntimeABIFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.runtimeABIOrder != "lhs,out,n")
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVWideningConversionRouteFacts &expected) {
+  if (description.runtimeABIOrder != expected.runtimeABIOrder)
     return makeRVVTargetRouteError(
         llvm::Twine("conversion dtype-policy target artifact consumer "
-                    "requires provider-derived runtime ABI order 'lhs,out,n' "
-                    "but was '") +
+                    "requires provider-derived runtime ABI order '") +
+        expected.runtimeABIOrder + "' but was '" +
         description.runtimeABIOrder + "'");
-  if (description.runtimeABIParameters.size() != 3)
+  if (description.runtimeABIParameters.size() !=
+      expected.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         "conversion dtype-policy target artifact consumer requires "
         "provider-derived runtime ABI parameters for lhs, out, and n before "
         "artifact export");
 
-  struct ExpectedRuntimeABIParameterRole {
-    llvm::StringRef cName;
-    support::RuntimeABIParameterRole role;
-  };
-  const ExpectedRuntimeABIParameterRole expectedRoles[] = {
-      {"lhs", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"out", support::RuntimeABIParameterRole::OutputBuffer},
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-  };
-  constexpr size_t expectedRoleCount =
-      sizeof(expectedRoles) / sizeof(expectedRoles[0]);
-  for (size_t index = 0; index < expectedRoleCount; ++index) {
+  for (size_t index = 0, count = expected.runtimeABIParameters.size();
+       index < count; ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
-    if (actual.cName != expectedRoles[index].cName ||
-        actual.role != expectedRoles[index].role)
+    const support::RuntimeABIParameter &expectedParameter =
+        expected.runtimeABIParameters[index];
+    if (actual.cName != expectedParameter.cName ||
+        actual.cType != expectedParameter.cType ||
+        actual.role != expectedParameter.role ||
+        actual.ownership != expectedParameter.ownership)
       return makeRVVTargetRouteError(
           llvm::Twine("conversion dtype-policy target artifact consumer "
                       "requires provider-derived runtime ABI parameter ") +
-          std::to_string(index) + " to bind " + expectedRoles[index].cName +
+          std::to_string(index) + " to bind " + expectedParameter.cName +
           " as " +
-          support::stringifyRuntimeABIParameterRole(expectedRoles[index].role) +
-          " before artifact export");
+          support::stringifyRuntimeABIParameterRole(expectedParameter.role) +
+          " with C type '" + expectedParameter.cType +
+          "' before artifact export");
   }
   return llvm::Error::success();
 }
@@ -9638,6 +9635,12 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         "widening conversion dtype-policy target artifact consumer rejects "
         "non-widening-conversion operation kinds");
 
+  if (description.runtimeControlPlanID != expected->runtimeControlPlanID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening conversion dtype-policy target artifact "
+                    "consumer requires provider-owned runtime control plan '") +
+        expected->runtimeControlPlanID + "' but was '" +
+        description.runtimeControlPlanID + "'");
   if (description.wideningConversionRouteFamilyPlanID !=
       expected->routeFamilyPlanID)
     return makeRVVTargetRouteError(
@@ -9651,8 +9654,16 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         llvm::Twine("widening conversion dtype-policy target artifact "
                     "consumer requires selected typed ") +
         expected->typedComputeOpName + " body before artifact export");
+  if (description.conversionKind != expected->conversionKind)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening conversion dtype-policy target artifact "
+                    "consumer requires provider-owned conversion kind '") +
+        expected->conversionKind + "' but was '" + description.conversionKind +
+        "'");
 
-  if (description.sourceSEW != expected->sourceSEW ||
+  if (description.sourceElementTypeName != expected->sourceElementTypeName ||
+      description.resultElementTypeName != expected->resultElementTypeName ||
+      description.sourceSEW != expected->sourceSEW ||
       description.sourceLMUL != expected->sourceLMUL ||
       description.sourceVectorTypeName != expected->sourceVectorTypeName ||
       description.sourceVectorCType != expected->sourceVectorCType ||
@@ -9667,13 +9678,29 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
                     "policy and conversion relation for '") +
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
             expected->operation) +
-        "' but saw source SEW " + llvm::Twine(description.sourceSEW) +
+        "' but saw source element '" + description.sourceElementTypeName +
+        "', result element '" + description.resultElementTypeName +
+        "', source SEW " + llvm::Twine(description.sourceSEW) +
         ", source LMUL '" + description.sourceLMUL + "', source type '" +
         description.sourceVectorTypeName + "'/'" + description.sourceVectorCType +
         "', result SEW " + llvm::Twine(description.sew) + ", result LMUL '" +
         description.lmul + "', result type '" + description.vectorTypeName +
         "'/'" + description.vectorCType + "', and relation '" +
         description.conversionRelation + "'");
+  if (description.tailPolicy != expected->tailPolicy ||
+      description.maskPolicy != expected->maskPolicy ||
+      description.sourceMemoryForm != expected->sourceMemoryForm ||
+      description.destinationMemoryForm != expected->destinationMemoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening conversion dtype-policy target artifact "
+                    "consumer requires provider-owned policy and memory-form "
+                    "facts for '") +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            expected->operation) +
+        "' but saw tail '" + description.tailPolicy + "', mask '" +
+        description.maskPolicy + "', source memory form '" +
+        description.sourceMemoryForm + "', and destination memory form '" +
+        description.destinationMemoryForm + "'");
 
   if (description.cTypeMappingSummary != expected->cTypeMappingSummary ||
       description.providerSupportedMirror != expected->providerSupportedMirror ||
@@ -9876,21 +9903,33 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "conversion dtype-policy target artifact consumer requires "
         "unit-stride conversion memory form from the selected typed RVV body");
+  std::optional<plugin::rvv::RVVWideningConversionRouteFacts> expected =
+      plugin::rvv::getRVVWideningConversionRouteFacts(description.operation);
+  if (!expected)
+    return makeRVVTargetRouteError(
+        "conversion dtype-policy target artifact consumer requires "
+        "provider-owned widening conversion facts before artifact export");
   if (llvm::Error error =
-          validateRVVConversionDtypePolicyRuntimeABIFacts(description))
+          validateRVVConversionDtypePolicyRuntimeABIFacts(description,
+                                                          *expected))
     return error;
 
   if (description.wideningConversionRouteFamilyPlanID.empty() ||
+      description.sourceElementTypeName.empty() ||
       description.sourceSEW == 0 || description.sourceLMUL.empty() ||
       description.sourceVectorTypeName.empty() ||
       description.sourceVectorCType.empty() ||
+      description.resultElementTypeName.empty() ||
+      description.conversionKind.empty() ||
       description.sourceVectorLoadIntrinsic.empty() ||
-      description.conversionRelation.empty())
+      description.conversionRelation.empty() ||
+      description.sourceMemoryForm.empty() ||
+      description.destinationMemoryForm.empty())
     return makeRVVTargetRouteError(
         "widening conversion dtype-policy target artifact consumer "
         "requires provider-derived source dtype, source vector type, "
-        "source load, conversion relation, and widening plan facts before "
-        "artifact export");
+        "source load, result dtype, conversion kind/relation, memory forms, "
+        "and widening plan facts before artifact export");
   if (description.sourceSEW >= description.sew)
     return makeRVVTargetRouteError(
         "widening conversion dtype-policy target artifact consumer requires "
@@ -9969,6 +10008,24 @@ llvm::Error validateRVVConversionDtypePolicyTargetArtifactCandidateMirrors(
           "selected typed RVV widening conversion route-family plan"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.tail_policy", description.tailPolicy,
+          "selected typed RVV widening conversion tail policy"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_policy", description.maskPolicy,
+          "selected typed RVV widening conversion mask policy"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_element_type",
+          description.sourceElementTypeName,
+          "selected typed RVV widening conversion source element type"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.result_element_type",
+          description.resultElementTypeName,
+          "selected typed RVV widening conversion result element type"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.source_sew",
           llvm::Twine(description.sourceSEW).str(),
           "selected typed RVV widening conversion source SEW"))
@@ -9986,6 +10043,10 @@ llvm::Error validateRVVConversionDtypePolicyTargetArtifactCandidateMirrors(
           "selected typed RVV widening conversion destination LMUL"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.conversion_kind", description.conversionKind,
+          "selected typed RVV widening conversion kind"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.conversion_relation",
           description.conversionRelation,
           "selected typed RVV widening conversion relation"))
@@ -9995,6 +10056,16 @@ llvm::Error validateRVVConversionDtypePolicyTargetArtifactCandidateMirrors(
           plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
               description.memoryForm),
           "selected typed RVV conversion dtype-policy memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_memory_form",
+          description.sourceMemoryForm,
+          "selected typed RVV widening conversion source memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_memory_form",
+          description.destinationMemoryForm,
+          "selected typed RVV widening conversion destination memory form"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_control_plan",

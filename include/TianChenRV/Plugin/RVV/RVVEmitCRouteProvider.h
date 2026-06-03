@@ -149,11 +149,14 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef multiVL;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
+  llvm::StringRef sourceElementTypeName;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
   llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef destSEW;
   llvm::StringRef destLMUL;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef conversionKind;
   llvm::StringRef conversionRelation;
   llvm::StringRef typedComputeOpName;
   llvm::StringRef boundaryOpName;
@@ -704,6 +707,11 @@ getRVVRuntimeScalarComputedMaskMAccRouteFacts(
 struct RVVWideningConversionRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -716,7 +724,10 @@ struct RVVWideningConversionRouteFacts {
   llvm::StringRef sourceLMUL;
   std::int64_t resultSEW = 0;
   llvm::StringRef resultLMUL;
+  llvm::StringRef conversionKind;
   llvm::StringRef conversionRelation;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef conversionIntrinsic;
   llvm::StringRef storeIntrinsic;
@@ -728,6 +739,8 @@ struct RVVWideningConversionRouteFacts {
   llvm::StringRef resultVectorCType;
   llvm::StringRef resultName;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
+      runtimeABIParameters;
 };
 
 std::optional<RVVWideningConversionRouteFacts>

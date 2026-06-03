@@ -543,21 +543,27 @@ struct RVVSelectedBodyWideningConversionRouteFamilyPlan {
   llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef vlCType;
+  llvm::StringRef sourceElementTypeName;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
   llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef resultElementTypeName;
   std::int64_t resultSEW = 0;
   llvm::StringRef resultLMUL;
   llvm::StringRef resultVectorTypeName;
   llvm::StringRef resultVectorCType;
   llvm::StringRef setVLIntrinsic;
+  llvm::StringRef conversionKind;
   llvm::StringRef conversionIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef conversionRelation;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 

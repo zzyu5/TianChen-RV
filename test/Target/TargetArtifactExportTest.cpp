@@ -7285,6 +7285,82 @@ bool expectRVVTargetArtifactExporterShape(
                                          widenI32Description))
     return false;
 
+  auto expectWideningConversionCanonicalFacts =
+      [&](OperationKind operation, llvm::StringRef context,
+          llvm::StringRef expectedSourceElement,
+          llvm::StringRef expectedResultElement, int64_t expectedSourceSEW,
+          llvm::StringRef expectedSourceLMUL, int64_t expectedResultSEW,
+          llvm::StringRef expectedResultLMUL,
+          llvm::StringRef expectedConversionKind,
+          llvm::StringRef expectedConversionRelation,
+          llvm::StringRef expectedSourceCType,
+          llvm::StringRef expectedResultCType) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVWideningConversionRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVWideningConversionRouteFacts(
+                operation);
+    if (!routeFacts) {
+      llvm::errs() << context
+                   << ": missing widening conversion canonical route facts\n";
+      return false;
+    }
+    if (routeFacts->operation != operation ||
+        routeFacts->memoryForm !=
+            tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                UnitStrideConversion ||
+        routeFacts->sourceElementTypeName != expectedSourceElement ||
+        routeFacts->resultElementTypeName != expectedResultElement ||
+        routeFacts->tailPolicy != "agnostic" ||
+        routeFacts->maskPolicy != "agnostic" ||
+        routeFacts->runtimeControlPlanID !=
+            "rvv-runtime-avl-vl-control-plan.v1" ||
+        routeFacts->runtimeABIOrder != "lhs,out,n" ||
+        routeFacts->routeFamilyPlanID !=
+            "rvv-widening-conversion-route-family-plan.v1" ||
+        routeFacts->typedComputeOpName != "tcrv_rvv.widening_convert" ||
+        routeFacts->sourceSEW != expectedSourceSEW ||
+        routeFacts->sourceLMUL != expectedSourceLMUL ||
+        routeFacts->resultSEW != expectedResultSEW ||
+        routeFacts->resultLMUL != expectedResultLMUL ||
+        routeFacts->conversionKind != expectedConversionKind ||
+        routeFacts->conversionRelation != expectedConversionRelation ||
+        routeFacts->sourceMemoryForm != "unit-stride-load" ||
+        routeFacts->destinationMemoryForm != "unit-stride-store" ||
+        routeFacts->runtimeABIParameters.size() != 3 ||
+        routeFacts->runtimeABIParameters[0].cName != "lhs" ||
+        routeFacts->runtimeABIParameters[0].cType != expectedSourceCType ||
+        routeFacts->runtimeABIParameters[0].role !=
+            RuntimeABIParameterRole::LHSInputBuffer ||
+        routeFacts->runtimeABIParameters[1].cName != "out" ||
+        routeFacts->runtimeABIParameters[1].cType != expectedResultCType ||
+        routeFacts->runtimeABIParameters[1].role !=
+            RuntimeABIParameterRole::OutputBuffer ||
+        routeFacts->runtimeABIParameters[2].cName != "n" ||
+        routeFacts->runtimeABIParameters[2].cType != "size_t" ||
+        routeFacts->runtimeABIParameters[2].role !=
+            RuntimeABIParameterRole::RuntimeElementCount ||
+        !llvm::StringRef(routeFacts->routeOperandBindingSummary)
+             .contains(expectedConversionRelation)) {
+      llvm::errs() << context
+                   << ": malformed widening conversion canonical route facts\n";
+      return false;
+    }
+    return true;
+  };
+
+  if (!expectWideningConversionCanonicalFacts(
+          OperationKind::WidenI16ToI32,
+          "widen_i16_to_i32 canonical route facts", "i16", "i32", 16, "mf2",
+          32, "m1", "sign_extend_widen_vf2", "signed-i16mf2-to-i32m1",
+          "const int16_t *", "int32_t *"))
+    return false;
+  if (!expectWideningConversionCanonicalFacts(
+          OperationKind::WidenI32ToI64,
+          "widen_i32_to_i64 canonical route facts", "i32", "i64", 32, "m1",
+          64, "m2", "widen_i32_to_i64", "signed-i32m1-to-i64m2",
+          "const int32_t *", "int64_t *"))
+    return false;
+
   auto expectWideningConversionProviderFailure =
       [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
           std::initializer_list<llvm::StringRef> fragments) -> bool {
@@ -7416,6 +7492,34 @@ bool expectRVVTargetArtifactExporterShape(
           {"source/result dtype policy", "widen_i16_to_i32"}))
     return false;
 
+  RVVRouteDescription staleWideningConversionSourceElement =
+      widenI16Description;
+  staleWideningConversionSourceElement.sourceElementTypeName = "i32";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionSourceElement,
+          "widening conversion registry rejects stale source element type",
+          {"source/result dtype policy", "widen_i16_to_i32",
+           "source element 'i32'"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionResultElement =
+      widenI16Description;
+  staleWideningConversionResultElement.resultElementTypeName = "i64";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionResultElement,
+          "widening conversion registry rejects stale result element type",
+          {"source/result dtype policy", "widen_i16_to_i32",
+           "result element 'i64'"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionKind = widenI16Description;
+  staleWideningConversionKind.conversionKind = "widen_i32_to_i64";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionKind,
+          "widening conversion registry rejects stale conversion kind",
+          {"conversion kind", "sign_extend_widen_vf2", "widen_i32_to_i64"}))
+    return false;
+
   RVVRouteDescription staleWideningConversionRelation =
       widenI16Description;
   staleWideningConversionRelation.conversionRelation =
@@ -7424,6 +7528,88 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningConversionRelation,
           "widening conversion registry rejects stale conversion relation",
           {"conversion relation", "metadata-derived-conversion-relation"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionTailPolicy =
+      widenI16Description;
+  staleWideningConversionTailPolicy.tailPolicy = "undisturbed";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionTailPolicy,
+          "widening conversion registry rejects stale tail policy",
+          {"policy and memory-form", "tail 'undisturbed'"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionSourceMemory =
+      widenI16Description;
+  staleWideningConversionSourceMemory.sourceMemoryForm = "strided-load";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionSourceMemory,
+          "widening conversion registry rejects stale source memory form",
+          {"policy and memory-form", "source memory form 'strided-load'"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionDestinationMemory =
+      widenI16Description;
+  staleWideningConversionDestinationMemory.destinationMemoryForm =
+      "indexed-store";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionDestinationMemory,
+          "widening conversion registry rejects stale destination memory form",
+          {"policy and memory-form", "destination memory form 'indexed-store'"}))
+    return false;
+
+  RVVRouteDescription staleWidenI16CarriesI32Facts = widenI16Description;
+  staleWidenI16CarriesI32Facts.sourceElementTypeName =
+      widenI32Description.sourceElementTypeName;
+  staleWidenI16CarriesI32Facts.resultElementTypeName =
+      widenI32Description.resultElementTypeName;
+  staleWidenI16CarriesI32Facts.sourceSEW = widenI32Description.sourceSEW;
+  staleWidenI16CarriesI32Facts.sourceLMUL = widenI32Description.sourceLMUL;
+  staleWidenI16CarriesI32Facts.sourceVectorTypeName =
+      widenI32Description.sourceVectorTypeName;
+  staleWidenI16CarriesI32Facts.sourceVectorCType =
+      widenI32Description.sourceVectorCType;
+  staleWidenI16CarriesI32Facts.sew = widenI32Description.sew;
+  staleWidenI16CarriesI32Facts.lmul = widenI32Description.lmul;
+  staleWidenI16CarriesI32Facts.vectorTypeName =
+      widenI32Description.vectorTypeName;
+  staleWidenI16CarriesI32Facts.vectorCType = widenI32Description.vectorCType;
+  staleWidenI16CarriesI32Facts.conversionKind =
+      widenI32Description.conversionKind;
+  staleWidenI16CarriesI32Facts.conversionRelation =
+      widenI32Description.conversionRelation;
+  if (!expectWideningConversionProviderFailure(
+          staleWidenI16CarriesI32Facts,
+          "widen_i16_to_i32 registry rejects stale i32-to-i64 facts",
+          {"conversion kind", "sign_extend_widen_vf2",
+           "widen_i32_to_i64"}))
+    return false;
+
+  RVVRouteDescription staleWidenI32CarriesI16Facts = widenI32Description;
+  staleWidenI32CarriesI16Facts.sourceElementTypeName =
+      widenI16Description.sourceElementTypeName;
+  staleWidenI32CarriesI16Facts.resultElementTypeName =
+      widenI16Description.resultElementTypeName;
+  staleWidenI32CarriesI16Facts.sourceSEW = widenI16Description.sourceSEW;
+  staleWidenI32CarriesI16Facts.sourceLMUL = widenI16Description.sourceLMUL;
+  staleWidenI32CarriesI16Facts.sourceVectorTypeName =
+      widenI16Description.sourceVectorTypeName;
+  staleWidenI32CarriesI16Facts.sourceVectorCType =
+      widenI16Description.sourceVectorCType;
+  staleWidenI32CarriesI16Facts.sew = widenI16Description.sew;
+  staleWidenI32CarriesI16Facts.lmul = widenI16Description.lmul;
+  staleWidenI32CarriesI16Facts.vectorTypeName =
+      widenI16Description.vectorTypeName;
+  staleWidenI32CarriesI16Facts.vectorCType = widenI16Description.vectorCType;
+  staleWidenI32CarriesI16Facts.conversionKind =
+      widenI16Description.conversionKind;
+  staleWidenI32CarriesI16Facts.conversionRelation =
+      widenI16Description.conversionRelation;
+  if (!expectWideningI32ProviderFailure(
+          staleWidenI32CarriesI16Facts,
+          "widen_i32_to_i64 registry rejects stale i16-to-i32 facts",
+          {"conversion kind", "widen_i32_to_i64",
+           "sign_extend_widen_vf2"}))
     return false;
 
   RVVRouteDescription staleWideningConversionNonFamily =
@@ -7556,6 +7742,68 @@ bool expectRVVTargetArtifactExporterShape(
           "mirror",
           {"conversion_relation", "signed-i16mf2-to-i32m1",
            "metadata-derived-conversion-relation"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionKindMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningConversionKindMirror,
+                                    "tcrv_rvv.conversion_kind",
+                                    "widen_i32_to_i64")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "kind mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionKindMirror,
+          "widening conversion registry rejects stale conversion kind mirror",
+          {"conversion_kind", "sign_extend_widen_vf2", "widen_i32_to_i64"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionSourceMemoryMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningConversionSourceMemoryMirror,
+                                    "tcrv_rvv.source_memory_form",
+                                    "strided-load")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "source memory form mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionSourceMemoryMirror,
+          "widening conversion registry rejects stale source memory form "
+          "mirror",
+          {"source_memory_form", "unit-stride-load", "strided-load"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionDestinationMemoryMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningConversionDestinationMemoryMirror,
+          "tcrv_rvv.destination_memory_form", "indexed-store")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "destination memory form mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionDestinationMemoryMirror,
+          "widening conversion registry rejects stale destination memory form "
+          "mirror",
+          {"destination_memory_form", "unit-stride-store", "indexed-store"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionSourceElementMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningConversionSourceElementMirror,
+                                    "tcrv_rvv.source_element_type", "i32")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "source element type mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionSourceElementMirror,
+          "widening conversion registry rejects stale source element type "
+          "mirror",
+          {"source_element_type", "i16", "i32"}))
     return false;
 
   TargetArtifactCandidate staleWideningConversionNonFamilyMirror =

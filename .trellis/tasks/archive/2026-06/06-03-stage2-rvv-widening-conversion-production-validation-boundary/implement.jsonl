@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body widening conversion provider preflight, and common-boundary separation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type summary, and widening conversion fact-surface contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Existing widen_i16_to_i32 generated bundle and ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-widening-conversion-realization-boundary/prd.md", "reason": "Existing selected-body widening conversion realization boundary for both supported cases."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widen-i32-to-i64-conversion-artifact-abi-boundary/prd.md", "reason": "Adjacent widen_i32_to_i64 provider-owned production validation pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-standalone-reduction-production-validation-boundary/prd.md", "reason": "Most recent provider-to-target production validation boundary pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider-owned widening conversion route fact surface declarations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Widening conversion route-family plan and route description propagation types."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derive and validate widening conversion provider facts from typed body/config/runtime facts before route construction."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact validation must consume provider-owned widening conversion facts and reject stale mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused canonical fact and fail-closed mutation coverage for provider-to-target validation."}
