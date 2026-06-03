@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and RVV stage-order invariants after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider/realization authority and common-boundary separation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned facts, operand binding, header/type summary, and target validation contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widening-macc-production-validation-boundary/prd.md", "reason": "Check consistency with adjacent widening MAcc production validation."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-widening-dot-reduce-artifact-abi/prd.md", "reason": "Check that this validation round preserves existing plain widening-dot executable evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Check that this validation round preserves existing strided widening-dot executable evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-widening-dot-reduce-artifact-abi/prd.md", "reason": "Check that this validation round preserves existing computed-mask widening-dot executable evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Check that this validation round preserves existing computed-mask strided widening-dot executable evidence."}
+{"command": "rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2", "result": "passed", "reason": "Focused C++ target artifact export test binary rebuild after provider/target validation changes."}
+{"command": "rtk build/bin/tianchenrv-target-artifact-export-test", "result": "passed", "reason": "Focused target artifact export C++ checks, including new widening dot-reduce fail-closed mutations."}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter widening-dot-reduce-add", "cwd": "build/test", "result": "passed: 20 selected tests passed, 457 excluded", "reason": "Focused widening-dot-reduce lit set, including explicit/pre-realized target tests and generated-bundle dry-runs."}
+{"command": "bounded old-authority scan over touched source/test files", "result": "passed: touched-file scan only found existing negative/intrinsic coverage; diff-only scan had no new authority hits", "reason": "Verify no legacy i32/source-front-door/descriptor/direct-C/route-id/artifact-name authority is introduced."}
+{"command": "rtk git diff --check", "result": "passed", "reason": "Whitespace and patch-format check."}

@@ -729,96 +729,204 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           "surface before route construction");
   }
 
-  const std::optional<
-      RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
-      computedMaskStridedFacts =
-          getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(operation);
-  if (computedMaskStridedFacts) {
+  const std::optional<RVVWideningDotReduceRouteFacts> wideningDotFacts =
+      getRVVWideningDotReduceRouteFacts(operation);
+  if (wideningDotFacts) {
     const RVVSelectedBodyEmitCRouteDescription &description =
         analysis.description;
-    if (description.memoryForm != computedMaskStridedFacts->memoryForm ||
-        description.runtimeABIOrder != computedMaskStridedFacts->runtimeABIOrder ||
-        description.targetLeafProfile !=
-            computedMaskStridedFacts->targetLeafProfile ||
-        description.providerSupportedMirror !=
-            computedMaskStridedFacts->providerSupportedMirror ||
-        description.requiredHeaderDeclarations !=
-            computedMaskStridedFacts->requiredHeaderDeclarations ||
-        description.cTypeMappingSummary !=
-            computedMaskStridedFacts->cTypeMappingSummary ||
-        description.routeOperandBindingPlanID !=
-            computedMaskStridedFacts->routeOperandBindingPlanID ||
-        description.routeOperandBindingSummary !=
-            computedMaskStridedFacts->routeOperandBindingSummary ||
-        description.contractionRouteFamilyPlanID !=
-            computedMaskStridedFacts->contractionRouteFamilyPlanID ||
-        description.typedComputeOpName !=
-            computedMaskStridedFacts->typedComputeOpName ||
-        description.comparePredicateKind !=
-            computedMaskStridedFacts->comparePredicateKind ||
-        description.maskRole != computedMaskStridedFacts->maskRole ||
-        description.maskSource != computedMaskStridedFacts->maskSource ||
-        description.maskMemoryForm !=
-            computedMaskStridedFacts->maskMemoryForm ||
-        description.sourceSEW != computedMaskStridedFacts->sourceSEW ||
-        description.sourceLMUL != computedMaskStridedFacts->sourceLMUL ||
-        description.sew != computedMaskStridedFacts->resultSEW ||
-        description.lmul != computedMaskStridedFacts->resultLMUL ||
-        description.sourceMemoryForm !=
-            computedMaskStridedFacts->sourceMemoryForm ||
-        description.destinationMemoryForm !=
-            computedMaskStridedFacts->destinationMemoryForm ||
-        description.stridedMemoryLayout !=
-            computedMaskStridedFacts->stridedMemoryLayout ||
-        description.lhsStrideSource !=
-            computedMaskStridedFacts->lhsStrideSource ||
-        description.rhsStrideSource !=
-            computedMaskStridedFacts->rhsStrideSource ||
-        description.wideningDotProductAccumulatorLayout !=
-            computedMaskStridedFacts->wideningDotProductAccumulatorLayout ||
-        description.wideningDotProductResultLayout !=
-            computedMaskStridedFacts->wideningDotProductResultLayout ||
-        description.wideningDotProductRelation !=
-            computedMaskStridedFacts->wideningDotProductRelation ||
-        description.wideningProductIntrinsic !=
-            computedMaskStridedFacts->wideningProductIntrinsic ||
-        description.maskedWideningProductIntrinsic !=
-            computedMaskStridedFacts->maskedWideningProductIntrinsic ||
-        description.scalarSeedSplatIntrinsic !=
-            computedMaskStridedFacts->scalarSeedSplatIntrinsic ||
-        description.stridedLoadIntrinsic !=
-            computedMaskStridedFacts->stridedLoadIntrinsic ||
-        description.sourceVectorLoadIntrinsic !=
-            computedMaskStridedFacts->sourceVectorLoadIntrinsic ||
-        description.vectorLoadIntrinsic !=
-            computedMaskStridedFacts->compareVectorLoadIntrinsic ||
-        description.intrinsic != computedMaskStridedFacts->reductionIntrinsic ||
-        description.storeIntrinsic != computedMaskStridedFacts->storeIntrinsic ||
-        description.setVLIntrinsic != computedMaskStridedFacts->setVLIntrinsic ||
-        description.compareIntrinsic !=
-            computedMaskStridedFacts->compareIntrinsic ||
-        description.maskedMergeIntrinsic !=
-            computedMaskStridedFacts->maskedMergeIntrinsic ||
-        description.reductionStoreVL !=
-            computedMaskStridedFacts->reductionStoreVL ||
-        description.inactiveLaneZeroingRequirement !=
-            computedMaskStridedFacts->inactiveLaneZeroingRequirement ||
-        description.vlCType != computedMaskStridedFacts->vlCType ||
-        description.sourceVectorTypeName !=
-            computedMaskStridedFacts->sourceVectorTypeName ||
-        description.sourceVectorCType !=
-            computedMaskStridedFacts->sourceVectorCType ||
-        description.vectorTypeName !=
-            computedMaskStridedFacts->resultVectorTypeName ||
-        description.vectorCType !=
-            computedMaskStridedFacts->resultVectorCType ||
-        description.maskTypeName != computedMaskStridedFacts->maskTypeName ||
-        description.maskCType != computedMaskStridedFacts->maskCType) {
+    auto requireStringFact =
+        [&](llvm::StringRef field, llvm::StringRef actual,
+            llvm::StringRef expected) -> llvm::Error {
+      if (actual == expected)
+        return llvm::Error::success();
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) + " " + familyName +
-          " computed-mask strided widening dot-reduce mirrors must come from "
-          "the provider canonical route-fact surface");
-    }
+          " widening dot-reduce provider fact '" + field +
+          "' must come from the canonical route-fact surface; expected '" +
+          expected + "' but saw '" + actual + "'");
+    };
+    auto requireIntegerFact =
+        [&](llvm::StringRef field, std::int64_t actual,
+            std::int64_t expected) -> llvm::Error {
+      if (actual == expected)
+        return llvm::Error::success();
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + familyName +
+          " widening dot-reduce provider fact '" + field +
+          "' must come from the canonical route-fact surface; expected " +
+          llvm::Twine(expected) + " but saw " + llvm::Twine(actual));
+    };
+    auto requireMemoryFormFact =
+        [&](RVVSelectedBodyMemoryForm actual,
+            RVVSelectedBodyMemoryForm expected) -> llvm::Error {
+      if (actual == expected)
+        return llvm::Error::success();
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + familyName +
+          " widening dot-reduce provider fact 'memory form' must come from "
+          "the canonical route-fact surface; expected '" +
+          stringifyRVVSelectedBodyMemoryForm(expected) + "' but saw '" +
+          stringifyRVVSelectedBodyMemoryForm(actual) + "'");
+    };
+    if (llvm::Error error =
+            requireMemoryFormFact(description.memoryForm,
+                                  wideningDotFacts->memoryForm))
+      return error;
+#define TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(FIELD, ACTUAL, EXPECTED)         \
+  if (llvm::Error error = requireStringFact((FIELD), (ACTUAL), (EXPECTED)))    \
+    return error
+#define TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(FIELD, ACTUAL, EXPECTED)        \
+  if (llvm::Error error = requireIntegerFact((FIELD), (ACTUAL), (EXPECTED)))   \
+    return error
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "tail policy", description.tailPolicy, wideningDotFacts->tailPolicy);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "mask policy", description.maskPolicy, wideningDotFacts->maskPolicy);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "runtime control plan", description.runtimeControlPlanID,
+        wideningDotFacts->runtimeControlPlanID);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "runtime ABI order", description.runtimeABIOrder,
+        wideningDotFacts->runtimeABIOrder);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "target leaf profile", description.targetLeafProfile,
+        wideningDotFacts->targetLeafProfile);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "provider-supported mirror", description.providerSupportedMirror,
+        wideningDotFacts->providerSupportedMirror);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "required headers", description.requiredHeaderDeclarations,
+        wideningDotFacts->requiredHeaderDeclarations);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "C type mapping", description.cTypeMappingSummary,
+        wideningDotFacts->cTypeMappingSummary);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "route operand binding plan", description.routeOperandBindingPlanID,
+        wideningDotFacts->routeOperandBindingPlanID);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "route operand binding summary",
+        description.routeOperandBindingSummary,
+        wideningDotFacts->routeOperandBindingSummary);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "contraction route-family plan",
+        description.contractionRouteFamilyPlanID,
+        wideningDotFacts->contractionRouteFamilyPlanID);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "typed compute op", description.typedComputeOpName,
+        wideningDotFacts->typedComputeOpName);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "compare predicate", description.comparePredicateKind,
+        wideningDotFacts->comparePredicateKind);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("mask role", description.maskRole,
+                                          wideningDotFacts->maskRole);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("mask source", description.maskSource,
+                                          wideningDotFacts->maskSource);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "mask memory form", description.maskMemoryForm,
+        wideningDotFacts->maskMemoryForm);
+    TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+        "source SEW", description.sourceSEW, wideningDotFacts->sourceSEW);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "source LMUL", description.sourceLMUL, wideningDotFacts->sourceLMUL);
+    TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+        "result SEW", description.sew, wideningDotFacts->resultSEW);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("result LMUL", description.lmul,
+                                          wideningDotFacts->resultLMUL);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "source memory form", description.sourceMemoryForm,
+        wideningDotFacts->sourceMemoryForm);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "destination memory form", description.destinationMemoryForm,
+        wideningDotFacts->destinationMemoryForm);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "strided memory layout", description.stridedMemoryLayout,
+        wideningDotFacts->stridedMemoryLayout);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "lhs stride source", description.lhsStrideSource,
+        wideningDotFacts->lhsStrideSource);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "rhs stride source", description.rhsStrideSource,
+        wideningDotFacts->rhsStrideSource);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "widening dot accumulator layout",
+        description.wideningDotProductAccumulatorLayout,
+        wideningDotFacts->wideningDotProductAccumulatorLayout);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "widening dot result layout",
+        description.wideningDotProductResultLayout,
+        wideningDotFacts->wideningDotProductResultLayout);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "widening dot relation", description.wideningDotProductRelation,
+        wideningDotFacts->wideningDotProductRelation);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "widening product intrinsic", description.wideningProductIntrinsic,
+        wideningDotFacts->wideningProductIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "masked widening product intrinsic",
+        description.maskedWideningProductIntrinsic,
+        wideningDotFacts->maskedWideningProductIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "scalar seed splat intrinsic", description.scalarSeedSplatIntrinsic,
+        wideningDotFacts->scalarSeedSplatIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "strided load intrinsic", description.stridedLoadIntrinsic,
+        wideningDotFacts->stridedLoadIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "source vector load intrinsic", description.sourceVectorLoadIntrinsic,
+        wideningDotFacts->sourceVectorLoadIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "result/compare vector load intrinsic",
+        description.vectorLoadIntrinsic,
+        wideningDotFacts->compareVectorLoadIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "reduction intrinsic", description.intrinsic,
+        wideningDotFacts->reductionIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "store intrinsic", description.storeIntrinsic,
+        wideningDotFacts->storeIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "setvl intrinsic", description.setVLIntrinsic,
+        wideningDotFacts->setVLIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "compare intrinsic", description.compareIntrinsic,
+        wideningDotFacts->compareIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "masked merge intrinsic", description.maskedMergeIntrinsic,
+        wideningDotFacts->maskedMergeIntrinsic);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "reduction store VL", description.reductionStoreVL,
+        wideningDotFacts->reductionStoreVL);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "inactive-lane zeroing",
+        description.inactiveLaneZeroingRequirement,
+        wideningDotFacts->inactiveLaneZeroingRequirement);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("VL C type", description.vlCType,
+                                          wideningDotFacts->vlCType);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "source vector type", description.sourceVectorTypeName,
+        wideningDotFacts->sourceVectorTypeName);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "source vector C type", description.sourceVectorCType,
+        wideningDotFacts->sourceVectorCType);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "result vector type", description.vectorTypeName,
+        wideningDotFacts->resultVectorTypeName);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+        "result vector C type", description.vectorCType,
+        wideningDotFacts->resultVectorCType);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("mask type", description.maskTypeName,
+                                          wideningDotFacts->maskTypeName);
+    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("mask C type", description.maskCType,
+                                          wideningDotFacts->maskCType);
+#undef TCRV_REQUIRE_WIDENING_DOT_STRING_FACT
+#undef TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT
+    if (!support::runtimeABIParametersEqual(
+            description.runtimeABIParameters,
+            wideningDotFacts->runtimeABIParameters))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + familyName +
+          " widening dot-reduce runtime ABI parameters must come from the "
+          "provider canonical route-fact surface");
   }
 
   if (plan.usesWideningMAcc) {
@@ -1010,12 +1118,9 @@ getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   return facts;
 }
 
-std::optional<RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
-getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
-    RVVSelectedBodyOperationKind operation) {
-  if (operation !=
-      RVVSelectedBodyOperationKind::
-          ComputedMaskStridedInputWideningDotReduceAdd)
+std::optional<RVVWideningDotReduceRouteFacts>
+getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
+  if (!isContractionDotReductionOperation(operation))
     return std::nullopt;
 
   constexpr std::int64_t kSourceSEW = 16;
@@ -1025,12 +1130,32 @@ getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
   const llvm::StringRef relation = getContractionWideningDotProductRelation(
       kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL);
 
-  RVVComputedMaskStridedInputWideningDotReduceRouteFacts facts;
+  const bool isComputedMask = isRVVSelectedBodyContractionComputedMask(operation);
+  const bool isStrided = isRVVSelectedBodyContractionStridedInputs(operation);
+
+  RVVWideningDotReduceRouteFacts facts;
   facts.operation = operation;
-  facts.memoryForm =
-      RVVSelectedBodyMemoryForm::ComputedMaskStridedInputWideningDotReduce;
-  facts.runtimeABIOrder =
-      kRVVComputedMaskStridedInputWideningDotProductRuntimeABIOrder;
+  if (isComputedMask && isStrided) {
+    facts.memoryForm =
+        RVVSelectedBodyMemoryForm::ComputedMaskStridedInputWideningDotReduce;
+  } else if (isComputedMask) {
+    facts.memoryForm =
+        RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideWideningDotReduce;
+  } else if (isStrided) {
+    facts.memoryForm =
+        RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce;
+  } else {
+    facts.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  }
+  facts.sourceElementTypeName = getContractionIntegerElementTypeName(kSourceSEW);
+  facts.accumulatorElementTypeName =
+      getContractionIntegerElementTypeName(kResultSEW);
+  facts.resultElementTypeName =
+      getContractionIntegerElementTypeName(kResultSEW);
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = getContractionRuntimeABIOrder(operation);
   facts.targetLeafProfile =
       getContractionTargetLeafProfile(kSourceSEW, kSourceLMUL, kResultSEW,
                                       kResultLMUL);
@@ -1039,39 +1164,75 @@ getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
   facts.cTypeMappingSummary =
       getContractionCTypeMappingSummary(kSourceSEW, kSourceLMUL, kResultSEW,
                                         kResultLMUL);
-  facts.routeOperandBindingPlanID =
-      kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID;
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+    facts.routeOperandBindingPlanID = kRVVWideningDotReduceOperandBindingPlanID;
+    break;
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+    facts.routeOperandBindingPlanID =
+        kRVVStridedInputWideningDotReduceOperandBindingPlanID;
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+    facts.routeOperandBindingPlanID =
+        kRVVComputedMaskWideningDotReduceOperandBindingPlanID;
+    break;
+  case RVVSelectedBodyOperationKind::
+      ComputedMaskStridedInputWideningDotReduceAdd:
+    facts.routeOperandBindingPlanID =
+        kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID;
+    break;
+  default:
+    return std::nullopt;
+  }
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
-  facts.typedComputeOpName = "tcrv_rvv.masked_widening_dot_reduce";
-  facts.comparePredicateKind = kRVVPreRealizedPredicateKind;
-  facts.maskRole = kRVVMaskedPredicateMaskRole;
-  facts.maskSource = kRVVMaskedCompareMaskSource;
-  facts.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  facts.typedComputeOpName = isComputedMask
+                                  ? "tcrv_rvv.masked_widening_dot_reduce"
+                                  : "tcrv_rvv.widening_dot_reduce";
+  if (isComputedMask) {
+    facts.comparePredicateKind = kRVVPreRealizedPredicateKind;
+    facts.maskRole = kRVVMaskedPredicateMaskRole;
+    facts.maskSource = kRVVMaskedCompareMaskSource;
+    facts.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  }
+  facts.lhsRole = "lhs-input-buffer";
+  facts.rhsRole = "rhs-input-buffer";
+  facts.dotLHSRole = "dot-lhs-input-buffer";
+  facts.dotRHSRole = "dot-rhs-input-buffer";
+  facts.accumulatorRole = kRVVPreRealizedAccumulatorRole;
+  facts.outputRole = "output-buffer";
+  facts.runtimeCountRole = "runtime-element-count";
+  facts.lhsStrideRole = "lhs-input-stride";
+  facts.rhsStrideRole = "rhs-input-stride";
   facts.sourceSEW = kSourceSEW;
   facts.sourceLMUL = kSourceLMUL;
   facts.accumulatorSEW = kResultSEW;
   facts.accumulatorLMUL = kResultLMUL;
   facts.resultSEW = kResultSEW;
   facts.resultLMUL = kResultLMUL;
-  facts.sourceMemoryForm = kRVVStridedInputDotSourceMemoryForm;
-  facts.destinationMemoryForm = kRVVDestinationMemoryForm;
-  facts.stridedMemoryLayout =
-      kRVVComputedMaskStridedInputWideningDotMemoryLayout;
-  facts.lhsStrideSource = kRVVLHSStrideSource;
-  facts.rhsStrideSource = kRVVRHSStrideSource;
+  if (isStrided) {
+    facts.sourceMemoryForm = kRVVStridedInputDotSourceMemoryForm;
+    facts.destinationMemoryForm = kRVVDestinationMemoryForm;
+    facts.stridedMemoryLayout =
+        isComputedMask ? kRVVComputedMaskStridedInputWideningDotMemoryLayout
+                       : kRVVStridedInputWideningDotMemoryLayout;
+    facts.lhsStrideSource = kRVVLHSStrideSource;
+    facts.rhsStrideSource = kRVVRHSStrideSource;
+  }
   facts.wideningDotProductAccumulatorLayout =
       kRVVWideningDotProductAccumulatorLayout;
   facts.wideningDotProductResultLayout = kRVVWideningDotProductResultLayout;
   facts.wideningDotProductRelation = relation;
   facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
       kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
-  facts.maskedWideningProductIntrinsic =
-      getContractionMaskedWideningProductIntrinsic(
-          kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
+  if (isComputedMask)
+    facts.maskedWideningProductIntrinsic =
+        getContractionMaskedWideningProductIntrinsic(
+            kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
   facts.scalarSeedSplatIntrinsic =
       getContractionScalarSeedSplatIntrinsic(kResultSEW, kResultLMUL);
-  facts.stridedLoadIntrinsic =
-      getContractionStridedLoadIntrinsic(kSourceSEW, kSourceLMUL);
+  if (isStrided)
+    facts.stridedLoadIntrinsic =
+        getContractionStridedLoadIntrinsic(kSourceSEW, kSourceLMUL);
   facts.sourceVectorLoadIntrinsic =
       getContractionVectorLoadIntrinsic(kSourceSEW, kSourceLMUL);
   facts.compareVectorLoadIntrinsic =
@@ -1080,13 +1241,16 @@ getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
       getContractionReductionIntrinsic(kResultSEW, kResultLMUL);
   facts.storeIntrinsic = getContractionStoreIntrinsic(kResultSEW, kResultLMUL);
   facts.setVLIntrinsic = getContractionSetVLIntrinsic(kResultSEW, kResultLMUL);
-  facts.compareIntrinsic =
-      getContractionSignedLessThanCompareIntrinsic(kResultSEW, kResultLMUL);
-  facts.maskedMergeIntrinsic =
-      getContractionSelectIntrinsic(kResultSEW, kResultLMUL);
+  if (isComputedMask) {
+    facts.compareIntrinsic =
+        getContractionSignedLessThanCompareIntrinsic(kResultSEW, kResultLMUL);
+    facts.maskedMergeIntrinsic =
+        getContractionSelectIntrinsic(kResultSEW, kResultLMUL);
+  }
   facts.reductionStoreVL = kRVVWideningDotProductStoreVL;
-  facts.inactiveLaneZeroingRequirement =
-      kRVVContractionMaskedInactiveLaneZeroingRequirement;
+  if (isComputedMask)
+    facts.inactiveLaneZeroingRequirement =
+        kRVVContractionMaskedInactiveLaneZeroingRequirement;
   facts.vlCType = "size_t";
   facts.sourceVectorTypeName =
       getContractionVectorTypeName(kSourceSEW, kSourceLMUL);
@@ -1096,24 +1260,108 @@ getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
       getContractionVectorTypeName(kResultSEW, kResultLMUL);
   facts.resultVectorCType =
       getContractionSignedVectorCType(kResultSEW, kResultLMUL);
-  facts.maskTypeName = internContractionDerivedText(
-      (llvm::Twine("!tcrv_rvv.mask<") +
-       getContractionIntegerElementTypeName(kResultSEW) + ", \"" +
-       kResultLMUL + "\">")
-          .str());
-  facts.maskCType = getContractionMaskCType(kResultSEW, kResultLMUL);
-  facts.routeOperandBindingSummary =
-      (llvm::Twine(facts.routeOperandBindingPlanID) +
-       ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
-       "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
-       "dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16|hdr;"
-       "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16|hdr;"
-       "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
-       "out=output-buffer:out:abi|store|i32|hdr;"
-       "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
-       "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
-       "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr")
-          .str();
+  if (isComputedMask) {
+    facts.maskTypeName = internContractionDerivedText(
+        (llvm::Twine("!tcrv_rvv.mask<") +
+         getContractionIntegerElementTypeName(kResultSEW) + ", \"" +
+         kResultLMUL + "\">")
+            .str());
+    facts.maskCType = getContractionMaskCType(kResultSEW, kResultLMUL);
+  }
+
+  auto addRuntimeABI = [&](llvm::StringRef cName, llvm::StringRef cType,
+                           support::RuntimeABIParameterRole role) {
+    facts.runtimeABIParameters.push_back(support::RuntimeABIParameter(
+        cName, cType, role,
+        support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  };
+  if (isComputedMask) {
+    facts.logicalOperands.push_back("cmp_lhs");
+    facts.logicalOperands.push_back("cmp_rhs");
+    facts.logicalOperands.push_back("dot_lhs");
+    facts.logicalOperands.push_back("dot_rhs");
+    facts.logicalOperands.push_back("acc");
+    facts.logicalOperands.push_back("out");
+    facts.logicalOperands.push_back("n");
+    addRuntimeABI("cmp_lhs", kRVVContractionI32PointerCType,
+                  support::RuntimeABIParameterRole::LHSInputBuffer);
+    addRuntimeABI("cmp_rhs", kRVVContractionI32PointerCType,
+                  support::RuntimeABIParameterRole::RHSInputBuffer);
+    addRuntimeABI("lhs", kRVVContractionI16PointerCType,
+                  support::RuntimeABIParameterRole::DotLHSInputBuffer);
+    addRuntimeABI("rhs", kRVVContractionI16PointerCType,
+                  support::RuntimeABIParameterRole::DotRHSInputBuffer);
+  } else {
+    facts.logicalOperands.push_back("lhs");
+    facts.logicalOperands.push_back("rhs");
+    facts.logicalOperands.push_back("acc");
+    facts.logicalOperands.push_back("out");
+    facts.logicalOperands.push_back("n");
+    addRuntimeABI("lhs", kRVVContractionI16PointerCType,
+                  support::RuntimeABIParameterRole::LHSInputBuffer);
+    addRuntimeABI("rhs", kRVVContractionI16PointerCType,
+                  support::RuntimeABIParameterRole::RHSInputBuffer);
+  }
+  addRuntimeABI("acc", kRVVContractionI32PointerCType,
+                support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  addRuntimeABI("out", kRVVContractionOutputI32PointerCType,
+                support::RuntimeABIParameterRole::OutputBuffer);
+  addRuntimeABI("n", "size_t",
+                support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (isStrided) {
+    facts.logicalOperands.push_back("lhs_stride");
+    facts.logicalOperands.push_back("rhs_stride");
+    addRuntimeABI("lhs_stride", "size_t",
+                  support::RuntimeABIParameterRole::LHSInputStride);
+    addRuntimeABI("rhs_stride", "size_t",
+                  support::RuntimeABIParameterRole::RHSInputStride);
+  }
+
+  if (isComputedMask && isStrided) {
+    facts.routeOperandBindingSummary =
+        (llvm::Twine(facts.routeOperandBindingPlanID) +
+         ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
+         "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+         "dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16|hdr;"
+         "dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16|hdr;"
+         "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+         "out=output-buffer:out:abi|store|i32|hdr;"
+         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+         "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
+         "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr")
+            .str();
+  } else if (isComputedMask) {
+    facts.routeOperandBindingSummary =
+        (llvm::Twine(facts.routeOperandBindingPlanID) +
+         ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
+         "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;"
+         "dot_lhs=dot-lhs-input-buffer:lhs:abi|ld|mlhs|i16|hdr;"
+         "dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;"
+         "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+         "out=output-buffer:out:abi|store|i32|hdr;"
+         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+            .str();
+  } else if (isStrided) {
+    facts.routeOperandBindingSummary =
+        (llvm::Twine(facts.routeOperandBindingPlanID) +
+         ";lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;"
+         "rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;"
+         "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+         "out=output-buffer:out:abi|store|i32|hdr;"
+         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr;"
+         "lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;"
+         "rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr")
+            .str();
+  } else {
+    facts.routeOperandBindingSummary =
+        (llvm::Twine(facts.routeOperandBindingPlanID) +
+         ";lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;"
+         "rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;"
+         "acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;"
+         "out=output-buffer:out:abi|store|i32|hdr;"
+         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+            .str();
+  }
   return facts;
 }
 

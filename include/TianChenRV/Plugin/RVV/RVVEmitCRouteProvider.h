@@ -774,9 +774,15 @@ struct RVVWideningMAccRouteFacts {
 std::optional<RVVWideningMAccRouteFacts>
 getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation);
 
-struct RVVComputedMaskStridedInputWideningDotReduceRouteFacts {
+struct RVVWideningDotReduceRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef accumulatorElementTypeName;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -789,6 +795,15 @@ struct RVVComputedMaskStridedInputWideningDotReduceRouteFacts {
   llvm::StringRef maskRole;
   llvm::StringRef maskSource;
   llvm::StringRef maskMemoryForm;
+  llvm::StringRef lhsRole;
+  llvm::StringRef rhsRole;
+  llvm::StringRef dotLHSRole;
+  llvm::StringRef dotRHSRole;
+  llvm::StringRef accumulatorRole;
+  llvm::StringRef outputRole;
+  llvm::StringRef runtimeCountRole;
+  llvm::StringRef lhsStrideRole;
+  llvm::StringRef rhsStrideRole;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
   std::int64_t accumulatorSEW = 0;
@@ -824,11 +839,13 @@ struct RVVComputedMaskStridedInputWideningDotReduceRouteFacts {
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   std::string routeOperandBindingSummary;
+  llvm::SmallVector<std::string, 9> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
+      runtimeABIParameters;
 };
 
-std::optional<RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
-getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
-    RVVSelectedBodyOperationKind operation);
+std::optional<RVVWideningDotReduceRouteFacts>
+getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
 
 llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds();
 

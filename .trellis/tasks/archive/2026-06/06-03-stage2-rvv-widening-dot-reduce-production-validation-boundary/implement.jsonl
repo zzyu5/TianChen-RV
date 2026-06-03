@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order invariants for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body realization, math operand binding, and direct contraction provider owner rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type summary, and route-family fact surface contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-widening-macc-production-validation-boundary/prd.md", "reason": "Adjacent provider-owned production validation pattern for widening contraction routes."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-widening-dot-reduce-artifact-abi/prd.md", "reason": "Existing plain widening_dot_reduce_add ABI, generated-bundle, direct fail-closed, and ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Existing strided_input_widening_dot_reduce_add ABI, stride-role, generated-bundle, and ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-widening-dot-reduce-artifact-abi/prd.md", "reason": "Existing computed_masked_widening_dot_reduce_add mask and runtime evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-masked-strided-input-widening-dot-reduce-artifact-abi/prd.md", "reason": "Existing combined computed-mask plus strided-input widening dot-reduce ABI boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider-owned widening dot-reduce route fact surface declarations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Derive and validate widening dot-reduce provider facts from typed body/config/runtime facts before route construction."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact validation must consume provider-owned widening dot-reduce facts and reject stale mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused canonical fact and fail-closed mutation coverage for provider-to-target validation."}

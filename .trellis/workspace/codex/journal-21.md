@@ -940,3 +940,51 @@ Added provider-owned computed-mask MAcc route facts and parameterized runtime-sc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 405: Stage2 RVV widening dot-reduce production validation boundary
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV widening dot-reduce production validation boundary
+**Branch**: `main`
+
+### Summary
+
+Added a unified provider-owned widening dot-reduce route facts surface for plain,
+strided-input, computed-mask, and computed-mask-strided routes; rewired
+provider-side verification and target artifact validation to consume those facts;
+kept common EmitC/export neutral; repaired a stale explicit strided generated
+bundle harness assertion; and prepared the task for archive.
+
+### Main Changes
+
+- Replaced the dedicated computed-mask-strided dot-reduce facts accessor with
+  `RVVWideningDotReduceRouteFacts`.
+- Rewired dot-reduce target payload, ABI, candidate mirror, header/type,
+  profile, stride, reduction, and mask validation to use provider-owned facts.
+- Extended target artifact tests to compare all four dot-reduce route variants
+  against the canonical provider fact surface.
+- Updated `emitc-route.md` with the durable widening dot-reduce provider facts
+  contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | `rvv: validate widening dot-reduce route facts` |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter widening-dot-reduce-add` from `build/test` (20 passed, 457 excluded)
+- [OK] `rtk git diff --check`
+- [OK] bounded old-authority scan over touched files and diff-only changed lines
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit this completed round.

@@ -322,6 +322,54 @@ surface, but provider and target validators that have a rebuilt route
 description must call the parameterized accessor with the actual selected
 `sew` and `lmul`.
 
+For active widening dot-reduce contraction routes, the provider-owned surface is
+the shared authority for plain, strided-input, computed-mask, and
+computed-mask-strided variants:
+
+```c++
+struct RVVWideningDotReduceRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef accumulatorElementTypeName;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  llvm::StringRef typedComputeOpName;
+  std::int64_t sourceSEW;
+  llvm::StringRef sourceLMUL;
+  std::int64_t accumulatorSEW;
+  llvm::StringRef accumulatorLMUL;
+  std::int64_t resultSEW;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef lhsStrideSource;
+  llvm::StringRef rhsStrideSource;
+  llvm::StringRef wideningDotProductRelation;
+  llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef maskedWideningProductIntrinsic;
+  llvm::StringRef scalarSeedSplatIntrinsic;
+  llvm::StringRef reductionIntrinsic;
+  llvm::StringRef reductionStoreVL;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneZeroingRequirement;
+  llvm::SmallVector<RuntimeABIParameter, 9> runtimeABIParameters;
+};
+
+std::optional<RVVWideningDotReduceRouteFacts>
+getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
+```
+
 ### 3. Contracts
 
 - The accessor is implemented in the RVV plugin/provider layer and is derived
@@ -346,6 +394,15 @@ description must call the parameterized accessor with the actual selected
 - Runtime-scalar computed-mask MAcc validation must reject an unsupported
   selected LMUL by missing provider facts rather than accepting the route via
   default LMUL m1 facts, route ids, candidate metadata, or intrinsic strings.
+- Widening dot-reduce facts include narrow source type, widened
+  accumulator/result type, source/result SEW-LMUL, runtime ABI order and
+  parameters, route operand binding plan/summary, seed/reduction/store facts,
+  unit-stride versus strided-input memory facts, header/type summary, target
+  leaf profile, and `provider_supported_mirror`.
+- Computed-mask widening dot-reduce variants add mask producer/source/form,
+  predicate kind, inactive-lane zeroing, mask type/C type, masked product, and
+  merge facts. Non-computed-mask variants must carry empty mask facts and fail
+  closed when stale mask facts are present.
 
 ### 4. Validation & Error Matrix
 
@@ -366,6 +423,12 @@ description must call the parameterized accessor with the actual selected
   layout, route operand order, contraction family plan, header/type facts, or
   provider mirror -> fail before target artifact acceptance with diagnostics
   that name the missing `i16mf2` source and `i32m1` accumulator/result facts.
+- For widening dot-reduce routes, stale widening MAcc facts, stale strided facts
+  on unit-stride routes, stale unit-stride facts on strided routes, missing
+  reduction/result facts, stale source/result type mapping, stale mask facts,
+  stale route operand binding, stale header/type mapping, stale target profile,
+  stale provider mirror, or stale candidate metadata mirrors -> fail before
+  target artifact acceptance.
 
 ### 5. Good/Base/Bad Cases
 

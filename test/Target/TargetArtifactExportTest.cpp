@@ -8949,61 +8949,111 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskStridedWideningDotDescription))
     return false;
 
-  std::optional<tianchenrv::plugin::rvv::
-                    RVVComputedMaskStridedInputWideningDotReduceRouteFacts>
-      computedMaskStridedWideningDotFacts =
-          tianchenrv::plugin::rvv::
-              getRVVComputedMaskStridedInputWideningDotReduceRouteFacts(
-                  OperationKind::ComputedMaskStridedInputWideningDotReduceAdd);
-  if (!computedMaskStridedWideningDotFacts) {
-    llvm::errs() << "computed-mask strided widening-dot fixture did not have "
-                    "provider canonical route facts\n";
+  auto expectWideningDotCanonicalFacts =
+      [&](OperationKind operation, const RVVRouteDescription &description,
+          llvm::StringRef fixtureContext) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVWideningDotReduceRouteFacts>
+        routeFacts =
+            tianchenrv::plugin::rvv::getRVVWideningDotReduceRouteFacts(
+                operation);
+    if (!routeFacts) {
+      llvm::errs() << fixtureContext
+                   << " fixture did not have provider canonical route facts\n";
+      return false;
+    }
+    if (description.memoryForm != routeFacts->memoryForm ||
+        description.tailPolicy != routeFacts->tailPolicy ||
+        description.maskPolicy != routeFacts->maskPolicy ||
+        description.runtimeControlPlanID != routeFacts->runtimeControlPlanID ||
+        description.runtimeABIOrder != routeFacts->runtimeABIOrder ||
+        description.routeOperandBindingPlanID !=
+            routeFacts->routeOperandBindingPlanID ||
+        description.routeOperandBindingSummary !=
+            routeFacts->routeOperandBindingSummary ||
+        description.targetLeafProfile != routeFacts->targetLeafProfile ||
+        description.providerSupportedMirror !=
+            routeFacts->providerSupportedMirror ||
+        description.requiredHeaderDeclarations !=
+            routeFacts->requiredHeaderDeclarations ||
+        description.cTypeMappingSummary != routeFacts->cTypeMappingSummary ||
+        description.contractionRouteFamilyPlanID !=
+            routeFacts->contractionRouteFamilyPlanID ||
+        description.typedComputeOpName != routeFacts->typedComputeOpName ||
+        description.comparePredicateKind != routeFacts->comparePredicateKind ||
+        description.maskRole != routeFacts->maskRole ||
+        description.maskSource != routeFacts->maskSource ||
+        description.maskMemoryForm != routeFacts->maskMemoryForm ||
+        description.sourceSEW != routeFacts->sourceSEW ||
+        description.sourceLMUL != routeFacts->sourceLMUL ||
+        description.sew != routeFacts->resultSEW ||
+        description.lmul != routeFacts->resultLMUL ||
+        description.sourceMemoryForm != routeFacts->sourceMemoryForm ||
+        description.destinationMemoryForm != routeFacts->destinationMemoryForm ||
+        description.stridedMemoryLayout != routeFacts->stridedMemoryLayout ||
+        description.lhsStrideSource != routeFacts->lhsStrideSource ||
+        description.rhsStrideSource != routeFacts->rhsStrideSource ||
+        description.wideningDotProductAccumulatorLayout !=
+            routeFacts->wideningDotProductAccumulatorLayout ||
+        description.wideningDotProductResultLayout !=
+            routeFacts->wideningDotProductResultLayout ||
+        description.wideningDotProductRelation !=
+            routeFacts->wideningDotProductRelation ||
+        description.wideningProductIntrinsic !=
+            routeFacts->wideningProductIntrinsic ||
+        description.maskedWideningProductIntrinsic !=
+            routeFacts->maskedWideningProductIntrinsic ||
+        description.scalarSeedSplatIntrinsic !=
+            routeFacts->scalarSeedSplatIntrinsic ||
+        description.stridedLoadIntrinsic != routeFacts->stridedLoadIntrinsic ||
+        description.sourceVectorLoadIntrinsic !=
+            routeFacts->sourceVectorLoadIntrinsic ||
+        description.vectorLoadIntrinsic !=
+            routeFacts->compareVectorLoadIntrinsic ||
+        description.intrinsic != routeFacts->reductionIntrinsic ||
+        description.storeIntrinsic != routeFacts->storeIntrinsic ||
+        description.setVLIntrinsic != routeFacts->setVLIntrinsic ||
+        description.compareIntrinsic != routeFacts->compareIntrinsic ||
+        description.maskedMergeIntrinsic != routeFacts->maskedMergeIntrinsic ||
+        description.reductionStoreVL != routeFacts->reductionStoreVL ||
+        description.inactiveLaneZeroingRequirement !=
+            routeFacts->inactiveLaneZeroingRequirement ||
+        description.vlCType != routeFacts->vlCType ||
+        description.sourceVectorTypeName !=
+            routeFacts->sourceVectorTypeName ||
+        description.sourceVectorCType != routeFacts->sourceVectorCType ||
+        description.vectorTypeName != routeFacts->resultVectorTypeName ||
+        description.vectorCType != routeFacts->resultVectorCType ||
+        description.maskTypeName != routeFacts->maskTypeName ||
+        description.maskCType != routeFacts->maskCType ||
+        !tianchenrv::support::runtimeABIParametersEqual(
+            description.runtimeABIParameters,
+            routeFacts->runtimeABIParameters)) {
+      llvm::errs() << fixtureContext
+                   << " description did not mirror provider canonical route "
+                      "facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectWideningDotCanonicalFacts(OperationKind::WideningDotReduceAdd,
+                                       wideningDotDescription,
+                                       "plain widening dot-reduce"))
     return false;
-  }
-  if (computedMaskStridedWideningDotDescription.runtimeABIOrder !=
-          computedMaskStridedWideningDotFacts->runtimeABIOrder ||
-      computedMaskStridedWideningDotDescription.routeOperandBindingPlanID !=
-          computedMaskStridedWideningDotFacts->routeOperandBindingPlanID ||
-      computedMaskStridedWideningDotDescription.routeOperandBindingSummary !=
-          computedMaskStridedWideningDotFacts->routeOperandBindingSummary ||
-      computedMaskStridedWideningDotDescription.targetLeafProfile !=
-          computedMaskStridedWideningDotFacts->targetLeafProfile ||
-      computedMaskStridedWideningDotDescription.providerSupportedMirror !=
-          computedMaskStridedWideningDotFacts->providerSupportedMirror ||
-      computedMaskStridedWideningDotDescription.requiredHeaderDeclarations !=
-          computedMaskStridedWideningDotFacts->requiredHeaderDeclarations ||
-      computedMaskStridedWideningDotDescription.cTypeMappingSummary !=
-          computedMaskStridedWideningDotFacts->cTypeMappingSummary ||
-      computedMaskStridedWideningDotDescription.contractionRouteFamilyPlanID !=
-          computedMaskStridedWideningDotFacts->contractionRouteFamilyPlanID ||
-      computedMaskStridedWideningDotDescription.typedComputeOpName !=
-          computedMaskStridedWideningDotFacts->typedComputeOpName ||
-      computedMaskStridedWideningDotDescription.maskSource !=
-          computedMaskStridedWideningDotFacts->maskSource ||
-      computedMaskStridedWideningDotDescription.stridedMemoryLayout !=
-          computedMaskStridedWideningDotFacts->stridedMemoryLayout ||
-      computedMaskStridedWideningDotDescription.lhsStrideSource !=
-          computedMaskStridedWideningDotFacts->lhsStrideSource ||
-      computedMaskStridedWideningDotDescription.rhsStrideSource !=
-          computedMaskStridedWideningDotFacts->rhsStrideSource ||
-      computedMaskStridedWideningDotDescription.sourceSEW !=
-          computedMaskStridedWideningDotFacts->sourceSEW ||
-      computedMaskStridedWideningDotDescription.sourceLMUL !=
-          computedMaskStridedWideningDotFacts->sourceLMUL ||
-      computedMaskStridedWideningDotDescription.sew !=
-          computedMaskStridedWideningDotFacts->resultSEW ||
-      computedMaskStridedWideningDotDescription.lmul !=
-          computedMaskStridedWideningDotFacts->resultLMUL ||
-      computedMaskStridedWideningDotDescription.wideningDotProductRelation !=
-          computedMaskStridedWideningDotFacts->wideningDotProductRelation ||
-      computedMaskStridedWideningDotDescription.stridedLoadIntrinsic !=
-          computedMaskStridedWideningDotFacts->stridedLoadIntrinsic ||
-      computedMaskStridedWideningDotDescription.maskedWideningProductIntrinsic !=
-          computedMaskStridedWideningDotFacts->maskedWideningProductIntrinsic) {
-    llvm::errs() << "computed-mask strided widening-dot description did not "
-                    "mirror provider canonical route facts\n";
+  if (!expectWideningDotCanonicalFacts(
+          OperationKind::StridedInputWideningDotReduceAdd,
+          stridedWideningDotDescription,
+          "strided-input widening dot-reduce"))
     return false;
-  }
+  if (!expectWideningDotCanonicalFacts(
+          OperationKind::ComputedMaskWideningDotReduceAdd,
+          computedMaskWideningDotDescription,
+          "computed-mask widening dot-reduce"))
+    return false;
+  if (!expectWideningDotCanonicalFacts(
+          OperationKind::ComputedMaskStridedInputWideningDotReduceAdd,
+          computedMaskStridedWideningDotDescription,
+          "computed-mask strided-input widening dot-reduce"))
+    return false;
 
   auto expectWideningDotProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
