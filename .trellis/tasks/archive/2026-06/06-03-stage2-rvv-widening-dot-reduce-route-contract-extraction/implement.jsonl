@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 boundaries, and no descriptor/source-front-door authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, direct contraction provider/statement owner boundary, and math operand-binding facts requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract, widening dot-reduce provider fact surface, and MAcc validation contract precedent."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added provider-owned widening dot-reduce route validation contract declarations and accessor."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Built widening dot-reduce validation contracts from provider facts plus rebuilt route descriptions."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Rewired target widening dot-reduce route validation to consume provider contracts for route payload, ABI, header/type, mirrors, and statement plan."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added direct provider contract assertions and updated fail-closed widening dot-reduce diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Recorded the executable widening dot-reduce route validation contract for future work."}

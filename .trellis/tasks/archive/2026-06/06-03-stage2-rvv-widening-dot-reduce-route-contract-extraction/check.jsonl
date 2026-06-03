@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority and evidence boundaries for the final diff."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership and direct contraction/widening dot-reduce boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route validation contract and target-consumer requirements."}
+{"file": ".trellis/tasks/06-03-stage2-rvv-widening-dot-reduce-route-contract-extraction/prd.md", "reason": "Checked implementation against task acceptance criteria and recorded completion evidence."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Built and ran target artifact export test after provider/target contract rewiring."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Built and ran RVV extension plugin smoke test after provider API changes."}
+{"file": "build/test", "reason": "Ran focused lit filter widening-dot-reduce-add; 20 tests passed."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp test/Target/TargetArtifactExportTest.cpp", "reason": "Ran diff-only old-authority scan over touched production/test changed lines."}
+{"file": "git diff --check", "reason": "Whitespace and patch-format check passed."}

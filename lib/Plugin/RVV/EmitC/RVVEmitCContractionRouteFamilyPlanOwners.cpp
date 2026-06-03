@@ -1365,6 +1365,182 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   return facts;
 }
 
+static void appendRVVWideningDotValidationHeaders(
+    RVVWideningDotReduceRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRVVWideningDotValidationTypeMapping(
+    RVVWideningDotReduceRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void populateRVVWideningDotDynamicDescriptionPayload(
+    RVVWideningDotReduceRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  contract.emitCFullChunkVLName = description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName = description.emitCLoopInductionName.str();
+  contract.resultName = description.resultName.str();
+  contract.maskName = description.maskName.str();
+}
+
+static RVVWideningDotReduceRouteValidationKind
+getRVVWideningDotValidationKind(RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+    return RVVWideningDotReduceRouteValidationKind::Plain;
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+    return RVVWideningDotReduceRouteValidationKind::StridedInput;
+  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+    return RVVWideningDotReduceRouteValidationKind::ComputedMask;
+  case RVVSelectedBodyOperationKind::
+      ComputedMaskStridedInputWideningDotReduceAdd:
+    return RVVWideningDotReduceRouteValidationKind::ComputedMaskStridedInput;
+  default:
+    llvm_unreachable("unexpected non widening dot-reduce operation");
+  }
+}
+
+static llvm::StringRef getRVVWideningDotValidationConsumerLabel(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+    return "widening dot-reduction target artifact consumer";
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+    return "strided-input widening dot-reduction target artifact consumer";
+  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+    return "computed-mask widening dot-reduction target artifact consumer";
+  case RVVSelectedBodyOperationKind::
+      ComputedMaskStridedInputWideningDotReduceAdd:
+    return "computed-mask strided-input widening dot-reduction target artifact "
+           "consumer";
+  default:
+    return "widening dot-reduction target artifact consumer";
+  }
+}
+
+static void populateRVVWideningDotValidationContract(
+    RVVWideningDotReduceRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVWideningDotReduceRouteFacts &facts) {
+  const bool isComputedMask = isRVVSelectedBodyContractionComputedMask(
+      facts.operation);
+  contract.kind = getRVVWideningDotValidationKind(facts.operation);
+  contract.consumerLabel =
+      getRVVWideningDotValidationConsumerLabel(facts.operation);
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  contract.memoryForm = facts.memoryForm;
+  contract.sourceSEW = facts.sourceSEW;
+  contract.sourceLMUL = facts.sourceLMUL.str();
+  contract.accumulatorSEW = facts.accumulatorSEW;
+  contract.accumulatorLMUL = facts.accumulatorLMUL.str();
+  contract.resultSEW = facts.resultSEW;
+  contract.resultLMUL = facts.resultLMUL.str();
+  contract.tailPolicy = facts.tailPolicy.str();
+  contract.maskPolicy = facts.maskPolicy.str();
+  contract.runtimeControlPlanID = facts.runtimeControlPlanID.str();
+  contract.runtimeABIOrder = facts.runtimeABIOrder.str();
+  contract.targetLeafProfile = facts.targetLeafProfile.str();
+  contract.providerSupportedMirror = facts.providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations = facts.requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = facts.cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      facts.routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = facts.routeOperandBindingSummary;
+  contract.contractionRouteFamilyPlanID =
+      facts.contractionRouteFamilyPlanID.str();
+  contract.typedComputeOpName = facts.typedComputeOpName.str();
+
+  contract.comparePredicateKind = facts.comparePredicateKind.str();
+  contract.maskRole = facts.maskRole.str();
+  contract.maskSource = facts.maskSource.str();
+  contract.maskMemoryForm = facts.maskMemoryForm.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.stridedMemoryLayout = facts.stridedMemoryLayout.str();
+  contract.lhsStrideSource = facts.lhsStrideSource.str();
+  contract.rhsStrideSource = facts.rhsStrideSource.str();
+  contract.wideningDotProductAccumulatorLayout =
+      facts.wideningDotProductAccumulatorLayout.str();
+  contract.wideningDotProductResultLayout =
+      facts.wideningDotProductResultLayout.str();
+  contract.wideningDotProductRelation =
+      facts.wideningDotProductRelation.str();
+  contract.wideningProductIntrinsic = facts.wideningProductIntrinsic.str();
+  contract.maskedWideningProductIntrinsic =
+      facts.maskedWideningProductIntrinsic.str();
+  contract.scalarSeedSplatIntrinsic =
+      facts.scalarSeedSplatIntrinsic.str();
+  contract.stridedLoadIntrinsic = facts.stridedLoadIntrinsic.str();
+  contract.sourceVectorLoadIntrinsic =
+      facts.sourceVectorLoadIntrinsic.str();
+  contract.compareVectorLoadIntrinsic =
+      facts.compareVectorLoadIntrinsic.str();
+  contract.vectorLoadIntrinsic = facts.compareVectorLoadIntrinsic.str();
+  contract.reductionIntrinsic = facts.reductionIntrinsic.str();
+  contract.intrinsic = facts.reductionIntrinsic.str();
+  contract.storeIntrinsic = facts.storeIntrinsic.str();
+  contract.setVLIntrinsic = facts.setVLIntrinsic.str();
+  contract.compareIntrinsic = facts.compareIntrinsic.str();
+  contract.maskedMergeIntrinsic = facts.maskedMergeIntrinsic.str();
+  contract.reductionStoreVL = facts.reductionStoreVL.str();
+  contract.inactiveLaneZeroingRequirement =
+      facts.inactiveLaneZeroingRequirement.str();
+
+  contract.vlCType = facts.vlCType.str();
+  contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
+  contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.resultVectorTypeName = facts.resultVectorTypeName.str();
+  contract.resultVectorCType = facts.resultVectorCType.str();
+  contract.vectorTypeName = facts.resultVectorTypeName.str();
+  contract.vectorCType = facts.resultVectorCType.str();
+  contract.maskTypeName = facts.maskTypeName.str();
+  contract.maskCType = facts.maskCType.str();
+  contract.expectedPreLoopStepCount = 3;
+  contract.expectedLoopBodyStepCount = isComputedMask ? 12 : 7;
+  contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
+                                       facts.runtimeABIParameters.end());
+  populateRVVWideningDotDynamicDescriptionPayload(contract, description);
+
+  appendRVVWideningDotValidationHeaders(contract,
+                                        facts.requiredHeaderDeclarations);
+  appendRVVWideningDotValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", facts.vlCType,
+      "selected typed RVV widening dot VL type");
+  appendRVVWideningDotValidationTypeMapping(
+      contract, facts.resultVectorTypeName, facts.resultVectorCType,
+      "selected typed RVV widening dot result vector type");
+  appendRVVWideningDotValidationTypeMapping(
+      contract, facts.sourceVectorTypeName, facts.sourceVectorCType,
+      "selected typed RVV widening dot source vector type");
+  if (isComputedMask)
+    appendRVVWideningDotValidationTypeMapping(
+        contract, facts.maskTypeName, facts.maskCType,
+        "selected typed RVV computed-mask widening dot mask type");
+}
+
+std::optional<RVVWideningDotReduceRouteValidationContract>
+getRVVWideningDotReduceRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVWideningDotReduceRouteFacts> routeFacts =
+      getRVVWideningDotReduceRouteFacts(description.operation);
+  if (!routeFacts)
+    return std::nullopt;
+
+  RVVWideningDotReduceRouteValidationContract contract;
+  populateRVVWideningDotValidationContract(contract, description, *routeFacts);
+  return contract;
+}
+
 bool isRVVSelectedBodyContractionRouteOperation(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {

@@ -889,6 +889,269 @@ selected typed tcrv_rvv MAcc body
   -> candidate metadata mirrors are checked separately as mirrors only
 ```
 
+### Widening Dot-Reduce Route Validation Contract
+
+#### 1. Scope / Trigger
+
+When a selected RVV widening dot-reduce route is rebuilt as a
+`TCRVEmitCLowerableRoute`, target artifact validation must consume a
+provider-owned route validation contract for executable route payload facts.
+This contract is separate from candidate metadata mirrors and applies to the
+existing widening dot-reduce route families:
+
+```text
+widening_dot_reduce_add
+strided_input_widening_dot_reduce_add
+computed_masked_widening_dot_reduce_add
+computed_masked_strided_input_widening_dot_reduce_add
+```
+
+The trigger is any target validator that checks widening dot-reduce route
+payload, header/type/intrinsic/profile, runtime ABI mapping,
+source/accumulator/result layout, unit-stride versus strided-input memory
+facts, computed-mask facts, mask/tail policy, or statement-plan shape. Those
+checks must not reconstruct widening dot-reduce truth from target-local
+constants, route names, artifact metadata, fixture names, descriptors, C
+strings, scripts, or intrinsic spellings.
+
+#### 2. Signatures
+
+The provider-owned API shape is:
+
+```c++
+enum class RVVWideningDotReduceRouteValidationKind {
+  Plain,
+  StridedInput,
+  ComputedMask,
+  ComputedMaskStridedInput,
+};
+
+struct RVVWideningDotReduceRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVWideningDotReduceRouteValidationContract {
+  RVVWideningDotReduceRouteValidationKind kind;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sourceSEW;
+  std::string sourceLMUL;
+  std::int64_t accumulatorSEW;
+  std::string accumulatorLMUL;
+  std::int64_t resultSEW;
+  std::string resultLMUL;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string contractionRouteFamilyPlanID;
+  std::string typedComputeOpName;
+
+  // Widening dot-reduce family facts.
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string stridedMemoryLayout;
+  std::string lhsStrideSource;
+  std::string rhsStrideSource;
+  std::string wideningDotProductAccumulatorLayout;
+  std::string wideningDotProductResultLayout;
+  std::string wideningDotProductRelation;
+  std::string wideningProductIntrinsic;
+  std::string maskedWideningProductIntrinsic;
+  std::string scalarSeedSplatIntrinsic;
+  std::string stridedLoadIntrinsic;
+  std::string sourceVectorLoadIntrinsic;
+  std::string compareVectorLoadIntrinsic;
+  std::string reductionIntrinsic;
+  std::string storeIntrinsic;
+  std::string setVLIntrinsic;
+  std::string compareIntrinsic;
+  std::string maskedMergeIntrinsic;
+  std::string reductionStoreVL;
+  std::string inactiveLaneZeroingRequirement;
+
+  // Rebuilt route payload expectations.
+  std::string vlCType;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string resultVectorTypeName;
+  std::string resultVectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  std::string resultName;
+  std::string maskName;
+
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  llvm::SmallVector<RuntimeABIParameter, 9> runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVWideningDotReduceRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVWideningDotReduceRouteValidationContract>
+getRVVWideningDotReduceRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+The contract must be built in the RVV provider layer from
+`RVVWideningDotReduceRouteFacts` plus the rebuilt provider route description.
+The route token must be derived through the RVV provider route helper for the
+selected operation, not by treating target artifact metadata as authority.
+
+#### 3. Contracts
+
+- The RVV provider builds the validation contract from provider-owned widening
+  dot-reduce route facts plus dynamic route-description payload names and
+  selected runtime ABI parameters.
+- The target validator consumes the contract to compare the rebuilt route,
+  rebuilt provider description, and statement-plan shape. It must not keep
+  duplicate widening dot-reduce expected-fact accessors or local fallback
+  constants for fields already represented in the contract.
+- The contract must include common route facts: route token, memory form,
+  source/accumulator/result SEW-LMUL, tail/mask policy, runtime-control plan,
+  runtime ABI order, target leaf profile, provider-supported mirror, required
+  headers, C type summary, operand-binding plan/summary, typed compute op,
+  contraction route-family plan, and runtime ABI parameters.
+- The contract must include widening dot-reduce facts: narrow source type,
+  widened accumulator/result type, accumulator/result layout, widening
+  relation, product/reduction/store/setvl intrinsics, reduction store VL,
+  scalar seed splat, source/result vector types, and statement-plan counts.
+- The contract must include family-specific fields for strided-input and
+  computed-mask routes. Empty strided fields are explicit stale-residue
+  rejection points for unit-stride routes, and empty mask fields are explicit
+  stale-residue rejection points for non-computed-mask routes.
+- Candidate metadata mirrors remain a separate consume-only check. They may
+  mirror provider-derived contract fields after route construction, but they
+  cannot prove rebuilt route payload, ABI mappings, or statement wiring.
+- Common EmitC/export may carry the provider-built route and metadata mirrors,
+  but must not choose widening dot-reduce semantics, header/type facts, ABI
+  roles, mask/tail behavior, stride behavior, source/result layout, or
+  statement shape.
+
+#### 4. Validation & Error Matrix
+
+- Missing validation contract for an accepted widening dot-reduce route -> fail
+  before target artifact provider-fact validation.
+- Rebuilt route token differs from the provider contract -> fail before target
+  artifact acceptance.
+- Description memory form, source/accumulator/result SEW-LMUL, tail/mask
+  policy, runtime-control plan, runtime ABI order, target leaf profile,
+  provider-supported mirror, header/type summary, operand-binding plan/summary,
+  contraction family plan, typed compute op, layout, or widening relation
+  differs from the contract -> fail before target artifact acceptance.
+- Runtime ABI parameter count, order, role, C name, or C type differs from the
+  contract -> fail before target artifact acceptance with a diagnostic naming
+  the parameter index and provider-owned parameter.
+- Route headers or type mappings are missing from the rebuilt route -> fail
+  before target artifact acceptance.
+- Route ABI mappings do not mirror the provider-owned runtime ABI parameters
+  and value names -> fail before target artifact acceptance.
+- Plain/unit-stride widening dot-reduce carries strided-input residue fields
+  such as strided memory layout, stride sources, source/destination memory form,
+  or strided load intrinsic -> fail as stale strided facts.
+- Strided-input widening dot-reduce is missing stride ABI roles, stride
+  sources, source/destination memory form, strided load intrinsic, or strided
+  statement wiring -> fail before target artifact acceptance.
+- Non-computed-mask widening dot-reduce carries computed-mask residue fields
+  such as mask role/source/form, compare predicate, inactive-lane zeroing,
+  masked widening product, mask type, or masked merge -> fail as stale mask
+  facts.
+- Computed-mask widening dot-reduce is missing compare loads, compare
+  predicate, mask result, inactive-lane zeroing, masked product, merge, mask
+  type mapping, or computed-mask statement wiring -> fail before target
+  artifact acceptance.
+- Statement-plan pre-loop or loop-body step count differs from the contract,
+  or required setvl/load/strided-load/splat/product/compare/merge/reduction/
+  store steps are missing or miswired -> fail before target artifact
+  acceptance.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `widening_dot_reduce_add` consumes the plain contract for unit-stride
+  `lhs,rhs,acc,out,n` ABI order, `i16` source vector loads, `i32`
+  accumulator/result vector type, product/reduction/store intrinsics, and seven
+  loop-body statements.
+- Good: `strided_input_widening_dot_reduce_add` consumes the strided-input
+  contract for `lhs_stride`/`rhs_stride` ABI roles, strided source memory form,
+  byte-stride calculation, strided load intrinsic, and stale unit-stride
+  rejection.
+- Good: `computed_masked_widening_dot_reduce_add` consumes the computed-mask
+  contract for compare operands, mask role/source/form, compare predicate,
+  inactive-lane zeroing, masked product, merge, mask type mapping, and twelve
+  loop-body statements.
+- Good: `computed_masked_strided_input_widening_dot_reduce_add` consumes both
+  computed-mask and strided-input contract fields without target-local
+  recomputation of ABI order or statement shape.
+- Base: candidate metadata mirror validation remains a second consumer of the
+  provider metadata mirror contract; it does not replace route payload
+  validation.
+- Bad: target validation accepts a route because candidate metadata mirrors
+  `provider_supported_mirror` while rebuilt route headers, type mappings, ABI
+  mappings, or statement plan disagree with the provider contract.
+- Bad: target validation uses route token, artifact name, test name,
+  descriptor residue, C string, or intrinsic spelling to decide which widening
+  dot-reduce facts should apply.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must cover positive contract consumption for plain,
+  strided-input, computed-mask, and computed-mask-strided widening dot-reduce
+  candidates.
+- C++ target artifact tests must mutate provider descriptions for stale route
+  payload facts: memory form, source/accumulator/result SEW-LMUL, route-family
+  plan, runtime ABI order/parameters, operand-binding plan/summary, target
+  leaf profile, provider-supported mirror, header/type summary, typed compute
+  op, source/destination memory form, stride facts, mask facts, intrinsic
+  facts, reduction store VL, and cross-family residue fields.
+- C++ target artifact tests must mutate rebuilt route payloads where practical:
+  route token, headers, type mappings, ABI mappings, statement counts, and
+  statement operand wiring.
+- Focused lit/FileCheck or generated-bundle dry-run tests must continue to
+  expose representative widening dot-reduce route families.
+- Runtime `ssh rvv` is required only when route emission, generated C/C++,
+  runtime ABI order, source/accumulator/result layout, mask/tail behavior,
+  stride behavior, correctness, or performance claims change.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  operation name looks like computed_masked_strided_input_widening_dot_reduce_add
+  -> local target constants choose ABI order, mask facts, stride facts, and statements
+  -> candidate metadata mirror says supported
+  -> artifact accepted
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv widening dot-reduce body
+  -> RVV provider facts and route description
+  -> getRVVWideningDotReduceRouteValidationContract(description)
+  -> target validator consumes contract for rebuilt route payload
+  -> candidate metadata mirrors are checked separately as mirrors only
+```
+
 ### Computed-Mask Strided Memory Fact Surface
 
 For `computed_masked_strided_store` and

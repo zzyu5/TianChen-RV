@@ -9802,6 +9802,68 @@ bool expectRVVTargetArtifactExporterShape(
                       "facts\n";
       return false;
     }
+    std::optional<tianchenrv::plugin::rvv::
+                      RVVWideningDotReduceRouteValidationContract>
+        validationContract =
+            tianchenrv::plugin::rvv::
+                getRVVWideningDotReduceRouteValidationContract(description);
+    if (!validationContract) {
+      llvm::errs() << fixtureContext
+                   << " fixture did not have provider route validation "
+                      "contract\n";
+      return false;
+    }
+    const bool isComputedMask =
+        operation == OperationKind::ComputedMaskWideningDotReduceAdd ||
+        operation ==
+            OperationKind::ComputedMaskStridedInputWideningDotReduceAdd;
+    const bool isStrided =
+        operation == OperationKind::StridedInputWideningDotReduceAdd ||
+        operation ==
+            OperationKind::ComputedMaskStridedInputWideningDotReduceAdd;
+    const std::size_t expectedRuntimeABIParameterCount =
+        isComputedMask ? (isStrided ? 9 : 7) : (isStrided ? 7 : 5);
+    if (validationContract->emitCRouteID !=
+            tianchenrv::plugin::rvv::getRVVSelectedBodyEmitCRouteID(
+                operation) ||
+        validationContract->memoryForm != routeFacts->memoryForm ||
+        validationContract->runtimeABIOrder != routeFacts->runtimeABIOrder ||
+        validationContract->routeOperandBindingPlanID !=
+            routeFacts->routeOperandBindingPlanID ||
+        validationContract->routeOperandBindingSummary !=
+            routeFacts->routeOperandBindingSummary ||
+        validationContract->targetLeafProfile !=
+            routeFacts->targetLeafProfile ||
+        validationContract->providerSupportedMirror !=
+            routeFacts->providerSupportedMirror ||
+        validationContract->contractionRouteFamilyPlanID !=
+            routeFacts->contractionRouteFamilyPlanID ||
+        validationContract->typedComputeOpName !=
+            routeFacts->typedComputeOpName ||
+        validationContract->sourceSEW != routeFacts->sourceSEW ||
+        validationContract->sourceLMUL != routeFacts->sourceLMUL ||
+        validationContract->accumulatorSEW != routeFacts->accumulatorSEW ||
+        validationContract->accumulatorLMUL !=
+            routeFacts->accumulatorLMUL ||
+        validationContract->resultSEW != routeFacts->resultSEW ||
+        validationContract->resultLMUL != routeFacts->resultLMUL ||
+        validationContract->wideningDotProductRelation !=
+            routeFacts->wideningDotProductRelation ||
+        validationContract->expectedPreLoopStepCount != 3 ||
+        validationContract->expectedLoopBodyStepCount !=
+            (isComputedMask ? 12u : 7u) ||
+        validationContract->runtimeABIParameters.size() !=
+            expectedRuntimeABIParameterCount ||
+        !tianchenrv::support::runtimeABIParametersEqual(
+            validationContract->runtimeABIParameters,
+            routeFacts->runtimeABIParameters) ||
+        validationContract->requiredHeaders.empty() ||
+        validationContract->typeMappings.size() != (isComputedMask ? 4u : 3u)) {
+      llvm::errs() << fixtureContext
+                   << " provider widening dot route validation contract did "
+                      "not mirror canonical provider facts\n";
+      return false;
+    }
     return true;
   };
   if (!expectWideningDotCanonicalFacts(OperationKind::WideningDotReduceAdd,
@@ -9885,8 +9947,7 @@ bool expectRVVTargetArtifactExporterShape(
           wideningDotFixture.candidate, wideningDotRoute,
           staleWideningDotBinding,
           "widening-dot registry rejects stale operand binding facts",
-          {"provider route operand binding plan",
-           "exact operand binding summary"}))
+          {"provider-derived route operand binding facts"}))
     return false;
 
   RVVRouteDescription staleWideningDotLHSRole = wideningDotDescription;
@@ -9926,7 +9987,7 @@ bool expectRVVTargetArtifactExporterShape(
           wideningDotFixture.candidate, wideningDotRoute,
           staleWideningDotSourceDType,
           "widening-dot registry rejects missing source/result dtype relation",
-          {"source/result dtype and LMUL facts"}))
+          {"provider-derived source SEW"}))
     return false;
 
   RVVRouteDescription staleWideningDotRelation = wideningDotDescription;
@@ -9944,7 +10005,7 @@ bool expectRVVTargetArtifactExporterShape(
           wideningDotFixture.candidate, wideningDotRoute,
           stalePlainDotStridedFacts,
           "widening-dot registry rejects stale strided facts on plain route",
-          {"stale", "strided-input facts"}))
+          {"stale source memory form facts"}))
     return false;
 
   RVVRouteDescription missingStridedDotFacts = stridedWideningDotDescription;
@@ -9954,7 +10015,7 @@ bool expectRVVTargetArtifactExporterShape(
           missingStridedDotFacts,
           "widening-dot registry rejects missing strided source form",
           {"strided-input widening dot-reduction",
-           "source/result memory form"}))
+           "source memory form"}))
     return false;
 
   RVVRouteDescription staleStridedDotBinding =
@@ -9972,8 +10033,7 @@ bool expectRVVTargetArtifactExporterShape(
           stridedWideningDotFixture.candidate, stridedWideningDotRoute,
           staleStridedDotBinding,
           "strided widening-dot registry rejects stale stride binding facts",
-          {"provider route operand binding plan",
-           "exact operand binding summary"}))
+          {"provider-derived route operand binding facts"}))
     return false;
 
   RVVRouteDescription staleStridedDotAccumulatorRole =
@@ -10047,8 +10107,7 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask widening-dot registry rejects stale operand binding "
           "facts",
           {"computed-mask widening dot-reduction",
-           "provider route operand binding plan",
-           "exact operand binding summary"}))
+           "provider-derived route operand binding facts"}))
     return false;
 
   RVVRouteDescription staleComputedMaskDotLHSRole =
@@ -10092,7 +10151,7 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskWideningDotFixture.candidate,
           computedMaskWideningDotRoute, staleComputedMaskDotSource,
           "computed-mask widening-dot registry rejects stale mask source",
-          {"computed-mask role/source/form facts"}))
+          {"provider-derived mask source"}))
     return false;
 
   RVVRouteDescription staleComputedMaskDotPredicate =
@@ -10102,7 +10161,7 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskWideningDotFixture.candidate,
           computedMaskWideningDotRoute, staleComputedMaskDotPredicate,
           "computed-mask widening-dot registry rejects missing predicate",
-          {"mask, compare, masked product"}))
+          {"provider-derived compare predicate"}))
     return false;
 
   RVVRouteDescription staleComputedMaskDotStridedFacts =
@@ -10113,7 +10172,8 @@ bool expectRVVTargetArtifactExporterShape(
           computedMaskWideningDotRoute, staleComputedMaskDotStridedFacts,
           "computed-mask widening-dot registry rejects stale strided facts on "
           "unit route",
-          {"widening dot-reduction", "stale", "strided-input facts"}))
+          {"computed-mask widening dot-reduction",
+           "stale source memory form facts"}))
     return false;
 
   RVVRouteDescription missingComputedMaskStridedDotFacts =
@@ -10126,7 +10186,7 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask widening-dot registry rejects missing strided source "
           "form",
           {"strided-input widening dot-reduction",
-           "source/result memory form"}))
+           "source memory form"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotBinding =
@@ -10148,9 +10208,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotBinding,
           "computed-mask strided widening-dot registry rejects stale combined "
           "operand binding facts",
-          {"computed-mask widening dot-reduction",
-           "provider route operand binding plan",
-           "exact operand binding summary"}))
+          {"computed-mask strided-input widening dot-reduction",
+           "provider-derived route operand binding facts"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotTargetLeaf =
@@ -10163,7 +10222,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotTargetLeaf,
           "computed-mask strided widening-dot registry rejects stale target "
           "leaf profile facts",
-          {"provider-owned canonical route facts"}))
+          {"provider-derived target leaf profile"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotHeaderFacts =
@@ -10176,7 +10235,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotHeaderFacts,
           "computed-mask strided widening-dot registry rejects stale header "
           "facts",
-          {"provider-owned canonical route facts"}))
+          {"provider-derived required header declarations"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotLHSRole =
@@ -10254,7 +10313,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotMaskSource,
           "computed-mask strided widening-dot registry rejects stale mask "
           "source",
-          {"computed-mask role/source/form facts"}))
+          {"provider-derived mask source"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotPredicate =
@@ -10266,7 +10325,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotPredicate,
           "computed-mask strided widening-dot registry rejects missing "
           "predicate",
-          {"mask, compare, masked product"}))
+          {"provider-derived compare predicate"}))
     return false;
 
   RVVRouteDescription staleComputedMaskDotNonFamily =
