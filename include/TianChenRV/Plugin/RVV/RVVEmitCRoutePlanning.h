@@ -1295,6 +1295,16 @@ struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   llvm::StringRef routeOperandBindingSummaryMirror;
   llvm::StringRef requiredHeaderDeclarationsMirror;
   llvm::StringRef cTypeMappingSummaryMirror;
+  llvm::StringRef typedComputeOpNameMirror;
+  llvm::StringRef sourceMemoryFormMirror;
+  llvm::StringRef destinationMemoryFormMirror;
+  llvm::StringRef indexedMemoryLayoutMirror;
+  std::int64_t indexEEWMirror = 0;
+  llvm::StringRef offsetUnitMirror;
+  llvm::StringRef indexSourceMirror;
+  llvm::StringRef indexUniquenessMirror;
+  llvm::StringRef indexedDataMemoryFormMirror;
+  llvm::StringRef indexedDestinationMemoryFormMirror;
 };
 
 struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {

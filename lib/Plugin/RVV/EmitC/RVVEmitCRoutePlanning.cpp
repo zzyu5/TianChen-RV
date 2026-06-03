@@ -6436,7 +6436,7 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                 getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(
                     plan.sew, plan.lmul)))
       return error;
-  } else if (isLoadMerge || isIndexedScatter || isSegment2StoreLike) {
+  } else if (isLoadMerge || isSegment2StoreLike) {
     if (llvm::Error error =
             requireRVVSelectedBodyComputedMaskMemoryPlanField(
                 plan, "store leaf", plan.maskedStoreIntrinsic,
@@ -6981,8 +6981,7 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   plan.maskedStoreIntrinsic =
       operation == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore
           ? targetLeaves.intrinsic
-      : (isLoadMerge || isComputedMaskIndexedScatter ||
-         isComputedMaskSegment2StoreLike)
+      : (isLoadMerge || isComputedMaskSegment2StoreLike)
           ? configProfile.storeIntrinsic
           : llvm::StringRef();
   plan.stridedStoreIntrinsic =
@@ -18571,6 +18570,38 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
       isGather ? llvm::StringRef("tcrv_rvv.masked_indexed_load")
                : llvm::StringRef("tcrv_rvv.masked_indexed_store");
   facts.comparePredicateKind = "slt";
+  facts.vlCType = "size_t";
+  facts.vectorTypeName = getRVVSelectedBodyVectorTypeName(facts.sew,
+                                                          facts.lmul);
+  facts.vectorCType = getRVVSelectedBodySignedVectorCType(facts.sew,
+                                                          facts.lmul);
+  facts.indexVectorTypeName =
+      getRVVSelectedBodyIndexVectorTypeName(facts.sew, facts.lmul);
+  facts.indexVectorCType =
+      getRVVSelectedBodyIndexVectorCType(facts.sew, facts.lmul);
+  facts.maskTypeName = getRVVSelectedBodyMaskTypeName(facts.sew, facts.lmul);
+  facts.maskCType = getRVVSelectedBodyMaskCType(facts.sew, facts.lmul);
+  facts.setVLIntrinsic = getRVVSelectedBodySetVLIntrinsic(facts.sew,
+                                                          facts.lmul);
+  facts.vectorLoadIntrinsic =
+      getRVVSelectedBodyVectorLoadIntrinsic(facts.sew, facts.lmul);
+  facts.indexLoadIntrinsic =
+      getRVVSelectedBodyIndexLoadIntrinsic(facts.sew, facts.lmul);
+  facts.indexScaleIntrinsic =
+      getRVVSelectedBodyIndexScaleIntrinsic(facts.sew, facts.lmul);
+  facts.maskedIndexedLoadIntrinsic =
+      isGather ? getRVVSelectedBodyMaskedIndexedLoadIntrinsic(facts.sew,
+                                                              facts.lmul)
+               : llvm::StringRef();
+  facts.maskedIndexedStoreIntrinsic =
+      isScatter ? getRVVSelectedBodyMaskedIndexedStoreIntrinsic(facts.sew,
+                                                                facts.lmul)
+                : llvm::StringRef();
+  facts.maskedStoreIntrinsic =
+      isGather ? getRVVSelectedBodyStoreIntrinsic(facts.sew, facts.lmul)
+               : llvm::StringRef();
+  facts.compareIntrinsic = getRVVSelectedBodyCompareIntrinsicForPredicate(
+      facts.comparePredicateKind, facts.sew, facts.lmul);
   facts.computedMaskMemoryRouteFamilyPlanID =
       kRVVComputedMaskMemoryRouteFamilyPlanID;
   facts.computedMaskMemoryMaskProducerSource =
@@ -23042,6 +23073,16 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
   const bool isStoreOnly =
       isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(operation);
   const bool isIndexed = isIndexedGather || isIndexedScatter;
+  std::optional<RVVComputedMaskIndexedMemoryRouteFacts> indexedRouteFacts;
+  if (isIndexed) {
+    indexedRouteFacts = getRVVComputedMaskIndexedMemoryRouteFacts(operation);
+    if (!indexedRouteFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask indexed memory route construction requires "
+          "canonical provider-owned indexed route facts before creating "
+          "TCRVEmitCLowerableRoute");
+  }
 
   if (!analysis.computedMaskMemoryRouteFamilyPlan ||
       materializationFacts.computedMaskMemoryPlan !=
@@ -23067,6 +23108,66 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
         " regular computed-mask memory route construction requires vector "
         "compare-mask producer facts and the matching regular memory form "
         "before creating TCRVEmitCLowerableRoute");
+
+  if (indexedRouteFacts &&
+      (plan.memoryForm != indexedRouteFacts->memoryForm ||
+       plan.sew != indexedRouteFacts->sew ||
+       plan.lmul != indexedRouteFacts->lmul ||
+       plan.runtimeControlPlan.controlPlanID !=
+           indexedRouteFacts->runtimeControlPlanID ||
+       plan.runtimeABIOrder != indexedRouteFacts->runtimeABIOrder ||
+       plan.targetLeafProfile != indexedRouteFacts->targetLeafProfile ||
+       plan.providerSupportedMirror !=
+           indexedRouteFacts->providerSupportedMirror ||
+       plan.requiredHeaderDeclarations !=
+           indexedRouteFacts->requiredHeaderDeclarations ||
+       plan.cTypeMappingSummary != indexedRouteFacts->cTypeMappingSummary ||
+       plan.familyPlanID !=
+           indexedRouteFacts->computedMaskMemoryRouteFamilyPlanID ||
+       plan.maskProducerSource !=
+           indexedRouteFacts->computedMaskMemoryMaskProducerSource ||
+       plan.vlCType != indexedRouteFacts->vlCType ||
+       plan.vectorTypeName != indexedRouteFacts->vectorTypeName ||
+       plan.vectorCType != indexedRouteFacts->vectorCType ||
+       plan.indexVectorTypeName != indexedRouteFacts->indexVectorTypeName ||
+       plan.indexVectorCType != indexedRouteFacts->indexVectorCType ||
+       plan.maskTypeName != indexedRouteFacts->maskTypeName ||
+       plan.maskCType != indexedRouteFacts->maskCType ||
+       plan.setVLIntrinsic != indexedRouteFacts->setVLIntrinsic ||
+       plan.vectorLoadIntrinsic != indexedRouteFacts->vectorLoadIntrinsic ||
+       plan.indexLoadIntrinsic != indexedRouteFacts->indexLoadIntrinsic ||
+       plan.indexScaleIntrinsic != indexedRouteFacts->indexScaleIntrinsic ||
+       plan.maskedLoadIntrinsic !=
+           indexedRouteFacts->maskedIndexedLoadIntrinsic ||
+       plan.indexedStoreIntrinsic !=
+           indexedRouteFacts->maskedIndexedStoreIntrinsic ||
+       plan.maskedStoreIntrinsic != indexedRouteFacts->maskedStoreIntrinsic ||
+       plan.compareIntrinsic != indexedRouteFacts->compareIntrinsic ||
+       plan.maskRole != indexedRouteFacts->maskRole ||
+       plan.maskSource != indexedRouteFacts->maskSource ||
+       plan.maskMemoryForm != indexedRouteFacts->maskMemoryForm ||
+       plan.inactiveLaneContract !=
+           indexedRouteFacts->inactiveLaneContract ||
+       plan.maskedPassthroughLayout !=
+           indexedRouteFacts->maskedPassthroughLayout ||
+       plan.maskedMemoryLayout != indexedRouteFacts->indexedMemoryLayout ||
+       plan.sourceMemoryForm != indexedRouteFacts->sourceMemoryForm ||
+       plan.destinationMemoryForm !=
+           indexedRouteFacts->destinationMemoryForm ||
+       plan.indexEEW != indexedRouteFacts->indexEEW ||
+       plan.offsetUnit != indexedRouteFacts->offsetUnit ||
+       plan.indexSource != indexedRouteFacts->indexSource ||
+       plan.indexUniqueness != indexedRouteFacts->indexUniqueness ||
+       plan.indexedDataMemoryForm !=
+           indexedRouteFacts->indexedDataMemoryForm ||
+       plan.indexedDestinationMemoryForm !=
+           indexedRouteFacts->indexedDestinationMemoryForm))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask indexed memory route construction requires "
+        "the computed-mask memory family plan to mirror canonical "
+        "provider-owned indexed route facts before creating "
+        "TCRVEmitCLowerableRoute");
 
   if (description.computedMaskMemoryRouteFamilyPlanID != plan.familyPlanID ||
       description.computedMaskMemoryMaskProducerSource !=
@@ -27947,6 +28048,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     const bool isComputedMaskStridedStore =
         routeProfile->operation.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+    const bool isComputedMaskIndexedGather =
+        routeProfile->operation.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
     const bool isComputedMaskIndexedScatter =
         routeProfile->operation.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
@@ -27983,6 +28087,23 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
             ? kRVVMaskedStridedStorePassthroughLayout
             : (isMaskedStore ? kRVVMaskedStorePassthroughLayout
                              : kRVVMaskedMemoryPassthroughLayout);
+    if (isComputedMaskIndexedGather || isComputedMaskIndexedScatter) {
+      std::optional<RVVComputedMaskIndexedMemoryRouteFacts> routeFacts =
+          getRVVComputedMaskIndexedMemoryRouteFacts(
+              routeProfile->operation.operation);
+      if (!routeFacts)
+        return makeRVVEmitCRouteProviderError(
+            "selected RVV masked indexed memory analysis requires "
+            "provider-owned computed-mask indexed route facts before "
+            "mask description population");
+      analysis.description.maskRole = routeFacts->maskRole;
+      analysis.description.maskSource = routeFacts->maskSource;
+      analysis.description.maskMemoryForm = routeFacts->maskMemoryForm;
+      analysis.description.inactiveLaneContract =
+          routeFacts->inactiveLaneContract;
+      analysis.description.maskedPassthroughLayout =
+          routeFacts->maskedPassthroughLayout;
+    }
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ReduceAdd) {
@@ -28057,57 +28178,53 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     }
   }
   if (routeProfile->operation.isIndexedMemoryMovement) {
-    const bool isScatter =
-        routeProfile->operation.operation ==
-        RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
     const bool isComputedMaskIndexedGather =
         routeProfile->operation.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
     const bool isComputedMaskIndexedScatter =
         routeProfile->operation.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
-    analysis.description.indexedMemoryLayout =
-        isComputedMaskIndexedGather
-            ? kRVVComputedMaskIndexedGatherMemoryLayout
-        : isComputedMaskIndexedScatter
-            ? kRVVComputedMaskIndexedScatterMemoryLayout
-            : (isScatter ? kRVVIndexedScatterMemoryLayout
-                         : kRVVIndexedGatherMemoryLayout);
-    analysis.description.indexEEW =
-        static_cast<std::int64_t>(analysis.slice.indexLoad.getIndexEew());
-    analysis.description.offsetUnit =
-        isComputedMaskIndexedGather
-            ? analysis.slice.maskedIndexedLoadOp.getOffsetUnit()
-        : isComputedMaskIndexedScatter
-            ? analysis.slice.maskedIndexedStore.getOffsetUnit()
-        : isScatter ? analysis.slice.indexedStore.getOffsetUnit()
-                    : analysis.slice.indexedLoad.getOffsetUnit();
-    analysis.description.indexSource = kRVVIndexSource;
-    if (isComputedMaskIndexedGather) {
+    if (isComputedMaskIndexedGather || isComputedMaskIndexedScatter) {
+      std::optional<RVVComputedMaskIndexedMemoryRouteFacts> routeFacts =
+          getRVVComputedMaskIndexedMemoryRouteFacts(
+              routeProfile->operation.operation);
+      if (!routeFacts)
+        return makeRVVEmitCRouteProviderError(
+            "selected RVV indexed memory analysis requires provider-owned "
+            "computed-mask indexed route facts before description population");
+      analysis.description.indexedMemoryLayout =
+          routeFacts->indexedMemoryLayout;
+      analysis.description.indexEEW = routeFacts->indexEEW;
+      analysis.description.offsetUnit = routeFacts->offsetUnit;
+      analysis.description.indexSource = routeFacts->indexSource;
+      analysis.description.indexUniqueness = routeFacts->indexUniqueness;
       analysis.description.indexedDataMemoryForm =
-          kRVVMaskedIndexedLoadSourceMemoryForm;
-      analysis.description.sourceMemoryForm =
-          kRVVMaskedIndexedLoadSourceMemoryForm;
-      analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
-    } else if (isComputedMaskIndexedScatter) {
-      analysis.description.indexUniqueness =
-          analysis.slice.maskedIndexedStore.getIndexUniqueness();
-      analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+          routeFacts->indexedDataMemoryForm;
       analysis.description.indexedDestinationMemoryForm =
-          kRVVMaskedIndexedStoreDestinationMemoryForm;
+          routeFacts->indexedDestinationMemoryForm;
+      analysis.description.sourceMemoryForm = routeFacts->sourceMemoryForm;
       analysis.description.destinationMemoryForm =
-          kRVVMaskedIndexedStoreDestinationMemoryForm;
-    } else if (isScatter) {
-      analysis.description.indexUniqueness =
-          analysis.slice.indexedStore.getIndexUniqueness();
-      analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
-      analysis.description.indexedDestinationMemoryForm =
-          kRVVIndexedDestinationMemoryForm;
-      analysis.description.destinationMemoryForm =
-          kRVVIndexedDestinationMemoryForm;
+          routeFacts->destinationMemoryForm;
     } else {
-      analysis.description.indexedDataMemoryForm = kRVVIndexedDataMemoryForm;
-      analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
+      std::optional<RVVBaseMemoryMovementRouteFacts> routeFacts =
+          getRVVBaseMemoryMovementRouteFacts(routeProfile->operation.operation);
+      if (!routeFacts)
+        return makeRVVEmitCRouteProviderError(
+            "selected RVV indexed memory analysis requires provider-owned "
+            "base-memory indexed route facts before description population");
+      analysis.description.indexedMemoryLayout =
+          routeFacts->indexedMemoryLayout;
+      analysis.description.indexEEW = routeFacts->indexEEW;
+      analysis.description.offsetUnit = routeFacts->offsetUnit;
+      analysis.description.indexSource = routeFacts->indexSource;
+      analysis.description.indexUniqueness = routeFacts->indexUniqueness;
+      analysis.description.indexedDataMemoryForm =
+          routeFacts->indexedDataMemoryForm;
+      analysis.description.indexedDestinationMemoryForm =
+          routeFacts->indexedDestinationMemoryForm;
+      analysis.description.sourceMemoryForm = routeFacts->sourceMemoryForm;
+      analysis.description.destinationMemoryForm =
+          routeFacts->destinationMemoryForm;
     }
   }
   if (routeProfile->operation.isMaskedMemoryMovement) {
@@ -28206,6 +28323,29 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           kRVVSegment2InterleavedDestinationMemoryForm;
     else
       analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
+    if (isComputedMaskIndexedGather || isComputedMaskIndexedScatter) {
+      std::optional<RVVComputedMaskIndexedMemoryRouteFacts> routeFacts =
+          getRVVComputedMaskIndexedMemoryRouteFacts(
+              routeProfile->operation.operation);
+      if (!routeFacts)
+        return makeRVVEmitCRouteProviderError(
+            "selected RVV masked indexed memory analysis requires "
+            "provider-owned computed-mask indexed route facts before final "
+            "description population");
+      analysis.description.indexedMemoryLayout =
+          routeFacts->indexedMemoryLayout;
+      analysis.description.sourceMemoryForm = routeFacts->sourceMemoryForm;
+      analysis.description.destinationMemoryForm =
+          routeFacts->destinationMemoryForm;
+      analysis.description.indexEEW = routeFacts->indexEEW;
+      analysis.description.offsetUnit = routeFacts->offsetUnit;
+      analysis.description.indexSource = routeFacts->indexSource;
+      analysis.description.indexUniqueness = routeFacts->indexUniqueness;
+      analysis.description.indexedDataMemoryForm =
+          routeFacts->indexedDataMemoryForm;
+      analysis.description.indexedDestinationMemoryForm =
+          routeFacts->indexedDestinationMemoryForm;
+    }
   }
   if (isRVVSelectedBodySegment2MemoryRouteOperation(
           routeProfile->operation.operation) &&
@@ -29744,7 +29884,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "store intrinsic", description.storeIntrinsic,
             operationProfile.operation ==
-                    RVVSelectedBodyOperationKind::ComputedMaskStridedStore
+                        RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
+                    operationProfile.operation ==
+                        RVVSelectedBodyOperationKind::
+                            ComputedMaskIndexedScatterStoreUnitLoad
                 ? llvm::StringRef()
             : isRuntimeScalarComputedMaskStore
                 ? getRVVSelectedBodyRuntimeScalarMaskedStoreIntrinsic(

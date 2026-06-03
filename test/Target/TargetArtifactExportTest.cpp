@@ -14941,6 +14941,32 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-masked-indexed-load"}))
     return false;
 
+  RVVRouteDescription staleIndexedIndexVectorCType =
+      manualIndexedDescription;
+  staleIndexedIndexVectorCType.indexVectorCType =
+      "metadata-derived-index-vector-c-type";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute,
+          staleIndexedIndexVectorCType,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "gather index vector C type",
+          {"index vector C type", "vuint32m1_t",
+           "metadata-derived-index-vector-c-type"}))
+    return false;
+
+  RVVRouteDescription staleIndexedMaskedLoadIntrinsic =
+      manualIndexedDescription;
+  staleIndexedMaskedLoadIntrinsic.maskedLoadIntrinsic =
+      "metadata-derived-masked-indexed-load-leaf";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedCandidate, manualIndexedRoute,
+          staleIndexedMaskedLoadIntrinsic,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "gather masked indexed load intrinsic",
+          {"masked indexed load callee",
+           "metadata-derived-masked-indexed-load-leaf"}))
+    return false;
+
   RVVRouteDescription staleIndexedBaseMemoryPlan = manualIndexedDescription;
   staleIndexedBaseMemoryPlan.baseMemoryMovementRouteFamilyPlanID =
       "rvv-base-memory-movement-route-family-plan.v1";
@@ -15085,6 +15111,19 @@ bool expectRVVTargetArtifactExporterShape(
           "compute fact",
           {"typed compute op", "tcrv_rvv.masked_indexed_store",
            "metadata-derived-masked-indexed-store"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterStoreIntrinsic =
+      manualIndexedScatterDescription;
+  staleIndexedScatterStoreIntrinsic.indexedStoreIntrinsic =
+      "metadata-derived-masked-indexed-store-leaf";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterStoreIntrinsic,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "scatter masked indexed store intrinsic",
+          {"masked indexed store callee",
+           "metadata-derived-masked-indexed-store-leaf"}))
     return false;
 
   RVVRouteDescription staleIndexedGatherUniqueness =

@@ -2003,6 +2003,43 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
       operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
   const bool isIndexed = isIndexedGather || isIndexedScatter;
   const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
+  std::optional<RVVBaseMemoryMovementRouteFacts> routeFacts =
+      getRVVBaseMemoryMovementRouteFacts(operation);
+  if (!routeFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider requires canonical route facts for "
+        "the selected operation before provider materialization");
+  if (plan.memoryForm != routeFacts->memoryForm ||
+      plan.familyPlanID != routeFacts->routeFamilyPlanID ||
+      plan.runtimeABIOrder != routeFacts->runtimeABIOrder ||
+      plan.targetLeafProfile != routeFacts->targetLeafProfile ||
+      plan.providerSupportedMirror != routeFacts->providerSupportedMirror ||
+      plan.requiredHeaderDeclarations !=
+          routeFacts->requiredHeaderDeclarations ||
+      plan.cTypeMappingSummary != routeFacts->cTypeMappingSummary ||
+      plan.indexedMemoryLayout != routeFacts->indexedMemoryLayout ||
+      plan.sourceMemoryForm != routeFacts->sourceMemoryForm ||
+      plan.destinationMemoryForm != routeFacts->destinationMemoryForm ||
+      plan.sourceStrideSource != routeFacts->sourceStrideSource ||
+      plan.destinationStrideSource != routeFacts->destinationStrideSource ||
+      plan.indexEEW != routeFacts->indexEEW ||
+      plan.offsetUnit != routeFacts->offsetUnit ||
+      plan.indexSource != routeFacts->indexSource ||
+      plan.indexUniqueness != routeFacts->indexUniqueness ||
+      plan.indexedDataMemoryForm != routeFacts->indexedDataMemoryForm ||
+      plan.indexedDestinationMemoryForm !=
+          routeFacts->indexedDestinationMemoryForm ||
+      plan.maskRole != routeFacts->maskRole ||
+      plan.maskSource != routeFacts->maskSource ||
+      plan.maskMemoryForm != routeFacts->maskMemoryForm ||
+      plan.inactiveLaneContract != routeFacts->inactiveLaneContract ||
+      plan.maskedPassthroughLayout != routeFacts->maskedPassthroughLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement route-family plan must mirror canonical "
+        "provider-owned memory/index/mask facts before provider "
+        "materialization");
   const llvm::StringRef expectedIndexVectorType =
       isIndexed ? typedFacts.indexVectorTypeName : llvm::StringRef();
   const llvm::StringRef expectedIndexVectorCType =
@@ -2691,6 +2728,17 @@ getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
   providerPlan.requiredHeaderDeclarationsMirror =
       basePlan->requiredHeaderDeclarations;
   providerPlan.cTypeMappingSummaryMirror = basePlan->cTypeMappingSummary;
+  providerPlan.typedComputeOpNameMirror = description.typedComputeOpName;
+  providerPlan.sourceMemoryFormMirror = basePlan->sourceMemoryForm;
+  providerPlan.destinationMemoryFormMirror = basePlan->destinationMemoryForm;
+  providerPlan.indexedMemoryLayoutMirror = basePlan->indexedMemoryLayout;
+  providerPlan.indexEEWMirror = basePlan->indexEEW;
+  providerPlan.offsetUnitMirror = basePlan->offsetUnit;
+  providerPlan.indexSourceMirror = basePlan->indexSource;
+  providerPlan.indexUniquenessMirror = basePlan->indexUniqueness;
+  providerPlan.indexedDataMemoryFormMirror = basePlan->indexedDataMemoryForm;
+  providerPlan.indexedDestinationMemoryFormMirror =
+      basePlan->indexedDestinationMemoryForm;
   return providerPlan;
 }
 

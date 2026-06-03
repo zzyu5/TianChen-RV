@@ -1161,3 +1161,34 @@ Runtime evidence:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 408: Stage2 RVV indexed memory provider facts
+
+**Date**: 2026-06-03
+**Task**: Stage2 RVV indexed memory provider facts
+**Branch**: `main`
+
+### Summary
+
+Completed Stage2 RVV indexed memory provider-owned fact surface for plain and computed-mask indexed gather/scatter, rewired target validation to consume provider facts, archived the Trellis task, and validated focused target/lit checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

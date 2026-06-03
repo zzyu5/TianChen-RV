@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that indexed memory semantics remain RVV plugin/provider-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check for provider-owned fact, mirror validation, operand binding, header/type, and stale-fact rejection contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-indexed-memory-production-validation-boundary/prd.md", "reason": "Check the new round extends beyond the previous target-only stale base-memory rejection."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-base-memory-route-family-production-validation-closeout/prd.md", "reason": "Check plain indexed runtime/evidence reuse remains consistent."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-computed-masked-indexed-memory-validation/prd.md", "reason": "Check computed-mask indexed runtime/evidence reuse remains consistent."}

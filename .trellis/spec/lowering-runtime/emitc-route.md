@@ -537,6 +537,21 @@ struct RVVComputedMaskIndexedMemoryRouteFacts {
   llvm::StringRef providerSupportedMirror;
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef indexVectorTypeName;
+  llvm::StringRef indexVectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef indexLoadIntrinsic;
+  llvm::StringRef indexScaleIntrinsic;
+  llvm::StringRef maskedIndexedLoadIntrinsic;
+  llvm::StringRef maskedIndexedStoreIntrinsic;
+  llvm::StringRef maskedStoreIntrinsic;
+  llvm::StringRef compareIntrinsic;
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef typedComputeOpName;
   llvm::StringRef comparePredicateKind;
@@ -579,6 +594,14 @@ Contracts:
 - Scatter uses typed compute op `tcrv_rvv.masked_indexed_store`, memory form
   `computed-mask-unit-load-indexed-scatter-store`, indexed destination memory
   form `masked-indexed-store`, and index uniqueness `unique`.
+- Gather carries `maskedIndexedLoadIntrinsic` as the masked indexed load leaf
+  and `maskedStoreIntrinsic` as the ordinary unit-store leaf used to write the
+  gathered result to the destination buffer. It must carry an empty
+  `maskedIndexedStoreIntrinsic`.
+- Scatter carries `maskedIndexedStoreIntrinsic` as the masked indexed store
+  leaf through the route description's indexed-store field. It must carry empty
+  `maskedIndexedLoadIntrinsic` and empty ordinary `maskedStoreIntrinsic`; the
+  destination update is not a unit-stride store leaf.
 - Both routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`, compare
   predicate `slt`, compare-produced mask facts, mask/tail route-family plan,
   inactive-lane contract, passthrough/no-write layout, indexed memory layout,
@@ -600,6 +623,14 @@ Validation and error behavior:
 - Missing or stale mask facts, index facts, inactive-lane contract, route-family
   plan, header/type summary, target profile, provider mirror, runtime ABI order,
   or binding summary -> fail before target artifact acceptance.
+- Missing or stale provider-derived VL/vector/index/mask C type facts, setvl,
+  vector load, index load, index scale, compare leaf, masked indexed load leaf,
+  masked indexed store leaf, or ordinary store leaf -> fail before target
+  artifact acceptance.
+- Scatter carrying a non-empty ordinary `storeIntrinsic` /
+  `maskedStoreIntrinsic` is stale unit-store residue and must fail before target
+  artifact acceptance. The masked indexed store leaf belongs in
+  `indexedStoreIntrinsic` / `maskedIndexedStoreIntrinsic`.
 - Computed-mask indexed routes must reject stale plain base-memory route-family
   facts before target artifact acceptance. A provider description carrying
   `baseMemoryMovementRouteFamilyPlanID` or candidate metadata carrying
@@ -617,7 +648,8 @@ Tests required:
 
 - C++ target artifact tests must mutate provider route descriptions for stale
   gather/scatter typed compute, mask/index facts, binding facts, header/type
-  facts, target profile, provider mirror, and gather/scatter cross-contamination.
+  facts, target profile, provider mirror, masked indexed load/store leaves,
+  ordinary store residue, and gather/scatter cross-contamination.
 - C++ target artifact tests must mutate candidate metadata mirrors for the same
   fields and prove stale metadata cannot be accepted.
 - C++ target artifact tests must prove stale plain base-memory provider facts

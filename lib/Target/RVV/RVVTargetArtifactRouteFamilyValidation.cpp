@@ -8148,6 +8148,66 @@ llvm::Error validateRVVComputedMaskIndexedMemoryCanonicalProviderFacts(
                                   routeFacts->typedComputeOpName))
     return error;
   if (llvm::Error error =
+          require("VL C type", description.vlCType, routeFacts->vlCType))
+    return error;
+  if (llvm::Error error =
+          require("vector type", description.vectorTypeName,
+                  routeFacts->vectorTypeName))
+    return error;
+  if (llvm::Error error =
+          require("vector C type", description.vectorCType,
+                  routeFacts->vectorCType))
+    return error;
+  if (llvm::Error error =
+          require("index vector type", description.indexVectorTypeName,
+                  routeFacts->indexVectorTypeName))
+    return error;
+  if (llvm::Error error =
+          require("index vector C type", description.indexVectorCType,
+                  routeFacts->indexVectorCType))
+    return error;
+  if (llvm::Error error =
+          require("mask type", description.maskTypeName,
+                  routeFacts->maskTypeName))
+    return error;
+  if (llvm::Error error =
+          require("mask C type", description.maskCType, routeFacts->maskCType))
+    return error;
+  if (llvm::Error error =
+          require("setvl callee", description.setVLIntrinsic,
+                  routeFacts->setVLIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("vector load callee", description.vectorLoadIntrinsic,
+                  routeFacts->vectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("index load callee", description.indexLoadIntrinsic,
+                  routeFacts->indexLoadIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("index scale callee", description.indexScaleIntrinsic,
+                  routeFacts->indexScaleIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("masked indexed load callee",
+                  description.maskedLoadIntrinsic,
+                  routeFacts->maskedIndexedLoadIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("masked indexed store callee",
+                  description.indexedStoreIntrinsic,
+                  routeFacts->maskedIndexedStoreIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("store callee", description.storeIntrinsic,
+                  routeFacts->maskedStoreIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("compare callee", description.compareIntrinsic,
+                  routeFacts->compareIntrinsic))
+    return error;
+  if (llvm::Error error =
           require("compare predicate", description.comparePredicateKind,
                   routeFacts->comparePredicateKind))
     return error;

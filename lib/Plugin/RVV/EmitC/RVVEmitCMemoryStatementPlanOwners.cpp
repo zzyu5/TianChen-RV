@@ -427,6 +427,32 @@ llvm::Error buildBaseMemoryMovementMigratedRouteStatementPlan(
         " migrated statement-plan owner 'base memory movement' requires the "
         "owner-built statement plan to match the prevalidated provider plan "
         "before provider route construction");
+  const bool isIndexed =
+      providerPlan->baseMemoryMovementPlan->usesIndexedGather ||
+      providerPlan->baseMemoryMovementPlan->usesIndexedScatter;
+  if (isIndexed &&
+      (providerPlan->typedComputeOpNameMirror !=
+           analysis.description.typedComputeOpName ||
+       providerPlan->sourceMemoryFormMirror !=
+           analysis.description.sourceMemoryForm ||
+       providerPlan->destinationMemoryFormMirror !=
+           analysis.description.destinationMemoryForm ||
+       providerPlan->indexedMemoryLayoutMirror !=
+           analysis.description.indexedMemoryLayout ||
+       providerPlan->indexEEWMirror != analysis.description.indexEEW ||
+       providerPlan->offsetUnitMirror != analysis.description.offsetUnit ||
+       providerPlan->indexSourceMirror != analysis.description.indexSource ||
+       providerPlan->indexUniquenessMirror !=
+           analysis.description.indexUniqueness ||
+       providerPlan->indexedDataMemoryFormMirror !=
+           analysis.description.indexedDataMemoryForm ||
+       providerPlan->indexedDestinationMemoryFormMirror !=
+           analysis.description.indexedDestinationMemoryForm))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " migrated statement-plan owner 'base memory movement' requires the "
+        "provider plan to expose indexed memory facts that mirror the "
+        "provider-built route description before route statement construction");
   return setRVVSelectedBodyMemoryMigratedRouteStatementPlan(
       out,
       RVVSelectedBodyMigratedRouteStatementPlanFamily::BaseMemoryMovement,
