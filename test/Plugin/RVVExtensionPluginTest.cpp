@@ -2705,6 +2705,46 @@ module {
           "realized reduction route records operation, ABI, runtime VL, "
           "accumulator/result layout, and RVV-owned leaves"))
     return result;
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVVectorReductionRouteValidationContract>
+      vectorReductionContract =
+          tianchenrv::plugin::rvv::
+              getRVVVectorReductionRouteValidationContract(*routeDescription);
+  if (!vectorReductionContract)
+    return fail("realized reduction route did not expose provider-owned "
+                "vector reduction route validation contract");
+  if (int result = expect(
+          vectorReductionContract->emitCRouteID ==
+                  routeDescription->emitCRouteID &&
+              vectorReductionContract->runtimeABIOrder ==
+                  routeDescription->runtimeABIOrder &&
+              vectorReductionContract->routeOperandBindingSummary ==
+                  routeDescription->routeOperandBindingSummary &&
+              vectorReductionContract->reductionAccumulatorLayout ==
+                  routeDescription->reductionAccumulatorLayout &&
+              vectorReductionContract->reductionResultLayout ==
+                  routeDescription->reductionResultLayout &&
+              vectorReductionContract->reductionStoreVL ==
+                  routeDescription->reductionStoreVL &&
+              vectorReductionContract->expectedPreLoopStepCount == 1 &&
+              vectorReductionContract->expectedLoopBodyStepCount == 5 &&
+              vectorReductionContract->runtimeABIParameters.size() == 4 &&
+              vectorReductionContract->requiredHeaders.size() == 3 &&
+              vectorReductionContract->typeMappings.size() == 2,
+          "provider vector reduction validation contract mirrors canonical "
+          "route, ABI, layout, header/type, and statement-plan facts"))
+    return result;
+  auto nonVectorReductionDescription = *routeDescription;
+  nonVectorReductionDescription.operation =
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add;
+  if (int result = expect(
+          !tianchenrv::plugin::rvv::
+               getRVVVectorReductionRouteValidationContract(
+                   nonVectorReductionDescription)
+                .has_value(),
+          "provider vector reduction validation contract is absent for "
+          "cross-family descriptions"))
+    return result;
 
   llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
       analysis =

@@ -38,3 +38,36 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 424: Stage2 RVV vector-reduction route validation contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV vector-reduction route validation contract
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned vector-reduction route validation contract for ReduceAdd vector RHS-load, rewired target artifact validation to consume it for ABI, binding, dtype/config, header/type, leaf/profile, intrinsic, layout, AVL/VL and candidate mirrors, added focused provider/target tests, and passed focused build/tests/lit/diff checks. No ssh rvv run because this changed validation ownership only, not generated runtime behavior or correctness/performance claims.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

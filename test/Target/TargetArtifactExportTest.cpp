@@ -4576,6 +4576,47 @@ bool expectRVVTargetArtifactExporterShape(
   RVVRouteValidationContext vectorReductionContext{
       vectorReductionFixture.candidate, vectorReductionRoute,
       vectorReductionDescription};
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVVectorReductionRouteValidationContract>
+      vectorReductionContract =
+          tianchenrv::plugin::rvv::
+              getRVVVectorReductionRouteValidationContract(
+                  vectorReductionDescription);
+  if (!vectorReductionContract) {
+    llvm::errs() << "vector-reduction fixture did not expose provider-owned "
+                    "route validation contract\n";
+    return false;
+  }
+  if (vectorReductionContract->emitCRouteID !=
+          vectorReductionDescription.emitCRouteID ||
+      vectorReductionContract->runtimeABIOrder !=
+          vectorReductionDescription.runtimeABIOrder ||
+      vectorReductionContract->routeOperandBindingSummary !=
+          vectorReductionDescription.routeOperandBindingSummary ||
+      vectorReductionContract->providerSupportedMirror !=
+          vectorReductionDescription.providerSupportedMirror ||
+      vectorReductionContract->targetLeafProfile !=
+          vectorReductionDescription.targetLeafProfile ||
+      vectorReductionContract->requiredHeaderDeclarations !=
+          vectorReductionDescription.requiredHeaderDeclarations ||
+      vectorReductionContract->cTypeMappingSummary !=
+          vectorReductionDescription.cTypeMappingSummary ||
+      vectorReductionContract->reductionAccumulatorLayout !=
+          vectorReductionDescription.reductionAccumulatorLayout ||
+      vectorReductionContract->reductionResultLayout !=
+          vectorReductionDescription.reductionResultLayout ||
+      vectorReductionContract->reductionStoreVL !=
+          vectorReductionDescription.reductionStoreVL ||
+      vectorReductionContract->expectedPreLoopStepCount != 1 ||
+      vectorReductionContract->expectedLoopBodyStepCount != 5 ||
+      vectorReductionContract->runtimeABIParameters.size() != 4 ||
+      vectorReductionContract->requiredHeaders.size() != 3 ||
+      vectorReductionContract->typeMappings.size() != 2) {
+    llvm::errs() << "vector-reduction provider validation contract did not "
+                    "mirror canonical route payload, ABI, support, "
+                    "header/type, layout, and statement-plan facts\n";
+    return false;
+  }
   if (!expectSuccess(
           tianchenrv::target::rvv::
               validateRVVTargetArtifactRouteFamilyProviderFacts(
@@ -4676,6 +4717,28 @@ bool expectRVVTargetArtifactExporterShape(
           staleVectorReductionStoreVL,
           "vector-reduction reduce_add registry rejects stale scalar store VL",
           {"reduce_add layout facts", "store VL '1'", "full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleVectorReductionProviderSupport =
+      vectorReductionDescription;
+  staleVectorReductionProviderSupport.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-reduction";
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionProviderSupport,
+          "vector-reduction reduce_add registry rejects stale provider "
+          "support",
+          {"provider-owned support",
+           "provider_supported_mirror:metadata-only-reduction"}))
+    return false;
+
+  RVVRouteDescription staleVectorReductionTypeSummary =
+      vectorReductionDescription;
+  staleVectorReductionTypeSummary.cTypeMappingSummary =
+      "metadata-derived-type-map";
+  if (!expectVectorReductionProviderFailure(
+          staleVectorReductionTypeSummary,
+          "vector-reduction reduce_add registry rejects stale type summary",
+          {"C type mapping", "metadata-derived-type-map"}))
     return false;
 
   RVVRouteDescription vectorReductionExactIntrinsicAuthority =
@@ -4831,6 +4894,37 @@ bool expectRVVTargetArtifactExporterShape(
           staleVectorReductionStoreVLMirror,
           "vector-reduction reduce_add registry rejects stale store VL mirror",
           {"reduction_store_vl", "1", "full_chunk_vl"}))
+    return false;
+
+  TargetArtifactCandidate missingVectorReductionProviderMirror =
+      vectorReductionFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingVectorReductionProviderMirror,
+                                "tcrv_rvv.provider_supported_mirror")) {
+    llvm::errs() << "test fixture did not contain vector-reduction provider "
+                    "support mirror metadata\n";
+    return false;
+  }
+  if (!expectVectorReductionCandidateFailure(
+          missingVectorReductionProviderMirror,
+          "vector-reduction reduce_add registry rejects missing provider "
+          "support mirror",
+          {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleVectorReductionTypeMirror =
+      vectorReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleVectorReductionTypeMirror,
+                                    "tcrv_rvv.c_type_mapping",
+                                    "metadata-derived-type-map")) {
+    llvm::errs() << "test fixture did not contain vector-reduction C type "
+                    "mapping mirror metadata\n";
+    return false;
+  }
+  if (!expectVectorReductionCandidateFailure(
+          staleVectorReductionTypeMirror,
+          "vector-reduction reduce_add registry rejects stale type mirror",
+          {"c_type_mapping", vectorReductionDescription.cTypeMappingSummary,
+           "metadata-derived-type-map"}))
     return false;
 
   TargetArtifactCandidate staleVectorReductionNonFamilyMirror =

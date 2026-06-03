@@ -1860,6 +1860,14 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVReductionResultLayout("store-reduction-lane0-to-output-chunk-base");
 constexpr llvm::StringLiteral kRVVReductionStoreVL("1");
+constexpr llvm::StringLiteral kRVVVectorReductionTargetLeafProfile(
+    "rvv-v1-typed-vector-reduction-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVVectorReductionProviderSupportedMirror(
+    "provider_supported_mirror:rvv-vector-reduction-plan-validated");
+constexpr llvm::StringLiteral kRVVVectorReductionRequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVVectorReductionCTypeMappingSummary(
+    "vl:size_t,lhs/rhs-seed/result:signed-e32m1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionAccumulatorLayout(
     "scalar-i32-seed-lane0-from-accumulator-input");
 constexpr llvm::StringLiteral kRVVStandaloneReductionI64AccumulatorLayout(
@@ -4903,6 +4911,170 @@ buildRVVRuntimeScalarSplatStoreRouteValidationContract(
   appendRuntimeScalarSplatStoreValidationTypeMapping(
       contract, contract.vectorTypeName, contract.vectorCType,
       "selected typed RVV runtime scalar splat-store vector type");
+  return contract;
+}
+
+static void appendRVVVectorReductionValidationHeaders(
+    RVVVectorReductionRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRVVVectorReductionValidationTypeMapping(
+    RVVVectorReductionRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void appendRVVVectorReductionValidationBinding(
+    RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+    const support::RuntimeABIParameter &parameter,
+    llvm::ArrayRef<llvm::StringRef> materializedUses) {
+  RVVRouteOperandBinding binding;
+  binding.logicalOperand = logicalOperand.str();
+  binding.parameter = parameter;
+  for (llvm::StringRef use : materializedUses)
+    binding.materializedUses.push_back(use.str());
+  plan.bindings.push_back(std::move(binding));
+}
+
+static std::optional<RVVVectorReductionRouteValidationContract>
+buildRVVVectorReductionRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.operation != RVVSelectedBodyOperationKind::ReduceAdd ||
+      description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
+    return std::nullopt;
+
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract &config =
+      tcrv::rvv::getRVVSelectedBodyConfigVLContract(description.sew,
+                                                    description.lmul);
+  if (description.sew != config.sew || description.lmul != config.lmul)
+    return std::nullopt;
+
+  const llvm::StringRef constInputPointerCType =
+      getRVVSelectedBodyConstInputPointerCType(config.sew);
+  const llvm::StringRef outputPointerCType =
+      getRVVSelectedBodyOutputPointerCType(config.sew);
+  if (constInputPointerCType.empty() || outputPointerCType.empty())
+    return std::nullopt;
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+  using support::RuntimeABIParameter;
+  using support::RuntimeABIParameterOwnership;
+  using support::RuntimeABIParameterRole;
+  auto addParameter = [&](llvm::StringRef cName, llvm::StringRef cType,
+                          RuntimeABIParameterRole role) {
+    runtimeABIParameters.push_back(RuntimeABIParameter(
+        cName, cType, role, RuntimeABIParameterOwnership::TargetExportABIOwned));
+  };
+  addParameter("lhs", constInputPointerCType,
+               RuntimeABIParameterRole::LHSInputBuffer);
+  addParameter("rhs", constInputPointerCType,
+               RuntimeABIParameterRole::RHSInputBuffer);
+  addParameter("out", outputPointerCType,
+               RuntimeABIParameterRole::OutputBuffer);
+  addParameter("n", "size_t", RuntimeABIParameterRole::RuntimeElementCount);
+
+  RVVRouteOperandBindingPlan bindingPlan;
+  bindingPlan.planID = kRVVReduceAddOperandBindingPlanID.str();
+  appendRVVVectorReductionValidationBinding(
+      bindingPlan, "lhs", runtimeABIParameters[0],
+      {"runtime-abi-mirror", "materialized-load-base",
+       "reduction-input-call"});
+  appendRVVVectorReductionValidationBinding(
+      bindingPlan, "rhs", runtimeABIParameters[1],
+      {"runtime-abi-mirror", "materialized-accumulator-load-base",
+       "reduction-accumulator-call"});
+  appendRVVVectorReductionValidationBinding(
+      bindingPlan, "out", runtimeABIParameters[2],
+      {"runtime-abi-mirror", "materialized-store-base",
+       "reduction-result-store", "header-mirror"});
+  appendRVVVectorReductionValidationBinding(
+      bindingPlan, "n", runtimeABIParameters[3],
+      {"runtime-abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+
+  RVVVectorReductionRouteValidationContract contract;
+  contract.operation = RVVSelectedBodyOperationKind::ReduceAdd;
+  contract.consumerLabel = "vector reduction target artifact consumer";
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(contract.operation).str();
+  contract.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  contract.elementTypeName =
+      getRVVSelectedBodyIntegerElementTypeName(config.sew).str();
+  contract.sew = config.sew;
+  contract.lmul = config.lmul.str();
+  contract.tailPolicy =
+      stringifyRuntimeControlTailPolicy(config.tailPolicy).str();
+  contract.maskPolicy =
+      stringifyRuntimeControlMaskPolicy(config.maskPolicy).str();
+  contract.configContractID = config.configContractID.str();
+  contract.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID().str();
+  contract.runtimeABIOrder = config.runtimeABIOrder.str();
+  contract.targetLeafProfile = kRVVVectorReductionTargetLeafProfile.str();
+  contract.providerSupportedMirror =
+      kRVVVectorReductionProviderSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      kRVVVectorReductionRequiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = kRVVVectorReductionCTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID = bindingPlan.planID;
+  contract.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(bindingPlan);
+  contract.typedComputeOpName = "tcrv_rvv.reduce";
+
+  contract.reductionAccumulatorLayout =
+      kRVVReductionAccumulatorLayout.str();
+  contract.reductionResultLayout = kRVVReductionResultLayout.str();
+  contract.reductionStoreVL = kRVVReductionStoreVL.str();
+
+  contract.vlCType = "size_t";
+  contract.vectorTypeName =
+      getRVVSelectedBodyVectorTypeName(config.sew, config.lmul).str();
+  contract.vectorCType =
+      getRVVSelectedBodySignedVectorCType(config.sew, config.lmul).str();
+  contract.setVLIntrinsic =
+      getRVVSelectedBodySetVLIntrinsic(config.sew, config.lmul).str();
+  contract.vectorLoadIntrinsic =
+      getRVVSelectedBodyVectorLoadIntrinsic(config.sew, config.lmul).str();
+  contract.reductionIntrinsic =
+      getRVVSelectedBodyReductionIntrinsicForMnemonic("vredsum", config.sew,
+                                                      config.lmul)
+          .str();
+  contract.intrinsic = contract.reductionIntrinsic;
+  contract.storeIntrinsic =
+      getRVVSelectedBodyStoreIntrinsic(config.sew, config.lmul).str();
+  contract.resultName =
+      getRVVSelectedBodyOperationProfile(contract.operation).resultName.str();
+
+  contract.emitCFullChunkVLName = config.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName =
+      tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName().str();
+  contract.emitCLoopInductionName = config.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount = 5;
+
+  contract.logicalOperands.push_back("lhs");
+  contract.logicalOperands.push_back("rhs");
+  contract.logicalOperands.push_back("out");
+  contract.logicalOperands.push_back("n");
+  contract.runtimeABIParameters.append(runtimeABIParameters.begin(),
+                                       runtimeABIParameters.end());
+  for (const support::RuntimeABIParameter &parameter :
+       contract.runtimeABIParameters)
+    contract.runtimeABIParameterRoles.push_back(parameter.role);
+
+  appendRVVVectorReductionValidationHeaders(
+      contract, contract.requiredHeaderDeclarations);
+  appendRVVVectorReductionValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", contract.vlCType,
+      "selected typed RVV vector reduction VL type");
+  appendRVVVectorReductionValidationTypeMapping(
+      contract, contract.vectorTypeName, contract.vectorCType,
+      "selected typed RVV vector reduction vector type");
   return contract;
 }
 
@@ -19267,6 +19439,12 @@ getRVVRuntimeScalarSplatStoreRouteValidationContract(
   return buildRVVRuntimeScalarSplatStoreRouteValidationContract(description);
 }
 
+std::optional<RVVVectorReductionRouteValidationContract>
+getRVVVectorReductionRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVVectorReductionRouteValidationContract(description);
+}
+
 std::optional<RVVStandaloneReductionRouteMetadataMirrorContractSet>
 getRVVStandaloneReductionRouteMetadataMirrorContract(
     const RVVSelectedBodyEmitCRouteDescription &description) {
@@ -29593,6 +29771,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.configContractID = configContract.configContractID;
   analysis.description.runtimeVLContractID = configContract.runtimeVLContractID;
   analysis.description.runtimeAVLASource = configContract.runtimeAVLASource;
+  if (analysis.slice.arithmeticKind == RVVSelectedBodyOperationKind::ReduceAdd &&
+      analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad)
+    analysis.description.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
   switch (analysis.slice.memoryForm) {
   case RVVSelectedBodyMemoryForm::VectorRHSLoad:
   case RVVSelectedBodyMemoryForm::RHSBroadcastLoad:
@@ -30403,6 +30584,14 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ReduceAdd) {
+    analysis.description.targetLeafProfile =
+        kRVVVectorReductionTargetLeafProfile;
+    analysis.description.providerSupportedMirror =
+        kRVVVectorReductionProviderSupportedMirror;
+    analysis.description.requiredHeaderDeclarations =
+        kRVVVectorReductionRequiredHeaderDeclarations;
+    analysis.description.cTypeMappingSummary =
+        kRVVVectorReductionCTypeMappingSummary;
     analysis.description.reductionAccumulatorLayout =
         *analysis.slice.reduceOp.getAccumulatorLayout();
     analysis.description.reductionResultLayout =
@@ -30859,6 +31048,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       operationProfile.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
   const bool isPlainCompareSelect =
       operationProfile.operation == RVVSelectedBodyOperationKind::CmpSelect;
+  const bool isVectorReductionRoute =
+      operationProfile.operation == RVVSelectedBodyOperationKind::ReduceAdd &&
+      description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
   const bool isRuntimeScalarCompareSelect =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
@@ -31050,6 +31242,26 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error =
             verifyRVVSelectedBodyElementwiseRouteDescriptionMirrors(
                 description, context))
+      return error;
+  } else if (operationProfile.operation ==
+             RVVSelectedBodyOperationKind::ReduceAdd) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            kRVVVectorReductionTargetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            kRVVVectorReductionProviderSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVVectorReductionRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            kRVVVectorReductionCTypeMappingSummary))
       return error;
   } else if (isRuntimeScalarSplatStoreRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -31857,6 +32069,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   if (isElementwiseArithmeticRoute || isScalarBroadcastElementwiseRoute ||
       isRuntimeScalarSplatStoreRoute ||
       isPlainCompareSelect ||
+      isVectorReductionRoute ||
       operationProfile.isWideningConversion ||
       isBaseMemoryMovementRouteFamilyRoute ||
       isRuntimeScalarComputedMaskSelectRoute ||
@@ -33771,6 +33984,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
       !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
       !description.segment2MemoryRouteFamilyPlanID.empty() ||
       !description.accumulationRouteFamilyPlanID.empty() ||
+      description.operation == RVVSelectedBodyOperationKind::ReduceAdd ||
       !description.standaloneReductionRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyStandaloneReductionRouteOperation(
           description.operation)) {
