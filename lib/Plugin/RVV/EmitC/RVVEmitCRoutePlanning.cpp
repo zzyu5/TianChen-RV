@@ -20409,6 +20409,320 @@ getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
   return getRVVCompareSelectRouteFacts(operation, sew, lmul, "sle", "sle");
 }
 
+static void appendRVVCompareSelectValidationHeaders(
+    RVVCompareSelectRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRVVCompareSelectValidationTypeMapping(
+    RVVCompareSelectRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static RVVCompareSelectRouteValidationKind
+getRVVCompareSelectValidationKind(RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSelect:
+    return RVVCompareSelectRouteValidationKind::ComputedMask;
+  case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+    return RVVCompareSelectRouteValidationKind::RuntimeScalar;
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return RVVCompareSelectRouteValidationKind::RuntimeScalarDual;
+  default:
+    return RVVCompareSelectRouteValidationKind::Plain;
+  }
+}
+
+static llvm::StringRef getRVVCompareSelectValidationConsumerLabel(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSelect:
+    return "computed-mask compare/select target artifact consumer";
+  case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+    return "runtime-scalar compare/select target artifact consumer";
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return "runtime-scalar dual compare/select target artifact consumer";
+  default:
+    return "plain compare/select target artifact consumer";
+  }
+}
+
+static std::size_t getRVVCompareSelectValidationLoopBodyStepCount(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::CmpSelect:
+    return 6;
+  case RVVSelectedBodyOperationKind::ComputedMaskSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+    return 8;
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return 12;
+  default:
+    return 0;
+  }
+}
+
+static void populateRVVCompareSelectValidationContract(
+    RVVCompareSelectRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVCompareSelectRouteFacts &facts) {
+  contract.kind = getRVVCompareSelectValidationKind(facts.operation);
+  contract.operation = facts.operation;
+  contract.consumerLabel =
+      getRVVCompareSelectValidationConsumerLabel(facts.operation);
+  contract.emitCRouteID = description.emitCRouteID.str();
+  contract.memoryForm = facts.memoryForm;
+  contract.elementTypeName = facts.elementTypeName.str();
+  contract.sew = facts.sew;
+  contract.lmul = facts.lmul.str();
+  contract.tailPolicy = facts.tailPolicy.str();
+  contract.maskPolicy = facts.maskPolicy.str();
+  contract.runtimeControlPlanID = facts.runtimeControlPlanID.str();
+  contract.runtimeABIOrder = facts.runtimeABIOrder.str();
+  contract.targetLeafProfile = facts.targetLeafProfile.str();
+  contract.providerSupportedMirror = facts.providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      facts.requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = facts.cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      facts.routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = facts.routeOperandBindingSummary;
+  contract.typedComputeOpName = facts.typedComputeOpName.str();
+
+  contract.plainCompareSelectRouteFamilyPlanID =
+      facts.plainCompareSelectRouteFamilyPlanID.str();
+  contract.computedMaskSelectRouteFamilyPlanID =
+      facts.computedMaskSelectRouteFamilyPlanID.str();
+  contract.computedMaskSelectMaskProducerSource =
+      facts.computedMaskSelectMaskProducerSource.str();
+  contract.maskTailPolicyRouteFamilyPlanID =
+      facts.maskTailPolicyRouteFamilyPlanID.str();
+  contract.maskTailPolicyOwner = facts.maskTailPolicyOwner.str();
+
+  contract.vlCType = facts.vlCType.str();
+  contract.vectorTypeName = facts.vectorTypeName.str();
+  contract.vectorCType = facts.vectorCType.str();
+  contract.maskTypeName = facts.maskTypeName.str();
+  contract.maskCType = facts.maskCType.str();
+  contract.setVLIntrinsic = facts.setVLIntrinsic.str();
+  contract.vectorLoadIntrinsic = facts.vectorLoadIntrinsic.str();
+  contract.rhsScalarSplatIntrinsic =
+      facts.rhsScalarSplatIntrinsic.str();
+  contract.comparePredicateKind = facts.comparePredicateKind.str();
+  contract.secondaryComparePredicateKind =
+      facts.secondaryComparePredicateKind.str();
+  contract.compareIntrinsic = facts.compareIntrinsic.str();
+  contract.secondaryCompareIntrinsic =
+      facts.secondaryCompareIntrinsic.str();
+  contract.maskAndIntrinsic = facts.maskAndIntrinsic.str();
+  contract.selectIntrinsic = facts.selectIntrinsic.str();
+  contract.storeIntrinsic = facts.storeIntrinsic.str();
+
+  contract.resultName = facts.resultName.str();
+  contract.maskName = facts.maskName.str();
+  contract.maskRole = facts.maskRole.str();
+  contract.maskSource = facts.maskSource.str();
+  contract.maskMemoryForm = facts.maskMemoryForm.str();
+  contract.maskComposition = facts.maskComposition.str();
+  contract.inactiveLaneContract = facts.inactiveLaneContract.str();
+  contract.maskedPassthroughLayout =
+      facts.maskedPassthroughLayout.str();
+  contract.selectLayout = facts.selectLayout.str();
+  contract.trueValueRole = facts.trueValueRole.str();
+  contract.falseValueRole = facts.falseValueRole.str();
+  contract.selectedResultRole = facts.selectedResultRole.str();
+  contract.runtimeScalarThresholdRole =
+      facts.runtimeScalarThresholdRole.str();
+  contract.runtimeScalarThresholdCType =
+      facts.runtimeScalarThresholdCType.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.indexedMemoryLayout = facts.indexedMemoryLayout.str();
+
+  contract.emitCFullChunkVLName =
+      description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount =
+      getRVVCompareSelectValidationLoopBodyStepCount(facts.operation);
+
+  contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
+                                       facts.runtimeABIParameters.end());
+
+  appendRVVCompareSelectValidationHeaders(
+      contract, facts.requiredHeaderDeclarations);
+  appendRVVCompareSelectValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", facts.vlCType,
+      "selected typed RVV compare/select VL type");
+  appendRVVCompareSelectValidationTypeMapping(
+      contract, facts.vectorTypeName, facts.vectorCType,
+      "selected typed RVV compare/select vector type");
+  appendRVVCompareSelectValidationTypeMapping(
+      contract, facts.maskTypeName, facts.maskCType,
+      "selected typed RVV compare/select mask type");
+}
+
+static std::optional<RVVCompareSelectRouteValidationContract>
+buildRVVCompareSelectRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVCompareSelectRouteFacts> routeFacts =
+      getRVVCompareSelectRouteFacts(
+          description.operation, description.sew, description.lmul,
+          description.comparePredicateKind,
+          description.secondaryComparePredicateKind);
+  if (!routeFacts)
+    return std::nullopt;
+
+  RVVCompareSelectRouteValidationContract contract;
+  populateRVVCompareSelectValidationContract(contract, description,
+                                            *routeFacts);
+  return contract;
+}
+
+static void appendRVVCompareSelectMetadataMirror(
+    RVVCompareSelectRouteMetadataMirrorContractSet &contract,
+    llvm::StringRef key, llvm::StringRef expected,
+    llvm::StringRef label) {
+  contract.mirrors.push_back({key, expected.str(), label});
+}
+
+static std::optional<RVVCompareSelectRouteMetadataMirrorContractSet>
+buildRVVCompareSelectRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  std::optional<RVVCompareSelectRouteValidationContract> validation =
+      buildRVVCompareSelectRouteValidationContract(description);
+  if (!validation)
+    return std::nullopt;
+
+  const RVVCompareSelectRouteValidationContract &facts = *validation;
+  RVVCompareSelectRouteMetadataMirrorContractSet contract;
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.compare_predicate_kind",
+      facts.comparePredicateKind,
+      "selected typed RVV compare/select predicate");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_plan",
+      facts.routeOperandBindingPlanID,
+      "selected typed RVV compare/select binding plan");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.route_operand_binding_operands",
+      facts.routeOperandBindingSummary,
+      "selected typed RVV compare/select binding summary");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.provider_supported_mirror",
+      facts.providerSupportedMirror,
+      "selected typed RVV compare/select provider support");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.target_leaf_profile",
+      facts.targetLeafProfile,
+      "selected typed RVV compare/select target leaf profile");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "rvv_selected_body_typed_compute_op",
+      facts.typedComputeOpName,
+      "selected typed RVV compare/select typed compute op");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.plain_compare_select_route_family_plan",
+      facts.plainCompareSelectRouteFamilyPlanID,
+      "selected typed RVV plain compare-select route-family plan");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.computed_mask_select_route_family_plan",
+      facts.computedMaskSelectRouteFamilyPlanID,
+      "selected typed RVV computed-mask select route-family plan");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.computed_mask_select_mask_producer_source",
+      facts.computedMaskSelectMaskProducerSource,
+      "selected typed RVV computed-mask select producer source");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.computed_mask_memory_route_family_plan", "",
+      "selected typed RVV computed-mask memory route-family plan");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.computed_mask_memory_mask_producer_source", "",
+      "selected typed RVV computed-mask memory producer source");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.mask_tail_policy_route_family_plan",
+      facts.maskTailPolicyRouteFamilyPlanID,
+      "selected typed RVV mask/tail policy route-family plan");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.mask_tail_policy_owner",
+      facts.maskTailPolicyOwner,
+      "selected typed RVV mask/tail policy owner");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.memory_form",
+      stringifyRVVSelectedBodyMemoryForm(facts.memoryForm),
+      "selected typed RVV compare/select memory form");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.runtime_control_plan",
+      facts.runtimeControlPlanID,
+      "selected typed RVV compare/select runtime AVL/VL control plan");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
+      "selected typed RVV compare/select runtime ABI order");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.required_header_declarations",
+      facts.requiredHeaderDeclarations,
+      "selected typed RVV compare/select route header requirements");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.c_type_mapping", facts.cTypeMappingSummary,
+      "selected typed RVV compare/select route type mapping summary");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.mask_role", facts.maskRole,
+      "selected typed RVV compare/select mask role");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.mask_source", facts.maskSource,
+      "selected typed RVV compare/select mask source");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.mask_memory_form", facts.maskMemoryForm,
+      "selected typed RVV compare/select mask memory form");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.source_memory_form", facts.sourceMemoryForm,
+      "selected typed RVV compare/select source memory form");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.destination_memory_form",
+      facts.destinationMemoryForm,
+      "selected typed RVV compare/select destination memory form");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.select_layout", facts.selectLayout,
+      "selected typed RVV compare/select selected-value layout");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.secondary_compare_predicate_kind",
+      facts.secondaryComparePredicateKind,
+      "selected typed RVV dual compare secondary predicate");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.mask_composition", facts.maskComposition,
+      "selected typed RVV dual compare mask composition");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.inactive_lane_contract",
+      facts.inactiveLaneContract,
+      "selected typed RVV compare/select inactive lane contract");
+  appendRVVCompareSelectMetadataMirror(
+      contract, "tcrv_rvv.masked_passthrough_layout",
+      facts.maskedPassthroughLayout,
+      "selected typed RVV compare/select passthrough layout");
+
+  return contract;
+}
+
+std::optional<RVVCompareSelectRouteValidationContract>
+getRVVCompareSelectRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVCompareSelectRouteValidationContract(description);
+}
+
+std::optional<RVVCompareSelectRouteMetadataMirrorContractSet>
+getRVVCompareSelectRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVCompareSelectRouteMetadataMirrorContract(description);
+}
+
 bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {

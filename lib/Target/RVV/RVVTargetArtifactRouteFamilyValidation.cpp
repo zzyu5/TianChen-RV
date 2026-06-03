@@ -159,6 +159,40 @@ llvm::Error validateRVVProviderStandaloneReductionRouteMetadataMirrorContract(
       candidate, contract.staleMirrorKeys, contract.staleMirrorLabel);
 }
 
+llvm::Error validateRVVCompareSelectRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<plugin::rvv::RVVCompareSelectRouteMetadataMirrorContract>
+        mirrors) {
+  for (const plugin::rvv::RVVCompareSelectRouteMetadataMirrorContract &mirror :
+       mirrors)
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, mirror.key, mirror.expected, mirror.label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVCompareSelectRouteEmptyMetadataMirrors(
+    const TargetArtifactCandidate &candidate,
+    llvm::ArrayRef<llvm::StringRef> staleMirrorKeys, llvm::StringRef label) {
+  for (llvm::StringRef key : staleMirrorKeys)
+    if (llvm::Error error =
+            requireCandidateMetadataMirror(candidate, key, "", label))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVProviderCompareSelectRouteMetadataMirrorContract(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVCompareSelectRouteMetadataMirrorContractSet
+        &contract) {
+  if (llvm::Error error =
+          validateRVVCompareSelectRouteMetadataMirrorContract(
+              candidate, contract.mirrors))
+    return error;
+  return validateRVVCompareSelectRouteEmptyMetadataMirrors(
+      candidate, contract.staleMirrorKeys, contract.staleMirrorLabel);
+}
+
 llvm::Error requireRVVProviderDerivedField(llvm::StringRef consumerLabel,
                                            llvm::StringRef fieldLabel,
                                            llvm::StringRef value) {
@@ -6728,6 +6762,270 @@ llvm::Error validateRVVCompareSelectCanonicalProviderFacts(
   return llvm::Error::success();
 }
 
+llvm::Error validateRVVCompareSelectRouteValidationContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVCompareSelectRouteValidationContract &contract) {
+  if (description.operation != contract.operation)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned operation '" +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            contract.operation) +
+        "' but was '" +
+        plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+            description.operation) +
+        "'");
+  if (description.memoryForm != contract.memoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned memory form '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(contract.memoryForm) +
+        "' but was '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+  if (description.sew != contract.sew)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived SEW '" + llvm::Twine(contract.sew) +
+        "' but was '" + llvm::Twine(description.sew) + "'");
+
+  auto require = [&](llvm::StringRef label, llvm::StringRef actual,
+                     llvm::StringRef expected) -> llvm::Error {
+    return requireRVVCompareSelectMaskProviderField(label, actual, expected);
+  };
+
+  if (llvm::Error error =
+          require("element type", description.elementTypeName,
+                  contract.elementTypeName))
+    return error;
+  if (llvm::Error error = require("LMUL", description.lmul, contract.lmul))
+    return error;
+  if (llvm::Error error =
+          require("tail policy", description.tailPolicy,
+                  contract.tailPolicy))
+    return error;
+  if (llvm::Error error =
+          require("mask policy", description.maskPolicy,
+                  contract.maskPolicy))
+    return error;
+  if (llvm::Error error =
+          require("runtime ABI order", description.runtimeABIOrder,
+                  contract.runtimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          require("runtime AVL/VL control plan",
+                  description.runtimeControlPlanID,
+                  contract.runtimeControlPlanID))
+    return error;
+  if (llvm::Error error =
+          require("provider_supported_mirror",
+                  description.providerSupportedMirror,
+                  contract.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = require("target_leaf_profile",
+                                  description.targetLeafProfile,
+                                  contract.targetLeafProfile))
+    return error;
+  if (llvm::Error error =
+          require("required header declarations",
+                  description.requiredHeaderDeclarations,
+                  contract.requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          require("C type mapping summary", description.cTypeMappingSummary,
+                  contract.cTypeMappingSummary))
+    return error;
+  if (llvm::Error error =
+          require("route operand binding plan",
+                  description.routeOperandBindingPlanID,
+                  contract.routeOperandBindingPlanID))
+    return error;
+  if (llvm::Error error =
+          require("route operand binding facts",
+                  description.routeOperandBindingSummary,
+                  contract.routeOperandBindingSummary))
+    return error;
+  if (llvm::Error error = require("typed compute op",
+                                  description.typedComputeOpName,
+                                  contract.typedComputeOpName))
+    return error;
+  if (llvm::Error error =
+          require("VL C type", description.vlCType, contract.vlCType))
+    return error;
+  if (llvm::Error error =
+          require("vector type", description.vectorTypeName,
+                  contract.vectorTypeName))
+    return error;
+  if (llvm::Error error =
+          require("vector C type", description.vectorCType,
+                  contract.vectorCType))
+    return error;
+  if (llvm::Error error =
+          require("mask type", description.maskTypeName,
+                  contract.maskTypeName))
+    return error;
+  if (llvm::Error error =
+          require("mask C type", description.maskCType, contract.maskCType))
+    return error;
+  if (llvm::Error error =
+          require("setvl callee", description.setVLIntrinsic,
+                  contract.setVLIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("vector load callee", description.vectorLoadIntrinsic,
+                  contract.vectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("primary compare predicate",
+                  description.comparePredicateKind,
+                  contract.comparePredicateKind))
+    return error;
+  if (llvm::Error error =
+          require("secondary compare predicate",
+                  description.secondaryComparePredicateKind,
+                  contract.secondaryComparePredicateKind))
+    return error;
+  if (llvm::Error error =
+          require("runtime scalar splat callee",
+                  description.rhsBroadcastIntrinsic,
+                  contract.rhsScalarSplatIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("primary compare callee", description.compareIntrinsic,
+                  contract.compareIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("secondary compare callee",
+                  description.secondaryCompareIntrinsic,
+                  contract.secondaryCompareIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("mask-and callee", description.maskAndIntrinsic,
+                  contract.maskAndIntrinsic))
+    return error;
+  if (llvm::Error error = require("select callee", description.intrinsic,
+                                  contract.selectIntrinsic))
+    return error;
+  if (llvm::Error error = require("store callee", description.storeIntrinsic,
+                                  contract.storeIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("result name", description.resultName,
+                  contract.resultName))
+    return error;
+  if (llvm::Error error =
+          require("mask name", description.maskName, contract.maskName))
+    return error;
+  if (llvm::Error error =
+          require("plain compare-select route-family plan",
+                  description.plainCompareSelectRouteFamilyPlanID,
+                  contract.plainCompareSelectRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          require("computed-mask select route-family plan",
+                  description.computedMaskSelectRouteFamilyPlanID,
+                  contract.computedMaskSelectRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          require("computed-mask select producer source",
+                  description.computedMaskSelectMaskProducerSource,
+                  contract.computedMaskSelectMaskProducerSource))
+    return error;
+  if (llvm::Error error =
+          require("mask/tail policy route-family plan",
+                  description.maskTailPolicyRouteFamilyPlanID,
+                  contract.maskTailPolicyRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          require("mask/tail policy owner", description.maskTailPolicyOwner,
+                  contract.maskTailPolicyOwner))
+    return error;
+  if (llvm::Error error =
+          require("mask role", description.maskRole, contract.maskRole))
+    return error;
+  if (llvm::Error error =
+          require("mask source", description.maskSource, contract.maskSource))
+    return error;
+  if (llvm::Error error = require("mask memory form",
+                                  description.maskMemoryForm,
+                                  contract.maskMemoryForm))
+    return error;
+  if (contract.maskComposition.empty() && !description.maskComposition.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("compare/select mask target artifact consumer rejects "
+                    "stale provider-derived dual compare/select mask "
+                    "composition fact '") +
+        description.maskComposition + "' for non-dual route");
+  if (llvm::Error error =
+          require("dual compare/select mask composition",
+                  description.maskComposition, contract.maskComposition))
+    return error;
+  if (llvm::Error error =
+          require("select layout", description.selectLayout,
+                  contract.selectLayout))
+    return error;
+  if (llvm::Error error =
+          require("inactive-lane contract", description.inactiveLaneContract,
+                  contract.inactiveLaneContract))
+    return error;
+  if (llvm::Error error =
+          require("masked passthrough layout",
+                  description.maskedPassthroughLayout,
+                  contract.maskedPassthroughLayout))
+    return error;
+  if (llvm::Error error = require("source memory form",
+                                  description.sourceMemoryForm,
+                                  contract.sourceMemoryForm))
+    return error;
+  if (llvm::Error error =
+          require("destination memory form", description.destinationMemoryForm,
+                  contract.destinationMemoryForm))
+    return error;
+  if (llvm::Error error =
+          require("indexed memory layout", description.indexedMemoryLayout,
+                  contract.indexedMemoryLayout))
+    return error;
+
+  if (description.runtimeABIParameters.size() !=
+      contract.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) + " requires " +
+        llvm::Twine(contract.runtimeABIParameters.size()) +
+        " provider-owned runtime ABI parameters before artifact export but "
+        "saw " +
+        llvm::Twine(description.runtimeABIParameters.size()));
+  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
+       ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    const support::RuntimeABIParameter &expected =
+        contract.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(actual, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires runtime ABI parameter[" + llvm::Twine(index) +
+          "] to mirror provider-owned parameter '" + expected.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(expected.role) +
+          " with C type '" + expected.cType + "' and ownership '" +
+          support::stringifyRuntimeABIParameterOwnership(expected.ownership) +
+          "' before artifact export but saw '" + actual.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(actual.role) +
+          " with C type '" + actual.cType + "' and ownership '" +
+          support::stringifyRuntimeABIParameterOwnership(actual.ownership) +
+          "'");
+  }
+
+  if (contract.expectedPreLoopStepCount == 0 ||
+      contract.expectedLoopBodyStepCount == 0)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned compare/select statement-plan expectations "
+        "before artifact export");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVComputedMaskIndexedMemoryCanonicalProviderFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (!isRVVCompareSelectMaskIndexedMemoryOperation(description.operation))
@@ -8203,13 +8501,39 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
   const bool isComputedMaskMemory =
       isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
           description.operation);
-  std::optional<plugin::rvv::RVVCompareSelectRouteFacts> compareSelectFacts =
-      getRVVCompareSelectFactsForDescription(description);
-  if (isCompareSelectProducer && !compareSelectFacts)
-    return makeRVVTargetRouteError(
-        "compare/select mask target artifact consumer requires "
-        "provider-owned compare/select facts from typed body/config/runtime "
-        "facts before artifact export");
+
+  if (isCompareSelectProducer) {
+    std::optional<plugin::rvv::RVVCompareSelectRouteValidationContract>
+        contract =
+            plugin::rvv::getRVVCompareSelectRouteValidationContract(
+                description);
+    if (!contract)
+      return makeRVVTargetRouteError(
+          "compare/select mask target artifact consumer requires "
+          "provider-owned compare/select facts and route validation contract "
+          "from typed body/config/runtime facts before artifact export");
+    if (route.getRouteID() != contract->emitCRouteID)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract->consumerLabel) +
+          " requires rebuilt provider route id '" + contract->emitCRouteID +
+          "' but route carried '" + route.getRouteID() + "'");
+    if (llvm::Error error =
+            validateRVVCompareSelectRouteValidationContract(description,
+                                                            *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVCompareSelectMaskRouteHeaders(route, description))
+      return error;
+    if (llvm::Error error =
+            validateRVVCompareSelectMaskRouteTypeMappings(route, description))
+      return error;
+    if (llvm::Error error =
+            validateRVVCompareSelectMaskRouteABIMappings(route, description))
+      return error;
+    return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
+  }
+
+  std::optional<plugin::rvv::RVVCompareSelectRouteFacts> compareSelectFacts;
 
   if (route.getRouteID() != description.emitCRouteID)
     return makeRVVTargetRouteError(
@@ -8577,6 +8901,22 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
   const TargetArtifactCandidate &candidate = context.candidate;
   const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
       context.description;
+
+  if (isRVVCompareSelectMaskProducerRouteFamilyOperation(
+          description.operation)) {
+    std::optional<
+        plugin::rvv::RVVCompareSelectRouteMetadataMirrorContractSet>
+        contract =
+            plugin::rvv::getRVVCompareSelectRouteMetadataMirrorContract(
+                description);
+    if (!contract)
+      return makeRVVTargetRouteError(
+          "compare/select mask target artifact consumer requires "
+          "provider-owned compare/select metadata mirror contract before "
+          "validating candidate mirrors");
+    return validateRVVProviderCompareSelectRouteMetadataMirrorContract(
+        candidate, *contract);
+  }
 
   if (llvm::Error error =
           validateRVVCompareSelectCanonicalProviderFacts(description))

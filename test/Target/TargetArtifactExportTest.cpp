@@ -2278,6 +2278,11 @@ using RVVManualOperationKind =
 using RVVManualMemoryForm = tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
 using RVVCompareSelectRouteFacts =
     tianchenrv::plugin::rvv::RVVCompareSelectRouteFacts;
+using RVVCompareSelectRouteValidationContract =
+    tianchenrv::plugin::rvv::RVVCompareSelectRouteValidationContract;
+using RVVCompareSelectRouteMetadataMirrorContractSet =
+    tianchenrv::plugin::rvv::
+        RVVCompareSelectRouteMetadataMirrorContractSet;
 using RVVDualCompareSelectRouteFacts =
     tianchenrv::plugin::rvv::
         RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts;
@@ -15258,6 +15263,76 @@ bool expectRVVTargetArtifactExporterShape(
               manualRuntimeScalarDescription);
   TargetArtifactCandidate manualRuntimeScalarCandidate =
       makeRVVManualTargetArtifactCandidate(manualRuntimeScalarDescription);
+
+  auto expectCompareSelectProviderContract =
+      [&](const RVVRouteDescription &manualDescription,
+          tianchenrv::plugin::rvv::RVVCompareSelectRouteValidationKind kind,
+          llvm::StringRef fixtureContext) -> bool {
+    std::optional<RVVCompareSelectRouteValidationContract> contract =
+        tianchenrv::plugin::rvv::
+            getRVVCompareSelectRouteValidationContract(manualDescription);
+    if (!contract) {
+      llvm::errs() << fixtureContext
+                   << ": missing compare/select route validation contract\n";
+      return false;
+    }
+    if (contract->kind != kind ||
+        contract->operation != manualDescription.operation ||
+        llvm::StringRef(contract->runtimeABIOrder) !=
+            manualDescription.runtimeABIOrder ||
+        llvm::StringRef(contract->routeOperandBindingPlanID) !=
+            manualDescription.routeOperandBindingPlanID ||
+        llvm::StringRef(contract->routeOperandBindingSummary) !=
+            manualDescription.routeOperandBindingSummary ||
+        llvm::StringRef(contract->providerSupportedMirror) !=
+            manualDescription.providerSupportedMirror ||
+        llvm::StringRef(contract->targetLeafProfile) !=
+            manualDescription.targetLeafProfile ||
+        llvm::StringRef(contract->requiredHeaderDeclarations) !=
+            manualDescription.requiredHeaderDeclarations ||
+        llvm::StringRef(contract->cTypeMappingSummary) !=
+            manualDescription.cTypeMappingSummary ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount == 0 ||
+        contract->runtimeABIParameters.size() !=
+            manualDescription.runtimeABIParameters.size() ||
+        contract->requiredHeaders.empty() || contract->typeMappings.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": malformed compare/select route validation contract\n";
+      return false;
+    }
+    std::optional<RVVCompareSelectRouteMetadataMirrorContractSet>
+        mirrorContract =
+            tianchenrv::plugin::rvv::
+                getRVVCompareSelectRouteMetadataMirrorContract(
+                    manualDescription);
+    if (!mirrorContract || mirrorContract->mirrors.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": missing compare/select mirror contract\n";
+      return false;
+    }
+    return true;
+  };
+
+  if (!expectCompareSelectProviderContract(
+          manualPlainDescription,
+          tianchenrv::plugin::rvv::
+              RVVCompareSelectRouteValidationKind::Plain,
+          "plain compare/select provider contract"))
+    return false;
+  if (!expectCompareSelectProviderContract(
+          manualRuntimeScalarDescription,
+          tianchenrv::plugin::rvv::
+              RVVCompareSelectRouteValidationKind::RuntimeScalar,
+          "runtime-scalar compare/select provider contract"))
+    return false;
+  if (!expectCompareSelectProviderContract(
+          manualDualDescription,
+          tianchenrv::plugin::rvv::
+              RVVCompareSelectRouteValidationKind::RuntimeScalarDual,
+          "runtime-scalar dual compare/select provider contract"))
+    return false;
+
   if (!expectManualCompareSelectMaskPositive(
           manualPlainCandidate, manualPlainRoute, manualPlainDescription,
           "plain compare/select"))

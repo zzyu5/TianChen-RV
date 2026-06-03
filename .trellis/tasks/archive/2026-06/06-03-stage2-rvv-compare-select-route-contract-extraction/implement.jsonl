@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 route-support scope, and source-of-truth constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for selected-body realization, provider facts, intrinsic/type/ABI mapping, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract, provider-owned route-family fact surface, route validation, operand binding, header/type, and target consume-only validation requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit evidence requirements and ssh rvv runtime evidence boundary."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that compare/select route semantics stay RVV-plugin-owned and do not move into common/core code."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check that RVV dtype/config/route facts remain structural in typed tcrv_rvv body/config/provider facts."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-standalone-reduction-route-contract-extraction/prd.md", "reason": "Immediate previous provider-owned route validation contract extraction pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-compare-select-production-validation-boundary/prd.md", "reason": "Existing compare/select provider-to-target fact surface and validation boundary context."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage2-rvv-compare-select-selected-body-realization-boundary/prd.md", "reason": "Existing compare/select selected-body realization and route facts prerequisite."}

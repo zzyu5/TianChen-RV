@@ -1718,3 +1718,67 @@ Extracted provider-owned widening dot-reduce route validation contract, rewired 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 420: Stage2 RVV compare/select route-family provider contract extraction
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select route-family provider contract extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned RVV compare/select route validation and metadata mirror contracts, rewired target artifact validation to consume them, and archived the Trellis task.
+
+### Main Changes
+
+- Added provider-owned compare/select route validation and metadata mirror contract APIs for plain compare/select, computed-mask select, runtime-scalar compare/select, and runtime-scalar dual compare-mask-and-select producer routes.
+- Built compare/select validation contracts from existing RVV provider route facts plus rebuilt route descriptions, covering route payload, ABI, headers/types, predicate/select semantics, mask/result layout, passthrough/destination policy, mask/tail facts, and statement-plan expectations.
+- Rewired target artifact route-family validation and candidate mirror validation so compare/select producer routes consume provider contracts instead of target-local duplicate route truth.
+- Added focused target artifact export coverage for positive compare/select provider contract construction and preserved fail-closed stale/mismatched mutation checks.
+- Archived Trellis task `06-03-stage2-rvv-compare-select-route-contract-extraction`.
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate 06-03-stage2-rvv-compare-select-route-contract-extraction`
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused generated-bundle script dry-runs for `cmp_select`, pre-realized `cmp_select`, pre-realized `computed_mask_select`, pre-realized `runtime_scalar_cmp_select`, and pre-realized `runtime_scalar_dual_cmp_mask_and_select`.
+- [OK] `rtk git diff --check`
+- [OK] Bounded changed-line old-authority scan over touched source/test/task files found no new legacy route authority markers.
+
+No `ssh rvv` rerun: this changed provider/target validation contract ownership only and did not change generated C/C++, runtime ABI order, emitted compare/select intrinsics, computation, mask/result layout, passthrough policy, mask/tail behavior, correctness, or performance behavior.
+
+### Self-Repair
+
+- Preserved the targeted stale non-dual mask-composition diagnostic after the first target artifact export test exposed the wording regression.
+- Reran the affected build serially after a transient concurrent Ninja/static-library race.
+
+### Status
+
+[OK] Completed and archived
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

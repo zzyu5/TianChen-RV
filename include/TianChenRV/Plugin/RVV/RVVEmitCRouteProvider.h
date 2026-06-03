@@ -879,6 +879,118 @@ getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
     RVVSelectedBodyOperationKind operation, std::int64_t sew,
     llvm::StringRef lmul);
 
+enum class RVVCompareSelectRouteValidationKind {
+  Plain,
+  ComputedMask,
+  RuntimeScalar,
+  RuntimeScalarDual,
+};
+
+struct RVVCompareSelectRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVCompareSelectRouteValidationContract {
+  RVVCompareSelectRouteValidationKind kind =
+      RVVCompareSelectRouteValidationKind::Plain;
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::CmpSelect;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+
+  std::string plainCompareSelectRouteFamilyPlanID;
+  std::string computedMaskSelectRouteFamilyPlanID;
+  std::string computedMaskSelectMaskProducerSource;
+  std::string maskTailPolicyRouteFamilyPlanID;
+  std::string maskTailPolicyOwner;
+
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
+  std::string comparePredicateKind;
+  std::string secondaryComparePredicateKind;
+  std::string compareIntrinsic;
+  std::string secondaryCompareIntrinsic;
+  std::string maskAndIntrinsic;
+  std::string selectIntrinsic;
+  std::string storeIntrinsic;
+
+  std::string resultName;
+  std::string maskName;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string maskComposition;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  std::string selectLayout;
+  std::string trueValueRole;
+  std::string falseValueRole;
+  std::string selectedResultRole;
+  std::string runtimeScalarThresholdRole;
+  std::string runtimeScalarThresholdCType;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string indexedMemoryLayout;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+      runtimeABIParameters;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVCompareSelectRouteTypeMappingContract, 3>
+      typeMappings;
+};
+
+std::optional<RVVCompareSelectRouteValidationContract>
+getRVVCompareSelectRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+struct RVVCompareSelectRouteMetadataMirrorContract {
+  llvm::StringRef key;
+  std::string expected;
+  llvm::StringRef label;
+};
+
+struct RVVCompareSelectRouteMetadataMirrorContractSet {
+  llvm::SmallVector<RVVCompareSelectRouteMetadataMirrorContract, 32> mirrors;
+  llvm::SmallVector<llvm::StringRef, 16> staleMirrorKeys;
+  llvm::StringRef staleMirrorLabel;
+};
+
+std::optional<RVVCompareSelectRouteMetadataMirrorContractSet>
+getRVVCompareSelectRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVUnitStrideMAccRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

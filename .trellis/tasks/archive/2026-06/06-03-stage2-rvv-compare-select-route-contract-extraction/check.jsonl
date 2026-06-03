@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must verify RVV Stage 2 route authority and no legacy i32/source-front-door authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must verify compare/select route semantics remain RVV-plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify provider fact, operand binding, header/type, route validation, and target consume-only validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must verify focused C++/lit tests and ssh rvv reuse/rerun rationale."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-standalone-reduction-route-contract-extraction/prd.md", "reason": "Check consistency with the latest provider-owned route validation contract extraction pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-compare-select-production-validation-boundary/prd.md", "reason": "Check that this task extracts the existing compare/select facts into contracts rather than changing route behavior or coverage."}
