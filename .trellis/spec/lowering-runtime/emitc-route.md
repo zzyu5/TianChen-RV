@@ -1062,6 +1062,12 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   source/destination memory forms, target leaf profile, provider-supported
   mirror, required headers, C type summary, runtime ABI parameters, route
   operand binding plan, and exact route operand binding summary.
+- Route-description/provider validation must classify these three operations as
+  segment2 consumers before applying generic computed-mask memory validation.
+  Generic computed-mask memory checks may verify the shared computed-mask family
+  plan fields, but must not own target leaf profile, header/type, segment
+  layout, field, passthrough, update, or binding truth for computed-mask
+  segment2 routes.
 - Common EmitC/export may carry the provider-built payload and metadata mirrors
   unchanged. It must not infer segment2 or computed-mask semantics.
 
@@ -1079,6 +1085,10 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   family plan, runtime control plan, header/type summary, target profile,
   provider mirror, runtime ABI order/parameters, or binding summary -> fail
   before target artifact acceptance.
+- A computed-mask segment2 route that falls through to the non-segment
+  computed-mask memory expectation set, or receives an empty segment2 canonical
+  fact set while carrying computed-mask segment2 route metadata -> fail closed
+  before provider materialization or target artifact acceptance.
 - Update routes with stale or missing arithmetic kind/callee, stale field-load
   source, stale arithmetic operands/result, or stale masked segment-store
   statement -> fail before target artifact acceptance.

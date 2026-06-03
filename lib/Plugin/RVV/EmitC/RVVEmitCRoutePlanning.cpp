@@ -28850,14 +28850,24 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isComputedMaskMemoryRouteFamilyRoute =
       isRVVSelectedBodyComputedMaskMemoryRouteOperation(
           operationProfile.operation);
+  const bool isComputedMaskSegment2MemoryRouteFamilyRoute =
+      operationProfile.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
+      operationProfile.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad ||
+      operationProfile.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
   const bool isNonSegmentComputedMaskMemoryRouteFamilyRoute =
       isComputedMaskMemoryRouteFamilyRoute &&
-      !operationProfile.isSegmentedMemoryMovement;
+      !isComputedMaskSegment2MemoryRouteFamilyRoute;
   const bool isBaseMemoryMovementRouteFamilyRoute =
       isRVVSelectedBodyBaseMemoryMovementRouteOperation(
           operationProfile.operation);
-  const bool isSegment2MemoryRouteFamilyRoute =
+  const bool isPlainSegment2MemoryRouteFamilyRoute =
       isRVVSelectedBodySegment2MemoryRouteOperation(operationProfile.operation);
+  const bool isSegment2MemoryRouteFamilyRoute =
+      isPlainSegment2MemoryRouteFamilyRoute ||
+      isComputedMaskSegment2MemoryRouteFamilyRoute;
   const bool isComputedMaskIndexedGather =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
@@ -28882,6 +28892,21 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       isRuntimeScalarComputedMaskedMAcc;
   const bool isMAccRouteFamilyRoute =
       isRVVSelectedBodyMAccRouteFamilyConsumer(operationProfile.operation);
+
+  std::optional<RVVPlainSegment2MemoryRouteFacts> plainSegment2Facts;
+  std::optional<RVVComputedMaskSegment2MemoryRouteFacts>
+      computedMaskSegment2Facts;
+  if (isSegment2MemoryRouteFamilyRoute) {
+    plainSegment2Facts =
+        getRVVPlainSegment2MemoryRouteFacts(operationProfile.operation);
+    computedMaskSegment2Facts =
+        getRVVComputedMaskSegment2MemoryRouteFacts(operationProfile.operation);
+    if (!plainSegment2Facts && !computedMaskSegment2Facts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " segment2 provider requires canonical route facts for the "
+          "selected operation before route-description verification");
+  }
 
   std::optional<RVVCompareSelectRouteFacts> compareSelectFacts;
   std::optional<RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
@@ -29083,7 +29108,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   } else if (isBaseMemoryMovementRouteFamilyRoute) {
     // Base memory movement mirrors are verified by the RVV owner below.
-  } else if (isComputedMaskMemoryRouteFamilyRoute) {
+  } else if (isNonSegmentComputedMaskMemoryRouteFamilyRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "target leaf profile", description.targetLeafProfile,
             getComputedMaskMemoryTargetLeafProfile(operationProfile.operation)))
@@ -29105,24 +29130,33 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             getComputedMaskMemoryCTypeMappingSummary(operationProfile.operation)))
       return error;
   } else if (isSegment2MemoryRouteFamilyRoute) {
+    llvm::StringRef expectedTargetLeafProfile =
+        plainSegment2Facts ? plainSegment2Facts->targetLeafProfile
+                           : computedMaskSegment2Facts->targetLeafProfile;
+    llvm::StringRef expectedProviderSupportedMirror =
+        plainSegment2Facts ? plainSegment2Facts->providerSupportedMirror
+                           : computedMaskSegment2Facts->providerSupportedMirror;
+    llvm::StringRef expectedHeaderDeclarations =
+        plainSegment2Facts ? plainSegment2Facts->requiredHeaderDeclarations
+                           : computedMaskSegment2Facts->requiredHeaderDeclarations;
+    llvm::StringRef expectedCTypeMapping =
+        plainSegment2Facts ? plainSegment2Facts->cTypeMappingSummary
+                           : computedMaskSegment2Facts->cTypeMappingSummary;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "target leaf profile", description.targetLeafProfile,
-            getSegment2MemoryTargetLeafProfile(operationProfile.operation)))
+            expectedTargetLeafProfile))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "provider_supported_mirror",
-            description.providerSupportedMirror,
-            getSegment2MemoryProviderSupportedMirror(
-                operationProfile.operation)))
+            description.providerSupportedMirror, expectedProviderSupportedMirror))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "required header declarations",
-            description.requiredHeaderDeclarations,
-            kRVVSegment2RequiredHeaderDeclarations))
+            description.requiredHeaderDeclarations, expectedHeaderDeclarations))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
-            getSegment2MemoryCTypeMappingSummary(operationProfile.operation)))
+            expectedCTypeMapping))
       return error;
   } else if (isRVVSelectedBodyMAccRouteFamilyConsumer(
                  operationProfile.operation)) {
@@ -29180,19 +29214,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     expectedRuntimeABIOrder = kRVVStridedRuntimeABIOrder;
   } else if (operationProfile.isSegmentedMemoryMovement) {
     expectedRuntimeABIOrder =
-        operationProfile.operation ==
-                RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore
-            ? kRVVComputedMaskSegment2LoadRuntimeABIOrder
-        : operationProfile.operation ==
-                RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad
-            ? kRVVComputedMaskSegment2StoreRuntimeABIOrder
-        : operationProfile.operation ==
-                RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad
-            ? kRVVComputedMaskSegment2UpdateRuntimeABIOrder
-        : operationProfile.operation ==
-                RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad
-            ? kRVVSegment2InterleaveRuntimeABIOrder
-            : kRVVSegment2RuntimeABIOrder;
+        plainSegment2Facts ? plainSegment2Facts->runtimeABIOrder
+                           : computedMaskSegment2Facts->runtimeABIOrder;
   } else if (operationProfile.isMemoryMovement &&
              !isBaseMemoryMovementRouteFamilyRoute) {
   } else if (isComputedMaskSelect) {
@@ -29718,7 +29741,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   }
   if (!isRuntimeScalarComputedMaskSelectRoute &&
-      !isNonSegmentComputedMaskMemoryRouteFamilyRoute) {
+      !isNonSegmentComputedMaskMemoryRouteFamilyRoute &&
+      !isComputedMaskSegment2MemoryRouteFamilyRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask/tail policy route family plan",
             description.maskTailPolicyRouteFamilyPlanID, ""))
@@ -29728,7 +29752,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                                          description.maskTailPolicyOwner, ""))
       return error;
   }
-  if (isSegment2MemoryRouteFamilyRoute) {
+  if (isPlainSegment2MemoryRouteFamilyRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "plain segment2 memory route family plan",
             description.segment2MemoryRouteFamilyPlanID,
@@ -30971,34 +30995,23 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "indexed destination memory form",
             description.indexedDestinationMemoryForm, ""))
       return error;
-	  } else if (operationProfile.isSegmentedMemoryMovement) {
-	    const bool isSegmentInterleave =
-	        operationProfile.operation ==
-	        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
-    const bool isComputedMaskSegment2Load =
-        operationProfile.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
-    const bool isComputedMaskSegment2Store =
-        operationProfile.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-    const bool isComputedMaskSegment2Update =
-        operationProfile.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
-    const bool isComputedMaskSegment2StoreLike =
-        isComputedMaskSegment2Store || isComputedMaskSegment2Update;
-		    if (llvm::Error error = requireRouteDescriptionField(
-		            context, "strided memory layout", description.stridedMemoryLayout,
-		            ""))
-	      return error;
-	    if (llvm::Error error = requireRouteDescriptionField(
+  } else if (operationProfile.isSegmentedMemoryMovement) {
+    llvm::StringRef expectedIndexedMemoryLayout =
+        computedMaskSegment2Facts ? computedMaskSegment2Facts->segmentMemoryLayout
+                                  : llvm::StringRef();
+    llvm::StringRef expectedSourceMemoryForm =
+        plainSegment2Facts ? plainSegment2Facts->sourceMemoryForm
+                           : computedMaskSegment2Facts->sourceMemoryForm;
+    llvm::StringRef expectedDestinationMemoryForm =
+        plainSegment2Facts ? plainSegment2Facts->destinationMemoryForm
+                           : computedMaskSegment2Facts->destinationMemoryForm;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout", description.stridedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "indexed memory layout", description.indexedMemoryLayout,
-            isComputedMaskSegment2Load
-                ? kRVVComputedMaskSegment2LoadMemoryLayout
-            : isComputedMaskSegment2Store
-                ? kRVVComputedMaskSegment2StoreMemoryLayout
-            : isComputedMaskSegment2Update
-                ? kRVVComputedMaskSegment2UpdateMemoryLayout
-                : ""))
+            expectedIndexedMemoryLayout))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "lhs stride source", description.lhsStrideSource, ""))
@@ -31013,19 +31026,14 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "source stride source", description.sourceStrideSource,
             ""))
       return error;
-	    if (llvm::Error error = requireRouteDescriptionField(
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "source memory form", description.sourceMemoryForm,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? kRVVUnitStrideSourceMemoryForm
-                : kRVVSegment2SourceMemoryForm))
+            expectedSourceMemoryForm))
       return error;
     if (llvm::Error error =
             requireRouteDescriptionField(context, "destination memory form",
                                          description.destinationMemoryForm,
-                                         (isSegmentInterleave ||
-                                          isComputedMaskSegment2StoreLike)
-                                             ? kRVVSegment2InterleavedDestinationMemoryForm
-                                             : kRVVDestinationMemoryForm))
+                                         expectedDestinationMemoryForm))
       return error;
     if (description.indexEEW != 0)
       return makeRVVEmitCRouteProviderError(
@@ -31311,143 +31319,125 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.indexedDestinationMemoryForm, ""))
       return error;
   }
-	  if (operationProfile.isSegmentedMemoryMovement) {
-	    const bool isSegmentInterleave =
-	        operationProfile.operation ==
-	        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
-    const bool isComputedMaskSegment2Load =
-        operationProfile.operation ==
-            RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
-    const bool isComputedMaskSegment2Store =
-        operationProfile.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-    const bool isComputedMaskSegment2Update =
-        operationProfile.operation ==
-        RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
-    const bool isComputedMaskSegment2StoreLike =
-        isComputedMaskSegment2Store || isComputedMaskSegment2Update;
-	    if (llvm::Error error = requireRouteDescriptionField(
-	            context, "segment memory layout",
-            description.segmentMemoryLayout,
-            isComputedMaskSegment2Load
-                ? kRVVComputedMaskSegment2LoadMemoryLayout
-            : isComputedMaskSegment2Store
-                ? kRVVComputedMaskSegment2StoreMemoryLayout
-            : isComputedMaskSegment2Update
-                ? kRVVComputedMaskSegment2UpdateMemoryLayout
-            : isSegmentInterleave ? kRVVSegment2InterleaveMemoryLayout
-                                  : kRVVSegment2MemoryLayout))
+  if (operationProfile.isSegmentedMemoryMovement) {
+    const auto requireSegment2FactField =
+        [&](llvm::StringRef label, llvm::StringRef actual,
+            llvm::StringRef plainExpected,
+            llvm::StringRef computedExpected) -> llvm::Error {
+      return requireRouteDescriptionField(
+          context, label, actual,
+          plainSegment2Facts ? plainExpected : computedExpected);
+    };
+    if (llvm::Error error = requireSegment2FactField(
+            "segment memory layout", description.segmentMemoryLayout,
+            plainSegment2Facts ? plainSegment2Facts->segmentMemoryLayout
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->segmentMemoryLayout
+                : llvm::StringRef()))
       return error;
-    if (description.segmentCount != 2)
+    std::int64_t expectedSegmentCount =
+        plainSegment2Facts ? plainSegment2Facts->segmentCount
+                           : computedMaskSegment2Facts->segmentCount;
+    if (description.segmentCount != expectedSegmentCount)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
-          " segment count must be provider-derived as 2 for segment2 "
-          "memory");
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "segment tuple C type", description.segmentTupleCType,
-            getRVVSelectedBodySegmentTupleCType(
-                description.sew, description.lmul, description.segmentCount)))
+          " segment count must be provider-derived from canonical segment2 "
+          "route facts before route-description verification");
+    if (llvm::Error error = requireSegment2FactField(
+            "segment tuple C type", description.segmentTupleCType,
+            plainSegment2Facts ? plainSegment2Facts->segmentTupleCType
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->segmentTupleCType
+                : llvm::StringRef()))
       return error;
-	    if (llvm::Error error = requireRouteDescriptionField(
-            context, "segment-load intrinsic",
-            description.segmentLoadIntrinsic,
-            isComputedMaskSegment2Load
-                ? getRVVSelectedBodyMaskedSegmentLoadIntrinsic(
-                      description.sew, description.lmul,
-                      description.segmentCount)
-            : isComputedMaskSegment2StoreLike
-                ? ""
-                : (isSegmentInterleave
-                       ? llvm::StringRef()
-                       : getRVVSelectedBodySegmentLoadIntrinsic(
-                             description.sew, description.lmul,
-                             description.segmentCount))))
-	      return error;
-	    if (llvm::Error error = requireRouteDescriptionField(
-            context, "segment-store intrinsic",
-            description.segmentStoreIntrinsic,
-            isComputedMaskSegment2Load
-                ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
-                      description.sew, description.lmul,
-                      description.segmentCount)
-            : isComputedMaskSegment2StoreLike
-                ? getRVVSelectedBodyMaskedSegmentStoreIntrinsic(
-                      description.sew, description.lmul,
-                      description.segmentCount)
-                : (isSegmentInterleave
-                       ? getRVVSelectedBodySegmentStoreIntrinsic(
-                             description.sew, description.lmul,
-                             description.segmentCount)
-                       : llvm::StringRef())))
+    if (llvm::Error error = requireSegment2FactField(
+            "segment-load intrinsic", description.segmentLoadIntrinsic,
+            plainSegment2Facts ? plainSegment2Facts->segmentLoadIntrinsic
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->segmentLoadIntrinsic
+                : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "segment field extract intrinsic",
+    if (llvm::Error error = requireSegment2FactField(
+            "segment-store intrinsic", description.segmentStoreIntrinsic,
+            plainSegment2Facts ? plainSegment2Facts->segmentStoreIntrinsic
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->segmentStoreIntrinsic
+                : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireSegment2FactField(
+            "segment field extract intrinsic",
             description.segmentFieldExtractIntrinsic,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? getRVVSelectedBodySegmentTupleCreateIntrinsic(
-                      description.sew, description.lmul,
-                      description.segmentCount)
-                : getRVVSelectedBodySegmentFieldExtractIntrinsic(
-                      description.sew, description.lmul,
-                      description.segmentCount)))
+            plainSegment2Facts ? plainSegment2Facts->segmentFieldExtractIntrinsic
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->segmentFieldExtractIntrinsic
+                : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field0 role", description.field0Role,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? kRVVSegment2Field0InputRole
-                : kRVVSegment2Field0Role))
+    if (llvm::Error error = requireSegment2FactField(
+            "field0 role", description.field0Role,
+            plainSegment2Facts ? plainSegment2Facts->field0Role
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts ? computedMaskSegment2Facts->field0Role
+                                      : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field1 role", description.field1Role,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? kRVVSegment2Field1InputRole
-                : kRVVSegment2Field1Role))
+    if (llvm::Error error = requireSegment2FactField(
+            "field1 role", description.field1Role,
+            plainSegment2Facts ? plainSegment2Facts->field1Role
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts ? computedMaskSegment2Facts->field1Role
+                                      : llvm::StringRef()))
       return error;
-	    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field0 result name", description.field0Name,
-            isComputedMaskSegment2Load ? "masked_segment2_field0_vec"
-            : isComputedMaskSegment2Update
-                ? "masked_segment2_update_field0_vec"
-            : isComputedMaskSegment2Store
-                ? "masked_segment2_store_field0_vec"
-                : "field0_vec"))
-	      return error;
-	    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field1 result name", description.field1Name,
-            isComputedMaskSegment2Load ? "masked_segment2_field1_vec"
-            : isComputedMaskSegment2Update
-                ? "masked_segment2_update_field1_vec"
-            : isComputedMaskSegment2Store
-                ? "masked_segment2_store_field1_vec"
-                : "field1_vec"))
+    if (llvm::Error error = requireSegment2FactField(
+            "field0 result name", description.field0Name,
+            plainSegment2Facts ? plainSegment2Facts->field0Name
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts ? computedMaskSegment2Facts->field0Name
+                                      : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field0 source memory form",
-            description.field0SourceMemoryForm,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? kRVVUnitStrideSourceMemoryForm
-                : ""))
+    if (llvm::Error error = requireSegment2FactField(
+            "field1 result name", description.field1Name,
+            plainSegment2Facts ? plainSegment2Facts->field1Name
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts ? computedMaskSegment2Facts->field1Name
+                                      : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field1 source memory form",
-            description.field1SourceMemoryForm,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? kRVVUnitStrideSourceMemoryForm
-                : ""))
+    if (llvm::Error error = requireSegment2FactField(
+            "field0 source memory form", description.field0SourceMemoryForm,
+            plainSegment2Facts ? plainSegment2Facts->field0SourceMemoryForm
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->field0SourceMemoryForm
+                : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field0 destination memory form",
+    if (llvm::Error error = requireSegment2FactField(
+            "field1 source memory form", description.field1SourceMemoryForm,
+            plainSegment2Facts ? plainSegment2Facts->field1SourceMemoryForm
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->field1SourceMemoryForm
+                : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireSegment2FactField(
+            "field0 destination memory form",
             description.field0DestinationMemoryForm,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? ""
-                : kRVVDestinationMemoryForm))
+            plainSegment2Facts ? plainSegment2Facts->field0DestinationMemoryForm
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->field0DestinationMemoryForm
+                : llvm::StringRef()))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "field1 destination memory form",
+    if (llvm::Error error = requireSegment2FactField(
+            "field1 destination memory form",
             description.field1DestinationMemoryForm,
-            (isSegmentInterleave || isComputedMaskSegment2StoreLike)
-                ? ""
-                : kRVVDestinationMemoryForm))
+            plainSegment2Facts ? plainSegment2Facts->field1DestinationMemoryForm
+                               : llvm::StringRef(),
+            computedMaskSegment2Facts
+                ? computedMaskSegment2Facts->field1DestinationMemoryForm
+                : llvm::StringRef()))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(

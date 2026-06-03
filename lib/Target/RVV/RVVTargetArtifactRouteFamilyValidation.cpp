@@ -12140,14 +12140,159 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
       return error;
   } else if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
                  description.operation)) {
+    std::optional<plugin::rvv::RVVComputedMaskSegment2MemoryRouteFacts>
+        routeFacts = getRVVComputedMaskSegment2MemoryFactsForDescription(
+            description);
+    if (!routeFacts)
+      return makeRVVTargetRouteError(
+          "computed-mask segment2-memory target artifact consumer requires "
+          "provider-owned canonical route facts before checking candidate "
+          "mirrors");
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.segment2_memory_route_family_plan", "",
             "selected typed RVV segment2 route-family plan"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.computed_mask_memory_route_family_plan",
-            description.computedMaskMemoryRouteFamilyPlanID,
+            routeFacts->computedMaskMemoryRouteFamilyPlanID,
             "selected typed RVV computed-mask segment2 route-family plan"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.compare_predicate_kind",
+            routeFacts->comparePredicateKind,
+            "selected typed RVV computed-mask segment2 compare predicate"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_memory_layout",
+            routeFacts->segmentMemoryLayout,
+            "selected typed RVV computed-mask segment2 masked memory layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.computed_mask_memory_mask_producer_source",
+            routeFacts->computedMaskMemoryMaskProducerSource,
+            "selected typed RVV computed-mask segment2 producer source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_role", routeFacts->maskRole,
+            "selected typed RVV computed-mask segment2 mask role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_source", routeFacts->maskSource,
+            "selected typed RVV computed-mask segment2 mask source"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.mask_memory_form",
+            routeFacts->maskMemoryForm,
+            "selected typed RVV computed-mask segment2 mask memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.inactive_lane_contract",
+            routeFacts->inactiveLaneContract,
+            "selected typed RVV computed-mask segment2 inactive lane contract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.masked_passthrough_layout",
+            routeFacts->maskedPassthroughLayout,
+            "selected typed RVV computed-mask segment2 passthrough layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment_tuple_c_type",
+            routeFacts->segmentTupleCType,
+            "selected typed RVV computed-mask segment2 tuple C type"))
+      return error;
+    if (routeFacts->operation ==
+        plugin::rvv::RVVSelectedBodyOperationKind::
+            ComputedMaskSegment2LoadUnitStore) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_load_intrinsic",
+              routeFacts->segmentLoadIntrinsic,
+              "selected typed RVV computed-mask segment2 load callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_store_intrinsic", "",
+              "selected typed RVV computed-mask segment2 store callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_field_extract_intrinsic",
+              routeFacts->segmentFieldExtractIntrinsic,
+              "selected typed RVV computed-mask segment2 field extract"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
+              routeFacts->segmentStoreIntrinsic,
+              "selected typed RVV computed-mask segment2 tuple create"))
+        return error;
+    } else {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_load_intrinsic", "",
+              "selected typed RVV computed-mask segment2 load callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_store_intrinsic",
+              routeFacts->segmentStoreIntrinsic,
+              "selected typed RVV computed-mask segment2 masked store callee"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
+              routeFacts->segmentFieldExtractIntrinsic,
+              "selected typed RVV computed-mask segment2 tuple create"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.segment_field_extract_intrinsic", "",
+              "selected typed RVV computed-mask segment2 field extract"))
+        return error;
+    }
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_role", routeFacts->field0Role,
+            "selected typed RVV computed-mask segment2 field0 role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_role", routeFacts->field1Role,
+            "selected typed RVV computed-mask segment2 field1 role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_name", routeFacts->field0Name,
+            "selected typed RVV computed-mask segment2 field0 binding"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_name", routeFacts->field1Name,
+            "selected typed RVV computed-mask segment2 field1 binding"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_source_memory_form",
+            routeFacts->field0SourceMemoryForm,
+            "selected typed RVV computed-mask segment2 field0 source memory "
+            "form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_source_memory_form",
+            routeFacts->field1SourceMemoryForm,
+            "selected typed RVV computed-mask segment2 field1 source memory "
+            "form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field0_destination_memory_form",
+            routeFacts->field0DestinationMemoryForm,
+            "selected typed RVV computed-mask segment2 field0 destination "
+            "memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.field1_destination_memory_form",
+            routeFacts->field1DestinationMemoryForm,
+            "selected typed RVV computed-mask segment2 field1 destination "
+            "memory form"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment2_update_arithmetic_kind",
+            routeFacts->segment2UpdateArithmeticKind,
+            "selected typed RVV computed-mask segment2 update arithmetic "
+            "kind"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.segment2_update_arithmetic_intrinsic",
+            routeFacts->segment2UpdateArithmeticIntrinsic,
+            "selected typed RVV computed-mask segment2 update arithmetic "
+            "callee"))
       return error;
   }
 
@@ -12198,145 +12343,8 @@ llvm::Error validateRVVSegment2MemoryTargetArtifactCandidateMirrorsImpl(
           "selected typed RVV segment2 count"))
     return error;
 
-  if (isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
+  if (!isRVVComputedMaskSegment2MemoryRouteFamilyOperation(
           description.operation)) {
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.compare_predicate_kind",
-            description.comparePredicateKind,
-            "selected typed RVV computed-mask segment2 compare predicate"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.masked_memory_layout",
-            description.segmentMemoryLayout,
-            "selected typed RVV computed-mask segment2 masked memory layout"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.computed_mask_memory_mask_producer_source",
-            description.computedMaskMemoryMaskProducerSource,
-            "selected typed RVV computed-mask segment2 producer source"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_role", description.maskRole,
-            "selected typed RVV computed-mask segment2 mask role"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_source", description.maskSource,
-            "selected typed RVV computed-mask segment2 mask source"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.mask_memory_form", description.maskMemoryForm,
-            "selected typed RVV computed-mask segment2 mask memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.inactive_lane_contract",
-            description.inactiveLaneContract,
-            "selected typed RVV computed-mask segment2 inactive lane contract"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.masked_passthrough_layout",
-            description.maskedPassthroughLayout,
-            "selected typed RVV computed-mask segment2 passthrough layout"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment_tuple_c_type",
-            description.segmentTupleCType,
-            "selected typed RVV computed-mask segment2 tuple C type"))
-      return error;
-    if (description.operation ==
-        plugin::rvv::RVVSelectedBodyOperationKind::
-            ComputedMaskSegment2LoadUnitStore) {
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_load_intrinsic",
-              description.segmentLoadIntrinsic,
-              "selected typed RVV computed-mask segment2 load callee"))
-        return error;
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_store_intrinsic", "",
-              "selected typed RVV computed-mask segment2 store callee"))
-        return error;
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_field_extract_intrinsic",
-              description.segmentFieldExtractIntrinsic,
-              "selected typed RVV computed-mask segment2 field extract"))
-        return error;
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
-              description.segmentStoreIntrinsic,
-              "selected typed RVV computed-mask segment2 tuple create"))
-        return error;
-    } else {
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_load_intrinsic", "",
-              "selected typed RVV computed-mask segment2 load callee"))
-        return error;
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_store_intrinsic",
-              description.segmentStoreIntrinsic,
-              "selected typed RVV computed-mask segment2 masked store callee"))
-        return error;
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_tuple_create_intrinsic",
-              description.segmentFieldExtractIntrinsic,
-              "selected typed RVV computed-mask segment2 tuple create"))
-        return error;
-      if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.segment_field_extract_intrinsic", "",
-              "selected typed RVV computed-mask segment2 field extract"))
-        return error;
-    }
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_role", description.field0Role,
-            "selected typed RVV computed-mask segment2 field0 role"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_role", description.field1Role,
-            "selected typed RVV computed-mask segment2 field1 role"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_name", description.field0Name,
-            "selected typed RVV computed-mask segment2 field0 binding"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_name", description.field1Name,
-            "selected typed RVV computed-mask segment2 field1 binding"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_source_memory_form",
-            description.field0SourceMemoryForm,
-            "selected typed RVV computed-mask segment2 field0 source memory "
-            "form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_source_memory_form",
-            description.field1SourceMemoryForm,
-            "selected typed RVV computed-mask segment2 field1 source memory "
-            "form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field0_destination_memory_form",
-            description.field0DestinationMemoryForm,
-            "selected typed RVV computed-mask segment2 field0 destination "
-            "memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.field1_destination_memory_form",
-            description.field1DestinationMemoryForm,
-            "selected typed RVV computed-mask segment2 field1 destination "
-            "memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment2_update_arithmetic_kind",
-            description.segment2UpdateArithmeticKind,
-            "selected typed RVV computed-mask segment2 update arithmetic "
-            "kind"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.segment2_update_arithmetic_intrinsic",
-            description.segment2UpdateArithmeticIntrinsic,
-            "selected typed RVV computed-mask segment2 update arithmetic "
-            "callee"))
-      return error;
-  } else {
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.computed_mask_memory_mask_producer_source",
             "", "selected typed RVV computed-mask segment2 producer source"))

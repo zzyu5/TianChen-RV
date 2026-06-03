@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global RVV authority and no descriptor/source-front-door/common-EmitC semantic drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check segment2 planning/statement ownership, target validation, and RVV evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check plain and computed-mask segment2 provider fact surfaces, operand binding, header/type, and mirror validation requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test evidence and ssh rvv reuse/new-run rationale."}
+{"file": ".trellis/tasks/06-03-06-03-stage2-rvv-segment2-memory-production-validation-boundary/prd.md", "reason": "Check implementation and tests against this task's acceptance criteria and non-goals."}

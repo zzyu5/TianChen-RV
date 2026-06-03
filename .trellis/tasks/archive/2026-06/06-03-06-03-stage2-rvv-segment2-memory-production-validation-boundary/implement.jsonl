@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 typed-body route ownership, and common EmitC boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, segment2 route-family planning owner boundary, segment2 statement-plan boundary, and target artifact consumer contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route fact surface, operand binding, header/type summary, and plain/computed-mask segment2 validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-bundle and ssh rvv evidence requirements for RVV artifact claims."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Ensure segment2 target/profile facts constrain plugin legality rather than becoming route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV segment2 semantics in the RVV plugin/provider and out of common/core EmitC."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep segment2 as typed RVV execution behavior rather than high-level compute or tcrv.exec semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-strided-memory-production-validation-boundary/prd.md", "reason": "Adjacent completed provider-to-target validation boundary pattern and evidence plan."}
