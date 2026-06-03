@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage2 typed RVV coverage, common EmitC neutrality, and ssh rvv evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for selected-body realization, vector reduction route facts, provider-built routes, statement-plan boundaries, and executable evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, common EmitC materialization boundary, and target artifact mirror contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused local checks and ssh rvv evidence requirement for RVV runtime/correctness claims."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Interpret real RVV correctness evidence without turning validation output into system authority."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-vector-reduction-route-family-provider-contract-extraction/prd.md", "reason": "Previous vector-reduction provider contract owner, focused checks, and dry-run continuation point."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-reduction-accumulation-realization-boundary/prd.md", "reason": "Ordinary reduction selected-body realization boundary and pre-realized-to-realized route facts."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-standalone-reduction-realization-boundary/prd.md", "reason": "Reduction-family selected-boundary evidence pattern and fail-closed direct pre-realized route-entry constraints."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-standalone-reduction-production-validation-boundary/prd.md", "reason": "Provider-to-target validation boundary pattern and ssh rvv evidence interpretation for reduction families."}
