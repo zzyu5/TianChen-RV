@@ -4773,6 +4773,139 @@ void applyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
                                           plan.runtimeABIParameters.end());
 }
 
+static void appendRuntimeScalarSplatStoreValidationHeaders(
+    RVVRuntimeScalarSplatStoreRouteValidationContract &contract,
+    llvm::StringRef requiredHeaderDeclarations) {
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers)
+    contract.requiredHeaders.push_back(header.trim().str());
+}
+
+static void appendRuntimeScalarSplatStoreValidationTypeMapping(
+    RVVRuntimeScalarSplatStoreRouteValidationContract &contract,
+    llvm::StringRef sourceType, llvm::StringRef cType,
+    llvm::StringRef label) {
+  contract.typeMappings.push_back({sourceType.str(), cType.str(), label});
+}
+
+static void appendRuntimeScalarSplatStoreValidationBinding(
+    RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+    const support::RuntimeABIParameter &parameter,
+    llvm::ArrayRef<llvm::StringRef> materializedUses) {
+  RVVRouteOperandBinding binding;
+  binding.logicalOperand = logicalOperand.str();
+  binding.parameter = parameter;
+  for (llvm::StringRef use : materializedUses)
+    binding.materializedUses.push_back(use.str());
+  plan.bindings.push_back(std::move(binding));
+}
+
+std::optional<RVVRuntimeScalarSplatStoreRouteValidationContract>
+buildRVVRuntimeScalarSplatStoreRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+          description.operation))
+    return std::nullopt;
+
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract &config =
+      tcrv::rvv::getRVVSelectedBodyM1ConfigVLContract();
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters =
+      tcrv::rvv::getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
+  if (runtimeABIParameters.size() != 3)
+    return std::nullopt;
+
+  RVVRouteOperandBindingPlan bindingPlan;
+  bindingPlan.planID = kRVVRuntimeScalarSplatStoreOperandBindingPlanID.str();
+  appendRuntimeScalarSplatStoreValidationBinding(
+      bindingPlan, "rhs_scalar", runtimeABIParameters[0],
+      {"runtime-abi-mirror", "runtime-scalar-splat-call", "header-mirror"});
+  appendRuntimeScalarSplatStoreValidationBinding(
+      bindingPlan, "out", runtimeABIParameters[1],
+      {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
+  appendRuntimeScalarSplatStoreValidationBinding(
+      bindingPlan, "n", runtimeABIParameters[2],
+      {"runtime-abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+
+  RVVRuntimeScalarSplatStoreRouteValidationContract contract;
+  contract.operation = RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
+  contract.consumerLabel =
+      "runtime scalar splat-store target artifact consumer";
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(contract.operation).str();
+  contract.memoryForm = RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
+  contract.elementTypeName =
+      getRVVSelectedBodyIntegerElementTypeName(config.sew).str();
+  contract.sew = config.sew;
+  contract.lmul = config.lmul.str();
+  contract.tailPolicy =
+      stringifyRuntimeControlTailPolicy(config.tailPolicy).str();
+  contract.maskPolicy =
+      stringifyRuntimeControlMaskPolicy(config.maskPolicy).str();
+  contract.configContractID = config.configContractID.str();
+  contract.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID().str();
+  contract.runtimeABIOrder =
+      kRVVRuntimeScalarSplatStoreRuntimeABIOrder.str();
+  contract.targetLeafProfile =
+      kRVVRuntimeScalarSplatStoreTargetLeafProfile.str();
+  contract.providerSupportedMirror =
+      kRVVRuntimeScalarSplatStoreProviderSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      kRVVRuntimeScalarSplatStoreRequiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary =
+      kRVVRuntimeScalarSplatStoreCTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID = bindingPlan.planID;
+  contract.routeOperandBindingSummary =
+      stringifyRVVRouteOperandBindingPlan(bindingPlan);
+  contract.typedComputeOpName = "tcrv_rvv.splat";
+  contract.runtimeScalarSplatStoreRouteFamilyPlanID =
+      kRVVRuntimeScalarSplatStoreRouteFamilyPlanID.str();
+
+  contract.sourceMemoryForm = "runtime-scalar-value";
+  contract.destinationMemoryForm = kRVVDestinationMemoryForm.str();
+  contract.scalarCType = runtimeABIParameters[0].cType;
+  contract.vlCType = "size_t";
+  contract.vectorTypeName =
+      getRVVSelectedBodyVectorTypeName(config.sew, config.lmul).str();
+  contract.vectorCType =
+      getRVVSelectedBodySignedVectorCType(config.sew, config.lmul).str();
+  contract.setVLIntrinsic =
+      getRVVSelectedBodySetVLIntrinsic(config.sew, config.lmul).str();
+  contract.rhsScalarSplatIntrinsic =
+      getRVVSelectedBodyScalarSplatIntrinsic(config.sew, config.lmul).str();
+  contract.storeIntrinsic =
+      getRVVSelectedBodyStoreIntrinsic(config.sew, config.lmul).str();
+  contract.resultName =
+      getRVVSelectedBodyOperationProfile(contract.operation).resultName.str();
+
+  contract.emitCFullChunkVLName = config.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName =
+      tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName().str();
+  contract.emitCLoopInductionName = config.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount = 3;
+
+  contract.logicalOperands.push_back("rhs_scalar");
+  contract.logicalOperands.push_back("out");
+  contract.logicalOperands.push_back("n");
+  contract.runtimeABIParameters.append(runtimeABIParameters.begin(),
+                                       runtimeABIParameters.end());
+  for (const support::RuntimeABIParameter &parameter :
+       contract.runtimeABIParameters)
+    contract.runtimeABIParameterRoles.push_back(parameter.role);
+
+  appendRuntimeScalarSplatStoreValidationHeaders(
+      contract, contract.requiredHeaderDeclarations);
+  appendRuntimeScalarSplatStoreValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", contract.vlCType,
+      "selected typed RVV runtime scalar splat-store VL type");
+  appendRuntimeScalarSplatStoreValidationTypeMapping(
+      contract, contract.vectorTypeName, contract.vectorCType,
+      "selected typed RVV runtime scalar splat-store vector type");
+  return contract;
+}
+
 bool isRVVSelectedBodyPlainCompareSelectRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::CmpSelect;
@@ -19126,6 +19259,12 @@ std::optional<RVVStandaloneReductionRouteValidationContract>
 getRVVStandaloneReductionRouteValidationContract(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return buildRVVStandaloneReductionRouteValidationContract(description);
+}
+
+std::optional<RVVRuntimeScalarSplatStoreRouteValidationContract>
+getRVVRuntimeScalarSplatStoreRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return buildRVVRuntimeScalarSplatStoreRouteValidationContract(description);
 }
 
 std::optional<RVVStandaloneReductionRouteMetadataMirrorContractSet>

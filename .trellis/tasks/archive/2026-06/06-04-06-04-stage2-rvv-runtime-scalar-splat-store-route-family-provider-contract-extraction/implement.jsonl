@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain and Stage2 boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV provider ownership, runtime ABI/body facts, and target consume-only boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned route fact and validation contract pattern"}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-segment2-memory-route-family-provider-contract-extraction/prd.md", "reason": "Closest provider route validation contract extraction template"}
+{"file": ".trellis/tasks/archive/2026-06/06-01-stage1-generic-typed-rvv-runtime-scalar-splat-store-replacement/prd.md", "reason": "Runtime-scalar typed route authority and Stage1 replacement context"}
+{"file": ".trellis/tasks/archive/2026-06/06-01-06-01-stage2-rvv-runtime-scalar-splat-store-provider-abi-preflight/prd.md", "reason": "Existing runtime-scalar provider ABI preflight and fact surfaces"}

@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-21.md`
-- **Total Sessions**: 422
+- **Active File**: `journal-22.md`
+- **Total Sessions**: 423
 - **Last Active**: 2026-06-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-21.md` | ~1978 | Active |
+| `journal-22.md` | ~40 | Active |
+| `journal-21.md` | ~1978 | Archived |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
 | `journal-18.md` | ~1969 | Archived |
@@ -49,6 +50,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 423 | 2026-06-04 | Stage2 RVV runtime-scalar splat-store route validation contract | created-after-journal-entry | `main` |
 | 422 | 2026-06-04 | Stage2 RVV segment2 route validation contract | `4f20e40a` | `main` |
 | 421 | 2026-06-04 | Stage2 RVV base-memory route validation contract | included-in-this-commit | `main` |
 | 420 | 2026-06-04 | Stage2 RVV compare/select route-family provider contract extraction | included-in-this-commit | `main` |

@@ -930,6 +930,69 @@ std::optional<RVVSegment2MemoryRouteValidationContract>
 getRVVSegment2MemoryRouteValidationContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
+struct RVVRuntimeScalarSplatStoreRouteTypeMappingContract {
+  std::string sourceType;
+  std::string cType;
+  llvm::StringRef label;
+};
+
+struct RVVRuntimeScalarSplatStoreRouteValidationContract {
+  RVVSelectedBodyOperationKind operation =
+      RVVSelectedBodyOperationKind::RuntimeScalarSplatStore;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
+  std::string elementTypeName;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string runtimeScalarSplatStoreRouteFamilyPlanID;
+
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string scalarCType;
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string setVLIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
+  std::string storeIntrinsic;
+  std::string resultName;
+
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+
+  std::size_t expectedPreLoopStepCount = 0;
+  std::size_t expectedLoopBodyStepCount = 0;
+
+  llvm::SmallVector<std::string, 4> logicalOperands;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+      runtimeABIParameters;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameterRole, 4>
+      runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVRuntimeScalarSplatStoreRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVRuntimeScalarSplatStoreRouteValidationContract>
+getRVVRuntimeScalarSplatStoreRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVMemoryRouteMetadataMirrorContract {
   llvm::StringRef key;
   std::string expected;

@@ -4321,6 +4321,37 @@ bool expectRVVTargetArtifactExporterShape(
           runtimeSplatFixture, runtimeSplatRoute, runtimeSplatDescription,
           "rebuild RVV runtime-scalar splat-store route validator inputs"))
     return false;
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVRuntimeScalarSplatStoreRouteValidationContract>
+      runtimeSplatContract =
+          tianchenrv::plugin::rvv::
+              getRVVRuntimeScalarSplatStoreRouteValidationContract(
+                  runtimeSplatDescription);
+  if (!runtimeSplatContract) {
+    llvm::errs() << "runtime-scalar splat-store fixture did not expose "
+                    "provider-owned route validation contract\n";
+    return false;
+  }
+  if (runtimeSplatContract->runtimeABIOrder != "rhs_scalar,out,n" ||
+      runtimeSplatContract->routeOperandBindingPlanID !=
+          "rvv-route-operand-binding:runtime_scalar_splat_store.v1" ||
+      runtimeSplatContract->routeOperandBindingSummary !=
+          runtimeSplatDescription.routeOperandBindingSummary ||
+      runtimeSplatContract->runtimeScalarSplatStoreRouteFamilyPlanID !=
+          runtimeSplatDescription
+              .runtimeScalarSplatStoreRouteFamilyPlanID ||
+      runtimeSplatContract->runtimeABIParameters.size() != 3 ||
+      runtimeSplatContract->expectedPreLoopStepCount != 1 ||
+      runtimeSplatContract->expectedLoopBodyStepCount != 3 ||
+      runtimeSplatContract->rhsScalarSplatIntrinsic !=
+          runtimeSplatDescription.rhsBroadcastIntrinsic ||
+      runtimeSplatContract->storeIntrinsic !=
+          runtimeSplatDescription.storeIntrinsic) {
+    llvm::errs() << "runtime-scalar splat-store provider validation contract "
+                    "did not mirror canonical route, ABI, binding, and "
+                    "statement-plan facts\n";
+    return false;
+  }
 
   RVVRouteValidationContext runtimeSplatContext{
       runtimeSplatFixture.candidate, runtimeSplatRoute,
@@ -4408,6 +4439,19 @@ bool expectRVVTargetArtifactExporterShape(
           {"runtime ABI order", "rhs_scalar,out,n", "rhs_scalar,n,out"}))
     return false;
 
+  RVVRouteDescription staleRuntimeSplatBinding =
+      runtimeSplatDescription;
+  staleRuntimeSplatBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:runtime_scalar_splat_store.v1;"
+      "rhs_scalar=metadata-derived-runtime-splat-binding";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatBinding,
+          "runtime-scalar splat-store registry rejects stale route operand "
+          "binding summary",
+          {"route operand binding", "runtime_scalar_splat_store.v1",
+           "metadata-derived-runtime-splat-binding"}))
+    return false;
+
   RVVRouteDescription missingRuntimeSplatSplat =
       runtimeSplatDescription;
   missingRuntimeSplatSplat.rhsBroadcastIntrinsic = "";
@@ -4415,7 +4459,8 @@ bool expectRVVTargetArtifactExporterShape(
           missingRuntimeSplatSplat,
           "runtime-scalar splat-store registry rejects missing scalar splat "
           "fact",
-          {"runtime scalar splat", "result facts"}))
+          {"runtime scalar splat", "__riscv_vmv_v_x_i32m1",
+           "artifact export"}))
     return false;
 
   RVVRouteDescription missingRuntimeSplatStore =
@@ -4424,7 +4469,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectRuntimeSplatProviderFailure(
           missingRuntimeSplatStore,
           "runtime-scalar splat-store registry rejects missing store fact",
-          {"store", "result facts"}))
+          {"store intrinsic", "__riscv_vse32_v_i32m1", "artifact export"}))
     return false;
 
   RVVRouteDescription staleRuntimeSplatElementwise =

@@ -9613,6 +9613,8 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan;
   using tianchenrv::plugin::rvv::
+      getRVVRuntimeScalarSplatStoreRouteValidationContract;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMigratedRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
@@ -10195,6 +10197,47 @@ module {
           "runtime_scalar_splat_store provider fact preflight accepts validated "
           "typed body, family plan, materialization, residual binding, "
           "route-control, ABI, and statement facts before route construction"))
+    return result;
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVRuntimeScalarSplatStoreRouteValidationContract>
+      runtimeSplatContract =
+          getRVVRuntimeScalarSplatStoreRouteValidationContract(
+              runtimeSplatAnalysis->description);
+  if (int result =
+          expect(static_cast<bool>(runtimeSplatContract),
+                 "runtime_scalar_splat_store provider exposes route validation "
+                 "contract after provider-fact preflight"))
+    return result;
+  if (int result = expect(
+          runtimeSplatContract->operation ==
+                  RVVSelectedBodyOperationKind::RuntimeScalarSplatStore &&
+              runtimeSplatContract->runtimeABIOrder == "rhs_scalar,out,n" &&
+              runtimeSplatContract->routeOperandBindingPlanID ==
+                  "rvv-route-operand-binding:runtime_scalar_splat_store.v1" &&
+              runtimeSplatContract->runtimeABIParameters.size() == 3 &&
+              runtimeSplatContract->logicalOperands.size() == 3 &&
+              runtimeSplatContract->expectedPreLoopStepCount == 1 &&
+              runtimeSplatContract->expectedLoopBodyStepCount == 3 &&
+              runtimeSplatContract->rhsScalarSplatIntrinsic ==
+                  "__riscv_vmv_v_x_i32m1" &&
+              runtimeSplatContract->storeIntrinsic ==
+                  "__riscv_vse32_v_i32m1" &&
+              runtimeSplatContract->routeOperandBindingSummary ==
+                  runtimeSplatAnalysis->description
+                      .routeOperandBindingSummary,
+          "runtime_scalar_splat_store route validation contract carries "
+          "provider-owned ABI order, binding summary, splat/store leaves, and "
+          "statement-plan expectations"))
+    return result;
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVRuntimeScalarSplatStoreRouteValidationContract>
+      nonSplatContract =
+          getRVVRuntimeScalarSplatStoreRouteValidationContract(
+              addAnalysis->description);
+  if (int result = expect(
+          !nonSplatContract,
+          "runtime_scalar_splat_store route validation contract rejects "
+          "non-runtime-splat route descriptions"))
     return result;
 
   RVVSelectedBodyRouteAnalysis missingRuntimeSplatProviderPlan =

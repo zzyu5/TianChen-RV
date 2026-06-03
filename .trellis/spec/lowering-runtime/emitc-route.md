@@ -2256,6 +2256,151 @@ typed segment2 body/config/runtime facts
   -> metadata mirror contract validates candidate mirrors only after that
 ```
 
+### Runtime Scalar Splat-Store Route Validation Contract
+
+#### 1. Scope / Trigger
+
+When target artifact validation accepts the existing
+`runtime_scalar_splat_store` route family, it must consume a provider-owned
+route validation contract after rebuilding the provider route. This route is
+the runtime-scalar ABI boundary for scalar value -> vector splat -> unit-stride
+store. Target validation must not reconstruct scalar binding, splat vector,
+destination store layout, dtype/config, ABI order, statement counts, or
+intrinsic leaves from route ids, artifact names, C strings, test names, or
+metadata mirrors.
+
+#### 2. Signatures
+
+The durable provider-owned surface is:
+
+```c++
+struct RVVRuntimeScalarSplatStoreRouteValidationContract {
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string runtimeScalarSplatStoreRouteFamilyPlanID;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string scalarCType;
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string setVLIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
+  std::string storeIntrinsic;
+  std::string resultName;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  llvm::SmallVector<std::string, 4> logicalOperands;
+  llvm::SmallVector<RuntimeABIParameter, 4> runtimeABIParameters;
+  llvm::SmallVector<RuntimeABIParameterRole, 4> runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVRuntimeScalarSplatStoreRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVRuntimeScalarSplatStoreRouteValidationContract>
+getRVVRuntimeScalarSplatStoreRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+#### 3. Contracts
+
+- The accessor returns a contract only for
+  `RVVSelectedBodyOperationKind::RuntimeScalarSplatStore`.
+- The contract is built from provider-owned route/control/statement/binding
+  facts for the current typed SEW32 LMUL m1 runtime-scalar splat-store surface:
+  ABI order `rhs_scalar,out,n`, typed compute op `tcrv_rvv.splat`, memory form
+  `runtime-scalar-splat-store`, and the canonical route-family plan id.
+- Target artifact validation is a consume-only client. It compares rebuilt
+  route id, provider-supported mirror, route-family plan id, runtime control
+  plan, ABI order, runtime ABI parameters/roles, operand-binding summary,
+  dtype/config, header/type summary, splat/store leaf facts, EmitC AVL/VL
+  names, and exact pre-loop/loop statement counts against the contract.
+- Candidate metadata mirrors are checked after provider payload validation and
+  must mirror the contract values for binding plan/summary, memory form,
+  typed compute op, provider support, route-family plan, runtime control plan,
+  ABI order, header declarations, and C type mapping.
+
+#### 4. Validation & Error Matrix
+
+- Missing validation contract -> fail before target artifact acceptance.
+- Route id, operation, memory form, typed compute op, provider mirror,
+  route-family plan, runtime control plan, runtime ABI order, dtype/config,
+  header/type summary, splat/store/result leaf, EmitC AVL/VL name, or
+  statement-plan count differs from the contract -> fail before artifact export.
+- Description runtime ABI parameters or route ABI mappings do not match
+  `rhs_scalar`, `out`, and `n` in provider order -> fail before statement
+  validation.
+- Route operand-binding summary does not exactly match the provider summary ->
+  fail before artifact export.
+- Candidate mirror missing/stale, or stale non-splat-store route-family mirror
+  present -> fail before accepting candidate metadata.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: selected typed runtime-scalar splat-store body -> provider route
+  validation contract -> target validates runtime scalar binding, splat vector,
+  `out + offset` destination store layout, ABI order, and then candidate
+  mirrors.
+- Base: runtime-scalar compare/mask, MAcc, reduction, memory, segment2,
+  conversion, and widening-dot routes consume their own contracts and must not
+  call the splat-store accessor.
+- Bad: target validation accepts the artifact because the route id says
+  `runtime_scalar_splat_store`, the generated C contains plausible RVV calls,
+  or metadata mirrors say supported while the provider contract is missing or
+  stale.
+
+#### 6. Tests Required
+
+- RVV plugin C++ tests must prove the accessor returns canonical contract
+  facts for runtime-scalar splat-store and `std::nullopt` for non-splat routes.
+- Target artifact C++ tests must mutate provider payload fields and candidate
+  mirrors for stale route id, provider mirror, route-family plan, memory form,
+  ABI order, binding summary, splat/store leaf facts, header/type summary, and
+  stale non-family mirrors.
+- Focused lit or generated-bundle dry-run tests for existing explicit and
+  pre-realized runtime-scalar splat-store fixtures must continue to pass.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  route id says runtime_scalar_splat_store
+  -> inspect C string / metadata mirror for splat and store
+  -> accept artifact
+```
+
+Correct:
+
+```text
+typed runtime-scalar splat-store body/config/runtime facts
+  -> RVV provider builds RVVRuntimeScalarSplatStoreRouteValidationContract
+  -> target validator consumes contract for route payload and statements
+  -> candidate metadata mirrors are checked only as mirrors
+```
+
 ### Widening Conversion Fact Surface
 
 For selected-body widening conversion routes, provider/target shared constants
