@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final RVV authority remains typed body -> RVV provider contract -> target artifact mirror validation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider/target/common boundary remains RVV-plugin-owned and fail-closed for compare/select producers."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider route validation contract shape, metadata mirror validation, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit evidence and no positive legacy route authority."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-compare-select-route-contract-extraction/prd.md", "reason": "Compare against the existing provider contract extraction and expected compare/select contract fields."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-unit-stride-masked-memory-provider-contract/prd.md", "reason": "Compare final target closeout against the most recent consume-only memory contract pattern."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Provider/plugin focused test after any provider or contract-adjacent changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Target artifact provider contract and stale mirror coverage after target consumer rewiring."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Focused lit filters for compare/select generated-bundle and target artifact fixtures."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Bounded scan must show no direct RVVCompareSelectRouteFacts or runtime-scalar dual raw fact consumption in target validation."}
+{"file": ".trellis/tasks/06-04-06-04-stage2-rvv-compare-select-route-contract-target-consume-only-closeout/prd.md", "reason": "Records acceptance criteria, evidence results, no-runtime-change rationale, direct-consumption scan, and finish status."}

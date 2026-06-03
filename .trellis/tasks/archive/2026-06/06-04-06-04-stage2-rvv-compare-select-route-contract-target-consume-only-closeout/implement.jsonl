@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 scope, and no descriptor/source-front-door/common-EmitC semantic authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin/provider ownership for typed body legality, route support, compare/select predicate, mask/tail, intrinsic/type/ABI mapping, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract, provider-owned route-family fact surface, metadata mirror contract rules, and consume-only target validation pattern."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/generated-bundle evidence requirements and no-runtime-change ssh-rvv boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-compare-select-route-contract-extraction/prd.md", "reason": "Existing compare/select provider contract extraction, fields covered, and prior evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-unit-stride-masked-memory-provider-contract/prd.md", "reason": "Most recent target consume-only provider contract pattern and direct-consumption scan shape."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Existing RVVCompareSelectRouteValidationContract and metadata mirror contract API."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Builds compare/select validation and metadata mirror contracts from provider facts plus rebuilt route descriptions."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target consumer closeout: remove direct compare/select raw fact reconstruction and consume provider contracts."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target artifact coverage for compare/select contract and stale mirror failures."}

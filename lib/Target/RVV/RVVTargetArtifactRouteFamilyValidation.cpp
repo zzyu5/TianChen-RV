@@ -5708,27 +5708,6 @@ llvm::Error validateRVVCompareSelectMaskRouteTypeMappings(
   return llvm::Error::success();
 }
 
-std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-getRVVRuntimeScalarDualCompareSelectFactsForDescription(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  return plugin::rvv::getRVVCompareSelectRouteFacts(
-      description.operation, description.sew, description.lmul,
-      description.comparePredicateKind,
-      description.secondaryComparePredicateKind);
-}
-
-std::optional<plugin::rvv::RVVCompareSelectRouteFacts>
-getRVVCompareSelectFactsForDescription(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (!isRVVCompareSelectMaskProducerRouteFamilyOperation(
-          description.operation))
-    return std::nullopt;
-  return plugin::rvv::getRVVCompareSelectRouteFacts(
-      description.operation, description.sew, description.lmul,
-      description.comparePredicateKind,
-      description.secondaryComparePredicateKind);
-}
-
 bool isRVVCompareSelectMaskIndexedMemoryOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   return operation ==
@@ -5763,152 +5742,13 @@ getRVVPlainSegment2MemoryFactsForDescription(
       description.operation);
 }
 
-struct RVVExpectedCompareSelectMaskRuntimeABIParameter {
-  std::string cName;
-  std::string cType;
-  support::RuntimeABIParameterRole role;
-};
-
-llvm::StringRef getRVVCompareSelectMaskExpectedRuntimeABIOrder(
-    plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-    return "lhs,rhs,out,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-    return "cmp_lhs,cmp_rhs,true_value,false_value,out,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "lhs,rhs_scalar,true_value,false_value,out,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->runtimeABIOrder : llvm::StringRef();
-  }
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskLoadStore:
-    return "lhs,rhs_scalar,src,dst,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-    return "cmp_lhs,cmp_rhs,src,dst,n";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskStridedLoadUnitStore:
-    return {};
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedGatherLoadUnitStore:
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      ComputedMaskIndexedScatterStoreUnitLoad:
-    return {};
-  default:
-    return {};
-  }
-}
-
-std::string getRVVCompareSelectMaskElementCType(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.elementTypeName == "i64" || description.sew == 64)
-    return "int64_t";
-  if (description.elementTypeName == "i16" || description.sew == 16)
-    return "int16_t";
-  return "int32_t";
-}
-
-std::string makeRVVCompareSelectMaskConstPointerType(llvm::StringRef cType) {
-  return (llvm::Twine("const ") + cType + " *").str();
-}
-
-std::string makeRVVCompareSelectMaskMutablePointerType(llvm::StringRef cType) {
-  return (llvm::Twine(cType) + " *").str();
-}
-
-llvm::SmallVector<RVVExpectedCompareSelectMaskRuntimeABIParameter, 8>
-getRVVCompareSelectMaskExpectedRuntimeABIParameters(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
-  using Role = support::RuntimeABIParameterRole;
-  llvm::SmallVector<RVVExpectedCompareSelectMaskRuntimeABIParameter, 8>
-      expected;
-  const std::string elementCType =
-      getRVVCompareSelectMaskElementCType(description);
-  const std::string constElementPointer =
-      makeRVVCompareSelectMaskConstPointerType(elementCType);
-  const std::string mutableElementPointer =
-      makeRVVCompareSelectMaskMutablePointerType(elementCType);
-
-  auto add = [&](llvm::StringRef cName, llvm::StringRef cType, Role role) {
-    expected.push_back(
-        RVVExpectedCompareSelectMaskRuntimeABIParameter{cName.str(),
-                                                        cType.str(), role});
-  };
-
-  switch (description.operation) {
-  case OperationKind::CmpSelect:
-    add("lhs", constElementPointer, Role::LHSInputBuffer);
-    add("rhs", constElementPointer, Role::RHSInputBuffer);
-    add("out", mutableElementPointer, Role::OutputBuffer);
-    add("n", "size_t", Role::RuntimeElementCount);
-    break;
-  case OperationKind::ComputedMaskSelect:
-    add("cmp_lhs", constElementPointer, Role::LHSInputBuffer);
-    add("cmp_rhs", constElementPointer, Role::RHSInputBuffer);
-    add("true_value", constElementPointer, Role::TrueValueInputBuffer);
-    add("false_value", constElementPointer, Role::FalseValueInputBuffer);
-    add("out", mutableElementPointer, Role::OutputBuffer);
-    add("n", "size_t", Role::RuntimeElementCount);
-    break;
-  case OperationKind::RuntimeScalarCompareSelect:
-    add("lhs", constElementPointer, Role::LHSInputBuffer);
-    add("rhs_scalar", elementCType, Role::RHSScalarValue);
-    add("true_value", constElementPointer, Role::TrueValueInputBuffer);
-    add("false_value", constElementPointer, Role::FalseValueInputBuffer);
-    add("out", mutableElementPointer, Role::OutputBuffer);
-    add("n", "size_t", Role::RuntimeElementCount);
-    break;
-  case OperationKind::RuntimeScalarDualCompareMaskAndSelect:
-    if (std::optional<
-            plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-            routeFacts =
-                getRVVRuntimeScalarDualCompareSelectFactsForDescription(
-                    description)) {
-      for (const support::RuntimeABIParameter &parameter :
-           routeFacts->runtimeABIParameters)
-        add(parameter.cName, parameter.cType, parameter.role);
-    }
-    break;
-  case OperationKind::RuntimeScalarComputedMaskStore:
-  case OperationKind::RuntimeScalarComputedMaskLoadStore:
-    add("lhs", constElementPointer, Role::LHSInputBuffer);
-    add("rhs_scalar", elementCType, Role::RHSScalarValue);
-    add("src", constElementPointer, Role::SourceInputBuffer);
-    add("dst", mutableElementPointer, Role::OutputBuffer);
-    add("n", "size_t", Role::RuntimeElementCount);
-    break;
-  case OperationKind::ComputedMaskUnitLoadStore:
-    add("cmp_lhs", "const int32_t *", Role::LHSInputBuffer);
-    add("cmp_rhs", "const int32_t *", Role::RHSInputBuffer);
-    add("src", "const int32_t *", Role::SourceInputBuffer);
-    add("dst", "int32_t *", Role::OutputBuffer);
-    add("n", "size_t", Role::RuntimeElementCount);
-    break;
-  case OperationKind::ComputedMaskStridedStore:
-  case OperationKind::ComputedMaskStridedLoadUnitStore:
-    break;
-  case OperationKind::ComputedMaskIndexedGatherLoadUnitStore:
-  case OperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
-    break;
-  default:
-    break;
-  }
-
-  return expected;
-}
-
 llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  std::optional<plugin::rvv::RVVCompareSelectRouteFacts> compareSelectFacts =
-      getRVVCompareSelectFactsForDescription(description);
+  std::optional<plugin::rvv::RVVCompareSelectRouteValidationContract>
+      compareSelectContract;
+  if (isRVVCompareSelectMaskProducerRouteFamilyOperation(description.operation))
+    compareSelectContract =
+        plugin::rvv::getRVVCompareSelectRouteValidationContract(description);
   std::optional<
       plugin::rvv::RVVComputedMaskStridedMemoryRouteValidationContract>
       stridedContract;
@@ -5930,16 +5770,15 @@ llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
         plugin::rvv::getRVVUnitStrideMaskedMemoryRouteValidationContract(
             description);
   llvm::StringRef expectedOrder =
-      compareSelectFacts
-          ? compareSelectFacts->runtimeABIOrder
+      compareSelectContract
+          ? llvm::StringRef(compareSelectContract->runtimeABIOrder)
       : stridedContract
           ? llvm::StringRef(stridedContract->runtimeABIOrder)
       : indexedContract
           ? llvm::StringRef(indexedContract->runtimeABIOrder)
       : unitStrideMaskedContract
           ? llvm::StringRef(unitStrideMaskedContract->runtimeABIOrder)
-          : getRVVCompareSelectMaskExpectedRuntimeABIOrder(
-                description.operation);
+          : llvm::StringRef();
   if (expectedOrder.empty())
     return makeRVVTargetRouteError(
         "compare/select mask target artifact consumer requires a known "
@@ -5950,44 +5789,16 @@ llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
                     "provider-derived runtime ABI order '") +
         expectedOrder + "' but was '" + description.runtimeABIOrder + "'");
 
-  llvm::SmallVector<RVVExpectedCompareSelectMaskRuntimeABIParameter, 8>
-      targetLocalExpectedParameters =
-          getRVVCompareSelectMaskExpectedRuntimeABIParameters(description);
-  llvm::SmallVector<RVVExpectedCompareSelectMaskRuntimeABIParameter, 8>
-      providerExpectedParameters;
-  if (compareSelectFacts) {
-    for (const support::RuntimeABIParameter &parameter :
-         compareSelectFacts->runtimeABIParameters)
-      providerExpectedParameters.push_back(
-          RVVExpectedCompareSelectMaskRuntimeABIParameter{
-              parameter.cName, parameter.cType, parameter.role});
-  } else if (stridedContract) {
-    for (const support::RuntimeABIParameter &parameter :
-         stridedContract->runtimeABIParameters)
-      providerExpectedParameters.push_back(
-          RVVExpectedCompareSelectMaskRuntimeABIParameter{
-              parameter.cName, parameter.cType, parameter.role});
-  } else if (indexedContract) {
-    for (const support::RuntimeABIParameter &parameter :
-         indexedContract->runtimeABIParameters)
-      providerExpectedParameters.push_back(
-          RVVExpectedCompareSelectMaskRuntimeABIParameter{
-              parameter.cName, parameter.cType, parameter.role});
-  } else if (unitStrideMaskedContract) {
-    for (const support::RuntimeABIParameter &parameter :
-         unitStrideMaskedContract->runtimeABIParameters)
-      providerExpectedParameters.push_back(
-          RVVExpectedCompareSelectMaskRuntimeABIParameter{
-              parameter.cName, parameter.cType, parameter.role});
-  }
-  const llvm::ArrayRef<RVVExpectedCompareSelectMaskRuntimeABIParameter>
-      expectedParameters =
-          (compareSelectFacts || stridedContract || indexedContract ||
-           unitStrideMaskedContract)
-              ? llvm::ArrayRef<RVVExpectedCompareSelectMaskRuntimeABIParameter>(
-                    providerExpectedParameters)
-              : llvm::ArrayRef<RVVExpectedCompareSelectMaskRuntimeABIParameter>(
-                    targetLocalExpectedParameters);
+  llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters;
+  if (compareSelectContract)
+    expectedParameters = compareSelectContract->runtimeABIParameters;
+  else if (stridedContract)
+    expectedParameters = stridedContract->runtimeABIParameters;
+  else if (indexedContract)
+    expectedParameters = indexedContract->runtimeABIParameters;
+  else if (unitStrideMaskedContract)
+    expectedParameters = unitStrideMaskedContract->runtimeABIParameters;
+
   if (description.runtimeABIParameters.size() != expectedParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine("compare/select mask target artifact consumer requires ") +
@@ -5999,20 +5810,16 @@ llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
   for (std::size_t index = 0; index < expectedParameters.size(); ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
-    const RVVExpectedCompareSelectMaskRuntimeABIParameter &expected =
+    const support::RuntimeABIParameter &expected =
         expectedParameters[index];
-    if (actual.cName != expected.cName || actual.cType != expected.cType ||
-        actual.role != expected.role ||
-        actual.ownership !=
-            support::RuntimeABIParameterOwnership::TargetExportABIOwned)
+    if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
           llvm::Twine("compare/select mask target artifact consumer requires "
                       "provider-derived runtime ABI parameter[") +
           llvm::Twine(index) + "] to bind '" + expected.cName + "' as " +
           support::stringifyRuntimeABIParameterRole(expected.role) +
           " with C type '" + expected.cType + "' and ownership '" +
-          support::stringifyRuntimeABIParameterOwnership(
-              support::RuntimeABIParameterOwnership::TargetExportABIOwned) +
+          support::stringifyRuntimeABIParameterOwnership(expected.ownership) +
           "' before artifact export but saw '" + actual.cName + "' as " +
           support::stringifyRuntimeABIParameterRole(actual.role) +
           " with C type '" + actual.cType + "' and ownership '" +
@@ -6026,20 +5833,6 @@ llvm::Error validateRVVCompareSelectMaskRuntimeABIFacts(
 llvm::StringRef getRVVCompareSelectMaskExpectedProviderSupportedMirror(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-    return "provider_supported_mirror:rvv-plain-compare-select-plan-validated";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-    return "provider_supported_mirror:rvv-computed-mask-select-plan-validated";
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "provider_supported_mirror:rvv-runtime-scalar-cmp-select-plan-validated";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->providerSupportedMirror : llvm::StringRef();
-  }
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
     return "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-store-plan-validated";
   case plugin::rvv::RVVSelectedBodyOperationKind::
@@ -6064,20 +5857,6 @@ llvm::StringRef getRVVCompareSelectMaskExpectedProviderSupportedMirror(
 llvm::StringRef getRVVCompareSelectMaskExpectedTargetLeafProfile(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-    return "rvv-v1-typed-plain-compare-select-leaf-profile.v1";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-    return "rvv-v1-typed-computed-mask-select-leaf-profile.v1";
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->targetLeafProfile : llvm::StringRef();
-  }
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
     return "rvv-v1-typed-runtime-scalar-cmp-masked-store-leaf-profile.v1";
   case plugin::rvv::RVVSelectedBodyOperationKind::
@@ -6101,19 +5880,10 @@ llvm::StringRef getRVVCompareSelectMaskExpectedTargetLeafProfile(
 
 llvm::StringRef getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  if (operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                       RuntimeScalarDualCompareMaskAndSelect) {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->requiredHeaderDeclarations
-                      : llvm::StringRef();
-  }
   if (isRVVCompareSelectMaskIndexedMemoryOperation(operation) ||
       isRVVCompareSelectMaskStridedMemoryOperation(operation))
     return {};
-  if (isRVVCompareSelectMaskRouteFamilyOperation(operation))
+  if (isRVVUnitStrideMaskedMemoryRouteFamilyOperation(operation))
     return "stddef.h,stdint.h,riscv_vector.h";
   return {};
 }
@@ -6121,20 +5891,6 @@ llvm::StringRef getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
 llvm::StringRef getRVVCompareSelectMaskExpectedCTypeMappingSummary(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-    return "vl:size_t,lhs/rhs:typed-vector,mask:typed-mask,result:typed-vector";
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-    return "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector";
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,true_false:typed-vector,result:typed-vector";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->cTypeMappingSummary : llvm::StringRef();
-  }
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskStore:
     return "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,dst:masked-store";
@@ -6160,19 +5916,6 @@ llvm::StringRef getRVVCompareSelectMaskExpectedCTypeMappingSummary(
 llvm::StringRef getRVVCompareSelectMaskExpectedMaskProducerSource(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-    return "vector-compare-rhs-load";
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "runtime-scalar-splat-compare-rhs";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->computedMaskSelectMaskProducerSource
-                      : llvm::StringRef();
-  }
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
@@ -6196,18 +5939,6 @@ llvm::StringRef getRVVCompareSelectMaskExpectedMaskProducerSource(
 llvm::StringRef getRVVCompareSelectMaskExpectedSourceMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "unit-stride-load";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->sourceMemoryForm : llvm::StringRef();
-  }
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
@@ -6229,18 +5960,6 @@ llvm::StringRef getRVVCompareSelectMaskExpectedSourceMemoryForm(
 llvm::StringRef getRVVCompareSelectMaskExpectedDestinationMemoryForm(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return "unit-stride-store";
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect: {
-    std::optional<plugin::rvv::RVVRuntimeScalarDualCompareMaskAndSelectRouteFacts>
-        routeFacts =
-            plugin::rvv::getRVVRuntimeScalarDualCompareMaskAndSelectRouteFacts(
-                operation);
-    return routeFacts ? routeFacts->destinationMemoryForm : llvm::StringRef();
-  }
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
@@ -6376,258 +6095,6 @@ llvm::Error requireRVVCompareSelectMaskProviderField(llvm::StringRef label,
       llvm::Twine("compare/select mask target artifact consumer requires "
                   "provider-derived ") +
       label + " '" + expected + "' but was '" + actual + "'");
-}
-
-llvm::Error validateRVVCompareSelectCanonicalProviderFacts(
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  if (!isRVVCompareSelectMaskProducerRouteFamilyOperation(
-          description.operation))
-    return llvm::Error::success();
-
-  std::optional<plugin::rvv::RVVCompareSelectRouteFacts> routeFacts =
-      getRVVCompareSelectFactsForDescription(description);
-  if (!routeFacts)
-    return makeRVVTargetRouteError(
-        "compare/select target artifact consumer requires provider-owned "
-        "canonical route facts from typed body/config/predicate facts before "
-        "artifact export");
-
-  if (description.memoryForm != routeFacts->memoryForm)
-    return makeRVVTargetRouteError(
-        llvm::Twine("compare/select target artifact consumer requires "
-                    "provider-owned memory form '") +
-        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(routeFacts->memoryForm) +
-        "' but was '" +
-        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
-        "'");
-  if (description.sew != routeFacts->sew)
-    return makeRVVTargetRouteError(
-        llvm::Twine("compare/select target artifact consumer requires "
-                    "provider-derived SEW '") +
-        llvm::Twine(routeFacts->sew) + "' but was '" +
-        llvm::Twine(description.sew) + "'");
-
-  auto require = [&](llvm::StringRef label, llvm::StringRef actual,
-                     llvm::StringRef expected) -> llvm::Error {
-    return requireRVVCompareSelectMaskProviderField(label, actual, expected);
-  };
-
-  if (llvm::Error error =
-          require("element type", description.elementTypeName,
-                  routeFacts->elementTypeName))
-    return error;
-  if (llvm::Error error = require("LMUL", description.lmul, routeFacts->lmul))
-    return error;
-  if (llvm::Error error =
-          require("tail policy", description.tailPolicy,
-                  routeFacts->tailPolicy))
-    return error;
-  if (llvm::Error error =
-          require("mask policy", description.maskPolicy,
-                  routeFacts->maskPolicy))
-    return error;
-  if (llvm::Error error =
-          require("runtime ABI order", description.runtimeABIOrder,
-                  routeFacts->runtimeABIOrder))
-    return error;
-  if (llvm::Error error =
-          require("runtime AVL/VL control plan",
-                  description.runtimeControlPlanID,
-                  routeFacts->runtimeControlPlanID))
-    return error;
-  if (llvm::Error error =
-          require("provider_supported_mirror",
-                  description.providerSupportedMirror,
-                  routeFacts->providerSupportedMirror))
-    return error;
-  if (llvm::Error error = require("target_leaf_profile",
-                                  description.targetLeafProfile,
-                                  routeFacts->targetLeafProfile))
-    return error;
-  if (llvm::Error error =
-          require("required header declarations",
-                  description.requiredHeaderDeclarations,
-                  routeFacts->requiredHeaderDeclarations))
-    return error;
-  if (llvm::Error error =
-          require("C type mapping summary", description.cTypeMappingSummary,
-                  routeFacts->cTypeMappingSummary))
-    return error;
-  if (llvm::Error error =
-          require("route operand binding plan",
-                  description.routeOperandBindingPlanID,
-                  routeFacts->routeOperandBindingPlanID))
-    return error;
-  if (llvm::Error error =
-          require("route operand binding facts",
-                  description.routeOperandBindingSummary,
-                  llvm::StringRef(routeFacts->routeOperandBindingSummary)))
-    return error;
-  if (llvm::Error error = require("typed compute op",
-                                  description.typedComputeOpName,
-                                  routeFacts->typedComputeOpName))
-    return error;
-  if (llvm::Error error =
-          require("VL C type", description.vlCType, routeFacts->vlCType))
-    return error;
-  if (llvm::Error error =
-          require("vector type", description.vectorTypeName,
-                  routeFacts->vectorTypeName))
-    return error;
-  if (llvm::Error error =
-          require("vector C type", description.vectorCType,
-                  routeFacts->vectorCType))
-    return error;
-  if (llvm::Error error =
-          require("mask type", description.maskTypeName,
-                  routeFacts->maskTypeName))
-    return error;
-  if (llvm::Error error =
-          require("mask C type", description.maskCType, routeFacts->maskCType))
-    return error;
-  if (llvm::Error error =
-          require("setvl callee", description.setVLIntrinsic,
-                  routeFacts->setVLIntrinsic))
-    return error;
-  if (llvm::Error error =
-          require("vector load callee", description.vectorLoadIntrinsic,
-                  routeFacts->vectorLoadIntrinsic))
-    return error;
-  if (llvm::Error error =
-          require("primary compare predicate",
-                  description.comparePredicateKind,
-                  routeFacts->comparePredicateKind))
-    return error;
-  if (llvm::Error error =
-          require("secondary compare predicate",
-                  description.secondaryComparePredicateKind,
-                  routeFacts->secondaryComparePredicateKind))
-    return error;
-  if (llvm::Error error =
-          require("runtime scalar splat callee",
-                  description.rhsBroadcastIntrinsic,
-                  routeFacts->rhsScalarSplatIntrinsic))
-    return error;
-  if (llvm::Error error =
-          require("primary compare callee", description.compareIntrinsic,
-                  routeFacts->compareIntrinsic))
-    return error;
-  if (llvm::Error error =
-          require("secondary compare callee",
-                  description.secondaryCompareIntrinsic,
-                  routeFacts->secondaryCompareIntrinsic))
-    return error;
-  if (llvm::Error error =
-          require("mask-and callee", description.maskAndIntrinsic,
-                  routeFacts->maskAndIntrinsic))
-    return error;
-  if (llvm::Error error = require("select callee", description.intrinsic,
-                                  routeFacts->selectIntrinsic))
-    return error;
-  if (llvm::Error error = require("store callee", description.storeIntrinsic,
-                                  routeFacts->storeIntrinsic))
-    return error;
-  if (llvm::Error error =
-          require("result name", description.resultName,
-                  routeFacts->resultName))
-    return error;
-  if (llvm::Error error =
-          require("mask name", description.maskName, routeFacts->maskName))
-    return error;
-  if (llvm::Error error =
-          require("plain compare-select route-family plan",
-                  description.plainCompareSelectRouteFamilyPlanID,
-                  routeFacts->plainCompareSelectRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error =
-          require("computed-mask select route-family plan",
-                  description.computedMaskSelectRouteFamilyPlanID,
-                  routeFacts->computedMaskSelectRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error =
-          require("computed-mask select producer source",
-                  description.computedMaskSelectMaskProducerSource,
-                  routeFacts->computedMaskSelectMaskProducerSource))
-    return error;
-  if (llvm::Error error =
-          require("mask/tail policy route-family plan",
-                  description.maskTailPolicyRouteFamilyPlanID,
-                  routeFacts->maskTailPolicyRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error =
-          require("mask/tail policy owner", description.maskTailPolicyOwner,
-                  routeFacts->maskTailPolicyOwner))
-    return error;
-  if (llvm::Error error =
-          require("mask role", description.maskRole, routeFacts->maskRole))
-    return error;
-  if (llvm::Error error =
-          require("mask source", description.maskSource, routeFacts->maskSource))
-    return error;
-  if (llvm::Error error = require("mask memory form",
-                                  description.maskMemoryForm,
-                                  routeFacts->maskMemoryForm))
-    return error;
-  if (llvm::Error error = require("mask composition",
-                                  description.maskComposition,
-                                  routeFacts->maskComposition))
-    return error;
-  if (llvm::Error error =
-          require("select layout", description.selectLayout,
-                  routeFacts->selectLayout))
-    return error;
-  if (llvm::Error error =
-          require("inactive-lane contract", description.inactiveLaneContract,
-                  routeFacts->inactiveLaneContract))
-    return error;
-  if (llvm::Error error =
-          require("masked passthrough layout",
-                  description.maskedPassthroughLayout,
-                  routeFacts->maskedPassthroughLayout))
-    return error;
-  if (llvm::Error error = require("source memory form",
-                                  description.sourceMemoryForm,
-                                  routeFacts->sourceMemoryForm))
-    return error;
-  if (llvm::Error error =
-          require("destination memory form", description.destinationMemoryForm,
-                  routeFacts->destinationMemoryForm))
-    return error;
-  if (llvm::Error error =
-          require("indexed memory layout", description.indexedMemoryLayout,
-                  routeFacts->indexedMemoryLayout))
-    return error;
-
-  if (description.runtimeABIParameters.size() !=
-      routeFacts->runtimeABIParameters.size())
-    return makeRVVTargetRouteError(
-        llvm::Twine("compare/select target artifact consumer requires ") +
-        llvm::Twine(routeFacts->runtimeABIParameters.size()) +
-        " provider-owned runtime ABI parameters before artifact export but saw " +
-        llvm::Twine(description.runtimeABIParameters.size()));
-  for (std::size_t index = 0; index < routeFacts->runtimeABIParameters.size();
-       ++index) {
-    const support::RuntimeABIParameter &actual =
-        description.runtimeABIParameters[index];
-    const support::RuntimeABIParameter &expected =
-        routeFacts->runtimeABIParameters[index];
-    if (!runtimeABIParameterEquals(actual, expected))
-      return makeRVVTargetRouteError(
-          llvm::Twine("compare/select target artifact consumer requires "
-                      "runtime ABI parameter[") +
-          llvm::Twine(index) + "] to mirror provider-owned parameter '" +
-          expected.cName + "' as " +
-          support::stringifyRuntimeABIParameterRole(expected.role) +
-          " with C type '" + expected.cType + "' and ownership '" +
-          support::stringifyRuntimeABIParameterOwnership(expected.ownership) +
-          "' before artifact export but saw '" + actual.cName + "' as " +
-          support::stringifyRuntimeABIParameterRole(actual.role) +
-          " with C type '" + actual.cType + "' and ownership '" +
-          support::stringifyRuntimeABIParameterOwnership(actual.ownership) +
-          "'");
-  }
-
-  return llvm::Error::success();
 }
 
 llvm::Error validateRVVCompareSelectRouteValidationContract(
@@ -8072,14 +7539,6 @@ llvm::Error validateRVVCompareSelectMaskDualProviderFacts(
 std::size_t getRVVCompareSelectMaskExpectedLoopBodyStepCount(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
-  case plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
-    return 6;
-  case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
-  case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
-    return 8;
-  case plugin::rvv::RVVSelectedBodyOperationKind::
-      RuntimeScalarDualCompareMaskAndSelect:
-    return 12;
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
     return 6;
@@ -8135,7 +7594,9 @@ llvm::Error validateRVVCompareSelectMaskRouteABIMappings(
 
 llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    std::size_t providerExpectedPreLoopStepCount = 0,
+    std::size_t providerExpectedLoopBodyStepCount = 0) {
   constexpr llvm::StringLiteral consumerLabel(
       "compare/select mask target artifact consumer");
   if (llvm::Error error =
@@ -8153,11 +7614,14 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         " requires provider-derived setvl, compare, mask/result, vector/VL, "
         "and loop facts before validating route statements");
 
-  if (route.getCallOpaqueSteps().size() != 1)
+  const std::size_t expectedPreLoopStepCount =
+      providerExpectedPreLoopStepCount != 0 ? providerExpectedPreLoopStepCount
+                                            : 1;
+  if (route.getCallOpaqueSteps().size() != expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
-        " requires exactly one provider-built pre-loop setvl statement before "
-        "artifact export");
+        " requires exactly " + llvm::Twine(expectedPreLoopStepCount) +
+        " provider-built pre-loop setvl statement(s) before artifact export");
   const support::RuntimeABIParameter *runtimeN =
       findRuntimeElementCountABIParameter(description);
   if (!runtimeN)
@@ -8201,7 +7665,10 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
        description.emitCLoopInductionName)
           .str();
   const std::size_t expectedBodyStepCount =
-      getRVVCompareSelectMaskExpectedLoopBodyStepCount(description.operation);
+      providerExpectedLoopBodyStepCount != 0
+          ? providerExpectedLoopBodyStepCount
+          : getRVVCompareSelectMaskExpectedLoopBodyStepCount(
+                description.operation);
   if (expectedBodyStepCount == 0)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -8744,7 +8211,9 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
     if (llvm::Error error =
             validateRVVCompareSelectMaskRouteABIMappings(route, description))
       return error;
-    return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
+    return validateRVVCompareSelectMaskRouteStatementPlan(
+        route, description, contract->expectedPreLoopStepCount,
+        contract->expectedLoopBodyStepCount);
   }
 
   if (isRVVCompareSelectMaskIndexedMemoryOperation(description.operation)) {
@@ -8825,8 +8294,6 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
     return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
   }
 
-  std::optional<plugin::rvv::RVVCompareSelectRouteFacts> compareSelectFacts;
-
   if (route.getRouteID() != description.emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine("compare/select mask target artifact consumer requires "
@@ -8839,32 +8306,24 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "provider-supported mirror label after route construction");
   if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
           "provider_supported_mirror", description.providerSupportedMirror,
-          compareSelectFacts
-              ? compareSelectFacts->providerSupportedMirror
-              : getRVVCompareSelectMaskExpectedProviderSupportedMirror(
-                    description.operation)))
+          getRVVCompareSelectMaskExpectedProviderSupportedMirror(
+              description.operation)))
     return error;
   if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
           "target_leaf_profile", description.targetLeafProfile,
-          compareSelectFacts
-              ? compareSelectFacts->targetLeafProfile
-              : getRVVCompareSelectMaskExpectedTargetLeafProfile(
-                    description.operation)))
+          getRVVCompareSelectMaskExpectedTargetLeafProfile(
+              description.operation)))
     return error;
   if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
           "required header declarations",
           description.requiredHeaderDeclarations,
-          compareSelectFacts
-              ? compareSelectFacts->requiredHeaderDeclarations
-              : getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
-                    description.operation)))
+          getRVVCompareSelectMaskExpectedRequiredHeaderDeclarations(
+              description.operation)))
     return error;
   if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
           "C type mapping summary", description.cTypeMappingSummary,
-          compareSelectFacts
-              ? compareSelectFacts->cTypeMappingSummary
-              : getRVVCompareSelectMaskExpectedCTypeMappingSummary(
-                    description.operation)))
+          getRVVCompareSelectMaskExpectedCTypeMappingSummary(
+              description.operation)))
     return error;
   if (llvm::Error error =
           validateRVVCompareSelectMaskDualProviderFacts(description))
@@ -8874,9 +8333,6 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "compare/select mask target artifact consumer requires provider route "
         "operand binding facts before artifact export");
-  if (llvm::Error error =
-          validateRVVCompareSelectCanonicalProviderFacts(description))
-    return error;
   if (llvm::Error error =
           validateRVVComputedMaskIndexedMemoryCanonicalProviderFacts(
               description))
@@ -8914,17 +8370,13 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
       "facts before artifact export");
   if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
           "source memory form", description.sourceMemoryForm,
-          compareSelectFacts
-              ? compareSelectFacts->sourceMemoryForm
-              : getRVVCompareSelectMaskExpectedSourceMemoryForm(
-                    description.operation)))
+          getRVVCompareSelectMaskExpectedSourceMemoryForm(
+              description.operation)))
     return error;
   if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
           "destination memory form", description.destinationMemoryForm,
-          compareSelectFacts
-              ? compareSelectFacts->destinationMemoryForm
-              : getRVVCompareSelectMaskExpectedDestinationMemoryForm(
-                    description.operation)))
+          getRVVCompareSelectMaskExpectedDestinationMemoryForm(
+              description.operation)))
     return error;
   if (isComputedMaskMemory && description.maskedLoadIntrinsic.empty() &&
       description.storeIntrinsic.empty() &&
@@ -8935,96 +8387,8 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "requires provider-derived masked load or store callee facts before "
         "artifact export");
 
-  if (isRVVPlainCompareSelectMaskRouteFamilyOperation(description.operation)) {
-    if (description.plainCompareSelectRouteFamilyPlanID.empty() ||
-        description.selectLayout.empty() ||
-        description.inactiveLaneContract.empty() ||
-        description.maskedPassthroughLayout.empty())
-      return makeRVVTargetRouteError(
-          "plain compare/select target artifact consumer requires "
-          "provider-derived plain compare-select plan, select layout, "
-          "inactive-lane, and passthrough facts before artifact export");
-    if (!description.computedMaskSelectRouteFamilyPlanID.empty() ||
-        !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
-        !description.computedMaskSelectMaskProducerSource.empty() ||
-        !description.computedMaskMemoryMaskProducerSource.empty())
-      return makeRVVTargetRouteError(
-          "plain compare/select target artifact consumer rejects stale "
-          "computed-mask select or memory route-family facts");
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "plain compare-select route-family plan",
-            description.plainCompareSelectRouteFamilyPlanID,
-            compareSelectFacts->plainCompareSelectRouteFamilyPlanID))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "select layout", description.selectLayout,
-            compareSelectFacts->selectLayout))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "inactive-lane contract", description.inactiveLaneContract,
-            compareSelectFacts->inactiveLaneContract))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "masked passthrough layout", description.maskedPassthroughLayout,
-            compareSelectFacts->maskedPassthroughLayout))
-      return error;
-  } else if (isRVVComputedMaskSelectRouteFamilyOperation(
-                 description.operation)) {
-    if (description.computedMaskSelectRouteFamilyPlanID.empty() ||
-        description.computedMaskSelectMaskProducerSource.empty() ||
-        description.selectLayout.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask select target artifact consumer requires "
-          "provider-derived computed-mask select plan, mask producer source, "
-          "and select layout before artifact export");
-    if (!description.plainCompareSelectRouteFamilyPlanID.empty() ||
-        !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
-        !description.computedMaskMemoryMaskProducerSource.empty())
-      return makeRVVTargetRouteError(
-          "computed-mask select target artifact consumer rejects stale plain "
-          "compare-select or computed-mask memory route-family facts");
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "computed-mask select route-family plan",
-            description.computedMaskSelectRouteFamilyPlanID,
-            compareSelectFacts->computedMaskSelectRouteFamilyPlanID))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "computed-mask select producer source",
-            description.computedMaskSelectMaskProducerSource,
-            compareSelectFacts->computedMaskSelectMaskProducerSource))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "select layout", description.selectLayout,
-            compareSelectFacts->selectLayout))
-      return error;
-    if (description.operation ==
-            plugin::rvv::RVVSelectedBodyOperationKind::
-                RuntimeScalarDualCompareMaskAndSelect &&
-        description.maskComposition.empty())
-      return makeRVVTargetRouteError(
-          "dual compare/select target artifact consumer requires "
-          "provider-derived mask composition facts before artifact export");
-    if (description.operation ==
-        plugin::rvv::RVVSelectedBodyOperationKind::
-            RuntimeScalarDualCompareMaskAndSelect) {
-      if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-              "mask composition", description.maskComposition,
-              compareSelectFacts->maskComposition))
-        return error;
-    }
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "mask role", description.maskRole, compareSelectFacts->maskRole))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "mask source", description.maskSource,
-            compareSelectFacts->maskSource))
-      return error;
-    if (llvm::Error error = requireRVVCompareSelectMaskProviderField(
-            "mask memory form", description.maskMemoryForm,
-            compareSelectFacts->maskMemoryForm))
-      return error;
-  } else if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
-                 description.operation)) {
+  if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+          description.operation)) {
     if (description.computedMaskMemoryRouteFamilyPlanID.empty() ||
         description.computedMaskMemoryMaskProducerSource.empty() ||
         description.inactiveLaneContract.empty() ||
@@ -9121,17 +8485,10 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
       return error;
   }
 
-  if (isRVVComputedMaskSelectRouteFamilyOperation(description.operation) ||
-      isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
+  if (isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
           description.operation)) {
-    llvm::StringRef expectedOwner =
-        compareSelectFacts ? compareSelectFacts->maskTailPolicyOwner
-        : isRVVComputedMaskSelectRouteFamilyOperation(description.operation)
-            ? llvm::StringRef(kRVVComputedMaskSelectMaskTailPolicyOwner)
-            : llvm::StringRef(kRVVComputedMaskMemoryMaskTailPolicyOwner);
-    llvm::StringRef expectedPlan =
-        compareSelectFacts ? compareSelectFacts->maskTailPolicyRouteFamilyPlanID
-                           : llvm::StringRef(kRVVMaskTailPolicyRouteFamilyPlanID);
+    llvm::StringRef expectedOwner(kRVVComputedMaskMemoryMaskTailPolicyOwner);
+    llvm::StringRef expectedPlan(kRVVMaskTailPolicyRouteFamilyPlanID);
     if (description.maskTailPolicyRouteFamilyPlanID != expectedPlan ||
         description.maskTailPolicyOwner != expectedOwner)
       return makeRVVTargetRouteError(
@@ -9237,9 +8594,6 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
                                                                *contract);
   }
 
-  if (llvm::Error error =
-          validateRVVCompareSelectCanonicalProviderFacts(description))
-    return error;
   if (llvm::Error error =
           validateRVVComputedMaskIndexedMemoryCanonicalProviderFacts(
               description))

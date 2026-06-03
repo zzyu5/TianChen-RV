@@ -59,6 +59,56 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 427: Stage2 RVV compare/select target consume-only closeout
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select route-contract target consume-only closeout
+**Branch**: `main`
+
+### Summary
+
+Closed out the compare/select producer target-consumer path by removing direct
+target validation consumption of raw compare/select route facts. Target
+artifact validation now consumes the existing provider-owned compare/select
+route validation contract for runtime ABI and statement-plan expectations, while
+existing computed-mask memory routes continue to use their memory contracts.
+
+### Main Changes
+
+- Removed target-local `RVVCompareSelectRouteFacts` and runtime-scalar dual raw
+  fact reconstruction from `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Rewired shared runtime ABI validation to select provider contracts for
+  compare/select producers, computed-mask indexed memory, computed-mask strided
+  memory, and unit-stride masked memory.
+- Passed compare/select provider contract statement-plan counts into the shared
+  route statement-plan validator.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'cmp-select|computed-mask-select|runtime-scalar-cmp-select|runtime-scalar-dual-cmp-mask-and-select'`
+- [OK] Direct target raw-fact consumption scan
+- [OK] Source old-authority scan
+- [OK] `rtk git diff --check`
+- [OK] Trellis context validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 426: Stage2 RVV computed-mask indexed-memory provider contract
 
 **Date**: 2026-06-04
