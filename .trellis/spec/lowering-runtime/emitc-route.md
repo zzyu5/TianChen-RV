@@ -2111,6 +2111,207 @@ typed computed-mask indexed body/config/runtime facts
   -> metadata mirror contract validates candidate mirrors only after that
 ```
 
+### Unit-Stride Masked Memory Route Validation Contract
+
+#### 1. Scope / Trigger
+
+When target artifact validation accepts rebuilt provider payloads for the
+existing unit-stride masked memory family, it must consume a provider-owned
+route validation contract after rebuilding the RVV provider route. The primary
+static routes are `masked_unit_load_store` and `masked_unit_store`; the same
+contract surface also covers the already-existing unit-stride computed-mask and
+runtime-scalar computed-mask routes that share
+`RVVUnitStrideMaskedMemoryRouteFacts`, so target validation does not fall back
+to direct fact reconstruction for any unit-stride masked-memory consumer.
+
+This contract sits above candidate metadata mirrors: mirrors are checked only
+after the rebuilt route description, route payload, ABI mappings, headers,
+types, mask policy, and statement-plan shape match the provider contract.
+
+#### 2. Signatures
+
+The durable provider-owned surface is:
+
+```c++
+enum class RVVUnitStrideMaskedMemoryRouteValidationKind {
+  MaskedUnitLoadStore,
+  MaskedUnitStore,
+  ComputedMaskUnitLoadStore,
+  RuntimeScalarComputedMaskStore,
+  RuntimeScalarComputedMaskLoadStore,
+};
+
+struct RVVUnitStrideMaskedMemoryRouteValidationContract {
+  RVVUnitStrideMaskedMemoryRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string baseMemoryMovementRouteFamilyPlanID;
+  std::string computedMaskMemoryRouteFamilyPlanID;
+  std::string computedMaskMemoryMaskProducerSource;
+  std::string maskTailPolicyRouteFamilyPlanID;
+  std::string maskTailPolicyOwner;
+  std::string comparePredicateKind;
+  std::string maskRole;
+  std::string maskSource;
+  std::string maskMemoryForm;
+  std::string inactiveLaneContract;
+  std::string maskedPassthroughLayout;
+  std::string maskedMemoryLayout;
+  std::string sourceMemoryForm;
+  std::string destinationMemoryForm;
+  std::string vlCType;
+  std::string vectorTypeName;
+  std::string vectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  std::string scalarCType;
+  std::string setVLIntrinsic;
+  std::string vectorLoadIntrinsic;
+  std::string maskedLoadIntrinsic;
+  std::string storeIntrinsic;
+  std::string compareIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
+  std::string resultName;
+  std::string maskName;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  std::size_t expectedPreLoopStepCount;
+  std::size_t expectedLoopBodyStepCount;
+  llvm::SmallVector<std::string, 8> logicalOperands;
+  llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+  llvm::SmallVector<RuntimeABIParameterRole, 8> runtimeABIParameterRoles;
+  llvm::SmallVector<std::string, 4> requiredHeaders;
+  llvm::SmallVector<RVVUnitStrideMaskedMemoryRouteTypeMappingContract, 4>
+      typeMappings;
+};
+
+std::optional<RVVUnitStrideMaskedMemoryRouteValidationContract>
+getRVVUnitStrideMaskedMemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+std::optional<RVVMemoryRouteMetadataMirrorContractSet>
+getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+#### 3. Contracts
+
+- The RVV provider builds the validation contract from
+  `RVVUnitStrideMaskedMemoryRouteFacts` plus rebuilt route description payload
+  details such as result/mask names, EmitC loop/VL names, config contract id,
+  route id, headers, type mappings, ABI mappings, and statement counts.
+- Target artifact validation must require this contract before accepting
+  operation, memory form, dtype/config, mask source, mask/tail policy, runtime
+  ABI order and parameters, route operand binding summary, headers, C type
+  mappings, intrinsic leaves, target profile, provider support mirror, and
+  statement-plan counts.
+- Static masked unit-load/store contracts must carry the base-memory route
+  family plan and empty computed-mask producer facts. Computed-mask and
+  runtime-scalar computed-mask unit-stride contracts must carry computed-mask
+  route-family facts and reject stale base-memory residue.
+- Unit-load/store contracts must carry a masked load leaf and an ordinary
+  unit-store leaf; unit-store-only contracts must carry a unit load plus
+  masked store leaf and reject stale masked-load residue. Runtime-scalar
+  contracts must additionally carry the scalar C type, RHS scalar ABI role, and
+  RHS scalar splat intrinsic.
+- Candidate metadata mirror validation remains separate and must use
+  `getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(...)` after route
+  payload validation succeeds.
+
+#### 4. Validation & Error Matrix
+
+- Missing validation contract for any accepted unit-stride masked-memory
+  operation -> fail before target artifact acceptance.
+- Operation, memory form, route family plan, mask/tail facts, target profile,
+  provider mirror, header/type summary, binding plan, binding summary, or
+  runtime ABI differs from the contract -> fail before candidate mirrors are
+  considered.
+- Rebuilt route headers, type mappings, ABI mappings, EmitC loop/VL names,
+  result/mask names, or statement-plan counts disagree with the contract ->
+  fail before artifact acceptance.
+- Static masked routes carrying computed-mask producer facts, or computed-mask
+  routes carrying stale base-memory route-family facts -> fail closed.
+- Candidate metadata matches while provider payload mismatches -> fail;
+  mirrors cannot override provider route validation.
+- Stale strided, indexed, segment2, compare/select, scalar-splat-only,
+  arithmetic, descriptor/direct-C/source-export, or legacy i32 route-authority
+  residue on a unit-stride masked-memory route -> fail closed.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `masked_unit_load_store` facts -> route validation contract -> target
+  checks selected typed masked load, passthrough/source/destination forms,
+  unit-store leaf, provider binding summary, route headers/types, and
+  statement-plan shape before mirrors.
+- Good: `masked_unit_store` facts -> route validation contract -> target
+  checks selected typed masked store, unit-load source form, masked destination
+  form, provider binding summary, route headers/types, and statement-plan shape
+  before mirrors.
+- Base: computed-mask strided, computed-mask indexed, segment2, compare/select,
+  and scalar-splat-store routes consume their own validation contracts.
+- Bad: target validation accepts a route because the route id, artifact name,
+  candidate metadata, test fixture name, or C intrinsic spelling looks like a
+  masked unit route while the provider contract is missing or stale.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must cover positive contract access for
+  `masked_unit_load_store` and `masked_unit_store`, and any existing
+  unit-stride computed-mask/runtime-scalar consumers covered by the same
+  accessor.
+- C++ target artifact tests must mutate provider route descriptions for stale
+  provider mirror, target profile, header/type facts, runtime ABI roles, mask
+  facts, binding summary, intrinsic leaves, statement counts, and load/store
+  cross-contamination.
+- C++ target artifact tests must mutate candidate metadata mirrors for the
+  same fields and prove stale mirrors cannot be accepted.
+- Focused lit/generated-bundle dry-run tests must keep representative
+  unit-stride masked-memory fixtures exposing provider-derived
+  `typed_compute_op`, memory form, binding summary, mask facts, provider
+  mirror, and target profile.
+- Runtime `ssh rvv` evidence is required only when emitted C, runtime ABI,
+  mask behavior, inactive-lane/passthrough behavior, correctness, or
+  performance behavior changes.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  switch operation kind
+  -> fetch RVVUnitStrideMaskedMemoryRouteFacts directly
+  -> trust candidate metadata mirrors for provider_supported_mirror
+```
+
+Correct:
+
+```text
+typed unit-stride masked body/config/runtime facts
+  -> RVVUnitStrideMaskedMemoryRouteFacts
+  -> RVVUnitStrideMaskedMemoryRouteValidationContract
+  -> target validator consumes contract for route payload and statements
+  -> metadata mirror contract validates candidate mirrors only after that
+```
+
 ### Plain Segment2 Memory Fact Surface
 
 #### 1. Scope / Trigger

@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 scope, and no descriptor/source-front-door/common-EmitC semantic authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin/provider ownership for typed body legality, route support, intrinsic/type/ABI mapping, mask/tail facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract, provider-owned operand/header/type mirror rules, and predecessor validation-contract patterns."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission and target artifact authority rules for provider-built routes and mirror-only metadata."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/generated-bundle evidence and no-runtime-change/ssh-rvv boundary for masked routes."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-strided-memory-provider-contract/prd.md", "reason": "Immediate predecessor implementing the same validation-contract extraction pattern for computed-mask strided memory."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-indexed-memory-provider-contract/prd.md", "reason": "Immediate predecessor implementing the same validation-contract extraction pattern for computed-mask indexed memory."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-masked-unit-memory-production-validation-boundary/prd.md", "reason": "Existing unit-stride masked memory fact-surface and target validation boundary context."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-provider-owned-memory-route-contract-extraction/prd.md", "reason": "Provider-owned memory metadata mirror contract ownership and target consumer pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added RVVUnitStrideMaskedMemoryRouteValidationContract, validation kind, type-mapping contract, and provider accessors."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Builds unit-stride masked memory validation and metadata mirror contracts from canonical facts plus rebuilt provider route descriptions."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Rewired unit-stride masked-memory target validation to consume provider contracts and removed target-local direct raw fact consumption."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added focused positive and stale-field coverage for unit-stride masked-memory provider contracts and mirror contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Recorded durable 7-section code-spec for the unit-stride masked memory route validation contract."}

@@ -2298,6 +2298,9 @@ using RVVMemoryRouteMetadataMirrorContractSet =
     tianchenrv::plugin::rvv::RVVMemoryRouteMetadataMirrorContractSet;
 using RVVUnitStrideMaskedMemoryRouteFacts =
     tianchenrv::plugin::rvv::RVVUnitStrideMaskedMemoryRouteFacts;
+using RVVUnitStrideMaskedMemoryRouteValidationContract =
+    tianchenrv::plugin::rvv::
+        RVVUnitStrideMaskedMemoryRouteValidationContract;
 
 RuntimeABIParameter makeRVVManualRuntimeABIParameter(
     llvm::StringRef cName, llvm::StringRef cType,
@@ -14242,6 +14245,91 @@ bool expectRVVTargetArtifactExporterShape(
           /*expectedLoopBodyStepCount=*/6, "tcrv_rvv.masked_load"))
     return false;
 
+  auto expectUnitStrideMaskedProviderContract =
+      [&](const RVVRouteDescription &description,
+          tianchenrv::plugin::rvv::
+              RVVUnitStrideMaskedMemoryRouteValidationKind expectedKind,
+          std::size_t expectedLoopBodyStepCount,
+          llvm::StringRef fixtureContext) -> bool {
+    std::optional<RVVUnitStrideMaskedMemoryRouteValidationContract> contract =
+        tianchenrv::plugin::rvv::
+            getRVVUnitStrideMaskedMemoryRouteValidationContract(description);
+    if (!contract) {
+      llvm::errs() << fixtureContext
+                   << ": missing unit-stride masked memory route validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->kind != expectedKind ||
+        contract->operation != description.operation ||
+        llvm::StringRef(contract->runtimeABIOrder) !=
+            description.runtimeABIOrder ||
+        llvm::StringRef(contract->routeOperandBindingPlanID) !=
+            description.routeOperandBindingPlanID ||
+        llvm::StringRef(contract->routeOperandBindingSummary) !=
+            description.routeOperandBindingSummary ||
+        llvm::StringRef(contract->providerSupportedMirror) !=
+            description.providerSupportedMirror ||
+        llvm::StringRef(contract->targetLeafProfile) !=
+            description.targetLeafProfile ||
+        llvm::StringRef(contract->requiredHeaderDeclarations) !=
+            description.requiredHeaderDeclarations ||
+        llvm::StringRef(contract->cTypeMappingSummary) !=
+            description.cTypeMappingSummary ||
+        llvm::StringRef(contract->typedComputeOpName) !=
+            description.typedComputeOpName ||
+        llvm::StringRef(contract->maskSource) != description.maskSource ||
+        llvm::StringRef(contract->maskRole) != description.maskRole ||
+        llvm::StringRef(contract->maskedMemoryLayout) !=
+            description.indexedMemoryLayout ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount != expectedLoopBodyStepCount ||
+        contract->runtimeABIParameters.size() !=
+            description.runtimeABIParameters.size() ||
+        contract->requiredHeaders.empty() || contract->typeMappings.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": malformed unit-stride masked memory route "
+                      "validation contract\n";
+      return false;
+    }
+    if (!tianchenrv::support::runtimeABIParametersEqual(
+            contract->runtimeABIParameters,
+            description.runtimeABIParameters)) {
+      llvm::errs() << fixtureContext
+                   << ": malformed unit-stride masked memory runtime ABI "
+                      "contract\n";
+      return false;
+    }
+    std::optional<RVVMemoryRouteMetadataMirrorContractSet> mirrorContract =
+        tianchenrv::plugin::rvv::
+            getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
+                description);
+    if (!mirrorContract || mirrorContract->mirrors.empty() ||
+        mirrorContract->staleMirrorKeys.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": missing unit-stride masked memory metadata mirror "
+                      "contract\n";
+      return false;
+    }
+    return true;
+  };
+
+  if (!expectUnitStrideMaskedProviderContract(
+          baseMaskedDescription,
+          tianchenrv::plugin::rvv::
+              RVVUnitStrideMaskedMemoryRouteValidationKind::
+                  MaskedUnitLoadStore,
+          /*expectedLoopBodyStepCount=*/6,
+          "masked unit load/store unit-stride masked provider contract"))
+    return false;
+  if (!expectUnitStrideMaskedProviderContract(
+          baseMaskedStoreDescription,
+          tianchenrv::plugin::rvv::
+              RVVUnitStrideMaskedMemoryRouteValidationKind::MaskedUnitStore,
+          /*expectedLoopBodyStepCount=*/5,
+          "masked unit store unit-stride masked provider contract"))
+    return false;
+
   auto expectBaseMemoryProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -16127,6 +16215,30 @@ bool expectRVVTargetArtifactExporterShape(
                   StridedLoadUnitStore,
           "computed-mask strided load provider contract"))
     return false;
+  if (!expectUnitStrideMaskedProviderContract(
+          manualComputedUnitDescription,
+          tianchenrv::plugin::rvv::
+              RVVUnitStrideMaskedMemoryRouteValidationKind::
+                  ComputedMaskUnitLoadStore,
+          /*expectedLoopBodyStepCount=*/7,
+          "computed-mask unit load/store provider contract"))
+    return false;
+  if (!expectUnitStrideMaskedProviderContract(
+          manualRuntimeScalarStoreDescription,
+          tianchenrv::plugin::rvv::
+              RVVUnitStrideMaskedMemoryRouteValidationKind::
+                  RuntimeScalarComputedMaskStore,
+          /*expectedLoopBodyStepCount=*/6,
+          "runtime-scalar masked store provider contract"))
+    return false;
+  if (!expectUnitStrideMaskedProviderContract(
+          manualRuntimeScalarLoadStoreDescription,
+          tianchenrv::plugin::rvv::
+              RVVUnitStrideMaskedMemoryRouteValidationKind::
+                  RuntimeScalarComputedMaskLoadStore,
+          /*expectedLoopBodyStepCount=*/7,
+          "runtime-scalar masked load/store provider contract"))
+    return false;
 
   if (!expectManualCompareSelectMaskPositive(
           manualPlainCandidate, manualPlainRoute, manualPlainDescription,
@@ -17178,7 +17290,8 @@ bool expectRVVTargetArtifactExporterShape(
           "unit-stride masked memory registry rejects stale base-memory "
           "metadata on computed unit load/store",
           {"base_memory_movement_route_family_plan", "must not carry",
-           "without selected typed RVV plain base-memory route-family plan"}))
+           "without selected typed RVV unit-stride masked memory base "
+           "route-family plan"}))
     return false;
 
   TargetArtifactCandidate wrongRuntimeScalarProducerCandidate =

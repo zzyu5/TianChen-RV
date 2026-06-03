@@ -226,3 +226,36 @@ Extracted provider-owned computed-mask strided memory route validation and mirro
 ### Next Steps
 
 - None - task complete
+
+
+## Session 426: Stage2 RVV unit-stride masked memory route contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV unit-stride masked memory route contract
+**Branch**: `main`
+
+### Summary
+
+Extracted provider-owned unit-stride masked-memory route validation and mirror contracts, rewired target artifact validation to consume them, archived task, and passed focused C++/lit/scans.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

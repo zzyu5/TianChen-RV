@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final RVV authority remains typed body -> RVV provider contract -> target mirror validation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider/target/common boundary remains plugin-owned and fail-closed for RVV masked memory."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider route validation contract shape, mirror validation, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit evidence and no positive legacy route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run and no-runtime-change rationale requirements."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Check that runtime/correctness/performance claims are not made without ssh rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-indexed-memory-provider-contract/prd.md", "reason": "Compare against the most recent memory-route provider contract extraction and evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-masked-unit-memory-production-validation-boundary/prd.md", "reason": "Check this round preserves existing masked unit-stride route behavior while extracting the contract layer."}
+{"file": "build/build.ninja", "reason": "Build graph used for successful tcrv-opt, tcrv-translate, tianchenrv-target-artifact-export-test, and tianchenrv-rvv-extension-plugin-test build."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed RVV provider/plugin smoke test after provider header and route planning changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed target artifact provider contract and stale mirror coverage after consumer rewiring."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Focused lit filter selected 24 unit-stride masked-memory related generated-bundle and target artifact tests; all passed."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Bounded scan found no direct RVVUnitStrideMaskedMemoryRouteFacts or getRVVUnitStrideMaskedMemoryRouteFacts consumption in target validation."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-unit-stride-masked-memory-provider-contract/prd.md", "reason": "Records bounded old-authority scan, direct-consumption scan, git diff --check result, and no-runtime-change rationale."}
