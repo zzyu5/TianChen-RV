@@ -756,15 +756,29 @@ Migrated elementwise arithmetic provider/target validation to embed and consume 
 
 ### Main Changes
 
-(Add details)
+- Rewired conversion dtype-policy target validation to consume the embedded
+  runtime AVL/VL selected-boundary contract before checking retained
+  route-local runtime/control mirrors.
+- Demoted conversion `runtime_control_plan` and `runtime_abi_order` candidate
+  metadata labels to route-local runtime AVL/VL mirror labels.
+- Added target C++ coverage for conversion mirror labels and stale runtime
+  metadata mirrors.
+- Updated the lowering-runtime spec and archived the Trellis task.
 
 ### Git Commits
 
-(No commits - planning session)
+included-in-this-commit
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Built `tianchenrv-target-artifact-export-test` and
+  `tianchenrv-rvv-extension-plugin-test`.
+- [OK] Ran `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Ran `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Ran focused conversion lit from `build/test` with 3 passed and 474
+  excluded.
+- [OK] Ran `git diff --check`, Trellis validate, old-label grep, and
+  added-line old-authority scan.
 
 ### Status
 
@@ -924,6 +938,37 @@ Closed residual compare/select candidate metadata fallback labels for runtime co
 | Hash | Message |
 |------|---------|
 | `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 443: Stage2 RVV conversion runtime AVL/VL mirror cleanup
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV conversion runtime AVL/VL mirror cleanup
+**Branch**: `main`
+
+### Summary
+
+Demoted conversion dtype-policy route-local runtime AVL/VL fields and candidate runtime metadata to selected-boundary-checked mirrors; added focused target coverage and spec notes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
 
 ### Testing
 

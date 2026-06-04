@@ -1984,6 +1984,8 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string tailPolicy;
   std::string maskPolicy;
   std::string configContractID;
+  // Route-local runtime AVL/VL mirrors. The embedded runtimeAVLVLContract is
+  // the acceptance authority; target validation checks these only after it.
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;

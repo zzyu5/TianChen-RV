@@ -19762,10 +19762,10 @@ buildRVVConversionDtypePolicyRouteMetadataMirrorContract(
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       facts.runtimeControlPlanID,
-      "selected typed RVV conversion dtype-policy runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
-      "selected typed RVV conversion dtype-policy runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations",
       facts.requiredHeaderDeclarations,

@@ -3516,6 +3516,13 @@ Contracts:
   statement-plan validation must read those runtime/control names and the
   runtime AVL parameter from the embedded contract instead of reconstructing
   them from conversion-local fields.
+- Retained conversion-local copies of runtime control plan, runtime ABI order,
+  setvl callee, VL C type, full-chunk VL, loop VL, and loop induction are
+  route-local runtime AVL/VL mirrors only. Target validation must first accept
+  the embedded runtime AVL/VL selected-boundary contract, then compare those
+  local copies against it with `route-local runtime AVL/VL mirror`
+  diagnostics. Candidate metadata labels for `tcrv_rvv.runtime_control_plan`
+  and `tcrv_rvv.runtime_abi_order` must also be mirror-only labels.
 - Candidate metadata validation must consume the metadata mirror contract and
   must reject stale non-conversion route-family mirrors from that contract.
 
@@ -3528,6 +3535,9 @@ Validation & error matrix:
   induction, stale runtime `n` ABI role/order, stale remaining AVL metadata,
   or stale pointer advancement metadata -> fail before route payload,
   statement-plan, or metadata mirror acceptance.
+- Missing or stale conversion-local runtime/control mirrors -> fail after the
+  selected-boundary contract has been accepted, with diagnostics that identify
+  the stale fact as a `route-local runtime AVL/VL mirror`.
 - Route id, required header, type mapping, ABI parameter, source/result dtype,
   source/result SEW/LMUL, conversion kind/relation, memory form, intrinsic, or
   statement-plan mismatch -> fail before artifact export.
@@ -3555,6 +3565,9 @@ Tests required:
   full-chunk VL, loop VL, loop induction, runtime `n` ABI role, remaining AVL
   metadata, and pointer advancement metadata so the embedded runtime contract
   owns the first rejection.
+- C++ target artifact tests must mutate candidate runtime-control and runtime
+  ABI-order metadata mirrors and assert `route-local runtime AVL/VL mirror`
+  diagnostics.
 - C++ target artifact tests must mutate route payload fields and metadata
   mirrors to prove fail-closed behavior.
 - Focused conversion lit/dry-run fixtures must continue to pass for existing

@@ -9058,12 +9058,6 @@ llvm::Error validateRVVConversionDtypePolicyRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVConversionDtypePolicyRouteValidationContract
         &contract) {
-  if (description.runtimeABIOrder != contract.runtimeABIOrder)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-derived runtime ABI order '" +
-        contract.runtimeABIOrder + "' but was '" +
-        description.runtimeABIOrder + "'");
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
@@ -9129,12 +9123,6 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
             description.memoryForm) +
         "'");
-  if (description.runtimeControlPlanID != contract.runtimeControlPlanID)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned runtime control plan '" +
-        contract.runtimeControlPlanID + "' but was '" +
-        description.runtimeControlPlanID + "'");
   if (description.wideningConversionRouteFamilyPlanID !=
       contract.wideningConversionRouteFamilyPlanID)
     return makeRVVTargetRouteError(
@@ -9217,17 +9205,15 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         "', binding summary '" + description.routeOperandBindingSummary +
         "', and target leaf profile '" + description.targetLeafProfile + "'");
 
-  if (description.vlCType != contract.vlCType ||
-      description.sourceVectorLoadIntrinsic !=
+  if (description.sourceVectorLoadIntrinsic !=
           contract.sourceVectorLoadIntrinsic ||
-      description.setVLIntrinsic != contract.setVLIntrinsic ||
       description.intrinsic != contract.conversionIntrinsic ||
       description.storeIntrinsic != contract.storeIntrinsic ||
       description.resultName != contract.resultName)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned setvl, source-load, conversion, store, VL, "
-        "and result-name facts for '" +
+        " requires provider-owned source-load, conversion, store, and "
+        "result-name facts for '" +
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
             contract.operation) +
         "' before artifact export");
@@ -9403,16 +9389,14 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider route operand binding facts before artifact export");
-  if (contract.configContractID.empty() ||
-      contract.runtimeControlPlanID.empty() ||
-      contract.runtimeABIOrder.empty() || contract.resultSEW == 0 ||
+  if (contract.configContractID.empty() || contract.resultSEW == 0 ||
       contract.resultLMUL.empty() || contract.tailPolicy.empty() ||
-      contract.maskPolicy.empty() || contract.setVLIntrinsic.empty() ||
-      contract.intrinsic.empty() || contract.storeIntrinsic.empty() ||
+      contract.maskPolicy.empty() || contract.intrinsic.empty() ||
+      contract.storeIntrinsic.empty() ||
       contract.resultName.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires provider-derived runtime, dtype, policy, intrinsic, and "
+        " requires provider-derived dtype, policy, intrinsic, and "
         "result facts before artifact export");
 
   if (contract.memoryForm !=
@@ -9429,6 +9413,13 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
         description.configContractID + "'");
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (llvm::Error error =
           validateRVVConversionDtypePolicyRuntimeABIFacts(description,

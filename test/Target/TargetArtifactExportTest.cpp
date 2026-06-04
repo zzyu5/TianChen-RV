@@ -9092,6 +9092,13 @@ bool expectRVVTargetArtifactExporterShape(
                       "contract did not mirror rebuilt route facts\n";
       return false;
     }
+    if (!expectRVVProviderRouteLocalRuntimeAVLVLMirrors(
+            context, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
 
     std::optional<tianchenrv::plugin::rvv::
                       RVVConversionDtypePolicyRouteMetadataMirrorContractSet>
@@ -9110,6 +9117,15 @@ bool expectRVVTargetArtifactExporterShape(
                RVVConversionDtypePolicyRouteMetadataMirrorContract &mirror :
            mirrorContract->mirrors)
         if (mirror.key == key && mirror.expected == expected)
+          return true;
+      return false;
+    };
+    auto mirrorHasLabel = [&](llvm::StringRef key,
+                              llvm::StringRef label) -> bool {
+      for (const tianchenrv::plugin::rvv::
+               RVVConversionDtypePolicyRouteMetadataMirrorContract &mirror :
+           mirrorContract->mirrors)
+        if (mirror.key == key && mirror.label == label)
           return true;
       return false;
     };
@@ -9133,6 +9149,10 @@ bool expectRVVTargetArtifactExporterShape(
                    routeFacts->requiredHeaderDeclarations) ||
         !mirrorHas("tcrv_rvv.c_type_mapping",
                    routeFacts->cTypeMappingSummary) ||
+        !mirrorHasLabel("tcrv_rvv.runtime_control_plan",
+                        "route-local runtime AVL/VL control plan mirror") ||
+        !mirrorHasLabel("tcrv_rvv.runtime_abi_order",
+                        "route-local runtime AVL/VL ABI order mirror") ||
         !staleMirrorHas(
             "tcrv_rvv.elementwise_arithmetic_route_family_plan") ||
         !staleMirrorHas("tcrv_rvv.widening_dot_relation")) {
@@ -9640,6 +9660,41 @@ bool expectRVVTargetArtifactExporterShape(
           "widening conversion registry rejects missing provider-supported "
           "mirror metadata",
           {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionRuntimeControlMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningConversionRuntimeControlMirror,
+          "tcrv_rvv.runtime_control_plan",
+          "metadata-derived-runtime-plan")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "runtime control plan mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionRuntimeControlMirror,
+          "widening conversion registry rejects stale runtime control mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningConversionABIMirror =
+      widenI16Fixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningConversionABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,n,out")) {
+    llvm::errs() << "test fixture did not contain widening conversion "
+                    "runtime ABI order mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningConversionCandidateFailure(
+          staleWideningConversionABIMirror,
+          "widening conversion registry rejects stale ABI order mirror",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror", "lhs,out,n",
+           "lhs,n,out"}))
     return false;
 
   TargetArtifactCandidate staleWideningConversionRelationMirror =

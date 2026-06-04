@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Check no legacy authority, descriptor/source-front-door authority, or metadata authority was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check conversion dtype-policy scope, provider-owned facts, and route-control ordering."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected-boundary-first runtime AVL/VL validation and route-local mirror diagnostics."}
