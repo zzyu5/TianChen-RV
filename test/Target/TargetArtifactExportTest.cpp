@@ -3707,6 +3707,63 @@ bool expectRVVTargetArtifactExporterShape(
                    << ": malformed elementwise runtime ABI contract\n";
       return false;
     }
+    const RuntimeABIParameter *runtimeN = nullptr;
+    for (const RuntimeABIParameter &parameter :
+         description.runtimeABIParameters)
+      if (parameter.role == RuntimeABIParameterRole::RuntimeElementCount) {
+        runtimeN = &parameter;
+        break;
+      }
+    if (!runtimeN) {
+      llvm::errs() << fixtureContext
+                   << ": missing runtime n ABI parameter in fixture\n";
+      return false;
+    }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel != contract->consumerLabel ||
+        runtimeContract.sew != description.sew ||
+        runtimeContract.lmul != description.lmul ||
+        runtimeContract.tailPolicy != description.tailPolicy ||
+        runtimeContract.maskPolicy != description.maskPolicy ||
+        runtimeContract.configContractID != description.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName !=
+            description.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != runtimeN->cName ||
+        runtimeContract.runtimeAVLParameter.cType != runtimeN->cType ||
+        runtimeContract.runtimeAVLParameter.role != runtimeN->role ||
+        runtimeContract.runtimeAVLParameter.ownership != runtimeN->ownership) {
+      llvm::errs() << fixtureContext
+                   << ": malformed elementwise runtime AVL/VL selected-"
+                      "boundary contract\n";
+      return false;
+    }
     for (std::size_t index = 0,
                      count = contract->runtimeABIParameters.size();
          index < count; ++index)
@@ -3791,6 +3848,130 @@ bool expectRVVTargetArtifactExporterShape(
                     "non-elementwise operation\n";
     return false;
   }
+
+  auto expectScalarBroadcastSubProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        scalarBroadcastSubFixture.candidate, scalarBroadcastSubRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleScalarBroadcastSubRuntimeAVLSource =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubRuntimeAVLSource.runtimeAVLASource =
+      "metadata-derived-runtime-avl";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubRuntimeAVLSource,
+          "scalar-broadcast subtract registry rejects stale runtime AVL "
+          "source",
+          {"runtime AVL source",
+           scalarBroadcastSubDescription.runtimeAVLASource,
+           "metadata-derived-runtime-avl"}))
+    return false;
+
+  RVVRouteDescription missingScalarBroadcastSubRuntimeVLContract =
+      scalarBroadcastSubDescription;
+  missingScalarBroadcastSubRuntimeVLContract.runtimeVLContractID = "";
+  if (!expectScalarBroadcastSubProviderFailure(
+          missingScalarBroadcastSubRuntimeVLContract,
+          "scalar-broadcast subtract registry rejects missing runtime VL "
+          "contract",
+          {"runtime VL contract",
+           scalarBroadcastSubDescription.runtimeVLContractID,
+           "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubVLScope =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubVLScope.vlScopeOpName = "metadata.with_vl";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubVLScope,
+          "scalar-broadcast subtract registry rejects stale selected with_vl "
+          "scope",
+          {"runtime AVL/VL selected-boundary VL scope op",
+           "metadata.with_vl"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubSetVL =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubSetVL.setVLIntrinsic = "metadata_setvl";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubSetVL,
+          "scalar-broadcast subtract registry rejects stale setvl callee",
+          {"runtime AVL/VL selected-boundary setvl callee",
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubVLCType =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubVLCType.vlCType = "metadata_size_t";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubVLCType,
+          "scalar-broadcast subtract registry rejects stale VL C type",
+          {"runtime AVL/VL selected-boundary VL C type",
+           "metadata_size_t"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubFullChunkVL =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubFullChunkVL.emitCFullChunkVLName =
+      "metadata_full_chunk_vl";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubFullChunkVL,
+          "scalar-broadcast subtract registry rejects stale full-chunk VL",
+          {"runtime AVL/VL selected-boundary EmitC full-chunk VL",
+           "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubLoopVL =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubLoopVL.emitCLoopVLName = "metadata_loop_vl";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubLoopVL,
+          "scalar-broadcast subtract registry rejects stale loop VL",
+          {"runtime AVL/VL selected-boundary EmitC loop VL",
+           "metadata_loop_vl"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubLoopInduction =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubLoopInduction.emitCLoopInductionName = "metadata_i";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubLoopInduction,
+          "scalar-broadcast subtract registry rejects stale loop induction",
+          {"runtime AVL/VL selected-boundary EmitC loop induction",
+           "metadata_i"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubRuntimeNRole =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubRuntimeNRole.runtimeABIParameters[3].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubRuntimeNRole,
+          "scalar-broadcast subtract registry rejects stale runtime n ABI "
+          "role",
+          {"complete provider-owned runtime AVL/VL selected-boundary "
+           "contract",
+           "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleScalarBroadcastSubPointerAdvance =
+      scalarBroadcastSubDescription;
+  staleScalarBroadcastSubPointerAdvance.pointerAdvanceMetadata =
+      "metadata_pointer";
+  if (!expectScalarBroadcastSubProviderFailure(
+          staleScalarBroadcastSubPointerAdvance,
+          "scalar-broadcast subtract registry rejects stale pointer "
+          "advancement",
+          {"runtime AVL/VL selected-boundary pointer advancement metadata",
+           "metadata_pointer"}))
+    return false;
+
   RVVRouteDescription staleScalarBroadcastSubRuntimeRole =
       scalarBroadcastSubDescription;
   staleScalarBroadcastSubRuntimeRole.runtimeABIParameters[1].role =

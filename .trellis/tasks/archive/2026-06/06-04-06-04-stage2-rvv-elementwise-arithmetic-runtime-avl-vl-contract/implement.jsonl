@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 selected-body boundary, common EmitC neutrality, descriptor/mirror/status non-authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, elementwise arithmetic statement-plan boundary, runtime ABI consumption, provider ownership, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Runtime AVL/VL selected-boundary contract, route-family validation contract pattern, target consumer order, and common EmitC route boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit coverage requirements and ssh rvv evidence boundary for runtime/correctness claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep the migration RVV plugin-local and avoid core/common semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep runtime/control validation in selected typed RVV body/provider contracts, not high-level compute or descriptor semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-elementwise-broadcast-arithmetic-route-contract-extraction/prd.md", "reason": "Existing elementwise route validation contract extraction and target consumer surface."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md", "reason": "Initial shared runtime AVL/VL selected-boundary promotion pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md", "reason": "Closest full route-family runtime AVL/VL migration pattern with target consumer and statement-plan rewiring."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-scalar-splat-store-avl-vl-contract/prd.md", "reason": "Most recent completed runtime AVL/VL migration before this direction."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h", "reason": "Runtime AVL/VL selected-boundary contract API and expected fields."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Elementwise route validation contract struct and accessor to migrate."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp", "reason": "Provider builder for elementwise route validation contract and statement/runtime facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact elementwise validation consumer to rewire to embedded runtime contract."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target positive/negative coverage for embedded runtime AVL/VL contract consumption."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused provider/plugin regression surface for elementwise arithmetic plan and contract behavior."}

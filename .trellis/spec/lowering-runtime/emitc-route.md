@@ -3819,6 +3819,137 @@ typed selected tcrv_rvv compare/select body/config/runtime facts
   -> target validator consumes runtime contract before route-family payloads
 ```
 
+### Elementwise Arithmetic Route Validation Contract
+
+Use this contract when target artifact validation consumes production-active
+selected-body elementwise arithmetic routes: ordinary vector/vector
+`Add`/`Sub`/`Mul`, masked vector/vector `Add`/`Sub`/`Mul`,
+scalar-broadcast `Add`/`Sub`/`Mul`, and already connected strided elementwise
+arithmetic routes.
+
+The concrete provider-facing target validation surface is:
+
+```c++
+struct RVVElementwiseArithmeticRouteValidationContract {
+  RVVElementwiseArithmeticRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
+  ...
+};
+
+std::optional<RVVElementwiseArithmeticRouteValidationContract>
+getRVVElementwiseArithmeticRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+Contracts:
+
+- `getRVVElementwiseArithmeticRouteValidationContract(...)` is implemented in
+  the RVV provider layer and is the canonical source for elementwise operation,
+  memory/source form, scalar-broadcast form, masked form, strided form,
+  runtime ABI order, target leaf profile, provider-supported mirror,
+  header/type summaries, operand binding plan/summary, route-family plan ids,
+  typed compute op, intrinsic leaves, result/mask names, and statement-plan
+  counts.
+- The contract builder must build `runtimeAVLVLContract` through
+  `getRVVRuntimeAVLVLSelectedBoundaryContract(...)` after the provider-owned
+  elementwise runtime ABI parameter list is available. The embedded runtime
+  contract must use provider-derived typed config facts for `setvl` callee and
+  VL C type, not mutable route-description mirrors.
+- The embedded runtime contract is the selected-boundary authority for runtime
+  AVL source, runtime-VL contract, selected `with_vl` boundary/scope, `setvl`
+  callee, VL C type, full-chunk VL, loop VL, loop induction, runtime `n` ABI
+  parameter, remaining-AVL metadata, pointer advancement metadata,
+  bounded-slice, and multi-VL facts.
+- Elementwise target artifact validation must consume `runtimeAVLVLContract`
+  before accepting route payloads, route ids, header declarations, C type
+  mappings, ABI mappings, operation/source/memory-form facts, scalar-broadcast
+  facts, masked facts, strided facts, statement plans, or candidate metadata
+  mirrors. Family-local runtime fields remain mirrors checked against the same
+  provider-built route description; they are not an independent runtime
+  authority.
+- Elementwise statement-plan validation uses the embedded runtime contract for
+  the pre-loop `setvl`, loop bounds, loop `setvl`, full-chunk VL, loop VL,
+  loop induction name, runtime `n` ABI parameter, remaining-AVL expression,
+  and pointer-advance induction. It may use family fields for vector loads,
+  scalar splat, arithmetic, compare/merge, strided loads/stores, result names,
+  mask names, and store leaves only after the runtime contract has matched the
+  rebuilt route description.
+- Common EmitC carries the provider-built route and metadata mirrors; it must
+  not infer elementwise operation kind, scalar-broadcast form, mask/tail facts,
+  strided layout, runtime control, ABI order, headers, type mappings, or route
+  support from artifact names, route ids, tests, scripts, C strings, or mirror
+  metadata.
+
+Validation and errors:
+
+- Missing accessor result for a supported elementwise operation -> provider and
+  target validators fail before artifact export.
+- Missing embedded runtime AVL/VL selected-boundary contract, more than one or
+  zero runtime-element-count ABI parameter, stale runtime AVL source, stale
+  runtime-VL contract id, stale selected `with_vl` boundary/scope, stale
+  `setvl` callee, stale VL C type, stale full-chunk VL, stale loop VL, stale
+  loop induction, stale runtime `n` ABI role/order/ownership, stale remaining
+  AVL metadata, or stale pointer advancement metadata -> target validation
+  fails before accepting elementwise route payload, headers, ABI/type mappings,
+  statement plans, source/memory/mask facts, or artifact mirrors.
+- ABI order, operation, memory form, scalar-broadcast plan, elementwise plan,
+  target leaf profile, provider mirror, header summary, C type mapping,
+  binding summary, mask role/source/form, inactive-lane contract,
+  passthrough layout, strided layout, stride sources, intrinsic leaves, result
+  name, or mask name differs from accessor facts -> fail before artifact
+  acceptance.
+- Candidate artifact metadata carries stale conversion, compare/select,
+  computed-mask memory, MAcc, segment2, standalone reduction, contraction, base
+  memory, or unrelated route-family mirrors for the selected elementwise route
+  -> fail before bundle acceptance.
+
+Required tests:
+
+- C++ target artifact tests must assert
+  `RVVElementwiseArithmeticRouteValidationContract::runtimeAVLVLContract`
+  matches the rebuilt route description for representative plain, masked, and
+  scalar-broadcast elementwise routes.
+- C++ target artifact tests must mutate runtime AVL source, runtime-VL
+  contract, selected `with_vl` scope, `setvl` callee, VL C type,
+  full-chunk VL, loop VL, loop induction, runtime `n` ABI facts, and pointer
+  advancement metadata to prove fail-closed diagnostics before route
+  acceptance.
+- Generated-bundle dry-run tests must keep representative plain, masked, and
+  scalar-broadcast elementwise artifacts passing after the target consumer
+  requires the embedded runtime contract.
+- Runtime RVV correctness claims still require real `ssh rvv` execution after
+  provider and target validators accept the route.
+
+Correct:
+
+```text
+typed selected tcrv_rvv elementwise body/config/runtime facts
+  -> RVV provider elementwise route-family facts
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
+  -> RVVElementwiseArithmeticRouteValidationContract
+  -> target validator consumes runtime contract before route-family payloads
+```
+
 ### Provider-Owned Memory Metadata Mirror Contract
 
 #### 1. Scope / Trigger

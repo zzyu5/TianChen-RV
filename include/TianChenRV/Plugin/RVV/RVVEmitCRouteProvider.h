@@ -325,6 +325,7 @@ struct RVVElementwiseArithmeticRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string elementwiseArithmeticRouteFamilyPlanID;
   std::string scalarBroadcastElementwiseRouteFamilyPlanID;

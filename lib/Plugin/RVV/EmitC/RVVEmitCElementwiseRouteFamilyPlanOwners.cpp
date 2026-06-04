@@ -492,6 +492,13 @@ deriveElementwiseScalarSplatIntrinsic(std::int64_t sew,
   return (llvm::Twine("__riscv_vmv_v_x_") + *suffix).str();
 }
 
+std::optional<std::string>
+deriveElementwiseSetVLIntrinsic(std::int64_t sew, llvm::StringRef lmul) {
+  if (!getElementwiseVectorIntrinsicSuffix(sew, lmul))
+    return std::nullopt;
+  return (llvm::Twine("__riscv_vsetvl_e") + llvm::Twine(sew) + lmul).str();
+}
+
 } // namespace
 
 bool isRVVSelectedBodyElementwiseArithmeticRouteOperation(
@@ -2518,12 +2525,16 @@ buildRVVElementwiseArithmeticRouteValidationContract(
   contract.maskedPassthroughLayout =
       description.maskedPassthroughLayout.str();
 
-  contract.vlCType = description.vlCType.str();
+  std::optional<std::string> setVLIntrinsic =
+      deriveElementwiseSetVLIntrinsic(description.sew, description.lmul);
+  if (!setVLIntrinsic)
+    return std::nullopt;
+  contract.vlCType = "size_t";
   contract.vectorTypeName = description.vectorTypeName.str();
   contract.vectorCType = description.vectorCType.str();
   contract.maskTypeName = description.maskTypeName.str();
   contract.maskCType = description.maskCType.str();
-  contract.setVLIntrinsic = description.setVLIntrinsic.str();
+  contract.setVLIntrinsic = *setVLIntrinsic;
   contract.vectorLoadIntrinsic = description.vectorLoadIntrinsic.str();
   contract.stridedLoadIntrinsic = description.stridedLoadIntrinsic.str();
   if (isScalarBroadcast ||
@@ -2561,11 +2572,19 @@ buildRVVElementwiseArithmeticRouteValidationContract(
   appendElementwiseArithmeticValidationRuntimeABIRoles(contract);
   contract.runtimeABIParameters.append(description.runtimeABIParameters.begin(),
                                        description.runtimeABIParameters.end());
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
 
   appendElementwiseArithmeticValidationHeaders(
       contract, contract.requiredHeaderDeclarations);
   appendElementwiseArithmeticValidationTypeMapping(
-      contract, "!tcrv_rvv.vl", description.vlCType,
+      contract, "!tcrv_rvv.vl", contract.vlCType,
       "selected typed RVV elementwise VL type");
   appendElementwiseArithmeticValidationTypeMapping(
       contract, description.vectorTypeName, description.vectorCType,

@@ -639,3 +639,34 @@ Embedded RVVRuntimeAVLVLSelectedBoundaryContract in runtime-scalar splat-store v
 ### Next Steps
 
 - None - task complete
+
+
+## Session 437: Stage2 RVV elementwise runtime AVL/VL contract migration
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV elementwise runtime AVL/VL contract migration
+**Branch**: `main`
+
+### Summary
+
+Migrated elementwise arithmetic provider/target validation to embed and consume the shared runtime AVL/VL selected-boundary contract; focused C++ and lit checks passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -10992,12 +10992,10 @@ llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVElementwiseArithmeticRouteValidationContract
         &contract) {
-  const support::RuntimeABIParameter *runtimeN =
-      findRuntimeElementCountABIParameter(contract.runtimeABIParameters);
-  if (!runtimeN)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires a runtime n/AVL ABI parameter before artifact export");
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
+  const support::RuntimeABIParameter &runtimeN =
+      runtimeContract.runtimeAVLParameter;
 
   if (contract.expectedPreLoopStepCount == 0 ||
       contract.expectedLoopBodyStepCount == 0)
@@ -11013,12 +11011,12 @@ llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
         " before artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != contract.setVLIntrinsic ||
+  if (preLoopSetVL.callee != runtimeContract.setVLIntrinsic ||
       preLoopSetVL.operands.size() != 1 ||
-      preLoopSetVL.operands.front().expression != runtimeN->cName ||
-      preLoopSetVL.operands.front().cType != runtimeN->cType ||
-      !stepHasResult(preLoopSetVL, contract.emitCFullChunkVLName,
-                     contract.vlCType))
+      preLoopSetVL.operands.front().expression != runtimeN.cName ||
+      preLoopSetVL.operands.front().cType != runtimeN.cType ||
+      !stepHasResult(preLoopSetVL, runtimeContract.emitCFullChunkVLName,
+                     runtimeContract.vlCType))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires rebuilt provider route pre-loop setvl statement to use "
@@ -11034,20 +11032,20 @@ llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
         " requires exactly one provider-built runtime AVL/VL loop before "
         "artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != contract.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != contract.vlCType ||
-      loop.upperBound.expression != runtimeN->cName ||
-      loop.upperBound.cType != runtimeN->cType ||
-      loop.step.expression != contract.emitCFullChunkVLName ||
-      loop.step.cType != contract.vlCType)
+      loop.lowerBound.cType != runtimeContract.vlCType ||
+      loop.upperBound.expression != runtimeN.cName ||
+      loop.upperBound.cType != runtimeN.cType ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-built loop bounds and step to mirror runtime "
         "n/AVL/VL facts");
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeN->cName) + " - " +
-       contract.emitCLoopInductionName)
+      (llvm::StringRef(runtimeN.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (loop.bodySteps.size() != contract.expectedLoopBodyStepCount)
     return makeRVVTargetRouteError(
@@ -11056,13 +11054,14 @@ llvm::Error validateRVVElementwiseArithmeticRouteStatementPlan(
         llvm::Twine(contract.expectedLoopBodyStepCount) +
         " before artifact export");
   if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != contract.setVLIntrinsic ||
+      loop.bodySteps.front().callee != runtimeContract.setVLIntrinsic ||
       loop.bodySteps.front().operands.size() != 1 ||
       loop.bodySteps.front().operands.front().expression !=
           expectedRemainingAVL ||
-      loop.bodySteps.front().operands.front().cType != contract.vlCType ||
-      !stepHasResult(loop.bodySteps.front(), contract.emitCLoopVLName,
-                     contract.vlCType))
+      loop.bodySteps.front().operands.front().cType !=
+          runtimeContract.vlCType ||
+      !stepHasResult(loop.bodySteps.front(), runtimeContract.emitCLoopVLName,
+                     runtimeContract.vlCType))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-built loop setvl to derive per-iteration VL from "
@@ -11292,12 +11291,6 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVElementwiseArithmeticRouteValidationContract
         &contract) {
-  if (route.getRouteID() != contract.emitCRouteID)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires rebuilt provider route id '" + contract.emitCRouteID +
-        "' but route carried '" +
-        route.getRouteID() + "'");
   if (contract.providerSupportedMirror.empty() ||
       contract.routeOperandBindingPlanID.empty() ||
       contract.routeOperandBindingSummary.empty())
@@ -11326,6 +11319,14 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived runtime AVL/VL, dtype, SEW, LMUL, policy, "
         "config, intrinsic, and result facts before artifact export");
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
+  if (route.getRouteID() != contract.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route id '" + contract.emitCRouteID +
+        "' but route carried '" + route.getRouteID() + "'");
   if (llvm::Error error = validateRVVElementwiseArithmeticDescriptionAgainstContract(
           description, contract))
     return error;
