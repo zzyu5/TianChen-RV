@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, mirror-only metadata rule, and no descriptor/source-front-door authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime scalar splat-store provider facts preflight and route construction boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Runtime scalar splat-store validation contract, runtime AVL/VL selected-boundary authority, and candidate metadata mirror label requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-scalar-elementwise-runtime-avl-vl-sole-authority/prd.md", "reason": "Previous selected-boundary-first scalar splat-store payload validation and shared route-local runtime AVL/VL mirror helper pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md", "reason": "Earlier runtime mirror demotion pattern for target validation and no-runtime-change evidence boundary."}

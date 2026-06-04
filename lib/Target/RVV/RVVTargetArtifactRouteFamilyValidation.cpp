@@ -113,7 +113,7 @@ llvm::Error requireCandidateMetadataMirror(
     if (actual.empty())
       return makeRVVTargetRouteError(llvm::Twine("candidate metadata must "
                                                  "carry ") +
-                                     key + " provenance");
+                                     key + " provenance for " + label);
     if (actual != expected)
       return makeRVVTargetRouteError(
           llvm::Twine("candidate ") + key + " provenance must mirror " +
@@ -1002,6 +1002,8 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVRuntimeScalarSplatStoreRouteValidationContract
         &contract) {
+  // This runs after runtimeAVLVLContract acceptance and checks only ABI binding
+  // list consistency; runtime ABI order authority stays in the selected boundary.
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
@@ -1307,12 +1309,11 @@ llvm::Error validateRVVRuntimeScalarSplatStoreTargetArtifactCandidateMirrors(
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_control_plan",
           contract->runtimeControlPlanID,
-          "selected typed RVV runtime scalar splat-store runtime AVL/VL "
-          "control plan"))
+          "route-local runtime AVL/VL control plan mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_abi_order", contract->runtimeABIOrder,
-          "selected typed RVV runtime scalar splat-store runtime ABI order"))
+          "route-local runtime AVL/VL ABI order mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",

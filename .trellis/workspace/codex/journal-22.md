@@ -1040,3 +1040,36 @@ Demoted conversion dtype-policy route-local runtime AVL/VL fields and candidate 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 444: Stage2 RVV runtime scalar splat-store runtime AVL/VL mirror closure
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV runtime scalar splat-store runtime AVL/VL mirror closure
+**Branch**: `main`
+
+### Summary
+
+Closed residual runtime scalar splat-store candidate metadata runtime labels so runtime_control_plan and runtime_abi_order are route-local runtime AVL/VL mirrors; focused target, plugin, and lit checks passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

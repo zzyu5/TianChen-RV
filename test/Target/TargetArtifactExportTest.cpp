@@ -5089,7 +5089,41 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectRuntimeSplatCandidateFailure(
           staleRuntimeSplatABIMirror,
           "runtime-scalar splat-store registry rejects stale ABI mirror",
-          {"runtime_abi_order", "rhs_scalar,out,n", "rhs_scalar,n,out"}))
+          {"runtime_abi_order", "route-local runtime AVL/VL ABI order mirror",
+           "rhs_scalar,out,n", "rhs_scalar,n,out"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeSplatControlMirror =
+      runtimeSplatFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleRuntimeSplatControlMirror,
+                                    "tcrv_rvv.runtime_control_plan",
+                                    "metadata-derived-runtime-plan")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar splat-store "
+                    "runtime control plan mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeSplatCandidateFailure(
+          staleRuntimeSplatControlMirror,
+          "runtime-scalar splat-store registry rejects stale runtime control "
+          "mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
+  TargetArtifactCandidate missingRuntimeSplatABIMirror =
+      runtimeSplatFixture.candidate;
+  if (!eraseArtifactMetadataKey(missingRuntimeSplatABIMirror,
+                                "tcrv_rvv.runtime_abi_order")) {
+    llvm::errs() << "test fixture did not contain runtime-scalar splat-store "
+                    "runtime ABI order mirror metadata\n";
+    return false;
+  }
+  if (!expectRuntimeSplatCandidateFailure(
+          missingRuntimeSplatABIMirror,
+          "runtime-scalar splat-store registry rejects missing ABI mirror",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror"}))
     return false;
 
   TargetArtifactCandidate staleRuntimeSplatTypeMirror =
