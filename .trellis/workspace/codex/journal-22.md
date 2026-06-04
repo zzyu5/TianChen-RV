@@ -941,15 +941,30 @@ Promoted computed-mask indexed memory target validation to consume the embedded 
 
 ### Main Changes
 
-(Add details)
+- Created and archived the Trellis task for
+  `runtime_scalar_cmp_masked_macc_add` executable evidence.
+- Recorded that the existing production path already reaches selected-body
+  realization, RVV-owned MAcc provider facts, common EmitC materialization,
+  target artifact bundle export, generated harness, and ssh rvv execution.
+- Preserved the evidence artifact paths for dry-run and non-dry-run generated
+  bundle runs under `artifacts/tmp/`.
 
 ### Git Commits
 
-(No commits - planning session)
+- Included in this final round commit.
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Generated bundle dry-run for
+  `runtime_scalar_cmp_masked_macc_add` with counts `0,1,7,16,23,257` and
+  rhs scalars `-3,5`.
+- [OK] Focused lit via `build/test` filter:
+  `pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add`
+  passed 2 tests.
+- [OK] Non-dry-run `ssh rvv` generated harness run passed 24 cases:
+  6 counts x 2 rhs scalars x 2 patterns, ending with
+  `PASS op=runtime_scalar_cmp_masked_macc_add counts=0,1,7,16,23,257 rhs_scalars=-3,5 patterns=0,1`.
+- [OK] `git diff --check` and Trellis context validation passed.
 
 ### Status
 
@@ -1241,6 +1256,37 @@ Closed computed_mask_standalone_reduce_add executable evidence through generated
 - [OK] `rtk git diff --check`.
 - [OK] Bounded old-authority scan over touched task/journal docs found no new
   positive production authority path.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 447: Stage2 RVV runtime scalar computed mask MAcc executable evidence
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV runtime scalar computed mask MAcc executable evidence
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime_scalar_cmp_masked_macc_add executable evidence task: generated bundle dry-run, focused lit, and ssh rvv correctness over counts 0,1,7,16,23,257 with rhs scalars -3,5 and patterns 0,1; no production code changes required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
