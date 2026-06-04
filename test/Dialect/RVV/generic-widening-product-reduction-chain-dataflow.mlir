@@ -32,3 +32,17 @@ module {
     } : !tcrv_rvv.vl
   }
 }
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_generic_widening_product_reduction_chain_rejects_unconsumed_i8_load {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      // expected-error@+1 {{requires SEW32 LMUL m1 i8mf4 product-reduction source loads to feed the bounded signed tcrv_rvv.widening_product -> tcrv_rvv.standalone_reduce chain}}
+      %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
+    } : !tcrv_rvv.vl
+  }
+}

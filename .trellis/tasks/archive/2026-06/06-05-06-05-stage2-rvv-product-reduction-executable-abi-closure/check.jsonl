@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global source-of-authority and stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check neutral harness/evidence work does not become RVV route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check ABI binding, provider facts, and product-reduction route contract compliance."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-06-05-stage2-rvv-product-reduction-executable-abi-closure/prd.md", "reason": "Verify acceptance criteria and out-of-scope boundaries before finish."}
+{"command": "rtk ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed with existing warnings"}
+{"command": "rtk ./build/bin/tcrv-opt test/Dialect/RVV/generic-widening-product-reduction-chain-dataflow.mlir --split-input-file --verify-diagnostics", "result": "passed"}
+{"command": "rtk ./build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir --tcrv-materialize-emission-plans -o /tmp/tcrv-product-reduce-materialized.mlir", "result": "passed"}
+{"command": "rtk ./build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp /tmp/tcrv-product-reduce-materialized.mlir -o /tmp/tcrv-product-reduce.cpp", "result": "passed"}
+{"command": "rtk ./build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/tcrv-product-reduce-bundle /tmp/tcrv-product-reduce-materialized.mlir", "result": "passed after creating the required output directory and repairing vwredsum intrinsic spelling"}
+{"command": "rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind widening_product_reduce_add --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --run-id stage2-product-reduce-dry-run --overwrite", "result": "passed"}
+{"command": "rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind widening_product_reduce_add --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --run-id stage2-product-reduce-ssh-rvv --overwrite", "result": "passed on ssh rvv for counts 1,7,16,17,257 and patterns 0,1"}
+{"command": "rtk ./build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"command": "rtk ./build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-reduction-chain-dataflow|explicit-selected-body-artifact-widening-product-reduce-add'", "workdir": "build/test", "result": "passed 2 of 482 selected tests"}
+{"command": "rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py", "result": "passed"}
+{"command": "rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"command": "rtk git diff --check", "result": "passed"}
+{"command": "rtk git diff --cached --check", "result": "passed"}
+{"command": "rtk git diff -U0 -- touched files | rg -n '^\\+.*(q8|q4|llama|RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_)'", "result": "passed with no added-line matches"}

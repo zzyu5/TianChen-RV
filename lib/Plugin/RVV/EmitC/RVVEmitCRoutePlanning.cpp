@@ -4539,7 +4539,7 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
     if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
         lmul != tcrv::rvv::getRVVLMULM1())
       return {};
-    return "__riscv_vwredsum_vs_i32m1_i16mf2_i32m1";
+    return "__riscv_vwredsum_vs_i16mf2_i32m1";
   }
   llvm::StringRef mnemonic;
   switch (operation) {

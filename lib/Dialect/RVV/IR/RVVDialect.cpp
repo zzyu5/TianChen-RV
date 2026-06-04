@@ -2679,6 +2679,20 @@ bool isBoundedWideningProductReductionChainSourceLoad(LoadOp load,
   return hasProductReductionUse;
 }
 
+bool isBoundedWideningProductReductionChainSourceLoadCandidate(
+    LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  return isGenericRVVVectorI8MF4(load.getLoaded().getType());
+}
+
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL) {
   if (!load || !withVL)
@@ -3250,6 +3264,19 @@ mlir::LogicalResult WithVLOp::verify() {
     if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
       if (mlir::failed(verifyBoundedMetadata(op, attrName, attr.getValue())))
         return mlir::failure();
+  }
+
+  for (mlir::Operation &nested : body.front()) {
+    auto load = llvm::dyn_cast<LoadOp>(nested);
+    if (!load ||
+        !isBoundedWideningProductReductionChainSourceLoadCandidate(load, *this))
+      continue;
+    if (!isBoundedWideningProductReductionChainSourceLoad(load, *this))
+      return load.emitOpError()
+             << "requires SEW32 LMUL m1 i8mf4 product-reduction source "
+                "loads to feed the bounded signed "
+                "tcrv_rvv.widening_product -> "
+                "tcrv_rvv.standalone_reduce chain";
   }
 
   return mlir::success();
@@ -7788,7 +7815,9 @@ mlir::LogicalResult LoadOp::verify() {
         isBoundedWideningDotReduceSourceLoad(*this, withVL) ||
         isBoundedWideningStandaloneReduceSourceLoad(*this, withVL) ||
         isBoundedWideningProductSourceLoad(*this, withVL) ||
-        isBoundedWideningProductReductionChainSourceLoad(*this, withVL))
+        isBoundedWideningProductReductionChainSourceLoad(*this, withVL) ||
+        isBoundedWideningProductReductionChainSourceLoadCandidate(*this,
+                                                                  withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }

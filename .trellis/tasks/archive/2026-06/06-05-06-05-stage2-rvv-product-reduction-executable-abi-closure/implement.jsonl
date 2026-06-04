@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first authority chain for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, ABI binding, and Stage 2 boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract and product-reduction route/runtime ABI artifact constraints."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-06-05-stage2-rvv-product-reduction-executable-abi-closure/prd.md", "reason": "This round's bounded implementation scope and acceptance criteria."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-low-precision-product-reduction-chain/prd.md", "reason": "Prior route-supported product-reduction task scope and handoff status."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir", "reason": "Selected-body product-reduction fixture with typed i8 loads, i16 product, i32 reduction, ABI roles, plan checks, and header checks."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle ABI consumer, metadata validation, harness, dry-run, and ssh rvv execution support for widening_product_reduce_add."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verifier self-repair for bounded i8mf4 product-reduction source loads after materialized MLIR reparse."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Provider-derived product-reduction vwredsum intrinsic spelling repaired to the RVV C header spelling."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Standalone widening reduction intrinsic spelling kept consistent with the RVV C header spelling."}
+{"file": "test/Dialect/RVV/generic-widening-product-reduction-chain-dataflow.mlir", "reason": "Regression coverage for fail-closed unconsumed i8mf4 product-reduction source loads."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target artifact validation expectation updated for corrected provider-derived vwredsum intrinsic spelling."}

@@ -648,9 +648,8 @@ llvm::StringRef getContractionWideningReductionIntrinsic(
   if (expectedRelation.empty() || relation != expectedRelation)
     return {};
   return internContractionDerivedText(
-      (llvm::Twine("__riscv_vwredsum_vs_i") + llvm::Twine(resultSEW) +
-       resultLMUL + "_i" + llvm::Twine(sourceSEW) + sourceLMUL + "_i" +
-       llvm::Twine(resultSEW) + resultLMUL)
+      (llvm::Twine("__riscv_vwredsum_vs_i") + llvm::Twine(sourceSEW) +
+       sourceLMUL + "_i" + llvm::Twine(resultSEW) + resultLMUL)
           .str());
 }
 

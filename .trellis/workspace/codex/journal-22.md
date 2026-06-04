@@ -103,6 +103,73 @@ Implemented a production route-supported selected-body RVV low-precision contrac
 - ssh rvv correctness evidence remains a later continuation only if executable/runtime behavior is claimed.
 
 
+## Session 454: Stage2 RVV product-reduction executable ABI closure
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV product-reduction executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed executable ABI evidence for the generated selected-body
+`widening_product_reduce_add` RVV product-reduction chain. This round added the
+neutral generated-bundle ABI consumer/harness, selected a typed target fixture,
+repaired production issues exposed by generated artifact/object packaging, and
+proved runtime correctness on real `ssh rvv`.
+
+### Main Changes
+
+- Added `widening_product_reduce_add` support to
+  `scripts/rvv_generated_bundle_abi_e2e.py`, consuming provider-derived runtime
+  ABI, route binding, metadata, header, emitted C++, and generated object facts.
+- Added
+  `test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir`
+  for the typed i8mf4 source load -> i16mf2 widening product -> i32m1
+  standalone widening reduce-add chain with `lhs,rhs,acc,out,n` ABI.
+- Repaired the RVV dialect verifier so materialized/reparsed i8mf4
+  product-reduction source loads are accepted only as candidates and then
+  fail-closed at the enclosing `with_vl` body if they do not feed the bounded
+  product-reduction chain.
+- Repaired provider-derived `vwredsum` intrinsic spelling from the rejected
+  `__riscv_vwredsum_vs_i32m1_i16mf2_i32m1` form to
+  `__riscv_vwredsum_vs_i16mf2_i32m1`.
+- Added negative dialect coverage for unconsumed i8mf4 product-reduction source
+  loads under SEW32/m1.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] `rtk ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tcrv-opt test/Dialect/RVV/generic-widening-product-reduction-chain-dataflow.mlir --split-input-file --verify-diagnostics`
+- [OK] `rtk ./build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir --tcrv-materialize-emission-plans -o /tmp/tcrv-product-reduce-materialized.mlir`
+- [OK] `rtk ./build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp /tmp/tcrv-product-reduce-materialized.mlir -o /tmp/tcrv-product-reduce.cpp`
+- [OK] `rtk ./build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/tcrv-product-reduce-bundle /tmp/tcrv-product-reduce-materialized.mlir`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind widening_product_reduce_add --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --run-id stage2-product-reduce-dry-run --overwrite`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind widening_product_reduce_add --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --run-id stage2-product-reduce-ssh-rvv --overwrite`
+- [OK] `ssh rvv` output: `PASS op=widening_product_reduce_add counts=1,7,16,17,257 patterns=0,1`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cd build/test && rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-reduction-chain-dataflow|explicit-selected-body-artifact-widening-product-reduce-add'`
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk git diff --check`
+- [OK] `rtk git diff --cached --check`
+- [OK] bounded file scan found pre-existing legacy `tcrv_rvv.i32_*` text in touched legacy surfaces; diff-added-line scan found no new q8/q4/llama/RVVI32M1/rvv-i32m1 or new `tcrv_rvv.i32_*` route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
+
+
 ## Session 451: Stage2 RVV low-precision widening-product route foundation
 
 **Date**: 2026-06-04

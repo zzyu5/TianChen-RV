@@ -12190,7 +12190,7 @@ bool expectRVVTargetArtifactExporterShape(
       productReductionDescription.wideningProductIntrinsic !=
           "__riscv_vwmul_vv_i16mf2" ||
       productReductionDescription.intrinsic !=
-          "__riscv_vwredsum_vs_i32m1_i16mf2_i32m1" ||
+          "__riscv_vwredsum_vs_i16mf2_i32m1" ||
       productReductionDescription.scalarSeedSplatIntrinsic !=
           "__riscv_vmv_v_x_i32m1" ||
       productReductionDescription.routeOperandBindingPlanID !=
