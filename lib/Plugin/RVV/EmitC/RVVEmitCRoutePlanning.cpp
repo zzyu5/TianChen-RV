@@ -21252,10 +21252,10 @@ getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       validation->runtimeControlPlanID,
-      "selected typed RVV unit-stride masked memory runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", validation->runtimeABIOrder,
-      "selected typed RVV unit-stride masked memory runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations",
       validation->requiredHeaderDeclarations,
@@ -21368,10 +21368,10 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       validation->runtimeControlPlanID,
-      "selected typed RVV computed-mask indexed runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", validation->runtimeABIOrder,
-      "selected typed RVV computed-mask indexed runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations",
       validation->requiredHeaderDeclarations,
@@ -21506,10 +21506,10 @@ getRVVComputedMaskStridedMemoryRouteMetadataMirrorContract(
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       validation->runtimeControlPlanID,
-      "selected typed RVV computed-mask strided runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", validation->runtimeABIOrder,
-      "selected typed RVV computed-mask strided runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations",
       validation->requiredHeaderDeclarations,
@@ -21619,10 +21619,10 @@ getRVVSegment2MemoryRouteMetadataMirrorContract(
     appendRVVMemoryRouteMetadataMirror(
         contract, "tcrv_rvv.runtime_control_plan",
         routeFacts->runtimeControlPlanID,
-        "selected typed RVV plain segment2 runtime AVL/VL control plan");
+        "route-local runtime AVL/VL control plan mirror");
     appendRVVMemoryRouteMetadataMirror(
         contract, "tcrv_rvv.runtime_abi_order", routeFacts->runtimeABIOrder,
-        "selected typed RVV plain segment2 runtime ABI order");
+        "route-local runtime AVL/VL ABI order mirror");
     appendRVVMemoryRouteMetadataMirror(
         contract, "tcrv_rvv.required_header_declarations",
         routeFacts->requiredHeaderDeclarations,
@@ -21770,10 +21770,10 @@ getRVVSegment2MemoryRouteMetadataMirrorContract(
     appendRVVMemoryRouteMetadataMirror(
         contract, "tcrv_rvv.runtime_control_plan",
         routeFacts->runtimeControlPlanID,
-        "selected typed RVV computed-mask segment2 runtime AVL/VL control plan");
+        "route-local runtime AVL/VL control plan mirror");
     appendRVVMemoryRouteMetadataMirror(
         contract, "tcrv_rvv.runtime_abi_order", routeFacts->runtimeABIOrder,
-        "selected typed RVV computed-mask segment2 runtime ABI order");
+        "route-local runtime AVL/VL ABI order mirror");
     appendRVVMemoryRouteMetadataMirror(
         contract, "tcrv_rvv.required_header_declarations",
         routeFacts->requiredHeaderDeclarations,

@@ -59,6 +59,65 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 444: Stage2 RVV memory-family runtime AVL/VL mirror closure
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV memory-family runtime AVL/VL mirror closure
+**Branch**: `main`
+
+### Summary
+
+Closed residual memory-family target metadata runtime labels so retained
+`runtime_control_plan` and `runtime_abi_order` candidate metadata are explicit
+route-local runtime AVL/VL mirrors for unit-stride masked memory,
+computed-mask indexed/strided memory, and plain/computed-mask segment2 memory.
+No runtime behavior changed.
+
+### Main Changes
+
+- Relabeled memory-family metadata mirror contracts in
+  `RVVEmitCRoutePlanning.cpp` to `route-local runtime AVL/VL control plan
+  mirror` and `route-local runtime AVL/VL ABI order mirror`.
+- Added C++ target assertions that unit-stride masked, computed-mask indexed,
+  computed-mask strided, and segment2 memory metadata mirror contracts carry
+  the route-local runtime mirror labels.
+- Updated computed-mask segment2 lit diagnostics to expect the route-local
+  runtime ABI mirror label.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | rvv: close memory runtime mirror metadata labels |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate -j 16`
+- [OK] focused memory/segment2 lit filter from `build/test`: 71 passed, 406 excluded.
+- [OK] `rtk git diff --check`
+- [OK] bounded old-label grep found no residual selected-typed runtime label matches.
+- [OK] added-line old-authority scan found no matches.
+- [OK] Trellis context validation.
+
+### Self-Repair
+
+- First focused lit run failed because `tcrv-translate` had not been rebuilt
+  after the planning label change and still emitted the old segment2 runtime
+  ABI label. Rebuilt `tcrv-opt` and `tcrv-translate`, then reran the same lit
+  filter successfully.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit this session.
+
+
 ## Session 441: Stage2 RVV scalar and elementwise runtime AVL/VL sole-authority cleanup
 
 **Date**: 2026-06-04

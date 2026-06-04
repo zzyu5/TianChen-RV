@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first authority chain, and Stage 2 route-supported RVV coverage constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body/config/runtime facts, memory-family route provider boundaries, and mirror-only metadata constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract and RVVRuntimeAVLVLSelectedBoundaryContract requirements for target artifact runtime AVL/VL validation."}

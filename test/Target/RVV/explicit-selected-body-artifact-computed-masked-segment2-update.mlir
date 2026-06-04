@@ -116,7 +116,7 @@ module {
 // STALE-BINDING-SAME: rvv-route-operand-binding:script-derived-segment2-update.v1
 
 // STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV computed-mask segment2 runtime ABI order
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
 // STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
 
 // STALE-HEADER: RVV materialized EmitC target artifact bridge failed

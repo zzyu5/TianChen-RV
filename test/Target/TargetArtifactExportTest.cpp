@@ -2324,6 +2324,28 @@ using RVVUnitStrideMaskedMemoryRouteValidationContract =
     tianchenrv::plugin::rvv::
         RVVUnitStrideMaskedMemoryRouteValidationContract;
 
+bool expectRVVMemoryRouteLocalRuntimeMirrorMetadataLabels(
+    llvm::StringRef fixtureContext,
+    const RVVMemoryRouteMetadataMirrorContractSet &mirrorContract) {
+  auto hasLabel = [&](llvm::StringRef key, llvm::StringRef label) -> bool {
+    for (const tianchenrv::plugin::rvv::RVVMemoryRouteMetadataMirrorContract
+             &mirror : mirrorContract.mirrors)
+      if (mirror.key == key && mirror.label == label)
+        return true;
+    return false;
+  };
+  if (!hasLabel("tcrv_rvv.runtime_control_plan",
+                "route-local runtime AVL/VL control plan mirror") ||
+      !hasLabel("tcrv_rvv.runtime_abi_order",
+                "route-local runtime AVL/VL ABI order mirror")) {
+    llvm::errs() << fixtureContext
+                 << ": memory metadata contract did not label runtime "
+                    "metadata as route-local runtime AVL/VL mirrors\n";
+    return false;
+  }
+  return true;
+}
+
 RuntimeABIParameter makeRVVManualRuntimeABIParameter(
     llvm::StringRef cName, llvm::StringRef cType,
     RuntimeABIParameterRole role) {
@@ -13106,6 +13128,18 @@ bool expectRVVTargetArtifactExporterShape(
         return false;
       }
     }
+    std::optional<RVVMemoryRouteMetadataMirrorContractSet> mirrorContract =
+        tianchenrv::plugin::rvv::
+            getRVVSegment2MemoryRouteMetadataMirrorContract(description);
+    if (!mirrorContract || mirrorContract->mirrors.empty()) {
+      llvm::errs() << context
+                   << " did not expose segment2 memory metadata mirror "
+                      "contract\n";
+      return false;
+    }
+    if (!expectRVVMemoryRouteLocalRuntimeMirrorMetadataLabels(
+            context, *mirrorContract))
+      return false;
     return true;
   };
 
@@ -15956,6 +15990,9 @@ bool expectRVVTargetArtifactExporterShape(
                       "contract\n";
       return false;
     }
+    if (!expectRVVMemoryRouteLocalRuntimeMirrorMetadataLabels(
+            fixtureContext, *mirrorContract))
+      return false;
     return true;
   };
 
@@ -17959,6 +17996,9 @@ bool expectRVVTargetArtifactExporterShape(
                    << ": missing computed-mask strided mirror contract\n";
       return false;
     }
+    if (!expectRVVMemoryRouteLocalRuntimeMirrorMetadataLabels(
+            fixtureContext, *mirrorContract))
+      return false;
     return true;
   };
 
@@ -18093,6 +18133,9 @@ bool expectRVVTargetArtifactExporterShape(
                    << ": missing computed-mask indexed mirror contract\n";
       return false;
     }
+    if (!expectRVVMemoryRouteLocalRuntimeMirrorMetadataLabels(
+            fixtureContext, *mirrorContract))
+      return false;
     return true;
   };
 
