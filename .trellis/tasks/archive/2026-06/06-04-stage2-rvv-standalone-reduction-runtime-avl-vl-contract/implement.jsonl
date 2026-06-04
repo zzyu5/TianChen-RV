@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 scope, common EmitC neutrality, descriptor/mirror non-authority, and runtime evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of standalone reduction selected-body route facts, runtime ABI consumption, and fail-closed target validation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Runtime AVL/VL selected-boundary contract, route-family fact surface contract, target consumer order, and common EmitC route boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit coverage requirements, old-authority testing discipline, and ssh rvv evidence boundary."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure standalone reduction runtime AVL/VL migration remains RVV plugin-local and avoids core/common semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure runtime ABI/control work stays in selected typed RVV body/provider contracts and does not add high-level compute semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md", "reason": "Original runtime AVL/VL selected-boundary contract promotion and segment2 consumer pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md", "reason": "Base-memory embedded runtime contract and target consumer migration template."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-runtime-avl-vl-contract/prd.md", "reason": "Most recent compare/select runtime contract embedding, target consumer order, and no-runtime-change evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-standalone-reduction-route-contract-extraction/prd.md", "reason": "Existing standalone reduction provider validation contract and target consumer baseline."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-standalone-reduce-add-scalar-artifact-abi/prd.md", "reason": "Archived plain standalone reduce-add ssh rvv executable evidence for unchanged runtime path."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-computed-mask-standalone-reduce-add-artifact-abi/prd.md", "reason": "Archived computed-mask standalone reduce-add ssh rvv executable evidence for unchanged runtime path."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-stage2-rvv-runtime-scalar-cmp-masked-standalone-reduce-add-artifact-abi/prd.md", "reason": "Archived runtime-scalar computed-mask standalone reduce-add ssh rvv executable evidence for unchanged runtime path."}

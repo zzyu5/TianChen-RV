@@ -474,3 +474,36 @@ Embedded RVVRuntimeAVLVLSelectedBoundaryContract in compare/select validation, r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 432: Stage2 RVV standalone-reduction runtime AVL/VL contract migration
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV standalone-reduction runtime AVL/VL contract migration
+**Branch**: `main`
+
+### Summary
+
+Embedded RVVRuntimeAVLVLSelectedBoundaryContract in standalone reduction validation, rewired target validation and statement-plan checks to consume it, added fail-closed target coverage, updated EmitC route spec, and prepared the task for archive.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

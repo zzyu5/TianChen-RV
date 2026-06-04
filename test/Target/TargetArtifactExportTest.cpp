@@ -5178,6 +5178,8 @@ bool expectRVVTargetArtifactExporterShape(
                 description.operation) ||
         contract->memoryForm != routeFacts->memoryForm ||
         contract->typedComputeOpName != routeFacts->typedComputeOpName ||
+        llvm::StringRef(contract->configContractID) !=
+            description.configContractID ||
         contract->runtimeABIOrder != routeFacts->runtimeABIOrder ||
         contract->routeOperandBindingPlanID !=
             routeFacts->routeOperandBindingPlanID ||
@@ -5211,6 +5213,49 @@ bool expectRVVTargetArtifactExporterShape(
       llvm::errs() << fixtureContext
                    << " provider standalone reduction route validation "
                       "contract did not mirror canonical facts\n";
+      return false;
+    }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel.empty() ||
+        runtimeContract.sew != description.sew ||
+        runtimeContract.lmul != description.lmul ||
+        runtimeContract.tailPolicy != description.tailPolicy ||
+        runtimeContract.maskPolicy != description.maskPolicy ||
+        runtimeContract.configContractID != description.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName != description.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << fixtureContext
+                   << " embedded runtime AVL/VL selected-boundary contract "
+                      "did not mirror rebuilt route facts\n";
       return false;
     }
     return true;
@@ -5365,6 +5410,119 @@ bool expectRVVTargetArtifactExporterShape(
           staleStandaloneAddABIOrder,
           "standalone reduce_add registry rejects stale runtime ABI order",
           {"runtime ABI order", "lhs,acc,out,n", "lhs,out,acc,n"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddRuntimeAVLSource =
+      standaloneReduceAddDescription;
+  staleStandaloneAddRuntimeAVLSource.runtimeAVLASource =
+      "metadata-derived-avl";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddRuntimeAVLSource,
+          "standalone reduce_add registry rejects stale runtime AVL source",
+          {"runtime AVL/VL selected-boundary runtime AVL source",
+           "runtime_abi:n", "metadata-derived-avl"}))
+    return false;
+
+  RVVRouteDescription missingStandaloneAddRuntimeVLContract =
+      standaloneReduceAddDescription;
+  missingStandaloneAddRuntimeVLContract.runtimeVLContractID = "";
+  if (!expectStandaloneReduceAddProviderFailure(
+          missingStandaloneAddRuntimeVLContract,
+          "standalone reduce_add registry rejects missing runtime VL contract",
+          {"runtime AVL/VL selected-boundary runtime VL contract",
+           "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddVLScope =
+      standaloneReduceAddDescription;
+  staleStandaloneAddVLScope.vlScopeOpName = "metadata.with_vl";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddVLScope,
+          "standalone reduce_add registry rejects stale selected with_vl scope",
+          {"runtime AVL/VL selected-boundary VL scope op",
+           "metadata.with_vl"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddSetVLCallee =
+      standaloneReduceAddDescription;
+  staleStandaloneAddSetVLCallee.setVLIntrinsic = "metadata_setvl";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddSetVLCallee,
+          "standalone reduce_add registry rejects stale setvl intrinsic",
+          {"runtime AVL/VL selected-boundary setvl callee",
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddVLType =
+      standaloneReduceAddDescription;
+  staleStandaloneAddVLType.vlCType = "uint64_t";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddVLType,
+          "standalone reduce_add registry rejects stale VL C type",
+          {"runtime AVL/VL selected-boundary VL C type", "size_t",
+           "uint64_t"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddFullChunkVL =
+      standaloneReduceAddDescription;
+  staleStandaloneAddFullChunkVL.emitCFullChunkVLName =
+      "metadata_full_chunk_vl";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddFullChunkVL,
+          "standalone reduce_add registry rejects stale full-chunk VL",
+          {"runtime AVL/VL selected-boundary EmitC full-chunk VL",
+           "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddLoopVL =
+      standaloneReduceAddDescription;
+  staleStandaloneAddLoopVL.emitCLoopVLName = "metadata_vl";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddLoopVL,
+          "standalone reduce_add registry rejects stale loop VL",
+          {"runtime AVL/VL selected-boundary EmitC loop VL",
+           "metadata_vl"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddLoopInduction =
+      standaloneReduceAddDescription;
+  staleStandaloneAddLoopInduction.emitCLoopInductionName = "metadata_i";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddLoopInduction,
+          "standalone reduce_add registry rejects stale loop induction",
+          {"runtime AVL/VL selected-boundary EmitC loop induction",
+           "metadata_i"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddRuntimeParameter =
+      standaloneReduceAddDescription;
+  staleStandaloneAddRuntimeParameter.runtimeABIParameters[3].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddRuntimeParameter,
+          "standalone reduce_add registry rejects stale runtime n ABI role",
+          {"runtime n/AVL ABI parameter", "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddRemainingAVL =
+      standaloneReduceAddDescription;
+  staleStandaloneAddRemainingAVL.remainingAVLMetadata = "metadata_remaining";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddRemainingAVL,
+          "standalone reduce_add registry rejects stale remaining AVL metadata",
+          {"runtime AVL/VL selected-boundary remaining AVL metadata",
+           "metadata_remaining"}))
+    return false;
+
+  RVVRouteDescription staleStandaloneAddPointerAdvance =
+      standaloneReduceAddDescription;
+  staleStandaloneAddPointerAdvance.pointerAdvanceMetadata = "metadata-pointer";
+  if (!expectStandaloneReduceAddProviderFailure(
+          staleStandaloneAddPointerAdvance,
+          "standalone reduce_add registry rejects stale pointer advancement "
+          "metadata",
+          {"runtime AVL/VL selected-boundary pointer advancement metadata",
+           "metadata-pointer"}))
     return false;
 
   RVVRouteDescription staleStandaloneAddAccumulatorRole =
@@ -7141,7 +7299,8 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneAddI64Config,
           "runtime-scalar computed-mask standalone reduce_add i64 registry "
           "rejects missing dtype/config facts",
-          {"LMUL"}))
+          {"complete provider-owned runtime AVL/VL selected-boundary "
+           "contract"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarStandaloneAddM2ScalarResult =

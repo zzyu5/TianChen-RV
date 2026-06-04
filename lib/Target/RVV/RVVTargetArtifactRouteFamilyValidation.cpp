@@ -5012,6 +5012,14 @@ llvm::Error validateRVVStandaloneReductionPreLoopStatements(
     const support::RuntimeABIParameter &runtimeN) {
   constexpr llvm::StringLiteral consumerLabel(
       "standalone reduction/accumulation target artifact consumer");
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      description.runtimeAVLVLContract;
+  if (!runtimeABIParameterEquals(runtimeN,
+                                 runtimeContract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires statement-plan runtime n/AVL ABI parameter to come from "
+        "the embedded runtime AVL/VL selected-boundary contract");
   if (route.getCallOpaqueSteps().size() != 3)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -5031,9 +5039,10 @@ llvm::Error validateRVVStandaloneReductionPreLoopStatements(
       route.getCallOpaqueSteps()[0];
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, consumerLabel, "pre-loop setvl",
-          description.setVLIntrinsic,
-          {{runtimeN.cName, runtimeN.cType}},
-          description.emitCFullChunkVLName, description.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{runtimeContract.runtimeAVLParameter.cName,
+            runtimeContract.runtimeAVLParameter.cType}},
+          runtimeContract.emitCFullChunkVLName, runtimeContract.vlCType))
     return error;
 
   const conversion::emitc::TCRVEmitCCallOpaqueStep &initialSplat =
@@ -5044,7 +5053,7 @@ llvm::Error validateRVVStandaloneReductionPreLoopStatements(
           initialSplat, consumerLabel, "pre-loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedAccumulatorLane0, scalarCType},
-           {description.reductionStoreVL, description.vlCType}},
+           {description.reductionStoreVL, runtimeContract.vlCType}},
           "standalone_initial_acc_vec",
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5057,7 +5066,7 @@ llvm::Error validateRVVStandaloneReductionPreLoopStatements(
           {{out.cName, out.cType},
            {"standalone_initial_acc_vec",
             description.standaloneReductionScalarResultVectorCType},
-           {description.reductionStoreVL, description.vlCType}}))
+           {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();
@@ -5072,6 +5081,14 @@ llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
     const support::RuntimeABIParameter &runtimeN) {
   constexpr llvm::StringLiteral consumerLabel(
       "plain standalone reduction target artifact consumer");
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      description.runtimeAVLVLContract;
+  if (!runtimeABIParameterEquals(runtimeN,
+                                 runtimeContract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires statement-plan runtime n/AVL ABI parameter to come from "
+        "the embedded runtime AVL/VL selected-boundary contract");
   if (loop.bodySteps.size() != 5)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -5081,25 +5098,25 @@ llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
   const llvm::StringRef scalarCType =
       description.standaloneReductionScalarCType;
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeN.cName) + " - " +
-       description.emitCLoopInductionName)
+      (llvm::StringRef(runtimeContract.runtimeAVLParameter.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          description.setVLIntrinsic,
-          {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
 
   const std::string expectedLhsPointer =
       (llvm::StringRef(lhs.cName) + " + " +
-       description.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[1], consumerLabel, "source vector load",
           description.vectorLoadIntrinsic,
           {{expectedLhsPointer, lhs.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "lhs_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
@@ -5109,7 +5126,7 @@ llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
           loop.bodySteps[2], consumerLabel, "loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedOutLane0, scalarCType},
-           {description.reductionStoreVL, description.vlCType}},
+           {description.reductionStoreVL, runtimeContract.vlCType}},
           "standalone_acc_vec",
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5120,7 +5137,7 @@ llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
           {{"lhs_vec", description.standaloneReductionSourceVectorCType},
            {"standalone_acc_vec",
             description.standaloneReductionScalarResultVectorCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.resultName,
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5131,7 +5148,7 @@ llvm::Error validateRVVPlainStandaloneReductionLoopStatements(
           {{out.cName, out.cType},
            {description.resultName,
             description.standaloneReductionScalarResultVectorCType},
-           {description.reductionStoreVL, description.vlCType}}))
+           {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();
@@ -5148,6 +5165,14 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
     const support::RuntimeABIParameter &runtimeN) {
   constexpr llvm::StringLiteral consumerLabel(
       "computed-mask standalone reduction target artifact consumer");
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      description.runtimeAVLVLContract;
+  if (!runtimeABIParameterEquals(runtimeN,
+                                 runtimeContract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires statement-plan runtime n/AVL ABI parameter to come from "
+        "the embedded runtime AVL/VL selected-boundary contract");
   if (loop.bodySteps.size() != 10)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -5158,49 +5183,49 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
   const llvm::StringRef scalarCType =
       description.standaloneReductionScalarCType;
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeN.cName) + " - " +
-       description.emitCLoopInductionName)
+      (llvm::StringRef(runtimeContract.runtimeAVLParameter.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          description.setVLIntrinsic,
-          {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
 
   const std::string expectedCmpLHSPointer =
       (llvm::StringRef(cmpLHS.cName) + " + " +
-       description.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[1], consumerLabel, "compare lhs vector load",
           description.vectorLoadIntrinsic,
           {{expectedCmpLHSPointer, cmpLHS.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "lhs_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
   const std::string expectedCmpRHSPointer =
       (llvm::StringRef(cmpRHS.cName) + " + " +
-       description.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[2], consumerLabel, "compare rhs vector load",
           description.vectorLoadIntrinsic,
           {{expectedCmpRHSPointer, cmpRHS.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "rhs_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
   const std::string expectedSourcePointer =
       (llvm::StringRef(source.cName) + " + " +
-       description.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[3], consumerLabel, "payload source vector load",
           description.vectorLoadIntrinsic,
           {{expectedSourcePointer, source.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "source_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
@@ -5209,7 +5234,7 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
           description.compareIntrinsic,
           {{"lhs_vec", description.standaloneReductionSourceVectorCType},
            {"rhs_vec", description.standaloneReductionSourceVectorCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.maskName, description.maskCType))
     return error;
 
@@ -5228,7 +5253,7 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[5], consumerLabel, "inactive neutral splat",
           description.sourceSplatIntrinsic,
           {{inactiveNeutral, scalarCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "standalone_inactive_neutral_vec",
           description.standaloneReductionSourceVectorCType))
     return error;
@@ -5237,10 +5262,10 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[6], consumerLabel, "inactive-lane merge",
           description.maskedMergeIntrinsic,
           {{"standalone_inactive_neutral_vec",
-            description.standaloneReductionSourceVectorCType},
+           description.standaloneReductionSourceVectorCType},
            {"source_vec", description.standaloneReductionSourceVectorCType},
            {description.maskName, description.maskCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "standalone_masked_source_vec",
           description.standaloneReductionSourceVectorCType))
     return error;
@@ -5251,7 +5276,7 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[7], consumerLabel, "loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedOutLane0, scalarCType},
-           {description.reductionStoreVL, description.vlCType}},
+           {description.reductionStoreVL, runtimeContract.vlCType}},
           "standalone_acc_vec",
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5263,7 +5288,7 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
             description.standaloneReductionSourceVectorCType},
            {"standalone_acc_vec",
             description.standaloneReductionScalarResultVectorCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.resultName,
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5274,7 +5299,7 @@ llvm::Error validateRVVComputedMaskStandaloneReductionLoopStatements(
           {{out.cName, out.cType},
            {description.resultName,
             description.standaloneReductionScalarResultVectorCType},
-           {description.reductionStoreVL, description.vlCType}}))
+           {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();
@@ -5293,6 +5318,14 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
   constexpr llvm::StringLiteral consumerLabel(
       "runtime-scalar computed-mask standalone reduction target artifact "
       "consumer");
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      description.runtimeAVLVLContract;
+  if (!runtimeABIParameterEquals(runtimeN,
+                                 runtimeContract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires statement-plan runtime n/AVL ABI parameter to come from "
+        "the embedded runtime AVL/VL selected-boundary contract");
   if (loop.bodySteps.size() != 10)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -5304,25 +5337,25 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
   const llvm::StringRef scalarCType =
       description.standaloneReductionScalarCType;
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeN.cName) + " - " +
-       description.emitCLoopInductionName)
+      (llvm::StringRef(runtimeContract.runtimeAVLParameter.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          description.setVLIntrinsic,
-          {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
 
   const std::string expectedCmpLHSPointer =
       (llvm::StringRef(cmpLHS.cName) + " + " +
-       description.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[1], consumerLabel, "compare lhs vector load",
           description.vectorLoadIntrinsic,
           {{expectedCmpLHSPointer, cmpLHS.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "lhs_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
@@ -5330,19 +5363,19 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[2], consumerLabel, "RHS scalar splat",
           description.rhsBroadcastIntrinsic,
           {{rhsScalar.cName, rhsScalar.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "rhs_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
   const std::string expectedSourcePointer =
       (llvm::StringRef(source.cName) + " + " +
-       description.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[3], consumerLabel, "payload source vector load",
           description.vectorLoadIntrinsic,
           {{expectedSourcePointer, source.cType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "source_vec", description.standaloneReductionSourceVectorCType))
     return error;
 
@@ -5351,7 +5384,7 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           description.compareIntrinsic,
           {{"lhs_vec", description.standaloneReductionSourceVectorCType},
            {"rhs_vec", description.standaloneReductionSourceVectorCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.maskName, description.maskCType))
     return error;
 
@@ -5370,7 +5403,7 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[5], consumerLabel, "inactive neutral splat",
           description.sourceSplatIntrinsic,
           {{inactiveNeutral, scalarCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "standalone_inactive_neutral_vec",
           description.standaloneReductionSourceVectorCType))
     return error;
@@ -5379,10 +5412,10 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[6], consumerLabel, "inactive-lane merge",
           description.maskedMergeIntrinsic,
           {{"standalone_inactive_neutral_vec",
-            description.standaloneReductionSourceVectorCType},
+           description.standaloneReductionSourceVectorCType},
            {"source_vec", description.standaloneReductionSourceVectorCType},
            {description.maskName, description.maskCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "standalone_masked_source_vec",
           description.standaloneReductionSourceVectorCType))
     return error;
@@ -5393,7 +5426,7 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           loop.bodySteps[7], consumerLabel, "loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedOutLane0, scalarCType},
-           {description.reductionStoreVL, description.vlCType}},
+           {description.reductionStoreVL, runtimeContract.vlCType}},
           "standalone_acc_vec",
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5405,7 +5438,7 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
             description.standaloneReductionSourceVectorCType},
            {"standalone_acc_vec",
             description.standaloneReductionScalarResultVectorCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.resultName,
           description.standaloneReductionScalarResultVectorCType))
     return error;
@@ -5416,7 +5449,7 @@ validateRVVRuntimeScalarComputedMaskStandaloneReductionLoopStatements(
           {{out.cName, out.cType},
            {description.resultName,
             description.standaloneReductionScalarResultVectorCType},
-           {description.reductionStoreVL, description.vlCType}}))
+           {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();
@@ -5437,6 +5470,8 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
   const bool isRuntimeScalarComputedMaskStandalone =
       isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFamilyOperation(
           description.operation);
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      description.runtimeAVLVLContract;
 
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *outABI = nullptr;
@@ -5481,9 +5516,9 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
         "provider-built pre-loop setvl statement facts before artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != description.setVLIntrinsic ||
-      !stepHasResult(preLoopSetVL, description.emitCFullChunkVLName,
-                     description.vlCType))
+  if (preLoopSetVL.callee != runtimeContract.setVLIntrinsic ||
+      !stepHasResult(preLoopSetVL, runtimeContract.emitCFullChunkVLName,
+                     runtimeContract.vlCType))
     return makeRVVTargetRouteError(
         "standalone reduction/accumulation target artifact consumer requires "
         "rebuilt provider route pre-loop setvl statement to define the "
@@ -5506,27 +5541,26 @@ llvm::Error validateRVVStandaloneReductionAccumulationRouteStatementPlan(
         "exactly one provider-built runtime AVL/VL loop before artifact "
         "export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != description.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != description.vlCType ||
-      loop.step.expression != description.emitCFullChunkVLName ||
-      loop.step.cType != description.vlCType)
+      loop.lowerBound.cType != runtimeContract.vlCType ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         "standalone reduction/accumulation target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime AVL/VL route "
         "facts");
-  if (description.runtimeABIParameters.empty() ||
-      loop.upperBound.expression !=
-          description.runtimeABIParameters.back().cName ||
-      loop.upperBound.cType != description.runtimeABIParameters.back().cType)
+  if (loop.upperBound.expression !=
+          runtimeContract.runtimeAVLParameter.cName ||
+      loop.upperBound.cType != runtimeContract.runtimeAVLParameter.cType)
     return makeRVVTargetRouteError(
         "standalone reduction/accumulation target artifact consumer requires "
         "provider-built loop upper bound to use the runtime n/AVL ABI "
         "parameter");
   if (loop.bodySteps.empty() ||
-      loop.bodySteps.front().callee != description.setVLIntrinsic ||
-      !stepHasResult(loop.bodySteps.front(), description.emitCLoopVLName,
-                     description.vlCType))
+      loop.bodySteps.front().callee != runtimeContract.setVLIntrinsic ||
+      !stepHasResult(loop.bodySteps.front(), runtimeContract.emitCLoopVLName,
+                     runtimeContract.vlCType))
     return makeRVVTargetRouteError(
         "standalone reduction/accumulation target artifact consumer requires "
         "provider-built loop setvl statement to define per-iteration VL");
@@ -5569,6 +5603,10 @@ llvm::Error validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "standalone reduction/accumulation target artifact consumer requires "
         "provider-owned route validation contract before artifact export");
+
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract->runtimeAVLVLContract))
+    return error;
 
   if (route.getRouteID() != contract->emitCRouteID)
     return makeRVVTargetRouteError(

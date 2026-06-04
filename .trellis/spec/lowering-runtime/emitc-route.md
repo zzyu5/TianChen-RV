@@ -332,6 +332,11 @@ code.
 - Target artifact validation consumes the contract before route payload,
   header/type, ABI mapping, statement-plan, or candidate metadata mirror
   acceptance.
+- Route-family contract builders must pass provider-derived canonical runtime
+  facts into the runtime AVL/VL contract. For standalone reduction and similar
+  families, `configContractID`, `setVLIntrinsic`, and `vlCType` must come from
+  the selected typed RVV config / provider fact surface for the selected
+  SEW/LMUL, not be copied from mutable route-description mirrors.
 - Common EmitC/export may carry route statements and metadata mirrors supplied
   by the provider, but must not infer runtime AVL/VL facts from route ids,
   artifact names, descriptors, C snippets, manifests, or tests.
@@ -362,11 +367,23 @@ code.
   induction `offset`, full-chunk VL `full_chunk_vl`, loop VL `vl`, pointer
   advancement `offset`, and runtime ABI parameter `n` before accepting the
   route.
+- Good: `standalone_reduce_add` route facts build a standalone reduction
+  validation contract that embeds the runtime AVL/VL contract using canonical
+  selected SEW/LMUL config facts for `configContractID`, `__riscv_vsetvl_*`,
+  and `size_t` VL type. Target validation rejects stale runtime AVL source,
+  runtime VL contract, `with_vl` scope, setvl callee, full-chunk VL, loop VL,
+  loop induction, runtime `n` ABI role, remaining AVL, or pointer advancement
+  before accepting pre-loop setvl, loop setvl, scalar seed, reduction, or
+  scalar-result store statements.
 - Base: a route family not yet promoted may keep its existing runtime checks
   until a bounded task embeds the shared runtime AVL/VL contract.
 - Bad: target validation accepts a route because generated statements happen
   to compile while runtime AVL source, runtime-VL contract, or pointer
   advancement metadata is stale.
+- Bad: a route-family contract builder passes `description.setVLIntrinsic` or
+  `description.vlCType` into the embedded runtime contract. A stale route
+  description can then bypass the shared runtime contract and fail only in a
+  later statement-plan check, weakening the selected-boundary consumer order.
 
 ### 6. Tests Required
 
@@ -377,6 +394,10 @@ code.
   selected `with_vl` scope, full-chunk VL, loop remaining-AVL VL, pointer
   advancement metadata, or runtime ABI parameter facts and assert fail-closed
   diagnostics before route acceptance.
+- For standalone reduction consumers, C++ negative tests must also mutate the
+  setvl callee, VL C type, loop induction, remaining AVL metadata, and runtime
+  `n` ABI role so the shared runtime contract, not a later route statement
+  fallback, owns the first rejection.
 - Focused lit/generated-bundle dry-run tests for the promoted route family
   must remain green.
 - Real `ssh rvv` is required only when emitted C/C++, runtime ABI order,

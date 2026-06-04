@@ -2050,6 +2050,9 @@ constexpr llvm::StringLiteral
     kRVVStandaloneReductionMaskedInactiveLaneNeutralRequirement(
         "masked-standalone-reduction-neutral-inactive-lanes-before-reduction");
 
+llvm::StringRef getRVVSelectedBodySetVLIntrinsic(std::int64_t sew,
+                                                 llvm::StringRef lmul);
+
 static void appendRVVStandaloneReductionValidationHeaders(
     RVVStandaloneReductionRouteValidationContract &contract,
     llvm::StringRef requiredHeaderDeclarations) {
@@ -2099,6 +2102,9 @@ static void populateRVVStandaloneReductionValidationContract(
           facts.operation) ||
       isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFactsOperation(
           facts.operation);
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
+      tcrv::rvv::getRVVSelectedBodyConfigVLContract(description.sew,
+                                                   description.lmul);
 
   contract.kind = getRVVStandaloneReductionValidationKind(facts.operation);
   contract.operation = facts.operation;
@@ -2112,6 +2118,7 @@ static void populateRVVStandaloneReductionValidationContract(
   contract.lmul = description.lmul.str();
   contract.tailPolicy = description.tailPolicy.str();
   contract.maskPolicy = description.maskPolicy.str();
+  contract.configContractID = configContract.configContractID.str();
   contract.runtimeControlPlanID = description.runtimeControlPlanID.str();
   contract.runtimeABIOrder = facts.runtimeABIOrder.str();
   contract.targetLeafProfile = facts.targetLeafProfile.str();
@@ -2175,12 +2182,13 @@ static void populateRVVStandaloneReductionValidationContract(
       description.sew == 64 ? facts.inactiveNeutralLiteralSEW64.str()
                             : facts.inactiveNeutralLiteralSEW32.str();
 
-  contract.vlCType = description.vlCType.str();
+  contract.vlCType = "size_t";
   contract.vectorTypeName = description.vectorTypeName.str();
   contract.vectorCType = description.vectorCType.str();
   contract.maskTypeName = description.maskTypeName.str();
   contract.maskCType = description.maskCType.str();
-  contract.setVLIntrinsic = description.setVLIntrinsic.str();
+  contract.setVLIntrinsic =
+      getRVVSelectedBodySetVLIntrinsic(contract.sew, contract.lmul).str();
   contract.vectorLoadIntrinsic = description.vectorLoadIntrinsic.str();
   contract.sourceSplatIntrinsic = description.sourceSplatIntrinsic.str();
   contract.rhsBroadcastIntrinsic = description.rhsBroadcastIntrinsic.str();
@@ -2202,6 +2210,14 @@ static void populateRVVStandaloneReductionValidationContract(
   contract.expectedLoopBodyStepCount = isComputedMask ? 10 : 5;
   contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
                                        facts.runtimeABIParameters.end());
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
 
   appendRVVStandaloneReductionValidationHeaders(
       contract, facts.requiredHeaderDeclarations);

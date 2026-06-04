@@ -1461,6 +1461,7 @@ struct RVVStandaloneReductionRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string standaloneReductionRouteFamilyPlanID;
   std::string sourceVectorTypeName;
