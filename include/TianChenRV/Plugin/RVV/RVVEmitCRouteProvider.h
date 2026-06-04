@@ -2,6 +2,7 @@
 #define TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPROVIDER_H
 
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
@@ -1139,6 +1140,7 @@ struct RVVSegment2MemoryRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string segment2MemoryRouteFamilyPlanID;
   std::string computedMaskMemoryRouteFamilyPlanID;

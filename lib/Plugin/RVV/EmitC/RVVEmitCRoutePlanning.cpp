@@ -1741,6 +1741,63 @@ llvm::StringRef getRVVRuntimeAVLVLControlPlanID() {
   return kRVVRuntimeAVLVLControlPlanID;
 }
 
+std::optional<RVVRuntimeAVLVLSelectedBoundaryContract>
+getRVVRuntimeAVLVLSelectedBoundaryContract(
+    std::int64_t sew, llvm::StringRef lmul, llvm::StringRef tailPolicy,
+    llvm::StringRef maskPolicy, llvm::StringRef configContractID,
+    llvm::StringRef setVLIntrinsic, llvm::StringRef vlCType,
+    llvm::StringRef runtimeABIOrder,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+    llvm::StringRef consumerLabel) {
+  const support::RuntimeABIParameter *runtimeAVLParameter = nullptr;
+  for (const support::RuntimeABIParameter &parameter : runtimeABIParameters) {
+    if (parameter.role != support::RuntimeABIParameterRole::RuntimeElementCount)
+      continue;
+    if (runtimeAVLParameter)
+      return std::nullopt;
+    runtimeAVLParameter = &parameter;
+  }
+  if (!runtimeAVLParameter)
+    return std::nullopt;
+
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
+      tcrv::rvv::getRVVSelectedBodyConfigVLContract(sew, lmul);
+
+  RVVRuntimeAVLVLSelectedBoundaryContract contract;
+  contract.consumerLabel = consumerLabel;
+  contract.sew = sew;
+  contract.lmul = lmul.str();
+  contract.tailPolicy = tailPolicy.str();
+  contract.maskPolicy = maskPolicy.str();
+  contract.configContractID = configContractID.str();
+  contract.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID().str();
+  contract.runtimeVLContractID = configContract.runtimeVLContractID.str();
+  contract.runtimeAVLABIParameterName =
+      configContract.runtimeAVLABIParameterName.str();
+  contract.runtimeAVLASource = configContract.runtimeAVLASource.str();
+  contract.runtimeABIOrder = runtimeABIOrder.str();
+  contract.selectedBoundaryOpName = configContract.vlScopeOpName.str();
+  contract.selectedBodyProvenance =
+      "provider-derived selected typed tcrv_rvv setvl/with_vl body";
+  contract.vlDefOpName = configContract.vlDefOpName.str();
+  contract.vlScopeOpName = configContract.vlScopeOpName.str();
+  contract.vlUses = configContract.vlUses.str();
+  contract.setVLIntrinsic = setVLIntrinsic.str();
+  contract.vlCType = vlCType.str();
+  contract.emitCLoopKind = configContract.emitCLoopKind.str();
+  contract.emitCLoopInductionName =
+      configContract.emitCLoopInductionName.str();
+  contract.emitCFullChunkVLName = configContract.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName().str();
+  contract.remainingAVLMetadata = configContract.remainingAVLMetadata.str();
+  contract.pointerAdvanceMetadata =
+      configContract.pointerAdvanceMetadata.str();
+  contract.boundedSlice = configContract.boundedSlice.str();
+  contract.multiVL = configContract.multiVL.str();
+  contract.runtimeAVLParameter = *runtimeAVLParameter;
+  return contract;
+}
+
 llvm::Error verifyRVVRuntimeAVLVLControlPlan(
     const RVVRuntimeAVLVLControlPlan &plan, llvm::StringRef context) {
   if (context.trim().empty())
@@ -20871,6 +20928,14 @@ static void populateSegment2MemoryValidationCommonFields(
   contract.expectedPreLoopStepCount = 1;
   contract.expectedLoopBodyStepCount =
       getSegment2MemoryExpectedLoopBodyStepCount(description.operation);
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
 
   appendSegment2MemoryValidationRuntimeABIRoles(contract);
   appendSegment2MemoryValidationHeaders(contract,

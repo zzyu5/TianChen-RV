@@ -257,6 +257,152 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact metadata mirrors the provider summary exactly
 ```
 
+## RVV Runtime AVL/VL Selected-Boundary Contract
+
+### 1. Scope / Trigger
+
+When an RVV route-family validation contract is consumed by target artifact
+validation, runtime `n` / AVL / VL facts must be represented as a named
+provider-owned selected-boundary contract before the target accepts route
+payload, artifact, or metadata mirrors. This applies first to segment2 memory
+routes and should be extended to other existing route families when they are
+promoted.
+
+### 2. Signatures
+
+The concrete provider-facing shape is:
+
+```c++
+struct RVVRuntimeAVLVLSelectedBoundaryContract {
+  llvm::StringRef consumerLabel;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeVLContractID;
+  std::string runtimeAVLABIParameterName;
+  std::string runtimeAVLASource;
+  std::string runtimeABIOrder;
+  std::string selectedBoundaryOpName;
+  std::string selectedBodyProvenance;
+  std::string vlDefOpName;
+  std::string vlScopeOpName;
+  std::string vlUses;
+  std::string setVLIntrinsic;
+  std::string vlCType;
+  std::string emitCLoopKind;
+  std::string emitCLoopInductionName;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string remainingAVLMetadata;
+  std::string pointerAdvanceMetadata;
+  std::string boundedSlice;
+  std::string multiVL;
+  RuntimeABIParameter runtimeAVLParameter;
+};
+
+std::optional<RVVRuntimeAVLVLSelectedBoundaryContract>
+getRVVRuntimeAVLVLSelectedBoundaryContract(
+    std::int64_t sew, llvm::StringRef lmul, llvm::StringRef tailPolicy,
+    llvm::StringRef maskPolicy, llvm::StringRef configContractID,
+    llvm::StringRef setVLIntrinsic, llvm::StringRef vlCType,
+    llvm::StringRef runtimeABIOrder,
+    llvm::ArrayRef<RuntimeABIParameter> runtimeABIParameters,
+    llvm::StringRef consumerLabel);
+```
+
+Route-family validation contracts that consume runtime AVL/VL facts should
+embed this contract instead of duplicating the same expected fields in target
+code.
+
+### 3. Contracts
+
+- The provider derives the contract from selected typed `tcrv_rvv` body/config
+  facts, provider route-family facts, the selected runtime ABI parameter list,
+  and the RVV config/VL contract.
+- The contract carries exactly one `runtime-element-count` ABI parameter and
+  names it as the runtime AVL source used by `tcrv_rvv.setvl`.
+- The contract covers SEW, LMUL, tail/mask policy, config contract,
+  runtime-VL contract, runtime AVL source, runtime ABI order, selected
+  `with_vl` boundary, selected-body provenance, `setvl` intrinsic, VL C type,
+  full-chunk VL, loop remaining-AVL VL, loop induction, remaining-AVL
+  metadata, pointer advancement metadata, bounded slice, and multi-VL support.
+- Target artifact validation consumes the contract before route payload,
+  header/type, ABI mapping, statement-plan, or candidate metadata mirror
+  acceptance.
+- Common EmitC/export may carry route statements and metadata mirrors supplied
+  by the provider, but must not infer runtime AVL/VL facts from route ids,
+  artifact names, descriptors, C snippets, manifests, or tests.
+
+### 4. Validation & Error Matrix
+
+- Missing runtime AVL/VL selected-boundary contract for an accepted route ->
+  fail before artifact export.
+- More than one runtime-element-count ABI parameter, or none -> fail before
+  artifact export.
+- Runtime AVL ABI parameter name, type, role, or ownership differs from the
+  provider contract -> fail before artifact export.
+- Description SEW, LMUL, policy, config contract, runtime-VL contract,
+  runtime AVL source, runtime ABI order, `setvl` callee, VL type, `setvl` /
+  `with_vl` op names, loop induction, full-chunk VL, loop VL, remaining-AVL
+  metadata, pointer advancement metadata, bounded slice, or multi-VL support
+  differs from the contract -> fail before artifact export.
+- Route statements use stale pre-loop AVL, stale loop remaining AVL, stale
+  loop VL, stale induction-based pointer advancement, or stale selected-body
+  provenance -> fail before artifact export.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `computed_masked_segment2_update_unit_load` route facts build a
+  segment2 validation contract that embeds
+  `RVVRuntimeAVLVLSelectedBoundaryContract`; target validation checks runtime
+  AVL source `runtime_abi:n`, runtime VL contract, `setvl` / `with_vl`, loop
+  induction `offset`, full-chunk VL `full_chunk_vl`, loop VL `vl`, pointer
+  advancement `offset`, and runtime ABI parameter `n` before accepting the
+  route.
+- Base: a route family not yet promoted may keep its existing runtime checks
+  until a bounded task embeds the shared runtime AVL/VL contract.
+- Bad: target validation accepts a route because generated statements happen
+  to compile while runtime AVL source, runtime-VL contract, or pointer
+  advancement metadata is stale.
+
+### 6. Tests Required
+
+- C++ target artifact tests must include at least one positive consumer proving
+  the route-family validation contract embeds the runtime AVL/VL contract and
+  matches the rebuilt route description.
+- C++ negative tests must mutate runtime AVL source, runtime-VL contract,
+  selected `with_vl` scope, full-chunk VL, loop remaining-AVL VL, pointer
+  advancement metadata, or runtime ABI parameter facts and assert fail-closed
+  diagnostics before route acceptance.
+- Focused lit/generated-bundle dry-run tests for the promoted route family
+  must remain green.
+- Real `ssh rvv` is required only when emitted C/C++, runtime ABI order,
+  runtime counts, pointer advancement, or correctness behavior changes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target validator:
+  route id looks like computed_masked_segment2_update_unit_load
+  -> reconstructs runtime n/VL from route metadata and C snippets
+  -> accepts stale runtime AVL source or pointer advancement
+```
+
+Correct:
+
+```text
+typed selected tcrv_rvv body/config/runtime facts
+  -> RVV provider route-family facts
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
+  -> route-family validation contract
+  -> target validator consumes runtime contract before artifact acceptance
+```
+
 ## RVV Route-Family Fact Surface Contract
 
 ### 1. Scope / Trigger

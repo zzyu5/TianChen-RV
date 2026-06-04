@@ -11583,6 +11583,41 @@ bool expectRVVTargetArtifactExporterShape(
                    << "contract did not match rebuilt route description\n";
       return false;
     }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.selectedBoundaryOpName != description.boundaryOpName ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << context << " runtime AVL/VL selected-boundary "
+                   << "contract did not match rebuilt route description\n";
+      return false;
+    }
     if (contract->usesComputedMaskSegment2) {
       if (contract->computedMaskMemoryRouteFamilyPlanID !=
               description.computedMaskMemoryRouteFamilyPlanID ||
@@ -13629,8 +13664,48 @@ bool expectRVVTargetArtifactExporterShape(
           wrongSegment2RuntimePlan,
           "computed-mask segment2 registry rejects wrong VL/AVL runtime "
           "relation",
-          {"pre-loop setvl", "metadata_derived_full_chunk_vl",
-           "full_chunk_vl"}))
+          {"EmitC full-chunk VL", "full_chunk_vl",
+           "metadata_derived_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2RuntimeAVLSource =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2RuntimeAVLSource.runtimeAVLASource = "metadata_runtime_count";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2RuntimeAVLSource,
+          "computed-mask segment2 registry rejects stale runtime AVL source",
+          {"runtime AVL source", "runtime_abi:n",
+           "metadata_runtime_count"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2RuntimeVLContract =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2RuntimeVLContract.runtimeVLContractID =
+      "metadata-runtime-vl-contract";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2RuntimeVLContract,
+          "computed-mask segment2 registry rejects stale runtime VL contract",
+          {"runtime VL contract",
+           "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+           "metadata-runtime-vl-contract"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2VLScope =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2VLScope.vlScopeOpName = "metadata.with_vl";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2VLScope,
+          "computed-mask segment2 registry rejects stale VL scope op",
+          {"VL scope op", "tcrv_rvv.with_vl", "metadata.with_vl"}))
+    return false;
+
+  RVVRouteDescription wrongSegment2PointerAdvance =
+      computedMaskSegment2UpdateDescription;
+  wrongSegment2PointerAdvance.pointerAdvanceMetadata = "metadata_i";
+  if (!expectComputedMaskSegment2ProviderFailure(
+          wrongSegment2PointerAdvance,
+          "computed-mask segment2 registry rejects stale pointer advancement",
+          {"pointer advancement metadata", "offset", "metadata_i"}))
     return false;
 
   RVVRouteDescription wrongSegment2ComputedMaskPlan =

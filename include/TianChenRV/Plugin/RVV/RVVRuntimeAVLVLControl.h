@@ -6,10 +6,13 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/Value.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 #include <cstdint>
+#include <optional>
+#include <string>
 
 namespace tianchenrv::plugin::rvv {
 
@@ -40,7 +43,47 @@ struct RVVRuntimeAVLVLControlPlan {
   tianchenrv::support::RuntimeABIParameter runtimeAVLParameter;
 };
 
+struct RVVRuntimeAVLVLSelectedBoundaryContract {
+  llvm::StringRef consumerLabel;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeVLContractID;
+  std::string runtimeAVLABIParameterName;
+  std::string runtimeAVLASource;
+  std::string runtimeABIOrder;
+  std::string selectedBoundaryOpName;
+  std::string selectedBodyProvenance;
+  std::string vlDefOpName;
+  std::string vlScopeOpName;
+  std::string vlUses;
+  std::string setVLIntrinsic;
+  std::string vlCType;
+  std::string emitCLoopKind;
+  std::string emitCLoopInductionName;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string remainingAVLMetadata;
+  std::string pointerAdvanceMetadata;
+  std::string boundedSlice;
+  std::string multiVL;
+  tianchenrv::support::RuntimeABIParameter runtimeAVLParameter;
+};
+
 llvm::StringRef getRVVRuntimeAVLVLControlPlanID();
+
+std::optional<RVVRuntimeAVLVLSelectedBoundaryContract>
+getRVVRuntimeAVLVLSelectedBoundaryContract(
+    std::int64_t sew, llvm::StringRef lmul, llvm::StringRef tailPolicy,
+    llvm::StringRef maskPolicy, llvm::StringRef configContractID,
+    llvm::StringRef setVLIntrinsic, llvm::StringRef vlCType,
+    llvm::StringRef runtimeABIOrder,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
+        runtimeABIParameters,
+    llvm::StringRef consumerLabel);
 
 llvm::Expected<RVVRuntimeAVLVLControlPlan>
 deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(

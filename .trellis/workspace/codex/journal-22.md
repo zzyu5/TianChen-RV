@@ -375,3 +375,36 @@ Closed computed_masked_segment2_update_unit_load generated-bundle executable evi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 429: Stage2 RVV runtime AVL/VL selected-boundary contract promotion
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV runtime AVL/VL selected-boundary contract promotion
+**Branch**: `main`
+
+### Summary
+
+Promoted runtime n/AVL/VL facts into a provider-owned selected-boundary contract, wired segment2 target validation to consume it, updated EmitC route spec, archived task, and passed focused C++/lit/scans.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8c2611d9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

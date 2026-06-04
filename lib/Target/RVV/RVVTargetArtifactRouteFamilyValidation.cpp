@@ -9483,6 +9483,192 @@ llvm::Error requireRVVSegment2MemoryProviderField(
       label + " '" + expected + "' but was '" + actual + "'");
 }
 
+llvm::Error requireRVVRuntimeAVLVLSelectedBoundaryField(
+    llvm::StringRef consumerLabel, llvm::StringRef label,
+    llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  if (expected.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " rejects stale runtime AVL/VL selected-boundary " + label +
+        " fact '" + actual + "'");
+  if (actual.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-owned runtime AVL/VL selected-boundary " + label +
+        " '" + expected + "' before artifact export");
+  return makeRVVTargetRouteError(
+      llvm::Twine(consumerLabel) +
+      " requires provider-owned runtime AVL/VL selected-boundary " + label +
+      " '" + expected + "' but was '" + actual + "'");
+}
+
+llvm::Error validateRVVRuntimeAVLVLSelectedBoundaryContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &contract) {
+  const llvm::StringRef consumerLabel = contract.consumerLabel.empty()
+                                            ? "RVV target artifact consumer"
+                                            : contract.consumerLabel;
+  if (contract.sew == 0 || contract.lmul.empty() ||
+      contract.tailPolicy.empty() || contract.maskPolicy.empty() ||
+      contract.configContractID.empty() ||
+      contract.runtimeControlPlanID.empty() ||
+      contract.runtimeVLContractID.empty() ||
+      contract.runtimeAVLABIParameterName.empty() ||
+      contract.runtimeAVLASource.empty() || contract.runtimeABIOrder.empty() ||
+      contract.selectedBoundaryOpName.empty() ||
+      contract.selectedBodyProvenance.empty() || contract.vlDefOpName.empty() ||
+      contract.vlScopeOpName.empty() || contract.vlUses.empty() ||
+      contract.setVLIntrinsic.empty() || contract.vlCType.empty() ||
+      contract.emitCLoopKind.empty() ||
+      contract.emitCLoopInductionName.empty() ||
+      contract.emitCFullChunkVLName.empty() ||
+      contract.emitCLoopVLName.empty() ||
+      contract.remainingAVLMetadata.empty() ||
+      contract.pointerAdvanceMetadata.empty() ||
+      contract.boundedSlice.empty() || contract.multiVL.empty() ||
+      contract.runtimeAVLParameter.cName.empty() ||
+      contract.runtimeAVLParameter.cType.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires complete provider-owned runtime AVL/VL "
+        "selected-boundary contract before artifact export");
+
+  if (description.sew != contract.sew)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-owned runtime AVL/VL selected-boundary SEW '" +
+        llvm::Twine(contract.sew) + "' but was '" +
+        llvm::Twine(description.sew) + "'");
+
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "LMUL", description.lmul, contract.lmul))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "tail policy", description.tailPolicy,
+          contract.tailPolicy))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "mask policy", description.maskPolicy,
+          contract.maskPolicy))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "config contract", description.configContractID,
+          contract.configContractID))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "runtime control plan",
+          description.runtimeControlPlanID, contract.runtimeControlPlanID))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "runtime VL contract",
+          description.runtimeVLContractID, contract.runtimeVLContractID))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "runtime AVL source", description.runtimeAVLASource,
+          contract.runtimeAVLASource))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "runtime ABI order", description.runtimeABIOrder,
+          contract.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "selected boundary op", description.boundaryOpName,
+          contract.selectedBoundaryOpName))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "VL def op", description.vlDefOpName,
+          contract.vlDefOpName))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "VL scope op", description.vlScopeOpName,
+          contract.vlScopeOpName))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "VL uses", description.vlUses, contract.vlUses))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "setvl callee", description.setVLIntrinsic,
+          contract.setVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "VL C type", description.vlCType, contract.vlCType))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "EmitC loop kind", description.emitCLoopKind,
+          contract.emitCLoopKind))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "EmitC loop induction",
+          description.emitCLoopInductionName,
+          contract.emitCLoopInductionName))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "EmitC full-chunk VL",
+          description.emitCFullChunkVLName,
+          contract.emitCFullChunkVLName))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "EmitC loop VL", description.emitCLoopVLName,
+          contract.emitCLoopVLName))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "remaining AVL metadata",
+          description.remainingAVLMetadata, contract.remainingAVLMetadata))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "pointer advancement metadata",
+          description.pointerAdvanceMetadata,
+          contract.pointerAdvanceMetadata))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "bounded slice", description.boundedSlice,
+          contract.boundedSlice))
+    return error;
+  if (llvm::Error error = requireRVVRuntimeAVLVLSelectedBoundaryField(
+          consumerLabel, "multi-VL support", description.multiVL,
+          contract.multiVL))
+    return error;
+
+  const support::RuntimeABIParameter *runtimeAVLParameter = nullptr;
+  for (const support::RuntimeABIParameter &parameter :
+       description.runtimeABIParameters) {
+    if (parameter.role != support::RuntimeABIParameterRole::RuntimeElementCount)
+      continue;
+    if (runtimeAVLParameter)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires exactly one provider-owned runtime n/AVL ABI parameter "
+          "before artifact export");
+    runtimeAVLParameter = &parameter;
+  }
+  if (!runtimeAVLParameter)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires a provider-owned runtime n/AVL ABI parameter before "
+        "artifact export");
+  if (!runtimeABIParameterEquals(*runtimeAVLParameter,
+                                 contract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI parameter '" +
+        contract.runtimeAVLParameter.cName + "' as " +
+        support::stringifyRuntimeABIParameterRole(
+            contract.runtimeAVLParameter.role) +
+        " with C type '" + contract.runtimeAVLParameter.cType +
+        "' before artifact export");
+  if (contract.runtimeAVLParameter.cName !=
+      contract.runtimeAVLABIParameterName)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime AVL ABI parameter name '" +
+        contract.runtimeAVLABIParameterName +
+        "' to match the provider-owned runtime AVL parameter");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
@@ -9520,6 +9706,9 @@ llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
         " requires provider-owned config contract '" +
         contract.configContractID + "' but description carried '" +
         description.configContractID + "'");
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
 
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "LMUL", description.lmul, contract.lmul))
@@ -9824,6 +10013,8 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
   const llvm::StringRef consumerLabel = contract.consumerLabel;
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
   if (llvm::Error error =
           validateRVVSegment2MemoryRuntimeABIFacts(description, contract))
     return error;
@@ -9882,7 +10073,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
   if (loop.inductionVarName != contract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
       loop.lowerBound.cType != contract.vlCType ||
-      loop.step.expression != contract.emitCFullChunkVLName ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
       loop.step.cType != contract.vlCType)
     return makeRVVTargetRouteError(
         "segment2-memory target artifact consumer requires provider-built "
@@ -9908,13 +10099,13 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
 
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeNABI.cName) + " - " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
           contract.setVLIntrinsic,
           {{expectedRemainingAVL, contract.vlCType}},
-          contract.emitCLoopVLName, contract.vlCType))
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -9924,13 +10115,13 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
 
   auto pointerAtInduction = [&](const support::RuntimeABIParameter &abi) {
     return (llvm::StringRef(abi.cName) + " + " +
-            description.emitCLoopInductionName)
+            runtimeContract.emitCLoopInductionName)
         .str();
   };
   auto interleavedPointerAtInduction =
       [&](const support::RuntimeABIParameter &abi) {
         return (llvm::StringRef(abi.cName) + " + (" +
-                description.emitCLoopInductionName + " * 2)")
+                runtimeContract.emitCLoopInductionName + " * 2)")
             .str();
       };
   auto validateVectorLoad =
@@ -9940,7 +10131,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
     return validateRVVProviderBuiltRouteStep(
         step, consumerLabel, stepLabel, description.vectorLoadIntrinsic,
         {{pointerAtInduction(abi), abi.cType},
-         {description.emitCLoopVLName, description.vlCType}},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         resultName, description.vectorCType);
   };
   auto validateFieldStore =
@@ -9951,7 +10142,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
         step, consumerLabel, stepLabel, description.storeIntrinsic,
         {{pointerAtInduction(abi), abi.cType},
          {valueName, description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}});
   };
   auto validateTupleFieldExtract =
       [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
@@ -10008,7 +10199,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
         description.compareIntrinsic,
         {{"cmp_lhs_vec", description.vectorCType},
          {"cmp_rhs_vec", description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         description.maskName, description.maskCType);
   };
 
@@ -10043,7 +10234,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
             {{description.maskName, description.maskCType},
              {"segment2_passthrough_tuple", description.segmentTupleCType},
              {interleavedPointerAtInduction(sourceABI), sourceABI.cType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "segment2_tuple", description.segmentTupleCType))
       return error;
     if (llvm::Error error = validateTupleFieldExtract(
@@ -10093,7 +10284,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
              {interleavedPointerAtInduction(destinationABI),
               destinationABI.cType},
              {"segment2_tuple", description.segmentTupleCType},
-             {description.emitCLoopVLName, description.vlCType}}))
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
       return error;
     break;
   }
@@ -10123,7 +10314,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
             description.segment2UpdateArithmeticIntrinsic,
             {{"segment2_update_field0_src_vec", description.vectorCType},
              {description.field1Name, description.vectorCType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             description.field0Name, description.vectorCType))
       return error;
     if (llvm::Error error =
@@ -10138,7 +10329,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
              {interleavedPointerAtInduction(destinationABI),
               destinationABI.cType},
              {"segment2_tuple", description.segmentTupleCType},
-             {description.emitCLoopVLName, description.vlCType}}))
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
       return error;
     break;
   }
@@ -10153,7 +10344,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
             loop.bodySteps[1], consumerLabel, "segment2 load",
             description.segmentLoadIntrinsic,
             {{interleavedPointerAtInduction(sourceABI), sourceABI.cType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "segment2_tuple", description.segmentTupleCType))
       return error;
     if (llvm::Error error = validateTupleFieldExtract(
@@ -10200,7 +10391,7 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
             {{interleavedPointerAtInduction(destinationABI),
               destinationABI.cType},
              {"segment2_tuple", description.segmentTupleCType},
-             {description.emitCLoopVLName, description.vlCType}}))
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
       return error;
     break;
   }
