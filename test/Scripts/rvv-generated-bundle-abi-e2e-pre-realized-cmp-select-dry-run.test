@@ -14,6 +14,7 @@
 # ROOT: "cmp_select"
 # ROOT: "cmp_select_sle"
 # ROOT: "compare_select_predicate_boundary"
+# ROOT: "runtime_avl_vl_boundary"
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
@@ -57,6 +58,30 @@
 # CMP-DAG: "select_true_vector"
 # CMP-DAG: "select_false_vector"
 # CMP-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# CMP-DAG: "runtime_avl_vl_boundary": {
+# CMP-DAG: "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+# CMP-DAG: "authority": "provider-derived typed tcrv_rvv body/config/runtime facts"
+# CMP-DAG: "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc"
+# CMP-DAG: "selected_runtime_abi": {
+# CMP-DAG: "c_name": "n"
+# CMP-DAG: "role": "runtime-element-count"
+# CMP-DAG: "materialized_setvl": {
+# CMP-DAG: "runtime_avl_abi_parameter": "n"
+# CMP-DAG: "runtime_avl_source": "runtime_abi:n"
+# CMP-DAG: "setvl_consumes_runtime_avl": true
+# CMP-DAG: "with_vl_consumes_setvl": true
+# CMP-DAG: "emitted_cpp": {
+# CMP-DAG: "setvl_intrinsic": "__riscv_vsetvl_e32m1"
+# CMP-DAG: "uses_loop_vl_for_intrinsics": true
+# CMP-DAG: "uses_runtime_remaining_avl": true
+# CMP-DAG: "route_metadata": {
+# CMP-DAG: "tcrv_rvv.runtime_avl_abi_parameter": "n"
+# CMP-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
+# CMP-DAG: "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1"
+# CMP-DAG: "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+# CMP-DAG: "artifact_abi": {
+# CMP-DAG: "runtime_parameter_count": 4
+# CMP-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # CMP-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
 # CMP-DAG: "status": "dry_run_success"
 
@@ -99,6 +124,30 @@
 # SLE-DAG: "select_true_vector"
 # SLE-DAG: "select_false_vector"
 # SLE-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
+# SLE-DAG: "runtime_avl_vl_boundary": {
+# SLE-DAG: "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+# SLE-DAG: "authority": "provider-derived typed tcrv_rvv body/config/runtime facts"
+# SLE-DAG: "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc"
+# SLE-DAG: "selected_runtime_abi": {
+# SLE-DAG: "c_name": "n"
+# SLE-DAG: "role": "runtime-element-count"
+# SLE-DAG: "materialized_setvl": {
+# SLE-DAG: "runtime_avl_abi_parameter": "n"
+# SLE-DAG: "runtime_avl_source": "runtime_abi:n"
+# SLE-DAG: "setvl_consumes_runtime_avl": true
+# SLE-DAG: "with_vl_consumes_setvl": true
+# SLE-DAG: "emitted_cpp": {
+# SLE-DAG: "setvl_intrinsic": "__riscv_vsetvl_e32m1"
+# SLE-DAG: "uses_loop_vl_for_intrinsics": true
+# SLE-DAG: "uses_runtime_remaining_avl": true
+# SLE-DAG: "route_metadata": {
+# SLE-DAG: "tcrv_rvv.runtime_avl_abi_parameter": "n"
+# SLE-DAG: "tcrv_rvv.runtime_avl_source": "runtime_abi:n"
+# SLE-DAG: "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1"
+# SLE-DAG: "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+# SLE-DAG: "artifact_abi": {
+# SLE-DAG: "runtime_parameter_count": 4
+# SLE-DAG: "runtime_counts_are_execution_cases_not_vl_authority": true
 # SLE-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
 # SLE-DAG: "status": "dry_run_success"
 

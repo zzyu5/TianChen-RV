@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final diff preserves the RVV authority chain and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check compare/select ownership remains RVV plugin/provider local."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check compare/select artifact validation and runtime AVL/VL evidence remain provider-derived mirrors after route construction."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused generated-bundle evidence scope and no-runtime-claim rationale."}

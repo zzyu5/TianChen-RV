@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 typed RVV realization boundary, and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV compare/select selected-body realization and provider preflight contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route, compare/select validation contract, and runtime AVL/VL selected-boundary contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated artifact evidence and RVV runtime evidence requirements."}
