@@ -96,7 +96,7 @@ module {
 
 // STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV widening dot runtime ABI order
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
 // STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV widening dot route header requirements
 // STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV widening dot route type mapping summary
 // STALE-CONTRACTION: candidate tcrv_rvv.contraction_route_family_plan provenance must mirror selected typed RVV widening dot contraction route-family plan

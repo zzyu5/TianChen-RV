@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Confirmed no regression against RVV route-authority and Stage2 scope boundaries."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Confirmed RVV semantics stay plugin-owned and common export remains neutral."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Confirmed runtime AVL/VL selected-boundary contract is the acceptance authority and route-local fields are mirrors."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Confirmed focused tests are sufficient because no emitted C, ABI order/count, statement ordering, correctness, or runtime behavior changed."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-candidate-metadata-runtime-mirror-closure/prd.md","reason":"Checked contraction candidate metadata mirror wording against the recent compare/select closure precedent."}

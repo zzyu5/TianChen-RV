@@ -1468,10 +1468,10 @@ static void appendRVVMAccCommonDescriptionMirrors(
   appendRVVMAccRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       description.runtimeControlPlanID,
-      "selected typed RVV MAcc runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVMAccRouteMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", runtimeABIOrder,
-      "selected typed RVV MAcc runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVMAccRouteMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations", requiredHeaders,
       "selected typed RVV MAcc route header requirements");
@@ -1777,11 +1777,11 @@ getRVVMAccRouteMetadataMirrorContract(
     appendRVVMAccRouteMetadataMirror(
         contract, "tcrv_rvv.runtime_control_plan",
         routeFacts->runtimeControlPlanID,
-        "selected typed RVV widening MAcc runtime AVL/VL control plan");
+        "route-local runtime AVL/VL control plan mirror");
     appendRVVMAccRouteMetadataMirror(
         contract, "tcrv_rvv.runtime_abi_order",
         routeFacts->runtimeABIOrder,
-        "selected typed RVV widening MAcc runtime ABI order");
+        "route-local runtime AVL/VL ABI order mirror");
     appendRVVMAccRouteMetadataMirror(
         contract, "tcrv_rvv.required_header_declarations",
         routeFacts->requiredHeaderDeclarations,

@@ -1,0 +1,8 @@
+{"file":".trellis/spec/index.md","reason":"Global Stage1/Stage2 RVV authority boundaries and selected-body runtime evidence policy."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-local route authority and contraction-family provider/consumer ownership."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Shared runtime AVL/VL selected-boundary contract and route-local mirror expectations."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused C++/lit validation scope and ssh rvv evidence rules for non-runtime changes."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-macc-runtime-avl-vl-contract/prd.md","reason":"Prior MAcc runtime AVL/VL contract closure pattern."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-widening-dot-runtime-avl-vl-contract/prd.md","reason":"Prior widening-dot runtime AVL/VL contract closure pattern."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-runtime-avl-vl-sole-authority/prd.md","reason":"Most recent selected-boundary sole-authority target-consumer cleanup pattern."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-candidate-metadata-runtime-mirror-closure/prd.md","reason":"Candidate metadata runtime mirror label closure pattern."}

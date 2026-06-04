@@ -2791,13 +2791,12 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "runtime AVL/VL control plan",
-          description.runtimeControlPlanID, contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "runtime ABI order",
-          description.runtimeABIOrder, contract.runtimeABIOrder))
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
@@ -3569,11 +3568,11 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_control_plan",
           contract->runtimeControlPlanID,
-          "selected typed RVV widening dot runtime AVL/VL control plan"))
+          "route-local runtime AVL/VL control plan mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_abi_order", contract->runtimeABIOrder,
-          "selected typed RVV widening dot runtime ABI order"))
+          "route-local runtime AVL/VL ABI order mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",
@@ -3984,13 +3983,12 @@ llvm::Error validateRVVMAccDescriptionAgainstContract(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
-  if (llvm::Error error = requireRVVMAccContractStringField(
-          contract.consumerLabel, "runtime AVL/VL control plan",
-          description.runtimeControlPlanID, contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error = requireRVVMAccContractStringField(
-          contract.consumerLabel, "runtime ABI order",
-          description.runtimeABIOrder, contract.runtimeABIOrder))
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "route operand binding plan",

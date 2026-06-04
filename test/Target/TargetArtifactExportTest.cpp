@@ -10002,6 +10002,23 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider_supported_mirror", "provenance"}))
     return false;
 
+  TargetArtifactCandidate staleWideningMAccRuntimeControlMirror =
+      wideningMAccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningMAccRuntimeControlMirror,
+                                    "tcrv_rvv.runtime_control_plan",
+                                    "metadata-derived-runtime-plan")) {
+    llvm::errs() << "test fixture did not contain widening-MAcc runtime "
+                    "control plan metadata\n";
+    return false;
+  }
+  if (!expectWideningMAccCandidateFailure(
+          staleWideningMAccRuntimeControlMirror,
+          "widening-MAcc registry rejects stale runtime control mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
   TargetArtifactCandidate staleWideningMAccABIMirror =
       wideningMAccFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleWideningMAccABIMirror,
@@ -10014,7 +10031,9 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningMAccCandidateFailure(
           staleWideningMAccABIMirror,
           "widening-MAcc registry rejects stale ABI mirror",
-          {"runtime_abi_order", "lhs,rhs,acc,out,n",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror",
+           "lhs,rhs,acc,out,n",
            "lhs,acc,rhs,out,n"}))
     return false;
 
@@ -11214,6 +11233,23 @@ bool expectRVVTargetArtifactExporterShape(
           {"loop statements", "selected typed RVV source provenance"}))
     return false;
 
+  TargetArtifactCandidate stalePlainMAccRuntimeControlMirror =
+      maccFixture.candidate;
+  if (!rewriteArtifactMetadataValue(stalePlainMAccRuntimeControlMirror,
+                                    "tcrv_rvv.runtime_control_plan",
+                                    "metadata-derived-runtime-plan")) {
+    llvm::errs() << "plain MAcc test fixture did not contain runtime control "
+                    "plan metadata\n";
+    return false;
+  }
+  if (!expectMAccCandidateFailure(
+          stalePlainMAccRuntimeControlMirror, maccRoute, maccDescription,
+          "MAcc registry rejects stale plain runtime control mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
   TargetArtifactCandidate staleScalarBroadcastMAccABIMirror =
       scalarBroadcastMAccFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleScalarBroadcastMAccABIMirror,
@@ -11227,7 +11263,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleScalarBroadcastMAccABIMirror, scalarBroadcastMAccRoute,
           scalarBroadcastMAccDescription,
           "MAcc registry rejects stale scalar-broadcast runtime ABI mirror",
-          {"runtime_abi_order", "lhs,rhs_scalar,acc,out,n",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror",
+           "lhs,rhs_scalar,acc,out,n",
            "lhs,acc,rhs_scalar,out,n"}))
     return false;
 
@@ -12476,6 +12514,41 @@ bool expectRVVTargetArtifactExporterShape(
           wideningDotDescription,
           "widening-dot registry rejects missing provider support mirror",
           {"provider_supported_mirror", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningDotRuntimeControlMirror =
+      wideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningDotRuntimeControlMirror,
+                                    "tcrv_rvv.runtime_control_plan",
+                                    "metadata-derived-runtime-plan")) {
+    llvm::errs() << "test fixture did not contain widening-dot runtime "
+                    "control plan metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleWideningDotRuntimeControlMirror, wideningDotRoute,
+          wideningDotDescription,
+          "widening-dot registry rejects stale runtime control mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningDotABIMirror =
+      wideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningDotABIMirror,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,acc,rhs,out,n")) {
+    llvm::errs() << "test fixture did not contain widening-dot runtime ABI "
+                    "order metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleWideningDotABIMirror, wideningDotRoute, wideningDotDescription,
+          "widening-dot registry rejects stale ABI mirror",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror",
+           "lhs,rhs,acc,out,n"}))
     return false;
 
   TargetArtifactCandidate staleWideningDotBindingMirror =
