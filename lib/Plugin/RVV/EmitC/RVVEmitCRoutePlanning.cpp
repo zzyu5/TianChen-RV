@@ -20114,6 +20114,14 @@ getRVVUnitStrideMaskedMemoryRouteValidationContract(
   contract.runtimeABIParameters.append(
       routeFacts->runtimeABIParameters.begin(),
       routeFacts->runtimeABIParameters.end());
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
   appendUnitStrideMaskedMemoryValidationRuntimeABIRoles(contract);
   appendUnitStrideMaskedMemoryValidationHeaders(
       contract, contract.requiredHeaderDeclarations);

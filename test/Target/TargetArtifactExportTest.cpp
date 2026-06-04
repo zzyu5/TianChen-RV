@@ -2589,6 +2589,28 @@ void applyRVVManualUnitStrideMaskedMemoryRouteFacts(
   description.tailPolicy = routeFacts.tailPolicy;
   description.maskPolicy = routeFacts.maskPolicy;
   description.emitCRouteID = emitCRouteID;
+  const tianchenrv::tcrv::rvv::RVVSelectedBodyConfigVLContract
+      &configContract =
+          tianchenrv::tcrv::rvv::getRVVSelectedBodyConfigVLContract(
+              routeFacts.sew, routeFacts.lmul);
+  description.configContractID = configContract.configContractID;
+  description.runtimeVLContractID = configContract.runtimeVLContractID;
+  description.runtimeAVLASource = configContract.runtimeAVLASource;
+  description.boundaryOpName = configContract.vlScopeOpName;
+  description.vlDefOpName = configContract.vlDefOpName;
+  description.vlScopeOpName = configContract.vlScopeOpName;
+  description.vlUses = configContract.vlUses;
+  description.emitCLoopKind = configContract.emitCLoopKind;
+  description.emitCLoopInductionName =
+      configContract.emitCLoopInductionName;
+  description.emitCFullChunkVLName = configContract.emitCFullChunkVLName;
+  description.emitCLoopVLName =
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName();
+  description.remainingAVLMetadata = configContract.remainingAVLMetadata;
+  description.pointerAdvanceMetadata =
+      configContract.pointerAdvanceMetadata;
+  description.boundedSlice = configContract.boundedSlice;
+  description.multiVL = configContract.multiVL;
   description.providerSupportedMirror = routeFacts.providerSupportedMirror;
   description.targetLeafProfile = routeFacts.targetLeafProfile;
   description.routeOperandBindingPlanID =
@@ -2631,9 +2653,6 @@ void applyRVVManualUnitStrideMaskedMemoryRouteFacts(
   description.indexedMemoryLayout = routeFacts.maskedMemoryLayout;
   description.sourceMemoryForm = routeFacts.sourceMemoryForm;
   description.destinationMemoryForm = routeFacts.destinationMemoryForm;
-  description.emitCLoopInductionName = "i";
-  description.emitCFullChunkVLName = "vl_full";
-  description.emitCLoopVLName = "vl";
   description.runtimeABIParameters.clear();
   for (const RuntimeABIParameter &parameter : routeFacts.runtimeABIParameters)
     description.runtimeABIParameters.push_back(parameter);
@@ -15531,6 +15550,49 @@ bool expectRVVTargetArtifactExporterShape(
                       "contract\n";
       return false;
     }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel.empty() ||
+        runtimeContract.sew != description.sew ||
+        runtimeContract.lmul != description.lmul ||
+        runtimeContract.tailPolicy != description.tailPolicy ||
+        runtimeContract.maskPolicy != description.maskPolicy ||
+        runtimeContract.configContractID != description.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName != description.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << fixtureContext
+                   << ": embedded runtime AVL/VL selected-boundary contract "
+                      "did not mirror unit-stride masked memory route facts\n";
+      return false;
+    }
     std::optional<RVVMemoryRouteMetadataMirrorContractSet> mirrorContract =
         tianchenrv::plugin::rvv::
             getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
@@ -18522,6 +18584,122 @@ bool expectRVVTargetArtifactExporterShape(
           "splat intrinsic",
           {"runtime scalar splat callee", "__riscv_vmv_v_x_i32m1",
            "metadata-derived-runtime-scalar-splat"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitRuntimeAVLSource =
+      manualComputedUnitDescription;
+  staleComputedUnitRuntimeAVLSource.runtimeAVLASource = "metadata-derived-avl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitRuntimeAVLSource,
+          "unit-stride masked memory registry rejects stale runtime AVL "
+          "source",
+          {"runtime AVL/VL selected-boundary runtime AVL source",
+           "runtime_abi:n", "metadata-derived-avl"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitRuntimeVLContract =
+      manualComputedUnitDescription;
+  staleComputedUnitRuntimeVLContract.runtimeVLContractID =
+      "metadata-derived-runtime-vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitRuntimeVLContract,
+          "unit-stride masked memory registry rejects stale runtime VL "
+          "contract",
+          {"runtime AVL/VL selected-boundary runtime VL contract",
+           "metadata-derived-runtime-vl"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitVLScope =
+      manualComputedUnitDescription;
+  staleComputedUnitVLScope.vlScopeOpName = "metadata.with_vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitVLScope,
+          "unit-stride masked memory registry rejects stale selected with_vl "
+          "scope",
+          {"runtime AVL/VL selected-boundary VL scope op",
+           "metadata.with_vl"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitSetVL =
+      manualComputedUnitDescription;
+  staleComputedUnitSetVL.setVLIntrinsic = "metadata_setvl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitSetVL,
+          "unit-stride masked memory registry rejects stale setvl intrinsic",
+          {"runtime AVL/VL selected-boundary setvl callee",
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitVLType =
+      manualComputedUnitDescription;
+  staleComputedUnitVLType.vlCType = "uint64_t";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitVLType,
+          "unit-stride masked memory registry rejects stale VL C type",
+          {"runtime AVL/VL selected-boundary VL C type", "size_t",
+           "uint64_t"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitFullChunkVL =
+      manualComputedUnitDescription;
+  staleComputedUnitFullChunkVL.emitCFullChunkVLName =
+      "metadata_full_chunk_vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitFullChunkVL,
+          "unit-stride masked memory registry rejects stale full-chunk VL",
+          {"runtime AVL/VL selected-boundary EmitC full-chunk VL",
+           "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitLoopVL =
+      manualComputedUnitDescription;
+  staleComputedUnitLoopVL.emitCLoopVLName = "metadata_vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitLoopVL,
+          "unit-stride masked memory registry rejects stale loop VL",
+          {"runtime AVL/VL selected-boundary EmitC loop VL", "metadata_vl"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitLoopInduction =
+      manualComputedUnitDescription;
+  staleComputedUnitLoopInduction.emitCLoopInductionName = "metadata_i";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitLoopInduction,
+          "unit-stride masked memory registry rejects stale loop induction",
+          {"runtime AVL/VL selected-boundary EmitC loop induction",
+           "metadata_i"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitRuntimeParameter =
+      manualComputedUnitDescription;
+  staleComputedUnitRuntimeParameter.runtimeABIParameters.back().role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitRuntimeParameter,
+          "unit-stride masked memory registry rejects stale runtime n ABI "
+          "role",
+          {"runtime n/AVL ABI parameter", "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleComputedUnitPointerAdvance =
+      manualComputedUnitDescription;
+  staleComputedUnitPointerAdvance.pointerAdvanceMetadata = "metadata-pointer";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualComputedUnitCandidate, manualComputedUnitRoute,
+          staleComputedUnitPointerAdvance,
+          "unit-stride masked memory registry rejects stale pointer "
+          "advancement metadata",
+          {"runtime AVL/VL selected-boundary pointer advancement metadata",
+           "metadata-pointer"}))
     return false;
 
   if (!expectManualCompareSelectMaskRouteFailure(

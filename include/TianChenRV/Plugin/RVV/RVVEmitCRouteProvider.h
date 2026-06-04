@@ -683,6 +683,7 @@ struct RVVUnitStrideMaskedMemoryRouteValidationContract {
   std::string emitCFullChunkVLName;
   std::string emitCLoopVLName;
   std::string emitCLoopInductionName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::size_t expectedPreLoopStepCount = 0;
   std::size_t expectedLoopBodyStepCount = 0;

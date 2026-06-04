@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority, stack, and Stage 2 boundaries for the task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected typed body authority, and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Runtime AVL/VL selected-boundary contract and unit-stride masked memory route validation contract rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-unit-stride-masked-memory-provider-contract/prd.md", "reason": "Previous unit-stride masked-memory provider-contract extraction context and evidence."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h", "reason": "Provider-facing runtime AVL/VL selected-boundary contract API."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Unit-stride masked memory route validation contract to embed runtimeAVLVLContract."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider builder for unit-stride masked memory validation contract and route facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target consumer that must validate the embedded runtime contract before route payload and mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused positive and fail-closed target coverage for unit-stride masked memory runtime contract consumption."}

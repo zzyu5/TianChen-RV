@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV semantics remain plugin-owned and selected-body authority is preserved."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check runtime AVL/VL selected-boundary consumer order and unit-stride masked-memory contract compliance."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Verify unit-stride masked memory validation contract embeds the runtime AVL/VL selected-boundary contract."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify provider builder derives the embedded runtime contract from canonical provider facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verify target validation consumes the embedded runtime contract before local payload and statement checks."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify positive and negative target coverage exercises unit-stride masked memory runtime contract consumption."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused target artifact consumer regression test."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Focused RVV provider/plugin regression test."}

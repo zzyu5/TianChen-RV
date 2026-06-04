@@ -2423,6 +2423,7 @@ struct RVVUnitStrideMaskedMemoryRouteValidationContract {
   std::string emitCFullChunkVLName;
   std::string emitCLoopVLName;
   std::string emitCLoopInductionName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   std::size_t expectedPreLoopStepCount;
   std::size_t expectedLoopBodyStepCount;
   llvm::SmallVector<std::string, 8> logicalOperands;
@@ -2448,6 +2449,12 @@ getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
   `RVVUnitStrideMaskedMemoryRouteFacts` plus rebuilt route description payload
   details such as result/mask names, EmitC loop/VL names, config contract id,
   route id, headers, type mappings, ABI mappings, and statement counts.
+- The validation contract embeds
+  `RVVRuntimeAVLVLSelectedBoundaryContract` built from provider-owned SEW,
+  LMUL, tail/mask policy, config contract, setvl callee, VL C type, runtime
+  ABI order, and runtime ABI parameters. Target validation must consume this
+  embedded runtime contract before accepting route-local runtime control,
+  payload, statement-plan, or mirror facts.
 - Target artifact validation must require this contract before accepting
   operation, memory form, dtype/config, mask source, mask/tail policy, runtime
   ABI order and parameters, route operand binding summary, headers, C type
@@ -2470,6 +2477,12 @@ getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
 
 - Missing validation contract for any accepted unit-stride masked-memory
   operation -> fail before target artifact acceptance.
+- Missing or incomplete embedded runtime AVL/VL selected-boundary contract,
+  stale runtime AVL source, stale runtime VL contract id, stale selected
+  `with_vl` boundary/scope, stale setvl callee, stale VL type, stale
+  full-chunk VL, stale loop VL, stale loop induction, stale runtime n ABI
+  role/order, stale remaining-AVL metadata, or stale pointer advancement
+  metadata -> fail before target artifact acceptance.
 - Operation, memory form, route family plan, mask/tail facts, target profile,
   provider mirror, header/type summary, binding plan, binding summary, or
   runtime ABI differs from the contract -> fail before candidate mirrors are
@@ -2507,6 +2520,11 @@ getRVVUnitStrideMaskedMemoryRouteMetadataMirrorContract(
   `masked_unit_load_store` and `masked_unit_store`, and any existing
   unit-stride computed-mask/runtime-scalar consumers covered by the same
   accessor.
+- C++ target artifact tests must prove the embedded runtime AVL/VL
+  selected-boundary contract mirrors rebuilt unit-stride masked memory route
+  facts and rejects stale runtime AVL source, runtime VL contract, selected
+  `with_vl` scope, setvl callee, VL C type, full-chunk VL, loop VL, loop
+  induction, runtime n ABI role, and pointer advancement metadata.
 - C++ target artifact tests must mutate provider route descriptions for stale
   provider mirror, target profile, header/type facts, runtime ABI roles, mask
   facts, binding summary, intrinsic leaves, statement counts, and load/store

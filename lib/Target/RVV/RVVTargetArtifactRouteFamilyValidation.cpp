@@ -7296,6 +7296,9 @@ llvm::Error validateRVVUnitStrideMaskedMemoryDescriptionAgainstContract(
         " requires provider-owned config contract '" +
         contract.configContractID + "' but description carried '" +
         description.configContractID + "'");
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
   if (llvm::Error error =
           require("runtime AVL/VL control plan",
                   description.runtimeControlPlanID,
@@ -8594,6 +8597,22 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
   if (llvm::Error error =
           validateRVVCompareSelectMaskRouteABIMappings(route, description))
     return error;
+  if (isRVVUnitStrideMaskedMemoryRouteFamilyOperation(
+          description.operation)) {
+    std::optional<plugin::rvv::RVVUnitStrideMaskedMemoryRouteValidationContract>
+        contract =
+            plugin::rvv::getRVVUnitStrideMaskedMemoryRouteValidationContract(
+                description);
+    if (!contract)
+      return makeRVVTargetRouteError(
+          "unit-stride masked memory target artifact consumer requires "
+          "provider-owned route validation contract from typed "
+          "body/config/runtime facts before validating route statements");
+    return validateRVVCompareSelectMaskRouteStatementPlan(
+        route, description, contract->expectedPreLoopStepCount,
+        contract->expectedLoopBodyStepCount,
+        &contract->runtimeAVLVLContract);
+  }
   return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
 }
 
