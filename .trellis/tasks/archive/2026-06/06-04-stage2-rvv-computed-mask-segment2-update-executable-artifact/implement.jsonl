@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV authority chain, Stage1/Stage2 boundaries, and no descriptor/source-front-door authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, typed body authority, plugin-owned legality/provider boundary, and ssh rvv evidence requirement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Computed-mask segment2 memory fact surface, provider-built EmitC route, segment2 target validation contract, and mirror-only metadata rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Pre-realized selected-body generated-bundle evidence and runtime/correctness test requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization and selected-path metadata as diagnostic mirror."}

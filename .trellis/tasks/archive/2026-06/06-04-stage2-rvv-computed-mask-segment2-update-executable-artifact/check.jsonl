@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final work against global RVV authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider-local realization/route ownership and fail-closed boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check target artifact validation and metadata mirrors consume provider-owned segment2 facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle, lit/export, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization and mirror-only metadata boundaries."}

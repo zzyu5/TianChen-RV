@@ -1375,3 +1375,48 @@ included-in-this-commit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 450: Stage2 RVV computed-mask segment2 update executable artifact
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask segment2 update executable artifact
+**Branch**: `main`
+
+### Summary
+
+Closed computed_masked_segment2_update_unit_load with generated artifact, external ABI harness, and real ssh rvv correctness evidence over counts 0,1,7,16,23,257 and two mask/input patterns; no production code change was needed.
+
+### Main Changes
+
+- Created and archived Trellis task `06-04-stage2-rvv-computed-mask-segment2-update-executable-artifact`.
+- Chose `computed_masked_segment2_update_unit_load` from `test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir`.
+- Recorded dry-run evidence at `artifacts/tmp/stage2-rvv-computed-mask-segment2-update-dry-run/computed-masked-segment2-update-dry-run`.
+- Recorded non-dry-run ssh evidence at `artifacts/tmp/stage2-rvv-computed-mask-segment2-update-executable-artifact/computed-masked-segment2-update-ssh-rvv`.
+- Confirmed materialized body uses runtime ABI `n`, `tcrv_rvv.setvl`, compare-produced mask, field0/field1 payload loads, `tcrv_rvv.binary {kind = "add"}`, and `tcrv_rvv.masked_segment2_store` with segment count 2 and inactive-lane preservation.
+- Confirmed generated C++ uses `__riscv_vmslt_vv_i32m1_b32`, `__riscv_vadd_vv_i32m1`, `__riscv_vcreate_v_i32m1x2`, and `__riscv_vsseg2e32_v_i32m1x2_m` as provider-derived typed route output.
+- `ssh rvv` compile/run passed for runtime counts `0,1,7,16,23,257` and patterns `0,1`, checking active lanes, inactive-lane preservation, field0 update, field1 passthrough, source preservation, and tail preservation.
+- No production provider, target, plugin, fixture, or script code change was needed; the existing route/emission/harness path already executed end to end.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-06/06-04-stage2-rvv-computed-mask-segment2-update-executable-artifact`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_masked_segment2_update_unit_load ...`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_segment2_update_unit_load --ssh-target rvv ...`
+- [OK] `rtk proxy bash -lc 'cd build/test && /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-selected-body-artifact-computed-masked-segment2-update'`
+- [OK] bounded old-authority scan over the task files and relevant provider/target/fixture/script surfaces.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
