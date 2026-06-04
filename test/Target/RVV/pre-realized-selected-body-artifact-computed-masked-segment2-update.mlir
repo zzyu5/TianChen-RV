@@ -123,15 +123,15 @@ module {
 // STALE-BINDING-SAME: rvv-route-operand-binding:script-derived-segment2-update.v1
 
 // STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV segment2-memory runtime ABI order
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV computed-mask segment2 runtime ABI order
 // STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
 
 // STALE-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV segment2-memory route header requirements
+// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV computed-mask segment2 route header requirements
 // STALE-HEADER-SAME: stddef.h,stdint.h
 
 // STALE-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV segment2-memory route type mapping summary
+// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV computed-mask segment2 route type mapping summary
 // STALE-TYPE-SAME: vl:uint64_t
 
 // STALE-CM-PLAN: RVV materialized EmitC target artifact bridge failed
@@ -139,7 +139,7 @@ module {
 // STALE-CM-PLAN-SAME: rvv-script-derived-computed-mask-segment2-plan.v1
 
 // STALE-SEGCOUNT: RVV materialized EmitC target artifact bridge failed
-// STALE-SEGCOUNT: candidate tcrv_rvv.segment_count provenance must mirror selected typed RVV segment2 count
+// STALE-SEGCOUNT: candidate tcrv_rvv.segment_count provenance must mirror selected typed RVV computed-mask segment2 count
 // STALE-SEGCOUNT-SAME: 3
 
 // STALE-MASK-ROLE: RVV materialized EmitC target artifact bridge failed

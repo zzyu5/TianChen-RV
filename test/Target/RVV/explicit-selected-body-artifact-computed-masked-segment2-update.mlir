@@ -116,15 +116,15 @@ module {
 // STALE-BINDING-SAME: rvv-route-operand-binding:script-derived-segment2-update.v1
 
 // STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV segment2-memory runtime ABI order
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror selected typed RVV computed-mask segment2 runtime ABI order
 // STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
 
 // STALE-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV segment2-memory route header requirements
+// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV computed-mask segment2 route header requirements
 // STALE-HEADER-SAME: stddef.h,stdint.h
 
 // STALE-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV segment2-memory route type mapping summary
+// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV computed-mask segment2 route type mapping summary
 // STALE-TYPE-SAME: vl:uint64_t
 
 // STALE-MASK: RVV materialized EmitC target artifact bridge failed

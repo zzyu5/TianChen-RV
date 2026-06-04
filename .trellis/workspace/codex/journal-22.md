@@ -309,3 +309,36 @@ Extracted provider-owned unit-stride masked-memory route validation and mirror c
 ### Next Steps
 
 - None - task complete
+
+
+## Session 427: Stage2 RVV segment2 memory target contract closeout
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV segment2 memory target contract closeout
+**Branch**: `main`
+
+### Summary
+
+Removed target-local plain/computed-mask segment2 raw route-fact reconstruction; target artifact validation now consumes RVVSegment2MemoryRouteValidationContract, updated stale mirror fixture diagnostics, and passed focused C++/lit/scans.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

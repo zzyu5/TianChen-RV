@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority and no descriptor/mirror authority regressions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify segment2 consumer behavior remains within RVV plugin/provider ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target validation remains a provider contract/mirror consumer and common EmitC stays neutral."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Check any provider contract API use or header changes."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check provider contract construction remains authoritative if touched."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Bounded scan must show no direct segment2 raw route-fact consumption in target validation."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Check focused target artifact regression coverage for stale/cross-family/mismatched segment2 contract and mirrors."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Check representative computed-mask segment2 target/export lit fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Check representative plain segment2 target/export lit fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-update-dry-run.test", "reason": "Check representative generated-bundle computed-mask segment2 dry-run fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-interleave-unit-load-dry-run.test", "reason": "Check representative generated-bundle plain segment2 dry-run fixture."}
+{"file": ".trellis/tasks/06-04-06-04-stage2-rvv-segment2-memory-target-contract-closeout/prd.md", "reason": "Record acceptance criteria, evidence results, no-runtime-change rationale, direct-consumption scan, and finish status."}

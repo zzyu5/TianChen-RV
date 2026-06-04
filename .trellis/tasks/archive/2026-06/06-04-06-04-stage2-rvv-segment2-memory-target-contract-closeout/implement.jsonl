@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and descriptor/mirror non-authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, segment2 target export consumer contract, and Stage2 boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned EmitC route contract, operand binding, header/type mirror validation, and common EmitC neutrality."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-compare-select-route-contract-target-consume-only-closeout/prd.md", "reason": "Closest prior target consume-only closeout pattern and evidence plan."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-stage2-rvv-memory-route-family-validation-contract-consolidation/prd.md", "reason": "Prior memory/segment2 validation contract consolidation context and segment2 continuation point."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Existing segment2 raw facts, RVVSegment2MemoryRouteValidationContract, and contract accessor API."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider construction of segment2 route descriptions, metadata mirrors, and validation contracts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact segment2 validation consumer to rewire away from raw route facts."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused C++ target artifact stale/mismatched mirror and contract regression coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Representative computed-mask segment2 target/export lit fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir", "reason": "Representative plain segment2 target/export lit fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-update-dry-run.test", "reason": "Representative generated-bundle computed-mask segment2 dry-run fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-interleave-unit-load-dry-run.test", "reason": "Representative generated-bundle plain segment2 dry-run fixture."}
