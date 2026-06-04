@@ -1193,3 +1193,59 @@ Hardened the compare/select target-artifact production path so stale non-compare
 ### Next Steps
 
 - None - task complete
+
+
+## Session 448: Stage2 RVV computed-mask standalone reduction executable evidence
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask standalone reduction executable evidence
+**Branch**: `main`
+
+### Summary
+
+Closed computed_mask_standalone_reduce_add executable evidence through generated artifact, external C ABI harness, and ssh rvv correctness without production code changes.
+
+### Main Changes
+
+- Created and archived the bounded Trellis task for
+  `computed_mask_standalone_reduce_add` executable evidence.
+- Confirmed the existing production path already flows from pre-realized
+  selected `tcrv.exec` RVV variant through RVV plugin selected-body
+  materialization, provider-built computed-mask standalone reduction route,
+  generated object/header bundle, external C ABI harness, and `ssh rvv`
+  compile/run.
+- Recorded evidence under
+  `artifacts/tmp/stage2-rvv-computed-mask-standalone-reduction-executable-artifact/computed-mask-standalone-reduce-add-ssh-rvv`.
+- No provider, target validation, plugin, common EmitC, ABI, generated C++,
+  or harness-generation code changed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] Generated-bundle dry-run for pre-realized
+  `computed_mask_standalone_reduce_add` counts `0,1,7,16,23,257`.
+- [OK] Non-dry-run `ssh rvv` compile/run for
+  `computed_mask_standalone_reduce_add` counts `0,1,7,16,23,257`, seeds
+  `-11,17`, patterns `0,1`; remote PASS marker recorded.
+- [OK] Remote compile: `remote_arch=riscv64`, `clang_path=/usr/bin/clang`,
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- [OK] Focused lit from `build/test`: 6 passed / 471 excluded.
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-04-stage2-rvv-computed-mask-standalone-reduction-executable-artifact`
+  before archive.
+- [OK] `rtk git diff --check`.
+- [OK] Bounded old-authority scan over touched task/journal docs found no new
+  positive production authority path.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

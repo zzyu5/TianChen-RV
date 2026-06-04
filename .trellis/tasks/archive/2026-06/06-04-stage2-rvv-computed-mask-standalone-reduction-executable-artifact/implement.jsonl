@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 typed RVV realization boundary, and ssh rvv evidence requirement."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Standalone reduction and computed-mask standalone reduction provider/realization ownership contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Standalone reduction route validation, runtime AVL/VL selected-boundary contract, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence, standalone reduction correctness oracle, and runtime ssh rvv evidence rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-executable-ssh-rvv/prd.md", "reason": "Prior executable evidence task pattern and no-production-change rationale shape."}
