@@ -3282,6 +3282,7 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string destinationMemoryForm;
   std::string runtimeABIOrder;
   llvm::SmallVector<RuntimeABIParameter, 3> runtimeABIParameters;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<RVVConversionDtypePolicyRouteTypeMappingContract, 3>
       typeMappings;
   llvm::SmallVector<std::string, 4> requiredHeaders;
@@ -3306,15 +3307,30 @@ Contracts:
   route statement names. Unsupported/non-conversion operations return
   `std::nullopt`.
 - Target artifact route-family validation is a consume-only client: it compares
+  the embedded `RVVRuntimeAVLVLSelectedBoundaryContract` before accepting
   rebuilt route id, headers, type mappings, ABI mappings, source/result dtype
   policy, SEW/LMUL relation, conversion relation, memory forms, tail/mask
   policy, intrinsic leaves, and statement-plan counts against the contract.
+- The embedded runtime contract is the authority for runtime AVL source,
+  runtime-VL contract id, selected `with_vl` boundary/scope,
+  selected-body provenance, setvl callee, VL C type, full-chunk VL, loop VL,
+  loop induction, remaining AVL metadata, pointer advancement metadata,
+  bounded-slice, multi-VL, and runtime `n` ABI parameter facts. Conversion
+  statement-plan validation must read those runtime/control names and the
+  runtime AVL parameter from the embedded contract instead of reconstructing
+  them from conversion-local fields.
 - Candidate metadata validation must consume the metadata mirror contract and
   must reject stale non-conversion route-family mirrors from that contract.
 
 Validation & error matrix:
 
 - Missing validation contract -> fail before route payload validation.
+- Missing runtime AVL/VL selected-boundary contract, stale runtime AVL source,
+  stale runtime VL contract id, stale selected `with_vl` scope, stale setvl
+  callee, stale VL C type, stale full-chunk VL, stale loop VL, stale loop
+  induction, stale runtime `n` ABI role/order, stale remaining AVL metadata,
+  or stale pointer advancement metadata -> fail before route payload,
+  statement-plan, or metadata mirror acceptance.
 - Route id, required header, type mapping, ABI parameter, source/result dtype,
   source/result SEW/LMUL, conversion kind/relation, memory form, intrinsic, or
   statement-plan mismatch -> fail before artifact export.
@@ -3334,8 +3350,14 @@ Good/base/bad:
 Tests required:
 
 - C++ target artifact tests must prove positive contract access for both
-  existing widening conversion variants and no contract for non-conversion
+  existing widening conversion variants, including embedded runtime AVL/VL
+  selected-boundary contract fields, and no contract for non-conversion
   operations.
+- C++ target artifact tests must mutate runtime AVL source, runtime VL
+  contract id, selected `with_vl` scope, setvl callee, VL C type,
+  full-chunk VL, loop VL, loop induction, runtime `n` ABI role, remaining AVL
+  metadata, and pointer advancement metadata so the embedded runtime contract
+  owns the first rejection.
 - C++ target artifact tests must mutate route payload fields and metadata
   mirrors to prove fail-closed behavior.
 - Focused conversion lit/dry-run fixtures must continue to pass for existing
@@ -3357,8 +3379,9 @@ Provider route-family plan derivation may use typed body/config/runtime facts
 to select the operation, but every shared constant above must be copied from
 `getRVVWideningConversionRouteFacts(...)` or validated against it. Target
 artifact validation must consume
-`getRVVConversionDtypePolicyRouteValidationContract(...)` and reject stale local
-copies of source/result element type, source/result SEW-LMUL, tail/mask policy,
+`getRVVConversionDtypePolicyRouteValidationContract(...)`, then consume the
+embedded runtime AVL/VL contract before rejecting stale local copies of
+source/result element type, source/result SEW-LMUL, tail/mask policy,
 conversion kind/relation, source/destination memory form, runtime ABI parameter
 facts, header/type mapping, target profile, provider mirror, route-family plan,
 or operand binding summary before accepting a bundle.

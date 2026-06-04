@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the diff preserves RVV typed-body/provider authority and common EmitC neutrality."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check conversion dtype-policy and runtime-control fail-closed behavior against RVV plugin rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check embedded runtime AVL/VL selected-boundary contract fields, target consumer order, and tests."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-macc-runtime-avl-vl-contract/prd.md", "reason": "Reference for expected C++/target checks and no-runtime-change rationale."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-widening-dot-runtime-avl-vl-contract/prd.md", "reason": "Reference for statement-plan rewiring, stale runtime negative tests, old-authority scan, and finish evidence."}

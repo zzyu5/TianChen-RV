@@ -8418,6 +8418,7 @@ bool expectRVVTargetArtifactExporterShape(
         contract->resultLMUL != routeFacts->resultLMUL ||
         contract->tailPolicy != routeFacts->tailPolicy ||
         contract->maskPolicy != routeFacts->maskPolicy ||
+        contract->configContractID != description.configContractID ||
         contract->runtimeControlPlanID != routeFacts->runtimeControlPlanID ||
         contract->runtimeABIOrder != routeFacts->runtimeABIOrder ||
         contract->targetLeafProfile != routeFacts->targetLeafProfile ||
@@ -8496,6 +8497,49 @@ bool expectRVVTargetArtifactExporterShape(
       llvm::errs() << context
                    << ": malformed conversion dtype-policy runtime ABI "
                       "contract\n";
+      return false;
+    }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel.empty() ||
+        runtimeContract.sew != description.sew ||
+        runtimeContract.lmul != description.lmul ||
+        runtimeContract.tailPolicy != description.tailPolicy ||
+        runtimeContract.maskPolicy != description.maskPolicy ||
+        runtimeContract.configContractID != description.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName != description.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << context
+                   << ": embedded conversion runtime AVL/VL selected-boundary "
+                      "contract did not mirror rebuilt route facts\n";
       return false;
     }
 
@@ -8644,8 +8688,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleWidenI32DestinationPolicy,
           "widen_i32_to_i64 registry rejects stale destination SEW/LMUL "
           "policy",
-          {"source/result dtype policy", "widen_i32_to_i64",
-           "result LMUL 'm1'"}))
+          {"runtime AVL/VL selected-boundary LMUL", "m2", "m1"}))
     return false;
 
   RVVRouteDescription staleWidenI32TargetProfile = widenI32Description;
@@ -8687,6 +8730,82 @@ bool expectRVVTargetArtifactExporterShape(
           {"runtime ABI order", "lhs,out,n", "lhs,n,out"}))
     return false;
 
+  RVVRouteDescription staleWideningConversionRuntimeAVLSource =
+      widenI16Description;
+  staleWideningConversionRuntimeAVLSource.runtimeAVLASource =
+      "metadata_abi:n";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionRuntimeAVLSource,
+          "widening conversion registry rejects stale runtime AVL source",
+          {"runtime AVL source", "runtime_abi:n", "metadata_abi:n"}))
+    return false;
+
+  RVVRouteDescription missingWideningConversionRuntimeVLContract =
+      widenI16Description;
+  missingWideningConversionRuntimeVLContract.runtimeVLContractID = "";
+  if (!expectWideningConversionProviderFailure(
+          missingWideningConversionRuntimeVLContract,
+          "widening conversion registry rejects missing runtime VL contract",
+          {"runtime VL contract", "before artifact export"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionVLScope =
+      widenI16Description;
+  staleWideningConversionVLScope.vlScopeOpName = "metadata_with_vl";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionVLScope,
+          "widening conversion registry rejects stale selected with_vl scope",
+          {"VL scope op", "metadata_with_vl"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionSetVLCallee =
+      widenI16Description;
+  staleWideningConversionSetVLCallee.setVLIntrinsic = "metadata_setvl";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionSetVLCallee,
+          "widening conversion registry rejects stale setvl callee",
+          {"setvl callee", widenI16Description.setVLIntrinsic,
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionVLType = widenI16Description;
+  staleWideningConversionVLType.vlCType = "uint64_t";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionVLType,
+          "widening conversion registry rejects stale VL C type",
+          {"VL C type", "size_t", "uint64_t"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionFullChunkVL =
+      widenI16Description;
+  staleWideningConversionFullChunkVL.emitCFullChunkVLName =
+      "metadata_full_chunk_vl";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionFullChunkVL,
+          "widening conversion registry rejects stale full-chunk VL",
+          {"EmitC full-chunk VL", widenI16Description.emitCFullChunkVLName,
+           "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionLoopVL = widenI16Description;
+  staleWideningConversionLoopVL.emitCLoopVLName = "metadata_loop_vl";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionLoopVL,
+          "widening conversion registry rejects stale loop VL",
+          {"EmitC loop VL", widenI16Description.emitCLoopVLName,
+           "metadata_loop_vl"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionLoopInduction =
+      widenI16Description;
+  staleWideningConversionLoopInduction.emitCLoopInductionName = "i";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionLoopInduction,
+          "widening conversion registry rejects stale loop induction",
+          {"EmitC loop induction", widenI16Description.emitCLoopInductionName,
+           "i"}))
+    return false;
+
   RVVRouteDescription staleWideningConversionOutputRole =
       widenI16Description;
   staleWideningConversionOutputRole.runtimeABIParameters[1].role =
@@ -8695,6 +8814,40 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningConversionOutputRole,
           "widening conversion registry rejects stale output ABI role",
           {"runtime ABI parameter 1", "out", "output-buffer"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionRuntimeNRole =
+      widenI16Description;
+  staleWideningConversionRuntimeNRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionRuntimeNRole,
+          "widening conversion registry rejects stale runtime n ABI role",
+          {"runtime n/AVL ABI parameter", "before artifact export"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionRemainingAVL =
+      widenI16Description;
+  staleWideningConversionRemainingAVL.remainingAVLMetadata =
+      "metadata_remaining_avl";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionRemainingAVL,
+          "widening conversion registry rejects stale remaining AVL metadata",
+          {"remaining AVL metadata", widenI16Description.remainingAVLMetadata,
+           "metadata_remaining_avl"}))
+    return false;
+
+  RVVRouteDescription staleWideningConversionPointerAdvance =
+      widenI16Description;
+  staleWideningConversionPointerAdvance.pointerAdvanceMetadata =
+      "metadata_pointer_advance";
+  if (!expectWideningConversionProviderFailure(
+          staleWideningConversionPointerAdvance,
+          "widening conversion registry rejects stale pointer advancement "
+          "metadata",
+          {"pointer advancement metadata",
+           widenI16Description.pointerAdvanceMetadata,
+           "metadata_pointer_advance"}))
     return false;
 
   RVVRouteDescription staleWideningConversionDType = widenI16Description;
@@ -8750,7 +8903,8 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningConversionProviderFailure(
           staleWideningConversionTailPolicy,
           "widening conversion registry rejects stale tail policy",
-          {"policy and memory-form", "tail 'undisturbed'"}))
+          {"runtime AVL/VL selected-boundary tail policy", "agnostic",
+           "undisturbed"}))
     return false;
 
   RVVRouteDescription staleWideningConversionSourceMemory =
@@ -8795,8 +8949,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningConversionProviderFailure(
           staleWidenI16CarriesI32Facts,
           "widen_i16_to_i32 registry rejects stale i32-to-i64 facts",
-          {"conversion kind", "sign_extend_widen_vf2",
-           "widen_i32_to_i64"}))
+          {"runtime AVL/VL selected-boundary SEW", "32", "64"}))
     return false;
 
   RVVRouteDescription staleWidenI32CarriesI16Facts = widenI32Description;
@@ -8822,8 +8975,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectWideningI32ProviderFailure(
           staleWidenI32CarriesI16Facts,
           "widen_i32_to_i64 registry rejects stale i16-to-i32 facts",
-          {"conversion kind", "widen_i32_to_i64",
-           "sign_extend_widen_vf2"}))
+          {"runtime AVL/VL selected-boundary SEW", "64", "32"}))
     return false;
 
   RVVRouteDescription staleWideningConversionNonFamily =

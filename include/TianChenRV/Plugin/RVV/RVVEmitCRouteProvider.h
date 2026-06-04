@@ -1996,6 +1996,7 @@ struct RVVConversionDtypePolicyRouteValidationContract {
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
       runtimeABIParameters;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<std::string, 4> requiredHeaders;
   llvm::SmallVector<RVVConversionDtypePolicyRouteTypeMappingContract, 3>
       typeMappings;

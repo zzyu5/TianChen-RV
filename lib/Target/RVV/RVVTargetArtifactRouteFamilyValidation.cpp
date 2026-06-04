@@ -9220,14 +9220,21 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVConversionDtypePolicyRouteValidationContract
         &contract) {
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
   if (contract.runtimeABIParameters.size() != 3)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived lhs, out, and n ABI parameters before "
         "validating route statements");
   if (contract.resultName.empty() || contract.sourceVectorCType.empty() ||
-      contract.vectorCType.empty() || contract.vlCType.empty() ||
-      contract.setVLIntrinsic.empty() ||
+      contract.vectorCType.empty() || runtimeContract.vlCType.empty() ||
+      runtimeContract.setVLIntrinsic.empty() ||
+      runtimeContract.emitCFullChunkVLName.empty() ||
+      runtimeContract.emitCLoopVLName.empty() ||
+      runtimeContract.emitCLoopInductionName.empty() ||
+      runtimeContract.runtimeAVLParameter.cName.empty() ||
+      runtimeContract.runtimeAVLParameter.cType.empty() ||
       contract.sourceVectorLoadIntrinsic.empty() ||
       contract.intrinsic.empty() || contract.storeIntrinsic.empty())
     return makeRVVTargetRouteError(
@@ -9246,14 +9253,15 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
       contract.runtimeABIParameters[0];
   const support::RuntimeABIParameter &outABI = contract.runtimeABIParameters[1];
   const support::RuntimeABIParameter &runtimeNABI =
+      runtimeContract.runtimeAVLParameter;
+  const support::RuntimeABIParameter &orderedRuntimeNABI =
       contract.runtimeABIParameters[2];
-  const support::RuntimeABIParameter *runtimeElementCount =
-      findRuntimeElementCountABIParameter(contract.runtimeABIParameters);
-  if (!runtimeElementCount || runtimeElementCount != &runtimeNABI)
+  if (!runtimeABIParameterEquals(orderedRuntimeNABI, runtimeNABI))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires runtime n/AVL ABI role to match the selected conversion "
-        "ABI order before validating route statements");
+        " requires runtime n/AVL ABI role to match provider runtime AVL/VL "
+        "selected-boundary contract and selected conversion ABI order before "
+        "validating route statements");
 
   if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
@@ -9265,8 +9273,9 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
       route.getCallOpaqueSteps().front();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, contract.consumerLabel, "pre-loop setvl",
-          contract.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
-          contract.emitCFullChunkVLName, contract.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{runtimeNABI.cName, runtimeNABI.cType}},
+          runtimeContract.emitCFullChunkVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -9282,11 +9291,11 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
         " requires exactly one provider-built runtime AVL/VL loop before "
         "artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != contract.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != contract.vlCType ||
-      loop.step.expression != contract.emitCFullChunkVLName ||
-      loop.step.cType != contract.vlCType)
+      loop.lowerBound.cType != runtimeContract.vlCType ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-built loop bounds and step to mirror runtime "
@@ -9306,12 +9315,13 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
 
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeNABI.cName) + " - " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], contract.consumerLabel, "loop setvl",
-          contract.setVLIntrinsic, {{expectedRemainingAVL, contract.vlCType}},
-          contract.emitCLoopVLName, contract.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -9322,13 +9332,13 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
 
   const std::string expectedSourcePointer =
       (llvm::StringRef(sourceABI.cName) + " + " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[1], contract.consumerLabel, "source vector load",
           contract.sourceVectorLoadIntrinsic,
           {{expectedSourcePointer, sourceABI.cType},
-           {contract.emitCLoopVLName, contract.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           "lhs_vec", contract.sourceVectorCType))
     return error;
 
@@ -9336,20 +9346,20 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
           loop.bodySteps[2], contract.consumerLabel, "widening conversion",
           contract.intrinsic,
           {{"lhs_vec", contract.sourceVectorCType},
-           {contract.emitCLoopVLName, contract.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           contract.resultName, contract.vectorCType))
     return error;
 
   const std::string expectedOutPointer =
       (llvm::StringRef(outABI.cName) + " + " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[3], contract.consumerLabel, "output store",
           contract.storeIntrinsic,
           {{expectedOutPointer, outABI.cType},
            {contract.resultName, contract.vectorCType},
-           {contract.emitCLoopVLName, contract.vlCType}}))
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();
@@ -9374,7 +9384,8 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider route operand binding facts before artifact export");
-  if (contract.runtimeControlPlanID.empty() ||
+  if (contract.configContractID.empty() ||
+      contract.runtimeControlPlanID.empty() ||
       contract.runtimeABIOrder.empty() || contract.resultSEW == 0 ||
       contract.resultLMUL.empty() || contract.tailPolicy.empty() ||
       contract.maskPolicy.empty() || contract.setVLIntrinsic.empty() ||
@@ -9391,6 +9402,15 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
         llvm::Twine(contract.consumerLabel) +
         " requires unit-stride conversion memory form from the selected typed "
         "RVV body");
+  if (description.configContractID != contract.configContractID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned config contract '" +
+        contract.configContractID + "' but description carried '" +
+        description.configContractID + "'");
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
   if (llvm::Error error =
           validateRVVConversionDtypePolicyRuntimeABIFacts(description,
                                                           contract))
