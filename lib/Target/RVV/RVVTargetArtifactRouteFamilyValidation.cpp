@@ -3934,6 +3934,13 @@ llvm::Error validateRVVMAccDescriptionAgainstContract(
           contract.maskPolicy))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
+          contract.consumerLabel, "config contract",
+          description.configContractID, contract.configContractID))
+    return error;
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "runtime AVL/VL control plan",
           description.runtimeControlPlanID, contract.runtimeControlPlanID))
     return error;
@@ -4194,9 +4201,17 @@ llvm::Error validateRVVMAccDescriptionAgainstContract(
 llvm::Error validateRVVMAccRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVMAccRouteValidationContract &contract) {
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
   if (contract.runtimeABIParameters.empty() || contract.resultName.empty() ||
-      contract.vectorCType.empty() || contract.vlCType.empty() ||
-      contract.setVLIntrinsic.empty() || contract.intrinsic.empty() ||
+      contract.vectorCType.empty() || runtimeContract.vlCType.empty() ||
+      runtimeContract.setVLIntrinsic.empty() ||
+      runtimeContract.emitCFullChunkVLName.empty() ||
+      runtimeContract.emitCLoopVLName.empty() ||
+      runtimeContract.emitCLoopInductionName.empty() ||
+      runtimeContract.runtimeAVLParameter.cName.empty() ||
+      runtimeContract.runtimeAVLParameter.cType.empty() ||
+      contract.intrinsic.empty() ||
       contract.storeIntrinsic.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -4232,20 +4247,18 @@ llvm::Error validateRVVMAccRouteStatementPlan(
         " requires provider-derived mask, compare, and masked-merge facts "
         "before validating route statements");
 
-  const support::RuntimeABIParameter *runtimeElementCount =
-      findRuntimeElementCountABIParameter(contract.runtimeABIParameters);
-  if (!runtimeElementCount)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires a provider-derived runtime n/AVL ABI parameter before "
-        "artifact export");
-
   const support::RuntimeABIParameter &runtimeNABI =
-      contract.runtimeABIParameters.back();
-  if (runtimeElementCount != &runtimeNABI)
+      runtimeContract.runtimeAVLParameter;
+  const support::RuntimeABIParameter *orderedRuntimeElementCount =
+      contract.runtimeABIParameters.empty()
+          ? nullptr
+          : &contract.runtimeABIParameters.back();
+  if (!orderedRuntimeElementCount ||
+      !runtimeABIParameterEquals(*orderedRuntimeElementCount, runtimeNABI))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires runtime n/AVL ABI role to match provider runtime ABI order "
+        " requires runtime n/AVL ABI role to match provider runtime AVL/VL "
+        "selected-boundary contract and provider runtime ABI order "
         "before validating route statements");
 
   if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
@@ -4258,8 +4271,9 @@ llvm::Error validateRVVMAccRouteStatementPlan(
       route.getCallOpaqueSteps().front();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, contract.consumerLabel, "pre-loop setvl",
-          contract.setVLIntrinsic, {{runtimeNABI.cName, runtimeNABI.cType}},
-          contract.emitCFullChunkVLName, contract.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{runtimeNABI.cName, runtimeNABI.cType}},
+          runtimeContract.emitCFullChunkVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -4275,13 +4289,13 @@ llvm::Error validateRVVMAccRouteStatementPlan(
         " requires exactly one provider-built runtime AVL/VL loop before "
         "artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != contract.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != contract.vlCType ||
+      loop.lowerBound.cType != runtimeContract.vlCType ||
       loop.upperBound.expression != runtimeNABI.cName ||
       loop.upperBound.cType != runtimeNABI.cType ||
-      loop.step.expression != contract.emitCFullChunkVLName ||
-      loop.step.cType != contract.vlCType)
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-built loop bounds and step to mirror runtime "
@@ -4295,12 +4309,13 @@ llvm::Error validateRVVMAccRouteStatementPlan(
 
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeNABI.cName) + " - " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], contract.consumerLabel, "loop setvl",
-          contract.setVLIntrinsic, {{expectedRemainingAVL, contract.vlCType}},
-          contract.emitCLoopVLName, contract.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -4311,7 +4326,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
 
   auto advancedPointer = [&](const support::RuntimeABIParameter &abi) {
     return (llvm::StringRef(abi.cName) + " + " +
-            contract.emitCLoopInductionName)
+            runtimeContract.emitCLoopInductionName)
         .str();
   };
   auto validateVectorLoad =
@@ -4322,7 +4337,8 @@ llvm::Error validateRVVMAccRouteStatementPlan(
     const std::string pointer = advancedPointer(abi);
     return validateRVVProviderBuiltRouteStep(
         step, contract.consumerLabel, stepLabel, loadIntrinsic,
-        {{pointer, abi.cType}, {contract.emitCLoopVLName, contract.vlCType}},
+        {{pointer, abi.cType},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         resultName, resultCType);
   };
   auto validateOutputStore =
@@ -4333,7 +4349,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
         step, contract.consumerLabel, "output store", contract.storeIntrinsic,
         {{pointer, outABI.cType},
          {contract.resultName, contract.vectorCType},
-         {contract.emitCLoopVLName, contract.vlCType}});
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}});
   };
 
   if (!isRVVMAccContractComputedMask(contract.kind)) {
@@ -4372,7 +4388,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
               loop.bodySteps[2], contract.consumerLabel, "RHS scalar splat",
               contract.rhsBroadcastIntrinsic,
               {{rhsOrScalarABI.cName, rhsOrScalarABI.cType},
-               {contract.emitCLoopVLName, contract.vlCType}},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
               contract.rhsVectorName, contract.vectorCType))
         return error;
     } else if (llvm::Error error = validateVectorLoad(
@@ -4393,7 +4409,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
             {{contract.accumulatorVectorName, contract.vectorCType},
              {contract.lhsVectorName, sourceVectorCType},
              {contract.rhsVectorName, sourceVectorCType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.resultName, contract.vectorCType))
       return error;
     return validateOutputStore(loop.bodySteps[5], outABI);
@@ -4422,7 +4438,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
             loop.bodySteps[2], contract.consumerLabel, "RHS scalar splat",
             contract.rhsBroadcastIntrinsic,
             {{compareRhsOrScalarABI.cName, compareRhsOrScalarABI.cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.rhsVectorName, contract.vectorCType))
       return error;
   } else if (llvm::Error error = validateVectorLoad(
@@ -4449,7 +4465,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
           contract.compareIntrinsic,
           {{contract.lhsVectorName, contract.vectorCType},
            {contract.rhsVectorName, contract.vectorCType},
-           {contract.emitCLoopVLName, contract.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           contract.maskName, contract.maskCType))
     return error;
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -4458,7 +4474,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
           {{contract.accumulatorVectorName, contract.vectorCType},
            {contract.maccLHSVectorName, contract.vectorCType},
            {contract.maccRHSVectorName, contract.vectorCType},
-           {contract.emitCLoopVLName, contract.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           contract.activeMAccVectorName, contract.vectorCType))
     return error;
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -4467,7 +4483,7 @@ llvm::Error validateRVVMAccRouteStatementPlan(
           {{contract.accumulatorVectorName, contract.vectorCType},
            {contract.activeMAccVectorName, contract.vectorCType},
            {contract.maskName, contract.maskCType},
-           {contract.emitCLoopVLName, contract.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           contract.resultName, contract.vectorCType))
     return error;
   return validateOutputStore(loop.bodySteps[9], outABI);

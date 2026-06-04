@@ -507,3 +507,36 @@ Embedded RVVRuntimeAVLVLSelectedBoundaryContract in standalone reduction validat
 ### Next Steps
 
 - None - task complete
+
+
+## Session 433: Stage2 RVV MAcc runtime AVL/VL contract migration
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV MAcc runtime AVL/VL contract migration
+**Branch**: `main`
+
+### Summary
+
+Embedded RVVRuntimeAVLVLSelectedBoundaryContract in MAcc validation, rewired target validation and statement-plan checks to consume it, added positive and fail-closed target coverage, updated EmitC route spec, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

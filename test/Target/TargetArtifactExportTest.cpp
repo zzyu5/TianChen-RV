@@ -9847,6 +9847,141 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
   }
 
+  auto expectMAccValidationContract =
+      [](const RVVRouteDescription &description,
+         std::size_t expectedRuntimeABIParameterCount,
+         std::size_t expectedTypeMappingCount,
+         std::size_t expectedLoopBodyStepCount,
+         llvm::StringRef fixtureContext) -> bool {
+    std::optional<tianchenrv::plugin::rvv::RVVMAccRouteValidationContract>
+        contract =
+            tianchenrv::plugin::rvv::getRVVMAccRouteValidationContract(
+                description);
+    std::optional<
+        tianchenrv::plugin::rvv::RVVMAccRouteMetadataMirrorContractSet>
+        mirrorContract =
+            tianchenrv::plugin::rvv::getRVVMAccRouteMetadataMirrorContract(
+                description);
+    if (!contract || !mirrorContract) {
+      llvm::errs() << fixtureContext
+                   << ": missing provider-owned MAcc route validation "
+                      "contract\n";
+      return false;
+    }
+    if (contract->emitCRouteID !=
+            tianchenrv::plugin::rvv::getRVVSelectedBodyEmitCRouteID(
+                description.operation) ||
+        contract->memoryForm != description.memoryForm ||
+        llvm::StringRef(contract->configContractID) !=
+            description.configContractID ||
+        llvm::StringRef(contract->runtimeABIOrder) !=
+            description.runtimeABIOrder ||
+        llvm::StringRef(contract->routeOperandBindingPlanID) !=
+            description.routeOperandBindingPlanID ||
+        llvm::StringRef(contract->routeOperandBindingSummary) !=
+            description.routeOperandBindingSummary ||
+        llvm::StringRef(contract->providerSupportedMirror) !=
+            description.providerSupportedMirror ||
+        llvm::StringRef(contract->targetLeafProfile) !=
+            description.targetLeafProfile ||
+        llvm::StringRef(contract->requiredHeaderDeclarations) !=
+            description.requiredHeaderDeclarations ||
+        llvm::StringRef(contract->cTypeMappingSummary) !=
+            description.cTypeMappingSummary ||
+        llvm::StringRef(contract->typedComputeOpName) !=
+            description.typedComputeOpName ||
+        contract->expectedPreLoopStepCount != 1 ||
+        contract->expectedLoopBodyStepCount != expectedLoopBodyStepCount ||
+        contract->runtimeABIParameters.size() !=
+            expectedRuntimeABIParameterCount ||
+        !tianchenrv::support::runtimeABIParametersEqual(
+            contract->runtimeABIParameters,
+            description.runtimeABIParameters) ||
+        contract->requiredHeaders.empty() ||
+        contract->typeMappings.size() != expectedTypeMappingCount ||
+        mirrorContract->mirrors.empty() ||
+        mirrorContract->staleMirrorKeys.empty()) {
+      llvm::errs() << fixtureContext
+                   << ": malformed provider-owned MAcc route validation "
+                      "contract\n";
+      return false;
+    }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel.empty() ||
+        runtimeContract.sew != description.sew ||
+        runtimeContract.lmul != description.lmul ||
+        runtimeContract.tailPolicy != description.tailPolicy ||
+        runtimeContract.maskPolicy != description.maskPolicy ||
+        runtimeContract.configContractID != description.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName != description.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << fixtureContext
+                   << ": embedded runtime AVL/VL selected-boundary contract "
+                      "did not mirror MAcc route facts\n";
+      return false;
+    }
+    return true;
+  };
+  if (!expectMAccValidationContract(maccDescription, /*abiCount=*/5,
+                                    /*typeMappingCount=*/2,
+                                    /*loopBodyStepCount=*/6,
+                                    "plain macc_add validation contract"))
+    return false;
+  if (!expectMAccValidationContract(
+          scalarBroadcastMAccDescription, /*abiCount=*/5,
+          /*typeMappingCount=*/2, /*loopBodyStepCount=*/6,
+          "scalar_broadcast_macc_add validation contract"))
+    return false;
+  if (!expectMAccValidationContract(
+          computedMaskedMAccDescription, /*abiCount=*/7,
+          /*typeMappingCount=*/3, /*loopBodyStepCount=*/10,
+          "computed_masked_macc_add validation contract"))
+    return false;
+  if (!expectMAccValidationContract(
+          runtimeScalarComputedMAccDescription, /*abiCount=*/7,
+          /*typeMappingCount=*/3, /*loopBodyStepCount=*/10,
+          "runtime_scalar_computed_masked_macc_add validation contract"))
+    return false;
+  if (!expectMAccValidationContract(
+          runtimeScalarComputedMAccM2Description, /*abiCount=*/7,
+          /*typeMappingCount=*/3, /*loopBodyStepCount=*/10,
+          "runtime_scalar_computed_masked_macc_add m2 validation contract"))
+    return false;
+  if (!expectMAccValidationContract(wideningMAccDescription, /*abiCount=*/5,
+                                    /*typeMappingCount=*/3,
+                                    /*loopBodyStepCount=*/6,
+                                    "widening_macc_add validation contract"))
+    return false;
+
   auto expectMAccProviderFailure =
       [&](const TargetArtifactCandidate &candidate,
           const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -9898,6 +10033,101 @@ bool expectRVVTargetArtifactExporterShape(
                     "scalar-broadcast route facts\n";
     return false;
   }
+
+  RVVRouteDescription staleMAccRuntimeAVLSource = maccDescription;
+  staleMAccRuntimeAVLSource.runtimeAVLASource = "metadata_abi:n";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccRuntimeAVLSource,
+          "MAcc registry rejects stale runtime AVL source",
+          {"runtime AVL source", "runtime_abi:n", "metadata_abi:n"}))
+    return false;
+
+  RVVRouteDescription missingMAccRuntimeVLContract = maccDescription;
+  missingMAccRuntimeVLContract.runtimeVLContractID = "";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, missingMAccRuntimeVLContract,
+          "MAcc registry rejects missing runtime VL contract",
+          {"runtime VL contract", "before artifact export"}))
+    return false;
+
+  RVVRouteDescription staleMAccVLScope = maccDescription;
+  staleMAccVLScope.vlScopeOpName = "metadata_with_vl";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccVLScope,
+          "MAcc registry rejects stale selected with_vl scope",
+          {"VL scope op", "metadata_with_vl"}))
+    return false;
+
+  RVVRouteDescription staleMAccSetVLCallee = maccDescription;
+  staleMAccSetVLCallee.setVLIntrinsic = "metadata_setvl";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccSetVLCallee,
+          "MAcc registry rejects stale setvl callee",
+          {"setvl callee", maccDescription.setVLIntrinsic,
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleMAccVLType = maccDescription;
+  staleMAccVLType.vlCType = "uint64_t";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccVLType,
+          "MAcc registry rejects stale VL C type",
+          {"VL C type", "size_t", "uint64_t"}))
+    return false;
+
+  RVVRouteDescription staleMAccFullChunkVL = maccDescription;
+  staleMAccFullChunkVL.emitCFullChunkVLName = "metadata_full_chunk_vl";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccFullChunkVL,
+          "MAcc registry rejects stale full-chunk VL",
+          {"EmitC full-chunk VL", maccDescription.emitCFullChunkVLName,
+           "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleMAccLoopVL = maccDescription;
+  staleMAccLoopVL.emitCLoopVLName = "metadata_loop_vl";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccLoopVL,
+          "MAcc registry rejects stale loop VL",
+          {"EmitC loop VL", maccDescription.emitCLoopVLName,
+           "metadata_loop_vl"}))
+    return false;
+
+  RVVRouteDescription staleMAccLoopInduction = maccDescription;
+  staleMAccLoopInduction.emitCLoopInductionName = "i";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccLoopInduction,
+          "MAcc registry rejects stale loop induction",
+          {"EmitC loop induction", maccDescription.emitCLoopInductionName,
+           "i"}))
+    return false;
+
+  RVVRouteDescription staleMAccRuntimeNRole = maccDescription;
+  staleMAccRuntimeNRole.runtimeABIParameters.back().role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccRuntimeNRole,
+          "MAcc registry rejects stale runtime n ABI role",
+          {"runtime n/AVL ABI parameter", "before artifact export"}))
+    return false;
+
+  RVVRouteDescription staleMAccRemainingAVL = maccDescription;
+  staleMAccRemainingAVL.remainingAVLMetadata = "metadata_remaining_avl";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccRemainingAVL,
+          "MAcc registry rejects stale remaining AVL metadata",
+          {"remaining AVL metadata", maccDescription.remainingAVLMetadata,
+           "metadata_remaining_avl"}))
+    return false;
+
+  RVVRouteDescription staleMAccPointerAdvance = maccDescription;
+  staleMAccPointerAdvance.pointerAdvanceMetadata = "metadata_pointer_advance";
+  if (!expectMAccProviderFailure(
+          maccFixture.candidate, maccRoute, staleMAccPointerAdvance,
+          "MAcc registry rejects stale pointer advancement metadata",
+          {"pointer advancement metadata", maccDescription.pointerAdvanceMetadata,
+           "metadata_pointer_advance"}))
+    return false;
 
   RVVRouteDescription staleMAccProviderMirror = maccDescription;
   staleMAccProviderMirror.providerSupportedMirror =

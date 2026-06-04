@@ -1926,6 +1926,7 @@ static void populateRVVMAccCommonValidationContract(
   contract.lmul = lmul.str();
   contract.tailPolicy = tailPolicy.str();
   contract.maskPolicy = maskPolicy.str();
+  contract.configContractID = description.configContractID.str();
   contract.runtimeControlPlanID = runtimeControlPlanID.str();
   contract.runtimeABIOrder = runtimeABIOrder.str();
   contract.targetLeafProfile = targetLeafProfile.str();
@@ -1943,6 +1944,19 @@ static void populateRVVMAccCommonValidationContract(
   contract.expectedPreLoopStepCount = 1;
   contract.emitCRouteID =
       getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  std::optional<std::string> runtimeSetVLIntrinsic =
+      deriveMAccSetVLIntrinsic(contract.sew, contract.lmul);
+  constexpr llvm::StringLiteral kRuntimeVLCType("size_t");
+  if (runtimeSetVLIntrinsic) {
+    if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              *runtimeSetVLIntrinsic, kRuntimeVLCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+      contract.runtimeAVLVLContract = std::move(*runtimeContract);
+  }
   copyRVVMAccDynamicDescriptionPayload(contract, description);
   appendRVVMAccValidationHeaders(contract, requiredHeaderDeclarations);
   appendRVVMAccValidationTypeMapping(contract, "!tcrv_rvv.vl",

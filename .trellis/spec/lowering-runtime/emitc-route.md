@@ -868,6 +868,7 @@ struct RVVMAccRouteValidationContract {
   std::string lmul;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -916,6 +917,7 @@ struct RVVMAccRouteValidationContract {
   std::size_t expectedPreLoopStepCount;
   std::size_t expectedLoopBodyStepCount;
   llvm::SmallVector<RuntimeABIParameter, 8> runtimeABIParameters;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<std::string, 4> requiredHeaders;
   llvm::SmallVector<RVVMAccRouteTypeMappingContract, 4> typeMappings;
 };
@@ -939,10 +941,29 @@ selected operation, not by treating target artifact metadata as authority.
   duplicate MAcc expected-fact accessors or local fallback constants for fields
   already represented in the contract.
 - The contract must include common route facts: route token, memory form,
-  SEW/LMUL, tail/mask policy, runtime-control plan, runtime ABI order,
+  SEW/LMUL, tail/mask policy, config contract, runtime-control plan,
+  runtime ABI order,
   target leaf profile, provider-supported mirror, required headers, C type
   summary, operand-binding plan/summary, typed compute op, arithmetic kind,
   accumulator/result layout, and runtime ABI parameters.
+- The contract must embed `RVVRuntimeAVLVLSelectedBoundaryContract`. Target
+  provider-fact validation must consume that embedded contract before accepting
+  MAcc route payloads, headers, type mappings, ABI mappings, statement plans,
+  accumulator/result layout, scalar-broadcast facts, computed-mask /
+  runtime-scalar facts, widening facts, or metadata mirrors.
+- The embedded runtime contract is the authority for runtime AVL source,
+  runtime-VL contract, selected `with_vl` boundary/scope, selected-body
+  provenance, setvl callee, VL C type, full-chunk VL, loop VL, loop induction,
+  remaining AVL metadata, pointer advancement metadata, bounded-slice,
+  multi-VL, and runtime `n` ABI parameter facts. MAcc statement-plan
+  validation must read those runtime/control names and the runtime AVL
+  parameter from the embedded contract instead of reconstructing them from
+  MAcc-local fields.
+- Non-widening MAcc runtime contract construction must use canonical
+  provider/typed-config facts for setvl and VL type, such as the MAcc
+  provider's SEW/LMUL setvl derivation and `size_t` VL type. It must not copy
+  mutable route-description mirrors for setvl or VL type into the embedded
+  runtime contract.
 - The contract must include family-specific facts for plain, scalar-broadcast,
   computed-mask, runtime-scalar computed-mask, and widening MAcc. Empty fields
   are explicit stale-residue rejection points for non-consumer families.
@@ -960,10 +981,18 @@ selected operation, not by treating target artifact metadata as authority.
 - Rebuilt route token differs from the provider contract -> fail before target
   artifact acceptance.
 - Description memory form, SEW/LMUL, tail/mask policy, runtime-control plan,
-  runtime ABI order, target leaf profile, provider-supported mirror,
+  config contract, runtime ABI order, target leaf profile,
+  provider-supported mirror,
   header/type summary, operand-binding plan/summary, typed compute op,
   arithmetic kind, or layout differs from the contract -> fail before target
   artifact acceptance.
+- Missing embedded runtime AVL/VL selected-boundary contract, more than one or
+  zero runtime-element-count ABI parameter, stale runtime AVL source, stale
+  runtime-VL contract id, stale selected `with_vl` boundary/scope, stale
+  setvl callee, stale VL C type, stale full-chunk VL, stale loop VL, stale loop
+  induction, stale runtime `n` ABI role/order/ownership, stale remaining AVL
+  metadata, or stale pointer advancement metadata -> fail before target
+  artifact validation accepts MAcc route payloads, statement plans, or mirrors.
 - Runtime ABI parameter count, order, role, C name, or C type differs from the
   contract -> fail before target artifact acceptance with a diagnostic naming
   the parameter index and provider-owned parameter.
@@ -990,7 +1019,8 @@ selected operation, not by treating target artifact metadata as authority.
 
 - Good: `macc_add` consumes the provider contract for plain route family plan,
   vector RHS memory form, `lhs,rhs,acc,out,n` ABI order, headers, type mapping,
-  accumulator layout, and six loop-body statement steps.
+  accumulator layout, embedded runtime AVL/VL contract, and six loop-body
+  statement steps.
 - Good: `scalar_broadcast_macc_add` consumes the scalar-broadcast contract for
   RHS scalar ABI role, splat leaf, scalar-broadcast memory form, operand
   binding summary, and stale plain route-family rejection.
@@ -1019,6 +1049,14 @@ selected operation, not by treating target artifact metadata as authority.
 - C++ target artifact tests must cover positive contract consumption for
   plain, scalar-broadcast, computed-mask, runtime-scalar computed-mask,
   LMUL-specific runtime-scalar computed-mask, and widening MAcc candidates.
+- C++ target artifact tests must assert the embedded runtime AVL/VL
+  selected-boundary contract mirrors rebuilt MAcc route facts for every
+  production-active MAcc validation kind.
+- C++ target artifact tests must mutate runtime AVL source, runtime-VL
+  contract, selected `with_vl` scope, setvl callee, VL C type, full-chunk VL,
+  loop VL, loop induction, runtime `n` ABI facts, remaining AVL metadata, and
+  pointer advancement metadata to prove fail-closed diagnostics before MAcc
+  route acceptance.
 - C++ target artifact tests must mutate provider descriptions for stale route
   payload facts: memory form, route-family plan, runtime ABI order/parameters,
   operand-binding plan/summary, target leaf profile, provider-supported mirror,

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project boundary and relevant spec index for the active RVV runtime AVL/VL contract migration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-boundary, route provider, and fail-closed ownership rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route contract and MAcc target-consumer runtime AVL/VL validation rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md", "reason": "Prior selected-boundary runtime AVL/VL contract promotion pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md", "reason": "Prior base-memory route-family migration pattern for embedded runtime AVL/VL contract consumption."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-runtime-avl-vl-contract/prd.md", "reason": "Prior compare/select route-family migration pattern for target consumer order and stale mirror rejection."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-standalone-reduction-runtime-avl-vl-contract/prd.md", "reason": "Immediate prior standalone reduction migration pattern and no-runtime-change evidence boundary."}

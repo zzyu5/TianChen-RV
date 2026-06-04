@@ -2117,6 +2117,7 @@ struct RVVMAccRouteValidationContract {
   std::string lmul;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -2192,6 +2193,7 @@ struct RVVMAccRouteValidationContract {
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
       runtimeABIParameters;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<std::string, 4> requiredHeaders;
   llvm::SmallVector<RVVMAccRouteTypeMappingContract, 4> typeMappings;
 };
