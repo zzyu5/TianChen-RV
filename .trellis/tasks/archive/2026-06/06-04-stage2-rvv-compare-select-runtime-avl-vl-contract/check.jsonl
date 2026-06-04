@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV authority chain, Stage2 scope, common EmitC neutrality, and mirror non-authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check compare/select provider facts, statement-plan ownership, target validator boundary, and required fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check embedded runtime AVL/VL selected-boundary contract fields, target consumer order, and no-runtime-change evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit coverage, old-authority testing discipline, and ssh rvv rationale."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check runtime contract migration remains plugin-local and avoids common/core RVV semantic branching."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check runtime ABI/control work does not become high-level compute semantics or descriptor-driven behavior."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md", "reason": "Check against the previous base-memory migration's verified implementation and evidence pattern."}

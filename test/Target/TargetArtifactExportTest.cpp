@@ -2438,6 +2438,28 @@ void applyRVVManualCompareSelectRouteFacts(
   description.tailPolicy = routeFacts.tailPolicy;
   description.maskPolicy = routeFacts.maskPolicy;
   description.emitCRouteID = emitCRouteID;
+  const tianchenrv::tcrv::rvv::RVVSelectedBodyConfigVLContract
+      &configContract =
+          tianchenrv::tcrv::rvv::getRVVSelectedBodyConfigVLContract(
+              routeFacts.sew, routeFacts.lmul);
+  description.configContractID = configContract.configContractID;
+  description.runtimeVLContractID = configContract.runtimeVLContractID;
+  description.runtimeAVLASource = configContract.runtimeAVLASource;
+  description.boundaryOpName = configContract.vlScopeOpName;
+  description.vlDefOpName = configContract.vlDefOpName;
+  description.vlScopeOpName = configContract.vlScopeOpName;
+  description.vlUses = configContract.vlUses;
+  description.emitCLoopKind = configContract.emitCLoopKind;
+  description.emitCLoopInductionName =
+      configContract.emitCLoopInductionName;
+  description.emitCFullChunkVLName = configContract.emitCFullChunkVLName;
+  description.emitCLoopVLName =
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName();
+  description.remainingAVLMetadata = configContract.remainingAVLMetadata;
+  description.pointerAdvanceMetadata =
+      configContract.pointerAdvanceMetadata;
+  description.boundedSlice = configContract.boundedSlice;
+  description.multiVL = configContract.multiVL;
   description.providerSupportedMirror = routeFacts.providerSupportedMirror;
   description.targetLeafProfile = routeFacts.targetLeafProfile;
   description.routeOperandBindingPlanID =
@@ -2488,9 +2510,6 @@ void applyRVVManualCompareSelectRouteFacts(
   description.sourceMemoryForm = routeFacts.sourceMemoryForm;
   description.destinationMemoryForm = routeFacts.destinationMemoryForm;
   description.indexedMemoryLayout = routeFacts.indexedMemoryLayout;
-  description.emitCLoopInductionName = "i";
-  description.emitCFullChunkVLName = "vl_full";
-  description.emitCLoopVLName = "vl";
   description.runtimeABIParameters.clear();
   for (const RuntimeABIParameter &parameter : routeFacts.runtimeABIParameters)
     description.runtimeABIParameters.push_back(parameter);
@@ -2659,6 +2678,16 @@ makeRVVManualPlainCompareSelectRoute(
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
       description.emitCRouteID, "rvv-manual-target-artifact-test");
   addRVVManualRouteCommonFacts(route, description);
+  const std::string loopVLName = description.emitCLoopVLName.str();
+  const std::string vlCType = description.vlCType.str();
+  const std::string remainingAVL =
+      (llvm::StringRef("n - ") + description.emitCLoopInductionName).str();
+  auto pointerAtInduction = [&](llvm::StringRef base) -> std::string {
+    return (base + " + " + description.emitCLoopInductionName).str();
+  };
+  auto loopVLOperand = [&]() -> Operand {
+    return Operand{loopVLName, vlCType};
+  };
   route.addCallOpaqueStep(makeRVVManualRouteStep(
       description.setVLIntrinsic, {Operand{"n", "size_t"}},
       description.emitCFullChunkVLName, description.vlCType, "configure"));
@@ -2669,34 +2698,36 @@ makeRVVManualPlainCompareSelectRoute(
   loop.step = {description.emitCFullChunkVLName.str(),
                description.vlCType.str()};
   loop.bodySteps.push_back(makeRVVManualRouteStep(
-      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.setVLIntrinsic, {Operand{remainingAVL, vlCType}},
       description.emitCLoopVLName, description.vlCType, "configure"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"lhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("lhs"), "const int32_t *"},
+       loopVLOperand()},
       "lhs_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"rhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("rhs"), "const int32_t *"},
+       loopVLOperand()},
       "rhs_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.compareIntrinsic,
       {Operand{"lhs_vec", description.vectorCType.str()},
        Operand{"rhs_vec", description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       description.maskName, description.maskCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.intrinsic,
       {Operand{"rhs_vec", description.vectorCType.str()},
        Operand{"lhs_vec", description.vectorCType.str()},
        Operand{description.maskName.str(), description.maskCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       description.resultName, description.vectorCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.storeIntrinsic,
-      {Operand{"out + i", "int32_t *"},
+      {Operand{pointerAtInduction("out"), "int32_t *"},
        Operand{description.resultName.str(), description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       {}, {}, "store"));
   route.addForLoop(loop);
   return route;
@@ -2724,6 +2755,16 @@ makeRVVManualRuntimeScalarCompareSelectRoute(
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
       description.emitCRouteID, "rvv-manual-target-artifact-test");
   addRVVManualRouteCommonFacts(route, description);
+  const std::string loopVLName = description.emitCLoopVLName.str();
+  const std::string vlCType = description.vlCType.str();
+  const std::string remainingAVL =
+      (llvm::StringRef("n - ") + description.emitCLoopInductionName).str();
+  auto pointerAtInduction = [&](llvm::StringRef base) -> std::string {
+    return (base + " + " + description.emitCLoopInductionName).str();
+  };
+  auto loopVLOperand = [&]() -> Operand {
+    return Operand{loopVLName, vlCType};
+  };
   route.addCallOpaqueStep(makeRVVManualRouteStep(
       description.setVLIntrinsic, {Operand{"n", "size_t"}},
       description.emitCFullChunkVLName, description.vlCType, "configure"));
@@ -2734,44 +2775,45 @@ makeRVVManualRuntimeScalarCompareSelectRoute(
   loop.step = {description.emitCFullChunkVLName.str(),
                description.vlCType.str()};
   loop.bodySteps.push_back(makeRVVManualRouteStep(
-      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.setVLIntrinsic, {Operand{remainingAVL, vlCType}},
       description.emitCLoopVLName, description.vlCType, "configure"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"lhs + i", "const int32_t *"}, Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("lhs"), "const int32_t *"},
+       loopVLOperand()},
       "lhs_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.rhsBroadcastIntrinsic,
-      {Operand{"rhs_scalar", "int32_t"}, Operand{"vl", "size_t"}},
+      {Operand{"rhs_scalar", "int32_t"}, loopVLOperand()},
       "rhs_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"true_value + i", "const int32_t *"},
-       Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("true_value"), "const int32_t *"},
+       loopVLOperand()},
       "true_value_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"false_value + i", "const int32_t *"},
-       Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("false_value"), "const int32_t *"},
+       loopVLOperand()},
       "false_value_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.compareIntrinsic,
       {Operand{"lhs_vec", description.vectorCType.str()},
        Operand{"rhs_vec", description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       description.maskName, description.maskCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.intrinsic,
       {Operand{"false_value_vec", description.vectorCType.str()},
        Operand{"true_value_vec", description.vectorCType.str()},
        Operand{description.maskName.str(), description.maskCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       description.resultName, description.vectorCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.storeIntrinsic,
-      {Operand{"out + i", "int32_t *"},
+      {Operand{pointerAtInduction("out"), "int32_t *"},
        Operand{description.resultName.str(), description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       {}, {}, "store"));
   route.addForLoop(loop);
   return route;
@@ -2799,6 +2841,16 @@ makeRVVManualDualCompareSelectRoute(
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
       description.emitCRouteID, "rvv-manual-target-artifact-test");
   addRVVManualRouteCommonFacts(route, description);
+  const std::string loopVLName = description.emitCLoopVLName.str();
+  const std::string vlCType = description.vlCType.str();
+  const std::string remainingAVL =
+      (llvm::StringRef("n - ") + description.emitCLoopInductionName).str();
+  auto pointerAtInduction = [&](llvm::StringRef base) -> std::string {
+    return (base + " + " + description.emitCLoopInductionName).str();
+  };
+  auto loopVLOperand = [&]() -> Operand {
+    return Operand{loopVLName, vlCType};
+  };
   route.addCallOpaqueStep(makeRVVManualRouteStep(
       description.setVLIntrinsic, {Operand{"n", "size_t"}},
       description.emitCFullChunkVLName, description.vlCType, "configure"));
@@ -2809,66 +2861,66 @@ makeRVVManualDualCompareSelectRoute(
   loop.step = {description.emitCFullChunkVLName.str(),
                description.vlCType.str()};
   loop.bodySteps.push_back(makeRVVManualRouteStep(
-      description.setVLIntrinsic, {Operand{"n - i", "size_t"}},
+      description.setVLIntrinsic, {Operand{remainingAVL, vlCType}},
       description.emitCLoopVLName, description.vlCType, "configure"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"cmp_lhs_a + i", "const int32_t *"},
-       Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("cmp_lhs_a"), "const int32_t *"},
+       loopVLOperand()},
       "lhs_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.rhsBroadcastIntrinsic,
-      {Operand{"rhs_scalar_a", "int32_t"}, Operand{"vl", "size_t"}},
+      {Operand{"rhs_scalar_a", "int32_t"}, loopVLOperand()},
       "rhs_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"cmp_lhs_b + i", "const int32_t *"},
-       Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("cmp_lhs_b"), "const int32_t *"},
+       loopVLOperand()},
       "cmp_lhs_b_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.rhsBroadcastIntrinsic,
-      {Operand{"rhs_scalar_b", "int32_t"}, Operand{"vl", "size_t"}},
+      {Operand{"rhs_scalar_b", "int32_t"}, loopVLOperand()},
       "rhs_b_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"true_value + i", "const int32_t *"},
-       Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("true_value"), "const int32_t *"},
+       loopVLOperand()},
       "true_value_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
-      {Operand{"false_value + i", "const int32_t *"},
-       Operand{"vl", "size_t"}},
+      {Operand{pointerAtInduction("false_value"), "const int32_t *"},
+       loopVLOperand()},
       "false_value_vec", description.vectorCType, "load"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.compareIntrinsic,
       {Operand{"lhs_vec", description.vectorCType.str()},
        Operand{"rhs_vec", description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       "mask_a", description.maskCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.secondaryCompareIntrinsic,
       {Operand{"cmp_lhs_b_vec", description.vectorCType.str()},
        Operand{"rhs_b_vec", description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       "mask_b", description.maskCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.maskAndIntrinsic,
       {Operand{"mask_a", description.maskCType.str()},
        Operand{"mask_b", description.maskCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       description.maskName, description.maskCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.intrinsic,
       {Operand{"false_value_vec", description.vectorCType.str()},
        Operand{"true_value_vec", description.vectorCType.str()},
        Operand{description.maskName.str(), description.maskCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       description.resultName, description.vectorCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.storeIntrinsic,
-      {Operand{"out + i", "int32_t *"},
+      {Operand{pointerAtInduction("out"), "int32_t *"},
        Operand{description.resultName.str(), description.vectorCType.str()},
-       Operand{"vl", "size_t"}},
+       loopVLOperand()},
       {}, {}, "store"));
   route.addForLoop(loop);
   return route;
@@ -16238,6 +16290,8 @@ bool expectRVVTargetArtifactExporterShape(
     }
     if (contract->kind != kind ||
         contract->operation != manualDescription.operation ||
+        llvm::StringRef(contract->configContractID) !=
+            manualDescription.configContractID ||
         llvm::StringRef(contract->runtimeABIOrder) !=
             manualDescription.runtimeABIOrder ||
         llvm::StringRef(contract->routeOperandBindingPlanID) !=
@@ -16259,6 +16313,50 @@ bool expectRVVTargetArtifactExporterShape(
         contract->requiredHeaders.empty() || contract->typeMappings.empty()) {
       llvm::errs() << fixtureContext
                    << ": malformed compare/select route validation contract\n";
+      return false;
+    }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            contract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel.empty() ||
+        runtimeContract.sew != manualDescription.sew ||
+        runtimeContract.lmul != manualDescription.lmul ||
+        runtimeContract.tailPolicy != manualDescription.tailPolicy ||
+        runtimeContract.maskPolicy != manualDescription.maskPolicy ||
+        runtimeContract.configContractID != manualDescription.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            manualDescription.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            manualDescription.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            manualDescription.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != manualDescription.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName !=
+            manualDescription.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != manualDescription.vlDefOpName ||
+        runtimeContract.vlScopeOpName != manualDescription.vlScopeOpName ||
+        runtimeContract.vlUses != manualDescription.vlUses ||
+        runtimeContract.setVLIntrinsic != manualDescription.setVLIntrinsic ||
+        runtimeContract.vlCType != manualDescription.vlCType ||
+        runtimeContract.emitCLoopKind != manualDescription.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            manualDescription.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            manualDescription.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != manualDescription.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            manualDescription.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            manualDescription.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != manualDescription.boundedSlice ||
+        runtimeContract.multiVL != manualDescription.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << fixtureContext
+                   << ": embedded runtime AVL/VL selected-boundary contract "
+                      "did not mirror compare/select route facts\n";
       return false;
     }
     std::optional<RVVCompareSelectRouteMetadataMirrorContractSet>
@@ -16558,6 +16656,97 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-only-plain-select"}))
     return false;
 
+  RVVRouteDescription stalePlainRuntimeAVLSource = manualPlainDescription;
+  stalePlainRuntimeAVLSource.runtimeAVLASource = "metadata-derived-avl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainRuntimeAVLSource,
+          "compare/select mask registry rejects stale runtime AVL source",
+          {"runtime AVL/VL selected-boundary runtime AVL source",
+           "runtime_abi:n", "metadata-derived-avl"}))
+    return false;
+
+  RVVRouteDescription stalePlainRuntimeVLContract = manualPlainDescription;
+  stalePlainRuntimeVLContract.runtimeVLContractID =
+      "metadata-derived-runtime-vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainRuntimeVLContract,
+          "compare/select mask registry rejects stale runtime VL contract",
+          {"runtime AVL/VL selected-boundary runtime VL contract",
+           "metadata-derived-runtime-vl"}))
+    return false;
+
+  RVVRouteDescription stalePlainVLScope = manualPlainDescription;
+  stalePlainVLScope.vlScopeOpName = "metadata.with_vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainVLScope,
+          "compare/select mask registry rejects stale selected with_vl scope",
+          {"runtime AVL/VL selected-boundary VL scope op",
+           "metadata.with_vl"}))
+    return false;
+
+  RVVRouteDescription stalePlainSetVLCallee = manualPlainDescription;
+  stalePlainSetVLCallee.setVLIntrinsic = "metadata_setvl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainSetVLCallee,
+          "compare/select mask registry rejects stale setvl intrinsic",
+          {"runtime AVL/VL selected-boundary setvl callee",
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription stalePlainVLType = manualPlainDescription;
+  stalePlainVLType.vlCType = "uint64_t";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainVLType,
+          "compare/select mask registry rejects stale VL C type",
+          {"runtime AVL/VL selected-boundary VL C type", "size_t",
+           "uint64_t"}))
+    return false;
+
+  RVVRouteDescription stalePlainFullChunkVL = manualPlainDescription;
+  stalePlainFullChunkVL.emitCFullChunkVLName = "metadata_full_chunk_vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainFullChunkVL,
+          "compare/select mask registry rejects stale full-chunk VL",
+          {"runtime AVL/VL selected-boundary EmitC full-chunk VL",
+           "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription stalePlainLoopVL = manualPlainDescription;
+  stalePlainLoopVL.emitCLoopVLName = "metadata_vl";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainLoopVL,
+          "compare/select mask registry rejects stale loop VL",
+          {"runtime AVL/VL selected-boundary EmitC loop VL", "metadata_vl"}))
+    return false;
+
+  RVVRouteDescription stalePlainLoopInduction = manualPlainDescription;
+  stalePlainLoopInduction.emitCLoopInductionName = "metadata_i";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainLoopInduction,
+          "compare/select mask registry rejects stale loop induction",
+          {"runtime AVL/VL selected-boundary EmitC loop induction",
+           "metadata_i"}))
+    return false;
+
+  RVVRouteDescription stalePlainRuntimeParameter = manualPlainDescription;
+  stalePlainRuntimeParameter.runtimeABIParameters[3].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainRuntimeParameter,
+          "compare/select mask registry rejects stale runtime n ABI role",
+          {"runtime n/AVL ABI parameter", "artifact export"}))
+    return false;
+
+  RVVRouteDescription stalePlainPointerAdvance = manualPlainDescription;
+  stalePlainPointerAdvance.pointerAdvanceMetadata = "metadata-pointer";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainPointerAdvance,
+          "compare/select mask registry rejects stale pointer advancement "
+          "metadata",
+          {"runtime AVL/VL selected-boundary pointer advancement metadata",
+           "metadata-pointer"}))
+    return false;
+
   RVVRouteDescription staleRuntimeScalarPlainPlan =
       manualRuntimeScalarDescription;
   staleRuntimeScalarPlainPlan.plainCompareSelectRouteFamilyPlanID =
@@ -16776,7 +16965,7 @@ bool expectRVVTargetArtifactExporterShape(
               /*operandIndex=*/0, "n", "size_t"),
           manualDualDescription,
           "compare/select mask registry rejects stale loop remaining AVL",
-          {"loop setvl", "operand[0]", "n - i", "n"}))
+          {"loop setvl", "operand[0]", "n - offset", "n"}))
     return false;
 
   if (!expectManualCompareSelectMaskRouteFailure(

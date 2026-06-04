@@ -6113,6 +6113,15 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
           require("element type", description.elementTypeName,
                   contract.elementTypeName))
     return error;
+  if (description.configContractID != contract.configContractID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned config contract '" +
+        contract.configContractID + "' but description carried '" +
+        description.configContractID + "'");
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
   if (llvm::Error error = require("LMUL", description.lmul, contract.lmul))
     return error;
   if (llvm::Error error =
@@ -7575,19 +7584,42 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     std::size_t providerExpectedPreLoopStepCount = 0,
-    std::size_t providerExpectedLoopBodyStepCount = 0) {
+    std::size_t providerExpectedLoopBodyStepCount = 0,
+    const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract
+        *providerRuntimeAVLVLContract = nullptr) {
   constexpr llvm::StringLiteral consumerLabel(
       "compare/select mask target artifact consumer");
   if (llvm::Error error =
           validateRVVCompareSelectMaskRuntimeABIFacts(description))
     return error;
-  if (description.setVLIntrinsic.empty() || description.vectorLoadIntrinsic.empty() ||
+  const llvm::StringRef setVLIntrinsic =
+      providerRuntimeAVLVLContract
+          ? llvm::StringRef(providerRuntimeAVLVLContract->setVLIntrinsic)
+          : description.setVLIntrinsic;
+  const llvm::StringRef vlCType =
+      providerRuntimeAVLVLContract
+          ? llvm::StringRef(providerRuntimeAVLVLContract->vlCType)
+          : description.vlCType;
+  const llvm::StringRef emitCFullChunkVLName =
+      providerRuntimeAVLVLContract
+          ? llvm::StringRef(providerRuntimeAVLVLContract->emitCFullChunkVLName)
+          : description.emitCFullChunkVLName;
+  const llvm::StringRef emitCLoopVLName =
+      providerRuntimeAVLVLContract
+          ? llvm::StringRef(providerRuntimeAVLVLContract->emitCLoopVLName)
+          : description.emitCLoopVLName;
+  const llvm::StringRef emitCLoopInductionName =
+      providerRuntimeAVLVLContract
+          ? llvm::StringRef(
+                providerRuntimeAVLVLContract->emitCLoopInductionName)
+          : description.emitCLoopInductionName;
+
+  if (setVLIntrinsic.empty() || description.vectorLoadIntrinsic.empty() ||
       description.compareIntrinsic.empty() || description.maskName.empty() ||
       description.resultName.empty() || description.maskCType.empty() ||
-      description.vectorCType.empty() || description.vlCType.empty() ||
-      description.emitCFullChunkVLName.empty() ||
-      description.emitCLoopVLName.empty() ||
-      description.emitCLoopInductionName.empty())
+      description.vectorCType.empty() || vlCType.empty() ||
+      emitCFullChunkVLName.empty() || emitCLoopVLName.empty() ||
+      emitCLoopInductionName.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires provider-derived setvl, compare, mask/result, vector/VL, "
@@ -7602,7 +7634,9 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         " requires exactly " + llvm::Twine(expectedPreLoopStepCount) +
         " provider-built pre-loop setvl statement(s) before artifact export");
   const support::RuntimeABIParameter *runtimeN =
-      findRuntimeElementCountABIParameter(description);
+      providerRuntimeAVLVLContract
+          ? &providerRuntimeAVLVLContract->runtimeAVLParameter
+          : findRuntimeElementCountABIParameter(description);
   if (!runtimeN)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -7610,9 +7644,8 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-          preLoopSetVL, consumerLabel, "pre-loop setvl",
-          description.setVLIntrinsic, {{runtimeN->cName, runtimeN->cType}},
-          description.emitCFullChunkVLName, description.vlCType))
+          preLoopSetVL, consumerLabel, "pre-loop setvl", setVLIntrinsic,
+          {{runtimeN->cName, runtimeN->cType}}, emitCFullChunkVLName, vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -7628,20 +7661,18 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         " requires exactly one provider-built runtime AVL/VL loop before "
         "artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != description.emitCLoopInductionName ||
-      loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != description.vlCType ||
+  if (loop.inductionVarName != emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" || loop.lowerBound.cType != vlCType ||
       loop.upperBound.expression != runtimeN->cName ||
       loop.upperBound.cType != runtimeN->cType ||
-      loop.step.expression != description.emitCFullChunkVLName ||
-      loop.step.cType != description.vlCType)
+      loop.step.expression != emitCFullChunkVLName ||
+      loop.step.cType != vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires provider-built loop bounds and step to mirror runtime "
         "n/AVL/VL facts");
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeN->cName) + " - " +
-       description.emitCLoopInductionName)
+      (llvm::StringRef(runtimeN->cName) + " - " + emitCLoopInductionName)
           .str();
   const std::size_t expectedBodyStepCount =
       providerExpectedLoopBodyStepCount != 0
@@ -7663,8 +7694,8 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         "' but saw " + llvm::Twine(loop.bodySteps.size()));
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps.front(), consumerLabel, "loop setvl",
-          description.setVLIntrinsic, {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          setVLIntrinsic, {{expectedRemainingAVL, vlCType}}, emitCLoopVLName,
+          vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -7675,8 +7706,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
 
   auto pointerAtInduction =
       [&](const support::RuntimeABIParameter &abi) -> std::string {
-    return (llvm::StringRef(abi.cName) + " + " +
-            description.emitCLoopInductionName)
+    return (llvm::StringRef(abi.cName) + " + " + emitCLoopInductionName)
         .str();
   };
   auto stridedSourcePointerAtInduction =
@@ -7684,16 +7714,15 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
           const support::RuntimeABIParameter &strideABI) -> std::string {
     return ("(const int32_t *)((const uint8_t *)" +
             llvm::StringRef(sourceABI.cName) + " + (" +
-            description.emitCLoopInductionName + " * " + strideABI.cName +
-            "))")
+            emitCLoopInductionName + " * " + strideABI.cName + "))")
         .str();
   };
   auto stridedDestinationPointerAtInduction =
       [&](const support::RuntimeABIParameter &destinationABI,
           const support::RuntimeABIParameter &strideABI) -> std::string {
     return ("(int32_t *)((uint8_t *)" + llvm::StringRef(destinationABI.cName) +
-            " + (" + description.emitCLoopInductionName + " * " +
-            strideABI.cName + "))")
+            " + (" + emitCLoopInductionName + " * " + strideABI.cName +
+            "))")
         .str();
   };
   auto validateVectorLoad =
@@ -7702,8 +7731,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
           llvm::StringRef resultName) -> llvm::Error {
     return validateRVVProviderBuiltRouteStep(
         step, consumerLabel, stepLabel, description.vectorLoadIntrinsic,
-        {{pointerAtInduction(abi), abi.cType},
-         {description.emitCLoopVLName, description.vlCType}},
+        {{pointerAtInduction(abi), abi.cType}, {emitCLoopVLName, vlCType}},
         resultName, description.vectorCType);
   };
   auto validateSplat =
@@ -7712,8 +7740,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
           llvm::StringRef resultName) -> llvm::Error {
     return validateRVVProviderBuiltRouteStep(
         step, consumerLabel, stepLabel, description.rhsBroadcastIntrinsic,
-        {{abi.cName, abi.cType},
-         {description.emitCLoopVLName, description.vlCType}},
+        {{abi.cName, abi.cType}, {emitCLoopVLName, vlCType}},
         resultName, description.vectorCType);
   };
   auto validateCompare =
@@ -7725,7 +7752,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         step, consumerLabel, stepLabel, callee,
         {{lhsName, description.vectorCType},
          {rhsName, description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}},
+         {emitCLoopVLName, vlCType}},
         resultName, description.maskCType);
   };
   auto validateSelect =
@@ -7737,7 +7764,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         {{falseOperand, description.vectorCType},
          {trueOperand, description.vectorCType},
          {description.maskName, description.maskCType},
-         {description.emitCLoopVLName, description.vlCType}},
+         {emitCLoopVLName, vlCType}},
         description.resultName, description.vectorCType);
   };
   auto validateUnitStore =
@@ -7748,7 +7775,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         step, consumerLabel, stepLabel, description.storeIntrinsic,
         {{pointerAtInduction(abi), abi.cType},
          {valueName, description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {emitCLoopVLName, vlCType}});
   };
   auto validateMaskedLoad =
       [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
@@ -7936,7 +7963,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
             description.maskAndIntrinsic,
             {{"mask_a", description.maskCType},
              {"mask_b", description.maskCType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {emitCLoopVLName, vlCType}},
             description.maskName, description.maskCType))
       return error;
     if (llvm::Error error = validateSelect(loop.bodySteps[10],
@@ -8036,7 +8063,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
             loop.bodySteps[stepIndex++], consumerLabel, "index vector load",
             description.indexLoadIntrinsic,
             {{pointerAtInduction(*indexABI), indexABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {emitCLoopVLName, vlCType}},
             "index_vec", description.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -8044,7 +8071,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
             description.indexScaleIntrinsic,
             {{"index_vec", description.indexVectorCType},
              {"4", "uint32_t"},
-             {description.emitCLoopVLName, description.vlCType}},
+             {emitCLoopVLName, vlCType}},
             "byte_offsets", description.indexVectorCType))
       return error;
   }
@@ -8085,7 +8112,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
              {"old_dst_vec", description.vectorCType},
              {sourceABI.cName, sourceABI.cType},
              {"byte_offsets", description.indexVectorCType},
-             {description.emitCLoopVLName, description.vlCType}}))
+             {emitCLoopVLName, vlCType}}))
       return error;
     return validateUnitStore(loop.bodySteps[stepIndex++], "output store",
                              destinationABI, description.resultName);
@@ -8098,7 +8125,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
              {stridedSourcePointerAtInduction(sourceABI, *sourceStrideABI),
               sourceABI.cType},
              {sourceStrideABI->cName, "ptrdiff_t"},
-             {description.emitCLoopVLName, description.vlCType}}))
+             {emitCLoopVLName, vlCType}}))
       return error;
     return validateUnitStore(loop.bodySteps[stepIndex++], "output store",
                              destinationABI, description.resultName);
@@ -8109,7 +8136,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
             {{description.maskName, description.maskCType},
              {"old_dst_vec", description.vectorCType},
              {pointerAtInduction(sourceABI), sourceABI.cType},
-             {description.emitCLoopVLName, description.vlCType}}))
+             {emitCLoopVLName, vlCType}}))
       return error;
     return validateUnitStore(loop.bodySteps[stepIndex++], "output store",
                              destinationABI, description.resultName);
@@ -8124,7 +8151,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
           destinationABI.cType},
          {destinationStrideABI->cName, "ptrdiff_t"},
          {"source_vec", description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {emitCLoopVLName, vlCType}});
   }
   if (isIndexedScatter) {
     return validateRVVProviderBuiltRouteStep(
@@ -8134,7 +8161,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
          {destinationABI.cName, destinationABI.cType},
          {"byte_offsets", description.indexVectorCType},
          {"source_vec", description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {emitCLoopVLName, vlCType}});
   }
   if (isRuntimeScalarStore) {
     return validateRVVProviderBuiltRouteStep(
@@ -8143,7 +8170,7 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         {{description.maskName, description.maskCType},
          {pointerAtInduction(destinationABI), destinationABI.cType},
          {"source_vec", description.vectorCType},
-         {description.emitCLoopVLName, description.vlCType}});
+         {emitCLoopVLName, vlCType}});
   }
 
   return llvm::Error::success();
@@ -8192,7 +8219,7 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
       return error;
     return validateRVVCompareSelectMaskRouteStatementPlan(
         route, description, contract->expectedPreLoopStepCount,
-        contract->expectedLoopBodyStepCount);
+        contract->expectedLoopBodyStepCount, &contract->runtimeAVLVLContract);
   }
 
   if (isRVVCompareSelectMaskIndexedMemoryOperation(description.operation)) {

@@ -441,3 +441,36 @@ Embedded RVVRuntimeAVLVLSelectedBoundaryContract in the base-memory movement val
 ### Next Steps
 
 - None - task complete
+
+
+## Session 431: Stage2 RVV compare/select runtime AVL/VL contract migration
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select runtime AVL/VL contract migration
+**Branch**: `main`
+
+### Summary
+
+Embedded RVVRuntimeAVLVLSelectedBoundaryContract in compare/select validation, rewired target validation and statement-plan checks to consume it, added fail-closed target coverage, updated EmitC route spec, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

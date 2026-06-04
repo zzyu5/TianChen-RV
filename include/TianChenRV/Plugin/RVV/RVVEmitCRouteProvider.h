@@ -1451,6 +1451,7 @@ struct RVVStandaloneReductionRouteValidationContract {
   std::string lmul;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -1653,6 +1654,7 @@ struct RVVCompareSelectRouteValidationContract {
   std::string lmul;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -1662,6 +1664,7 @@ struct RVVCompareSelectRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string plainCompareSelectRouteFamilyPlanID;
   std::string computedMaskSelectRouteFamilyPlanID;

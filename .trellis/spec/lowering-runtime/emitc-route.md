@@ -3543,6 +3543,162 @@ typed selected tcrv_rvv base-memory body/config/runtime facts
   -> target validator consumes runtime contract before route-family payloads
 ```
 
+### Compare/Select Route Validation Contract
+
+Use this contract when target artifact validation consumes production-active
+selected-body compare/select routes: plain compare-select, computed-mask
+select, runtime-scalar computed-mask select, and runtime-scalar dual
+compare-mask-and-select.
+
+The concrete provider-facing target validation surface is:
+
+```c++
+struct RVVCompareSelectRouteValidationContract {
+  RVVCompareSelectRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
+  ...
+};
+
+std::optional<RVVCompareSelectRouteValidationContract>
+getRVVCompareSelectRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
+Contracts:
+
+- `getRVVCompareSelectRouteValidationContract(...)` is implemented in the RVV
+  provider layer and is the canonical source for compare/select operation,
+  memory form, config, runtime ABI order, target leaf profile,
+  provider-supported mirror, header/type summaries, operand binding summary,
+  route-family plan ids, predicate facts, select layout, runtime-scalar
+  single/dual markers, mask/tail provider facts, and statement-plan counts.
+- The contract builder must populate `configContractID` from the rebuilt
+  selected-body route description and must build `runtimeAVLVLContract` through
+  `getRVVRuntimeAVLVLSelectedBoundaryContract(...)` after the provider-owned
+  compare/select runtime ABI parameter list is available.
+- The embedded runtime contract is the selected-boundary authority for runtime
+  AVL source, runtime-VL contract, selected `with_vl` boundary/scope, `setvl`
+  callee, VL C type, full-chunk VL, loop VL, loop induction, runtime `n` ABI
+  parameter, remaining-AVL metadata, pointer advancement metadata,
+  bounded-slice, and multi-VL facts.
+- Compare/select target artifact validation must consume
+  `runtimeAVLVLContract` before accepting route payloads, header declarations,
+  C type mappings, runtime ABI mappings, compare predicate facts, select
+  layout, dual-compare mask-composition facts, statement plans, or candidate
+  metadata mirrors. Family-local runtime fields remain mirrors checked against
+  the same provider-built route description; they are not an independent
+  runtime authority.
+- Compare/select statement-plan validation must use the embedded runtime
+  contract for pre-loop `setvl`, loop bounds, loop `setvl`, loop VL operand,
+  loop induction name, runtime `n` ABI parameter, and remaining-AVL expression
+  checks when the compare/select validation contract is present. It may use
+  route-family fields for compare/select callees, vector/mask types, result
+  names, select layout, scalar splat, secondary compare, and mask-and facts
+  only after the runtime contract has already matched the rebuilt route
+  description.
+- Common EmitC carries the provider-built route and metadata mirrors; it must
+  not infer compare/select operation kind, predicate, select layout, runtime
+  control, ABI order, headers, type mappings, or route support from artifact
+  names, route ids, tests, scripts, C strings, or mirror metadata.
+
+Validation and errors:
+
+- Missing accessor result for a supported compare/select operation -> provider
+  and target validators fail before artifact export.
+- Missing embedded runtime AVL/VL selected-boundary contract, more than one or
+  zero runtime-element-count ABI parameter, stale runtime AVL source, stale
+  runtime-VL contract id, stale selected `with_vl` boundary/scope, stale
+  `setvl` callee, stale VL C type, stale full-chunk VL, stale loop VL, stale
+  loop induction, stale runtime `n` ABI role/order/ownership, stale
+  remaining-AVL metadata, or stale pointer advancement metadata -> target
+  validation fails before accepting compare/select route payload, headers,
+  ABI/type mappings, statement plans, predicate/select facts, or artifact
+  mirrors.
+- ABI order, operation, memory form, predicate, secondary predicate,
+  route-family plan id, target leaf profile, provider mirror, header summary,
+  C type mapping, binding summary, mask role/source/form, select layout,
+  inactive-lane contract, or masked passthrough layout differs from accessor
+  facts -> fail before artifact acceptance.
+- Candidate artifact metadata carries stale computed-mask memory, base-memory,
+  segment2, or unrelated route-family mirrors for the selected compare/select
+  route -> fail before bundle acceptance.
+
+Good:
+
+```text
+typed runtime_scalar_dual_compare_mask_and_select body/config/runtime facts
+  -> compare/select route-family plan and operand-binding facts
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
+  -> RVVCompareSelectRouteValidationContract
+  -> target validator consumes runtime contract before predicates/select layout
+```
+
+Base:
+
+```text
+typed cmp_select / computed_mask_select / runtime_scalar_cmp_select /
+runtime_scalar_dual_cmp_mask_and_select
+  -> RVVCompareSelectRouteValidationContract embeds
+     RVVRuntimeAVLVLSelectedBoundaryContract
+  -> target validation accepts only matching provider facts
+```
+
+Bad:
+
+```text
+compare/select statement validation:
+  reads runtime n, full-chunk VL, loop VL, or induction only from description strings
+  -> accepts a stale runtime AVL/VL selected-boundary contract
+```
+
+Required tests:
+
+- C++ target artifact tests must assert
+  `RVVCompareSelectRouteValidationContract::runtimeAVLVLContract` matches the
+  rebuilt route description for plain compare-select, computed-mask select,
+  runtime-scalar compare/select, and runtime-scalar dual compare/select
+  contract consumers.
+- C++ target artifact tests must mutate runtime AVL source, runtime-VL
+  contract, selected `with_vl` scope, `setvl` callee, VL C type,
+  full-chunk VL, loop VL, loop induction, runtime `n` ABI facts, and pointer
+  advancement metadata to prove fail-closed diagnostics before route
+  acceptance.
+- Generated-bundle dry-run tests must assert representative compare/select
+  selected-body artifacts still pass after the target consumer requires the
+  embedded runtime contract.
+- Runtime RVV correctness claims still require real `ssh rvv` execution after
+  provider and target validators accept the route.
+
+Correct:
+
+```text
+typed selected tcrv_rvv compare/select body/config/runtime facts
+  -> RVV provider compare/select facts
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
+  -> RVVCompareSelectRouteValidationContract
+  -> target validator consumes runtime contract before route-family payloads
+```
+
 ### Provider-Owned Memory Metadata Mirror Contract
 
 #### 1. Scope / Trigger
