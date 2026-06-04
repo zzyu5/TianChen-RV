@@ -137,7 +137,15 @@ void moveMigratedStatementPlan(
       std::make_move_iterator(plan.preLoopSteps.begin()),
       std::make_move_iterator(plan.preLoopSteps.end()));
   plan.preLoopSteps.clear();
+  selection.localVariables.append(
+      std::make_move_iterator(plan.localVariables.begin()),
+      std::make_move_iterator(plan.localVariables.end()));
+  plan.localVariables.clear();
   selection.loop = std::move(plan.loop);
+  selection.postLoopSteps.append(
+      std::make_move_iterator(plan.postLoopSteps.begin()),
+      std::make_move_iterator(plan.postLoopSteps.end()));
+  plan.postLoopSteps.clear();
 }
 
 void moveDirectContractionStatementPlan(
@@ -151,7 +159,15 @@ void moveDirectContractionStatementPlan(
       std::make_move_iterator(plan.preLoopSteps.begin()),
       std::make_move_iterator(plan.preLoopSteps.end()));
   plan.preLoopSteps.clear();
+  selection.localVariables.append(
+      std::make_move_iterator(plan.localVariables.begin()),
+      std::make_move_iterator(plan.localVariables.end()));
+  plan.localVariables.clear();
   selection.loop = std::move(plan.loop);
+  selection.postLoopSteps.append(
+      std::make_move_iterator(plan.postLoopSteps.begin()),
+      std::make_move_iterator(plan.postLoopSteps.end()));
+  plan.postLoopSteps.clear();
 }
 
 } // namespace
@@ -614,6 +630,64 @@ llvm::Error addRVVDirectContractionStatementOwnerLoopStep(
   return llvm::Error::success();
 }
 
+llvm::Error addRVVDirectContractionStatementOwnerPostLoopStep(
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeRVVDirectContractionStatementOwnerStep(
+          op, expectedRole, callee, operands, description, context,
+          std::move(result));
+  if (!step)
+    return step.takeError();
+  plan.postLoopSteps.push_back(std::move(*step));
+  return llvm::Error::success();
+}
+
+llvm::Error addRVVDirectContractionStatementOwnerLocalVariable(
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef name,
+    llvm::StringRef cType,
+    conversion::emitc::TCRVEmitCCallOpaqueOperand initialValue,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVDirectContractionStatementOwnerSourceProvenance(
+          op, expectedRole, description, context);
+  if (!source)
+    return source.takeError();
+  conversion::emitc::TCRVEmitCLocalVariable variable;
+  variable.sourceOp = std::move(*source);
+  variable.name = name.str();
+  variable.cType = cType.str();
+  variable.initialValue = std::move(initialValue);
+  plan.localVariables.push_back(std::move(variable));
+  return llvm::Error::success();
+}
+
+llvm::Error addRVVDirectContractionStatementOwnerLoopAssignment(
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef target,
+    conversion::emitc::TCRVEmitCCallOpaqueOperand value,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVDirectContractionStatementOwnerSourceProvenance(
+          op, expectedRole, description, context);
+  if (!source)
+    return source.takeError();
+  conversion::emitc::TCRVEmitCAssignStep step;
+  step.sourceOp = std::move(*source);
+  step.targetName = target.str();
+  step.value = std::move(value);
+  plan.loop.bodyAssignments.push_back(std::move(step));
+  return llvm::Error::success();
+}
+
 llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
@@ -710,7 +784,18 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
           TCRVEmitCCallOpaqueResult{fullChunkVLName.str(), vlCType.str()}))
     return error;
 
-  if (isDotReduction) {
+  if (isProductReductionDequantization) {
+    if (llvm::Error error =
+            addRVVDirectContractionStatementOwnerLocalVariable(
+                plan, slice.standaloneReduceOp.getOperation(), "compute",
+                "dot_acc_scalar", "int32_t",
+                TCRVEmitCCallOpaqueOperand{
+                    (llvm::StringRef(boundAccumulatorABI->cName) + "[0]")
+                        .str(),
+                    "int32_t"},
+                description, context))
+      return error;
+  } else if (isDotReduction) {
     if (llvm::Error error = addRVVDirectContractionStatementOwnerPreLoopStep(
             plan, slice.arithmeticOp, "compute",
             providerFacts.scalarSeedSplatLeaf,
@@ -1002,12 +1087,14 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
             TCRVEmitCCallOpaqueResult{"product_vec",
                                       productVectorCType.str()}))
       return error;
+    const std::string loopSeedExpression =
+        isProductReductionDequantization
+            ? std::string("dot_acc_scalar")
+            : (llvm::StringRef(boundOutABI->cName) + "[0]").str();
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.arithmeticOp, "compute",
             providerFacts.scalarSeedSplatLeaf,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundAccumulatorABI->cName) + "[0]").str(),
-                 "int32_t"},
+            {TCRVEmitCCallOpaqueOperand{loopSeedExpression, "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
             description, context,
@@ -1028,28 +1115,56 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       return error;
     if (isProductReductionDequantization) {
       if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              plan, slice.standaloneReduceOp.getOperation(), "compute",
+              "__riscv_vmv_x_s_i32m1_i32",
+              {TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
+                                          resultVectorCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"dot_acc_scalar_next", "int32_t"}))
+        return error;
+      if (llvm::Error error =
+              addRVVDirectContractionStatementOwnerLoopAssignment(
+                  plan, slice.standaloneReduceOp.getOperation(), "compute",
+                  "dot_acc_scalar",
+                  TCRVEmitCCallOpaqueOperand{"dot_acc_scalar_next",
+                                             "int32_t"},
+                  description, context))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
+              plan, slice.arithmeticOp, "compute",
+              providerFacts.scalarSeedSplatLeaf,
+              {TCRVEmitCCallOpaqueOperand{"dot_acc_scalar", "int32_t"},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"final_acc_vec",
+                                        resultVectorCType.str()}))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.dequantizeOp.getOperation(), "compute",
               providerFacts.dequantizeConvertLeaf,
-              {TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
+              {TCRVEmitCCallOpaqueOperand{"final_acc_vec",
                                           resultVectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
               description, context,
               TCRVEmitCCallOpaqueResult{"converted_f32_vec",
                                         dequantResultVectorCType.str()}))
         return error;
-      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.dequantizeOp.getOperation(), "compute",
               providerFacts.dequantizeScaleLeaf,
               {TCRVEmitCCallOpaqueOperand{"converted_f32_vec",
                                           dequantResultVectorCType.str()},
                TCRVEmitCCallOpaqueOperand{boundDequantScaleABI->cName,
                                           boundDequantScaleABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
               description, context,
               TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                         dequantResultVectorCType.str()}))
         return error;
-      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.storeOperation, "store", providerFacts.storeLeaf,
               {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
                                           boundOutABI->cType},
@@ -1304,10 +1419,16 @@ llvm::Error attachRVVSelectedBodyRouteStatementPlanOwnerSelection(
             selection.ownerKind) +
         "'");
 
+  for (conversion::emitc::TCRVEmitCLocalVariable &variable :
+       selection.localVariables)
+    route.addLocalVariable(std::move(variable));
   for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        selection.preLoopSteps)
     route.addCallOpaqueStep(std::move(step));
   route.addForLoop(std::move(selection.loop));
+  for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       selection.postLoopSteps)
+    route.addPostLoopStep(std::move(step));
   return llvm::Error::success();
 }
 

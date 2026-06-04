@@ -1562,7 +1562,11 @@ struct RVVSelectedBodyDirectContractionRouteStatementPlan {
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCLocalVariable, 2>
+      localVariables;
   conversion::emitc::TCRVEmitCForLoop loop;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
+      postLoopSteps;
 };
 
 enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
@@ -1589,7 +1593,11 @@ struct RVVSelectedBodyMigratedRouteStatementPlan {
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCLocalVariable, 2>
+      localVariables;
   conversion::emitc::TCRVEmitCForLoop loop;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
+      postLoopSteps;
 };
 
 struct RVVSelectedBodyMemoryRouteFamilyOwner {

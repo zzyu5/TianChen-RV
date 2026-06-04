@@ -108,6 +108,11 @@ void TCRVEmitCLowerableRoute::addSourceOpProvenance(
   sourceOpProvenance.push_back(std::move(sourceOp));
 }
 
+void TCRVEmitCLowerableRoute::addLocalVariable(
+    TCRVEmitCLocalVariable variable) {
+  localVariables.push_back(std::move(variable));
+}
+
 void TCRVEmitCLowerableRoute::addCallOpaqueStep(
     TCRVEmitCCallOpaqueStep step) {
   callOpaqueSteps.push_back(std::move(step));
@@ -115,6 +120,11 @@ void TCRVEmitCLowerableRoute::addCallOpaqueStep(
 
 void TCRVEmitCLowerableRoute::addForLoop(TCRVEmitCForLoop loop) {
   forLoops.push_back(std::move(loop));
+}
+
+void TCRVEmitCLowerableRoute::addPostLoopStep(
+    TCRVEmitCCallOpaqueStep step) {
+  postLoopSteps.push_back(std::move(step));
 }
 
 static llvm::Error validateCallOpaqueStep(llvm::StringRef routeID,
@@ -156,6 +166,60 @@ static llvm::Error validateCallOpaqueStep(llvm::StringRef routeID,
   return llvm::Error::success();
 }
 
+static llvm::Error validateSourceOpProvenance(
+    llvm::StringRef routeID, const TCRVEmitCSourceOpProvenance &sourceOp) {
+  if (llvm::Error error =
+          validateText(routeID, "source op name", sourceOp.opName))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "source op role", sourceOp.role))
+    return error;
+  if (!sourceOp.opInterface.empty())
+    if (llvm::Error error =
+            validateText(routeID, "source op interface",
+                         sourceOp.opInterface))
+      return error;
+  return llvm::Error::success();
+}
+
+static llvm::Error validateLocalVariable(llvm::StringRef routeID,
+                                         const TCRVEmitCLocalVariable &var) {
+  if (llvm::Error error = validateSourceOpProvenance(routeID, var.sourceOp))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "local variable name", var.name))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "local variable C type", var.cType))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "local variable initial expression",
+                       var.initialValue.expression))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "local variable initial C type",
+                       var.initialValue.cType))
+    return error;
+  return llvm::Error::success();
+}
+
+static llvm::Error validateAssignStep(llvm::StringRef routeID,
+                                      const TCRVEmitCAssignStep &step) {
+  if (llvm::Error error = validateSourceOpProvenance(routeID, step.sourceOp))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "assign target name", step.targetName))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "assign value expression",
+                       step.value.expression))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "assign value C type", step.value.cType))
+    return error;
+  return llvm::Error::success();
+}
+
 llvm::Error TCRVEmitCLowerableRoute::verify() const {
   if (llvm::Error error = validateText(routeID, "route id", routeID))
     return error;
@@ -164,7 +228,7 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
   if (headers.empty())
     return makeRouteError(routeID,
                           "requires at least one header requirement");
-  if (callOpaqueSteps.empty() && forLoops.empty())
+  if (callOpaqueSteps.empty() && forLoops.empty() && postLoopSteps.empty())
     return makeRouteError(
         routeID,
         "requires at least one emitc.call_opaque construction step or "
@@ -215,18 +279,18 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
         return error;
   }
 
-  for (const TCRVEmitCSourceOpProvenance &sourceOp : sourceOpProvenance) {
-    if (llvm::Error error =
-            validateText(routeID, "source op name", sourceOp.opName))
+  for (const TCRVEmitCSourceOpProvenance &sourceOp : sourceOpProvenance)
+    if (llvm::Error error = validateSourceOpProvenance(routeID, sourceOp))
       return error;
-    if (llvm::Error error =
-            validateText(routeID, "source op role", sourceOp.role))
+
+  llvm::StringSet<> localVariableNames;
+  for (const TCRVEmitCLocalVariable &variable : localVariables) {
+    if (llvm::Error error = validateLocalVariable(routeID, variable))
       return error;
-    if (!sourceOp.opInterface.empty())
-      if (llvm::Error error =
-              validateText(routeID, "source op interface",
-                           sourceOp.opInterface))
-        return error;
+    if (!localVariableNames.insert(variable.name).second)
+      return makeRouteError(routeID,
+                            llvm::Twine("duplicate local variable '") +
+                                variable.name + "'");
   }
 
   for (const TCRVEmitCCallOpaqueStep &step : callOpaqueSteps)
@@ -264,7 +328,14 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
     for (const TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
       if (llvm::Error error = validateCallOpaqueStep(routeID, step))
         return error;
+    for (const TCRVEmitCAssignStep &step : loop.bodyAssignments)
+      if (llvm::Error error = validateAssignStep(routeID, step))
+        return error;
   }
+
+  for (const TCRVEmitCCallOpaqueStep &step : postLoopSteps)
+    if (llvm::Error error = validateCallOpaqueStep(routeID, step))
+      return error;
 
   return llvm::Error::success();
 }

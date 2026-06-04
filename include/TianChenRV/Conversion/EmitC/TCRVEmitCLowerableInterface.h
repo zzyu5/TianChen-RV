@@ -56,12 +56,26 @@ struct TCRVEmitCCallOpaqueStep {
   std::optional<TCRVEmitCCallOpaqueResult> result;
 };
 
+struct TCRVEmitCLocalVariable {
+  TCRVEmitCSourceOpProvenance sourceOp;
+  std::string name;
+  std::string cType;
+  TCRVEmitCCallOpaqueOperand initialValue;
+};
+
+struct TCRVEmitCAssignStep {
+  TCRVEmitCSourceOpProvenance sourceOp;
+  std::string targetName;
+  TCRVEmitCCallOpaqueOperand value;
+};
+
 struct TCRVEmitCForLoop {
   std::string inductionVarName;
   TCRVEmitCCallOpaqueOperand lowerBound;
   TCRVEmitCCallOpaqueOperand upperBound;
   TCRVEmitCCallOpaqueOperand step;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> bodySteps;
+  llvm::SmallVector<TCRVEmitCAssignStep, 2> bodyAssignments;
 };
 
 class TCRVEmitCLowerableRoute {
@@ -87,10 +101,16 @@ public:
   llvm::ArrayRef<TCRVEmitCSourceOpProvenance> getSourceOpProvenance() const {
     return sourceOpProvenance;
   }
+  llvm::ArrayRef<TCRVEmitCLocalVariable> getLocalVariables() const {
+    return localVariables;
+  }
   llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getCallOpaqueSteps() const {
     return callOpaqueSteps;
   }
   llvm::ArrayRef<TCRVEmitCForLoop> getForLoops() const { return forLoops; }
+  llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getPostLoopSteps() const {
+    return postLoopSteps;
+  }
 
   void addHeader(llvm::StringRef header);
   void addTypeMapping(llvm::StringRef sourceType, llvm::StringRef cType);
@@ -100,8 +120,10 @@ public:
       llvm::StringRef name, llvm::StringRef resultCType = {},
       llvm::ArrayRef<llvm::StringRef> parameterCTypes = {});
   void addSourceOpProvenance(TCRVEmitCSourceOpProvenance sourceOp);
+  void addLocalVariable(TCRVEmitCLocalVariable variable);
   void addCallOpaqueStep(TCRVEmitCCallOpaqueStep step);
   void addForLoop(TCRVEmitCForLoop loop);
+  void addPostLoopStep(TCRVEmitCCallOpaqueStep step);
 
   llvm::Error verify() const;
 
@@ -113,8 +135,10 @@ private:
   llvm::SmallVector<TCRVEmitCABIValueMapping, 6> abiMappings;
   llvm::SmallVector<TCRVEmitCFunctionDeclaration, 8> functionDeclarations;
   llvm::SmallVector<TCRVEmitCSourceOpProvenance, 8> sourceOpProvenance;
+  llvm::SmallVector<TCRVEmitCLocalVariable, 2> localVariables;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> callOpaqueSteps;
   llvm::SmallVector<TCRVEmitCForLoop, 2> forLoops;
+  llvm::SmallVector<TCRVEmitCCallOpaqueStep, 4> postLoopSteps;
 };
 
 class TCRVEmitCLowerableInterface {

@@ -6,6 +6,64 @@
 ---
 
 
+## Session 455: Stage2 RVV contraction-dequant executable ABI closure
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV contraction-dequant executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed executable ABI evidence for the existing typed selected-body
+`widening_product_reduce_dequantize_f32` route. The round found and repaired a
+real production execution bug: the generated reduction path was reseeding from
+the original accumulator per runtime-VL chunk and dequantizing inside the loop.
+The route now carries a provider-owned scalar i32 local through the loop and
+performs f32 dequant/store once after the loop.
+
+### Main Changes
+
+- Added neutral local-variable, loop-assignment, and post-loop step support to
+  `TCRVEmitCLowerableRoute` and its common EmitC materializer.
+- Rewired the RVV contraction statement owner so composed product-reduction
+  dequant uses `dot_acc_scalar` as the cross-chunk i32 carry and emits the
+  f32 dequant/store post-loop.
+- Updated target artifact validation to consume and validate the new provider
+  facts, reject stale local/post-loop facts on non-dequant product reductions,
+  and keep composed-chain dequant facts under the contraction route family.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with neutral generated
+  bundle ABI consumer support for `widening_product_reduce_dequantize_f32`.
+- SSH evidence artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/product-reduce-dequant-e2e-ssh/evidence.json`.
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind widening_product_reduce_dequantize_f32 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dequant-scale=-0.125 --dequant-scale=0.375 --run-id product-reduce-dequant-e2e-dry --overwrite`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind widening_product_reduce_dequantize_f32 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dequant-scale=-0.125 --dequant-scale=0.375 --run-id product-reduce-dequant-e2e-ssh --overwrite`
+- [OK] `ssh rvv` compile/run evidence: generated header/object bundle, counts
+  `1,7,16,17,257`, two signed i8 patterns, scales `-0.125,0.375`, f32 abs
+  tolerance `1e-05`, source/accumulator preservation, and output tail sentinel
+  preservation.
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] focused lit from `build/test`: `explicit-selected-body-artifact-widening-product-reduce-dequantize-f32`, 1 passed, 484 excluded.
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] bounded old-authority/q-name scan over touched files; no positive
+  `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, q4/q8/llama, descriptor, or
+  source-front-door route authority was introduced.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
+
+
 
 ## Session 423: Stage2 RVV runtime-scalar splat-store route validation contract
 

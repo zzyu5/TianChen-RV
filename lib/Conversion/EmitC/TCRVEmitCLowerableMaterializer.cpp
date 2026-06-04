@@ -144,6 +144,31 @@ std::string makeStepProvenanceComment(const TCRVEmitCCallOpaqueStep &step) {
 }
 
 std::string
+makeLocalVariableProvenanceComment(const TCRVEmitCLocalVariable &variable) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_emitc.local_variable=" << variable.name
+     << " source_op=" << variable.sourceOp.opName
+     << " role=" << variable.sourceOp.role;
+  if (!variable.sourceOp.opInterface.empty())
+    os << " op_interface=" << variable.sourceOp.opInterface;
+  os.flush();
+  return text;
+}
+
+std::string makeAssignProvenanceComment(const TCRVEmitCAssignStep &step) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_emitc.assign target=" << step.targetName
+     << " source_op=" << step.sourceOp.opName
+     << " role=" << step.sourceOp.role;
+  if (!step.sourceOp.opInterface.empty())
+    os << " op_interface=" << step.sourceOp.opInterface;
+  os.flush();
+  return text;
+}
+
+std::string
 makeRouteSourceProvenanceComment(const TCRVEmitCSourceOpProvenance &source) {
   std::string text;
   llvm::raw_string_ostream os(text);
@@ -160,6 +185,32 @@ mlir::Location makeStepLocation(mlir::OpBuilder &builder,
   std::string name;
   llvm::raw_string_ostream os(name);
   os << "tcrv_emitc." << step.sourceOp.opName << "." << step.sourceOp.role;
+  if (!step.sourceOp.opInterface.empty())
+    os << "." << step.sourceOp.opInterface;
+  os.flush();
+  return mlir::NameLoc::get(builder.getStringAttr(name),
+                            builder.getUnknownLoc());
+}
+
+mlir::Location makeLocalVariableLocation(
+    mlir::OpBuilder &builder, const TCRVEmitCLocalVariable &variable) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "tcrv_emitc.local." << variable.sourceOp.opName << "."
+     << variable.sourceOp.role << "." << variable.name;
+  if (!variable.sourceOp.opInterface.empty())
+    os << "." << variable.sourceOp.opInterface;
+  os.flush();
+  return mlir::NameLoc::get(builder.getStringAttr(name),
+                            builder.getUnknownLoc());
+}
+
+mlir::Location makeAssignLocation(mlir::OpBuilder &builder,
+                                  const TCRVEmitCAssignStep &step) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "tcrv_emitc.assign." << step.sourceOp.opName << "."
+     << step.sourceOp.role << "." << step.targetName;
   if (!step.sourceOp.opInterface.empty())
     os << "." << step.sourceOp.opInterface;
   os.flush();
@@ -350,11 +401,17 @@ public:
          route.getSourceOpProvenance())
       if (llvm::Error error = materializeSourceProvenance(sourceOp))
         return std::move(error);
+    for (const TCRVEmitCLocalVariable &variable : route.getLocalVariables())
+      if (llvm::Error error = materializeLocalVariable(variable))
+        return std::move(error);
     for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps())
       if (llvm::Error error = materializeStep(step))
         return std::move(error);
     for (const TCRVEmitCForLoop &loop : route.getForLoops())
       if (llvm::Error error = materializeForLoop(loop))
+        return std::move(error);
+    for (const TCRVEmitCCallOpaqueStep &step : route.getPostLoopSteps())
+      if (llvm::Error error = materializeStep(step))
         return std::move(error);
     builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
 
@@ -457,6 +514,20 @@ private:
     if (isSafeIdentifier(expression)) {
       if (mlir::Value value = valueMap.lookup(expression))
         return value;
+      if (mlir::Value lvalue = lvalueMap.lookup(expression)) {
+        auto typedLValue =
+            llvm::dyn_cast<mlir::TypedValue<mlir::emitc::LValueType>>(lvalue);
+        if (!typedLValue)
+          return makeMaterializerError(
+              route.getRouteID(),
+              llvm::Twine("operand expression references local variable '") +
+                  expression + "' that is not an EmitC lvalue");
+        return builder
+            .create<mlir::emitc::LoadOp>(
+                builder.getUnknownLoc(),
+                typedLValue.getType().getValueType(), typedLValue)
+            .getResult();
+      }
       if (implicitValues.contains(expression))
         return builder
             .create<mlir::emitc::LiteralOp>(
@@ -713,7 +784,83 @@ private:
         valueMap = std::move(savedValueMap);
         return error;
       }
+    for (const TCRVEmitCAssignStep &step : loop.bodyAssignments)
+      if (llvm::Error error = materializeAssignment(step)) {
+        valueMap = std::move(savedValueMap);
+        return error;
+      }
     valueMap = std::move(savedValueMap);
+    return llvm::Error::success();
+  }
+
+  llvm::Error materializeLocalVariable(const TCRVEmitCLocalVariable &variable) {
+    if (llvm::Error error = validateSafeProvenance(route, variable.sourceOp))
+      return error;
+    if (llvm::Error error = validateSafeIdentifier(
+            route.getRouteID(), "EmitC local variable name", variable.name))
+      return error;
+    if (!isSafeCTypeText(variable.cType))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("local variable '") + variable.name +
+              "' must declare a bounded C type before EmitC materialization");
+    if (valueMap.contains(variable.name) || lvalueMap.contains(variable.name) ||
+        implicitValues.contains(variable.name))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("duplicate EmitC local variable name '") +
+              variable.name + "'");
+
+    mlir::Location loc = makeLocalVariableLocation(builder, variable);
+    builder.create<mlir::emitc::VerbatimOp>(
+        loc, makeLocalVariableProvenanceComment(variable));
+    mlir::Type valueType = getEmitCTypeForCType(context, variable.cType);
+    mlir::emitc::VariableOp variableOp =
+        builder.create<mlir::emitc::VariableOp>(
+            loc, mlir::emitc::LValueType::get(valueType),
+            mlir::emitc::OpaqueAttr::get(&context, "0"));
+    lvalueMap[variable.name] = variableOp.getResult();
+
+    TCRVEmitCAssignStep initializer;
+    initializer.sourceOp = variable.sourceOp;
+    initializer.targetName = variable.name;
+    initializer.value = variable.initialValue;
+    return materializeAssignment(initializer);
+  }
+
+  llvm::Error materializeAssignment(const TCRVEmitCAssignStep &step) {
+    if (llvm::Error error = validateSafeProvenance(route, step.sourceOp))
+      return error;
+    if (llvm::Error error = validateSafeIdentifier(
+            route.getRouteID(), "EmitC assignment target", step.targetName))
+      return error;
+    mlir::Value target = lvalueMap.lookup(step.targetName);
+    if (!target)
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("assignment target '") + step.targetName +
+              "' is not a materialized EmitC local variable");
+    auto targetLValue =
+        llvm::dyn_cast<mlir::TypedValue<mlir::emitc::LValueType>>(target);
+    if (!targetLValue)
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("assignment target '") + step.targetName +
+              "' is not an EmitC lvalue");
+
+    llvm::Expected<mlir::Value> value = materializeOperandExpression(step.value);
+    if (!value)
+      return value.takeError();
+
+    mlir::Location loc = makeAssignLocation(builder, step);
+    mlir::Type targetValueType = targetLValue.getType().getValueType();
+    if ((*value).getType() != targetValueType)
+      value = builder
+                  .create<mlir::emitc::CastOp>(loc, targetValueType, *value)
+                  .getResult();
+    builder.create<mlir::emitc::VerbatimOp>(loc,
+                                            makeAssignProvenanceComment(step));
+    builder.create<mlir::emitc::AssignOp>(loc, target, *value);
     return llvm::Error::success();
   }
 
@@ -744,6 +891,7 @@ private:
               step.result->name))
         return error;
       if (valueMap.contains(step.result->name) ||
+          lvalueMap.contains(step.result->name) ||
           implicitValues.contains(step.result->name))
         return makeMaterializerError(
             route.getRouteID(),
@@ -776,6 +924,7 @@ private:
   const TCRVEmitCMaterializationOptions &options;
   mlir::OpBuilder builder;
   llvm::StringMap<mlir::Value> valueMap;
+  llvm::StringMap<mlir::Value> lvalueMap;
   llvm::StringSet<> implicitValues;
 };
 

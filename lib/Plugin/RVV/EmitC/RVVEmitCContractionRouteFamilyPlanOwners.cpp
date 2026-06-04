@@ -46,6 +46,11 @@ constexpr llvm::StringLiteral kRVVWideningDotProductResultLayout(
 constexpr llvm::StringLiteral kRVVProductReductionResultLayout(
     "store-standalone-reduction-lane0-to-output-scalar");
 constexpr llvm::StringLiteral kRVVWideningDotProductStoreVL("1");
+constexpr llvm::StringLiteral kRVVProductReductionOutCarryBoundary(
+    "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1");
+constexpr llvm::StringLiteral
+    kRVVProductReductionDequantLocalCarryBoundary(
+        "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1");
 constexpr llvm::StringLiteral kRVVContractionRouteFamilyPlanID(
     "rvv-contraction-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVContractionProviderSupportedMirror(
@@ -1254,7 +1259,9 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
             plan.scalarSeedSplatIntrinsic ||
         analysis.description.reductionStoreVL != plan.reductionStoreVL ||
         analysis.description.standaloneReductionScalarResultRuntimeBoundary !=
-            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1" ||
+            (plan.usesProductReductionDequantization
+                 ? kRVVProductReductionDequantLocalCarryBoundary
+                 : kRVVProductReductionOutCarryBoundary) ||
         (plan.usesProductReductionDequantization &&
          (analysis.description.dequantizationRelation !=
               plan.dequantizationRelation ||
@@ -2217,12 +2224,12 @@ static void populateRVVWideningDotValidationContract(
   contract.expectedPreLoopStepCount =
       facts.operation ==
               RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32
-          ? 5
+          ? 1
           : 3;
   contract.expectedLoopBodyStepCount =
       facts.operation ==
               RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32
-          ? 9
+          ? 7
       : isComputedMask ? 12
                        : 7;
   contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
@@ -4132,7 +4139,9 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.scalarSeedSplatIntrinsic = plan.scalarSeedSplatIntrinsic;
     description.reductionStoreVL = plan.reductionStoreVL;
     description.standaloneReductionScalarResultRuntimeBoundary =
-        "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1";
+        plan.usesProductReductionDequantization
+            ? kRVVProductReductionDequantLocalCarryBoundary
+            : kRVVProductReductionOutCarryBoundary;
     if (plan.usesProductReductionDequantization) {
       description.dequantizationRelation = plan.dequantizationRelation;
       description.dequantizeConvertIntrinsic =
@@ -4446,7 +4455,9 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "scalar result runtime boundary",
             description.standaloneReductionScalarResultRuntimeBoundary,
-            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"))
+            usesProductReductionDequantization
+                ? kRVVProductReductionDequantLocalCarryBoundary
+                : kRVVProductReductionOutCarryBoundary))
       return error;
     if (usesProductReductionDequantization) {
       if (llvm::Error error =
