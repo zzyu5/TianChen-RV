@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the diff preserves RVV authority placement and does not add mirror-only or route-id authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that compare/select runtime facts stay RVV plugin owned and common EmitC/export remains neutral."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected-boundary-first validation and route-local runtime AVL/VL mirrors against the runtime contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit evidence and ssh rvv rationale for validation-only label changes."}

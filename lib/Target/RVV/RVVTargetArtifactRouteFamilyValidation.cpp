@@ -8831,11 +8831,11 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_control_plan",
           description.runtimeControlPlanID,
-          "selected typed RVV compare/select mask runtime AVL/VL control plan"))
+          "route-local runtime AVL/VL control plan mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_abi_order", description.runtimeABIOrder,
-          "selected typed RVV compare/select mask runtime ABI order"))
+          "route-local runtime AVL/VL ABI order mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",

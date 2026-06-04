@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Top-level TianChen-RV authority chain, RVV stage boundaries, and mirror-only metadata rules for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership boundary for typed body/config/runtime facts and compare/select route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route, compare/select route validation contract, and runtime AVL/VL selected-boundary contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused evidence requirements for C++ target API checks, lit checks, and ssh rvv boundary."}

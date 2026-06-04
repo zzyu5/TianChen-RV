@@ -903,3 +903,36 @@ Made RVV compare/select target validation consume RVVRuntimeAVLVLSelectedBoundar
 ### Next Steps
 
 - None - task complete
+
+
+## Session 442: Stage2 RVV compare/select candidate metadata runtime mirror closure
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select candidate metadata runtime mirror closure
+**Branch**: `main`
+
+### Summary
+
+Closed residual compare/select candidate metadata fallback labels for runtime control plan and runtime ABI order so both are explicit route-local runtime AVL/VL mirrors; focused target and lit checks passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
