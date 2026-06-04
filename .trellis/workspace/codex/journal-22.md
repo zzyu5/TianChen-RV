@@ -1334,3 +1334,44 @@ Closed the representative pre-realized computed_masked_widening_dot_reduce_add p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 449: Stage2 RVV strided-input widening dot-reduction executable artifact
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV strided-input widening dot-reduction executable artifact
+**Branch**: `main`
+
+### Summary
+
+Closed computed_masked_strided_input_widening_dot_reduce_add with generated artifact, external ABI harness, and real ssh rvv correctness evidence over counts 0,1,7,16,23,257 and stride pairs 2:3,3:2; no production code change was needed.
+
+### Main Changes
+
+- Created and archived Trellis task `06-04-stage2-rvv-strided-input-widening-dot-reduction-executable-artifact`.
+- Chose `computed_masked_strided_input_widening_dot_reduce_add` from `test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir`.
+- Recorded generated evidence at `artifacts/tmp/stage2-rvv-computed-mask-strided-input-widening-dot-reduction-executable-artifact/computed-masked-strided-input-widening-dot-reduce-add-ssh-rvv`.
+- Confirmed materialized body uses `tcrv_rvv.strided_load` for both i16 dot sources and emitted C++ uses `__riscv_vlse16_v_i16mf2` with runtime `lhs_stride` and `rhs_stride` ABI values.
+- `ssh rvv` compile/run passed for runtime counts `0,1,7,16,23,257`, stride pairs `2:3,3:2`, two mask patterns, and two input patterns.
+- No production provider, target, plugin, fixture, or script code change was needed; the existing route/emission/harness path already executed end to end.
+
+### Git Commits
+
+included-in-this-commit
+
+### Testing
+
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-04-stage2-rvv-strided-input-widening-dot-reduction-executable-artifact`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_masked_strided_input_widening_dot_reduce_add ...`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_strided_input_widening_dot_reduce_add --ssh-target rvv ...`
+- [OK] `rtk bash -lc 'cd build/test && /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add'`
+- [OK] bounded old-authority scan over the task files and relevant provider/target/fixture/script surfaces.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV authority chain and no legacy route authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider-local direct contraction ownership and fail-closed boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check target artifact validation consumes provider-owned widening dot-reduce contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle evidence, ssh rvv runtime counts, mask, stride, and tail oracle."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization and metadata mirror boundaries."}

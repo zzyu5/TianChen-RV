@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV authority chain and Stage1/Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV direct contraction provider owner boundary and computed-mask strided widening-dot facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built EmitC route and widening dot-reduce target validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv evidence requirements for computed-mask strided widening-dot."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization and metadata-as-mirror rules."}
