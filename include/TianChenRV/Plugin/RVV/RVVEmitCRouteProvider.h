@@ -489,6 +489,7 @@ struct RVVBaseMemoryMovementRouteValidationContract {
   std::string routeOperandBindingSummary;
   std::string baseMemoryMovementRouteFamilyPlanID;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;

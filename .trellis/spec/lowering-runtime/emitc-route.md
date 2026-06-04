@@ -3356,6 +3356,41 @@ std::optional<RVVBaseMemoryMovementRouteFacts>
 getRVVBaseMemoryMovementRouteFacts(RVVSelectedBodyOperationKind operation);
 ```
 
+The target-facing validation contract for this route family embeds the shared
+runtime AVL/VL selected-boundary contract:
+
+```c++
+struct RVVBaseMemoryMovementRouteValidationContract {
+  RVVBaseMemoryMovementRouteValidationKind kind;
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string baseMemoryMovementRouteFamilyPlanID;
+  std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
+  ...
+};
+
+std::optional<RVVBaseMemoryMovementRouteValidationContract>
+getRVVBaseMemoryMovementRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+```
+
 Trigger: use this surface when base memory routes such as strided load/unit
 store, unit load/strided store, indexed gather/unit store, indexed
 scatter/unit load, masked unit load/store, or masked unit store share facts
@@ -3385,6 +3420,27 @@ Contracts:
   stale provider facts before accepting object/header/bundle artifacts.
   Candidate metadata may only mirror accessor facts after the provider route is
   rebuilt.
+- `getRVVBaseMemoryMovementRouteValidationContract(...)` builds
+  `runtimeAVLVLContract` through
+  `getRVVRuntimeAVLVLSelectedBoundaryContract(...)` after the provider-owned
+  base-memory runtime ABI parameter list is available. The runtime contract is
+  the selected-boundary authority for runtime AVL source, runtime-VL contract,
+  selected `with_vl` scope, `setvl` callee, VL C type, full-chunk VL, loop VL,
+  loop induction, runtime `n` ABI parameter, remaining-AVL metadata, pointer
+  advancement metadata, bounded-slice, and multi-VL facts.
+- Base-memory target artifact validation must consume
+  `runtimeAVLVLContract` before accepting route ids, route payload, header
+  declarations, C type mappings, ABI mappings, statement plans, stride/index/
+  mask facts, pointer advancement, or candidate metadata mirrors. The older
+  family-local runtime fields remain mirrors checked against the same
+  provider-built route description; they are not an independent runtime
+  authority.
+- Base-memory statement-plan validation uses the embedded runtime contract for
+  the pre-loop `setvl`, loop bounds, loop `setvl`, loop VL operand, loop
+  induction name, runtime `n` ABI parameter, and pointer-advance induction.
+  It may use route-family fields for memory-form-specific callees, vector
+  types, result names, strides, indices, masks, and passthrough facts only
+  after the runtime contract has already matched the rebuilt route description.
 - Common EmitC carries the provider-built route and metadata mirrors; it must
   not infer base memory kind, index role, offset unit, header set, C type
   mapping, or ABI order from artifact names, route ids, tests, scripts, C
@@ -3394,6 +3450,14 @@ Validation and errors:
 
 - Missing accessor result for a supported base memory operation -> provider and
   target validators fail before artifact export.
+- Missing embedded runtime AVL/VL selected-boundary contract, more than one or
+  zero runtime-element-count ABI parameter, stale runtime AVL source, stale
+  runtime-VL contract id, stale selected `with_vl` boundary/scope, stale
+  `setvl` callee, stale VL C type, stale full-chunk VL, stale loop VL, stale
+  loop induction, stale runtime `n` ABI role/order/ownership, stale
+  remaining-AVL metadata, or stale pointer advancement metadata -> target
+  validation fails before accepting base-memory route payload, headers,
+  ABI/type mappings, statement plans, or artifact mirrors.
 - ABI order, memory form, indexed/strided/masked layout, index EEW, offset
   unit, index source, route-family plan, target leaf profile, provider mirror,
   header summary, C type mapping, or binding summary differs from accessor
@@ -3407,9 +3471,22 @@ Good:
 ```text
 typed indexed_gather_unit_store body/config/runtime facts
   -> getRVVBaseMemoryMovementRouteFacts(IndexedGatherUnitStore)
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
   -> base memory route-family plan and operand-binding summary
   -> provider-built TCRVEmitCLowerableRoute
-  -> target validator consumes the same facts
+  -> target validator consumes runtime contract before the same route-family
+     facts
+```
+
+Base:
+
+```text
+typed strided_load_unit_store / unit_load_strided_store /
+indexed_gather_unit_store / indexed_scatter_unit_load /
+masked_unit_load_store / masked_unit_store
+  -> RVVBaseMemoryMovementRouteValidationContract embeds
+     RVVRuntimeAVLVLSelectedBoundaryContract
+  -> target validation accepts only matching provider facts
 ```
 
 Bad:
@@ -3419,6 +3496,14 @@ target validator local table says index_eew=32 and offset_unit=element
   -> accepts artifact while provider accessor is missing or route metadata is stale
 ```
 
+Bad:
+
+```text
+base-memory statement validation:
+  reads loop induction, runtime n, or VL names from family-local mirrors
+  -> accepts a stale runtime AVL/VL selected-boundary contract
+```
+
 Required tests:
 
 - C++ target artifact tests must mutate provider descriptions and candidate
@@ -3426,11 +3511,37 @@ Required tests:
   indexed layout, route-family plan, target profile, provider mirror, header
   facts, type facts, binding summary, and accidental strided/unit-load
   fallback.
+- C++ target artifact tests must assert
+  `RVVBaseMemoryMovementRouteValidationContract::runtimeAVLVLContract` matches
+  the rebuilt route description for every production-active base-memory
+  movement operation and must mutate runtime AVL source, runtime-VL contract,
+  selected `with_vl` boundary/scope, `setvl` callee, VL C type, full-chunk VL,
+  loop VL, loop induction, runtime `n` ABI facts, and pointer advancement
+  metadata to prove fail-closed diagnostics before route acceptance.
 - Generated-bundle dry-run tests must assert representative accessor facts,
   base memory boundary evidence, and provider-derived operand/header/type
   summaries.
 - Runtime RVV correctness claims still require real `ssh rvv` execution after
   provider and target validators accept the route.
+
+Wrong:
+
+```text
+target base-memory validator:
+  description route id names indexed_gather_unit_store
+  -> reconstructs runtime n/VL from ABI strings and loop C snippets
+  -> accepts stale runtime AVL/VL or pointer advancement facts
+```
+
+Correct:
+
+```text
+typed selected tcrv_rvv base-memory body/config/runtime facts
+  -> RVV provider base-memory facts
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
+  -> RVVBaseMemoryMovementRouteValidationContract
+  -> target validator consumes runtime contract before route-family payloads
+```
 
 ### Provider-Owned Memory Metadata Mirror Contract
 

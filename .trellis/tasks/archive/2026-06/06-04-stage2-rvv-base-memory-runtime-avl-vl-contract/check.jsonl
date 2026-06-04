@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no route-id, artifact, descriptor, source-front-door, status, or mirror authority was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify base-memory runtime AVL/VL contract remains RVV plugin/provider-owned and selected-body based."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify the base-memory route-family validation contract embeds the runtime AVL/VL selected-boundary contract and target validation consumes it before artifact acceptance."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/lit checks and ssh rvv no-runtime-change rationale are sufficient."}
+{"file": ".trellis/tasks/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md", "reason": "Verify acceptance criteria, evidence, scans, status, and continuation point are truthful."}

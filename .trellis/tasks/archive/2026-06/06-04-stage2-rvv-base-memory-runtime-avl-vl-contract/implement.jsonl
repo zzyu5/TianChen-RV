@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 selected-body boundary, common EmitC neutrality, and descriptor/mirror non-authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of base-memory movement realization, route-control provider plan, statement-plan boundary, runtime ABI consumption, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Runtime AVL/VL selected-boundary contract, base-memory provider-owned fact surface, target consumer contract model, and common EmitC route boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit coverage requirements and ssh rvv evidence boundary for runtime/correctness claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure runtime AVL/VL promotion remains RVV plugin-local and does not add core/common RVV semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure runtime ABI/control work stays in selected typed RVV body/provider contract and does not add high-level compute semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md", "reason": "Previous segment2 runtime AVL/VL selected-boundary promotion pattern and continuation point for base-memory movement."}

@@ -38,6 +38,10 @@ llvm::StringRef lookupCandidateMetadataValue(
   return {};
 }
 
+llvm::Error validateRVVRuntimeAVLVLSelectedBoundaryContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &contract);
+
 llvm::Error requireCandidateMetadataMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef expected, llvm::StringRef label) {
@@ -1889,11 +1893,13 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVBaseMemoryMovementRouteValidationContract &contract) {
   llvm::StringRef consumerLabel = contract.consumerLabel;
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
 
   if (llvm::Error error =
           validateRVVBaseMemoryMovementRuntimeABIFacts(description, contract))
     return error;
-  if (contract.vlCType.empty() || contract.vectorCType.empty() ||
+  if (runtimeContract.vlCType.empty() || contract.vectorCType.empty() ||
       contract.resultName.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -1955,6 +1961,13 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         llvm::Twine(consumerLabel) +
         " requires runtime n/AVL ABI role to match the selected base-memory "
         "ABI order before validating route statements");
+  if (!runtimeABIParameterEquals(*runtimeNABI,
+                                 runtimeContract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI parameter to match the provider-owned "
+        "runtime AVL/VL selected-boundary contract before validating route "
+        "statements");
 
   if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
@@ -1966,9 +1979,10 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
       route.getCallOpaqueSteps().front();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, consumerLabel, "pre-loop setvl",
-          contract.setVLIntrinsic,
-          {{runtimeNABI->cName, runtimeNABI->cType}},
-          contract.emitCFullChunkVLName, contract.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{runtimeContract.runtimeAVLParameter.cName,
+            runtimeContract.runtimeAVLParameter.cType}},
+          runtimeContract.emitCFullChunkVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -1982,19 +1996,20 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         "base-memory-movement target artifact consumer requires exactly one "
         "provider-built runtime AVL/VL loop before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != contract.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != contract.vlCType ||
-      loop.upperBound.expression != runtimeNABI->cName ||
-      loop.upperBound.cType != runtimeNABI->cType ||
-      loop.step.expression != contract.emitCFullChunkVLName ||
-      loop.step.cType != contract.vlCType)
+      loop.lowerBound.cType != runtimeContract.vlCType ||
+      loop.upperBound.expression !=
+          runtimeContract.runtimeAVLParameter.cName ||
+      loop.upperBound.cType != runtimeContract.runtimeAVLParameter.cType ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         "base-memory-movement target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeNABI->cName) + " - " +
-       contract.emitCLoopInductionName)
+      (llvm::StringRef(runtimeContract.runtimeAVLParameter.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
           .str();
 
   if (contract.expectedPreLoopStepCount == 0 ||
@@ -2012,8 +2027,9 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
 
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          contract.setVLIntrinsic, {{expectedRemainingAVL, contract.vlCType}},
-          contract.emitCLoopVLName, contract.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
     if (!routeStepSourceIsSelectedRVVBody(step))
@@ -2023,17 +2039,17 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
 
   const std::string sourcePointer =
       (llvm::StringRef(sourceABI->cName) + " + " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   const std::string destinationPointer =
       (llvm::StringRef(destinationABI->cName) + " + " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   const std::string stridedSourcePointer =
       sourceStrideABI
           ? ("(const int32_t *)((const uint8_t *)" +
              llvm::StringRef(sourceABI->cName) + " + (" +
-             contract.emitCLoopInductionName + " * " +
+             runtimeContract.emitCLoopInductionName + " * " +
              sourceStrideABI->cName + "))")
                 .str()
           : std::string();
@@ -2041,18 +2057,18 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
       destinationStrideABI
           ? ("(int32_t *)((uint8_t *)" +
              llvm::StringRef(destinationABI->cName) + " + (" +
-             contract.emitCLoopInductionName + " * " +
+             runtimeContract.emitCLoopInductionName + " * " +
              destinationStrideABI->cName + "))")
                 .str()
           : std::string();
   const std::string indexPointer =
       indexABI ? (llvm::StringRef(indexABI->cName) + " + " +
-                  contract.emitCLoopInductionName)
+                  runtimeContract.emitCLoopInductionName)
                      .str()
                : std::string();
   const std::string maskPointer =
       maskABI ? (llvm::StringRef(maskABI->cName) + " + " +
-                 contract.emitCLoopInductionName)
+                 runtimeContract.emitCLoopInductionName)
                     .str()
               : std::string();
 
@@ -2063,7 +2079,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         loop.bodySteps[stepIndex], consumerLabel, stepLabel,
         contract.vectorLoadIntrinsic,
         {{sourcePointer, sourceABI->cType},
-         {contract.emitCLoopVLName, contract.vlCType}},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         resultName, contract.vectorCType);
   };
   auto validateUnitStore = [&](std::size_t stepIndex,
@@ -2074,7 +2090,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         contract.storeIntrinsic,
         {{destinationPointer, destinationABI->cType},
          {valueName, contract.vectorCType},
-         {contract.emitCLoopVLName, contract.vlCType}});
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}});
   };
 
   switch (operation) {
@@ -2084,7 +2100,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             contract.stridedLoadIntrinsic,
             {{stridedSourcePointer, sourceABI->cType},
              {sourceStrideABI->cName, "ptrdiff_t"},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.resultName, contract.vectorCType))
       return error;
     return validateUnitStore(/*stepIndex=*/2, contract.resultName,
@@ -2100,7 +2116,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         {{stridedDestinationPointer, destinationABI->cType},
          {destinationStrideABI->cName, "ptrdiff_t"},
          {contract.resultName, contract.vectorCType},
-         {contract.emitCLoopVLName, contract.vlCType}});
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}});
   case OperationKind::IndexedGatherUnitStore:
     if (contract.indexVectorCType.empty())
       return makeRVVTargetRouteError(
@@ -2111,7 +2127,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             loop.bodySteps[1], consumerLabel, "index load",
             contract.indexLoadIntrinsic,
             {{indexPointer, indexABI->cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "index_vec", contract.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -2119,7 +2135,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             contract.indexScaleIntrinsic,
             {{"index_vec", contract.indexVectorCType},
              {"4", "uint32_t"},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "byte_offsets", contract.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -2127,7 +2143,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             contract.indexedLoadIntrinsic,
             {{sourceABI->cName, sourceABI->cType},
              {"byte_offsets", contract.indexVectorCType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.resultName, contract.vectorCType))
       return error;
     return validateUnitStore(/*stepIndex=*/4, contract.resultName,
@@ -2146,7 +2162,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             loop.bodySteps[2], consumerLabel, "index load",
             contract.indexLoadIntrinsic,
             {{indexPointer, indexABI->cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "index_vec", contract.indexVectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -2154,7 +2170,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             contract.indexScaleIntrinsic,
             {{"index_vec", contract.indexVectorCType},
              {"4", "uint32_t"},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "byte_offsets", contract.indexVectorCType))
       return error;
     return validateRVVProviderBuiltRouteStep(
@@ -2163,7 +2179,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         {{destinationABI->cName, destinationABI->cType},
          {"byte_offsets", contract.indexVectorCType},
          {contract.resultName, contract.vectorCType},
-         {contract.emitCLoopVLName, contract.vlCType}});
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}});
   case OperationKind::MaskedUnitLoadStore:
     if (contract.maskName.empty() || contract.maskCType.empty())
       return makeRVVTargetRouteError(
@@ -2174,7 +2190,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             loop.bodySteps[1], consumerLabel, "mask vector load",
             contract.vectorLoadIntrinsic,
             {{maskPointer, maskABI->cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "mask_i32_vec", contract.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -2182,14 +2198,14 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             contract.compareIntrinsic,
             {{"mask_i32_vec", contract.vectorCType},
              {"0", "int32_t"},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.maskName, contract.maskCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[3], consumerLabel, "passthrough load",
             contract.vectorLoadIntrinsic,
             {{destinationPointer, destinationABI->cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "old_dst_vec", contract.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -2198,7 +2214,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             {{contract.maskName, contract.maskCType},
              {"old_dst_vec", contract.vectorCType},
              {sourcePointer, sourceABI->cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.resultName, contract.vectorCType))
       return error;
     return validateUnitStore(/*stepIndex=*/5, contract.resultName,
@@ -2216,7 +2232,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             loop.bodySteps[2], consumerLabel, "mask vector load",
             contract.vectorLoadIntrinsic,
             {{maskPointer, maskABI->cType},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "mask_i32_vec", contract.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -2224,7 +2240,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
             contract.compareIntrinsic,
             {{"mask_i32_vec", contract.vectorCType},
              {"0", "int32_t"},
-             {contract.emitCLoopVLName, contract.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             contract.maskName, contract.maskCType))
       return error;
     return validateRVVProviderBuiltRouteStep(
@@ -2233,7 +2249,7 @@ llvm::Error validateRVVBaseMemoryMovementRouteStatementPlan(
         {{contract.maskName, contract.maskCType},
          {destinationPointer, destinationABI->cType},
          {"lhs_vec", contract.vectorCType},
-         {contract.emitCLoopVLName, contract.vlCType}});
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}});
   default:
     llvm_unreachable("validated non-base-memory operation as base memory");
   }
@@ -2350,6 +2366,10 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
         " requires complete provider-owned route payload, dtype/config, "
         "runtime, binding, header/type, intrinsic, and result contract facts "
         "before artifact export");
+
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract->runtimeAVLVLContract))
+    return error;
 
   if (route.getRouteID() != contract->emitCRouteID)
     return makeRVVTargetRouteError(
