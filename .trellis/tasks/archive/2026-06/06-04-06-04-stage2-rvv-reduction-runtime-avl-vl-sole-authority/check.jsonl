@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Confirm final diff preserves RVV authority chain and Stage2 cleanup scope."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Confirm RVV semantics remain plugin-owned and no common/export semantic branch is added."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Confirm reduction target consumers validate runtime AVL/VL selected-boundary contract before mirrors."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Confirm focused C++/lit checks and ssh rvv no-runtime-change rationale are appropriate."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-contraction-runtime-avl-vl-sole-authority/prd.md","reason":"Compare final runtime mirror labels and fail-closed diagnostics with the immediately preceding contraction cleanup."}

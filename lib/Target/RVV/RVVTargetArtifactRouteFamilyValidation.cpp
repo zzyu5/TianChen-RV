@@ -4621,11 +4621,6 @@ llvm::Error validateRVVStandaloneReductionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVStandaloneReductionRouteValidationContract
         &contract) {
-  if (llvm::Error error =
-          requireRVVStandaloneReductionContractStringField(
-              contract.consumerLabel, "runtime ABI order",
-              description.runtimeABIOrder, contract.runtimeABIOrder))
-    return error;
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
@@ -4683,10 +4678,6 @@ llvm::Error validateRVVStandaloneReductionDescriptionAgainstContract(
     return error;
   if (llvm::Error error = requireRVVProviderDerivedField(
           consumerLabel, "mask policy", description.maskPolicy))
-    return error;
-  if (llvm::Error error = requireRVVProviderDerivedField(
-          consumerLabel, "runtime AVL/VL control plan",
-          description.runtimeControlPlanID))
     return error;
   if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
           consumerLabel, "provider-supported mirror",
@@ -5664,6 +5655,13 @@ llvm::Error validateRVVStandaloneReductionAccumulationRoutePayloadFacts(
 
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract->runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract->consumerLabel, contract->runtimeAVLVLContract,
+          contract->runtimeControlPlanID, contract->runtimeABIOrder,
+          contract->setVLIntrinsic, contract->vlCType,
+          contract->emitCFullChunkVLName, contract->emitCLoopVLName,
+          contract->emitCLoopInductionName))
     return error;
 
   if (route.getRouteID() != contract->emitCRouteID)
@@ -11513,12 +11511,6 @@ bool isRVVVectorReductionTargetArtifactRouteFamilyConsumer(
 llvm::Error validateRVVVectorReductionRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVVectorReductionRouteValidationContract &contract) {
-  if (description.runtimeABIOrder != contract.runtimeABIOrder)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-derived runtime ABI order '" +
-        contract.runtimeABIOrder + "' but was '" +
-        description.runtimeABIOrder + "'");
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
@@ -11828,12 +11820,6 @@ llvm::Error validateRVVVectorReductionTypedRouteFacts(
         ", LMUL '" + contract.lmul + "', tail '" + contract.tailPolicy +
         "', mask '" + contract.maskPolicy + "', and config '" +
         contract.configContractID + "' before artifact export");
-  if (description.runtimeControlPlanID != contract.runtimeControlPlanID)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned runtime control plan '" +
-        contract.runtimeControlPlanID + "' but was '" +
-        description.runtimeControlPlanID + "'");
   if (description.providerSupportedMirror != contract.providerSupportedMirror ||
       description.targetLeafProfile != contract.targetLeafProfile ||
       description.requiredHeaderDeclarations !=
@@ -11929,6 +11915,17 @@ llvm::Error validateRVVVectorReductionRoutePayloadFacts(
     return makeRVVTargetRouteError(
         "vector reduction target artifact consumer requires provider-owned "
         "route validation contract before artifact export");
+
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract->runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract->consumerLabel, contract->runtimeAVLVLContract,
+          contract->runtimeControlPlanID, contract->runtimeABIOrder,
+          contract->setVLIntrinsic, contract->vlCType,
+          contract->emitCFullChunkVLName, contract->emitCLoopVLName,
+          contract->emitCLoopInductionName))
+    return error;
 
   if (route.getRouteID() != contract->emitCRouteID)
     return makeRVVTargetRouteError(
@@ -12054,12 +12051,12 @@ llvm::Error validateRVVVectorReductionTargetArtifactCandidateMirrors(
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_control_plan",
           contract->runtimeControlPlanID,
-          "selected typed RVV vector reduction runtime AVL/VL control plan"))
+          "route-local runtime AVL/VL control plan mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.runtime_abi_order",
           contract->runtimeABIOrder,
-          "selected typed RVV vector reduction runtime ABI order"))
+          "route-local runtime AVL/VL ABI order mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",

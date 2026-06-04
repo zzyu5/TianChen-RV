@@ -5164,6 +5164,26 @@ bool expectRVVTargetArtifactExporterShape(
                     "header/type, layout, and statement-plan facts\n";
     return false;
   }
+  const tianchenrv::plugin::rvv::
+      RVVRuntimeAVLVLSelectedBoundaryContract
+          &vectorReductionRuntimeContract =
+              vectorReductionContract->runtimeAVLVLContract;
+  if (vectorReductionRuntimeContract.consumerLabel.empty() ||
+      vectorReductionRuntimeContract.runtimeABIOrder !=
+          vectorReductionDescription.runtimeABIOrder ||
+      vectorReductionRuntimeContract.runtimeAVLASource !=
+          vectorReductionDescription.runtimeAVLASource ||
+      !expectRVVProviderRouteLocalRuntimeAVLVLMirrors(
+          "vector-reduction reduce_add contract",
+          vectorReductionContract->runtimeControlPlanID,
+          vectorReductionContract->runtimeABIOrder,
+          vectorReductionContract->setVLIntrinsic,
+          vectorReductionContract->vlCType,
+          vectorReductionContract->emitCFullChunkVLName,
+          vectorReductionContract->emitCLoopVLName,
+          vectorReductionContract->emitCLoopInductionName,
+          vectorReductionRuntimeContract))
+    return false;
   if (!expectSuccess(
           tianchenrv::target::rvv::
               validateRVVTargetArtifactRouteFamilyProviderFacts(
@@ -5244,7 +5264,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectVectorReductionProviderFailure(
           staleVectorReductionRuntimeRole,
           "vector-reduction reduce_add registry rejects stale runtime n role",
-          {"parameter 3", "n", "runtime-element-count"}))
+          {"runtime n/AVL ABI parameter"}))
     return false;
 
   RVVRouteDescription staleVectorReductionLayout = vectorReductionDescription;
@@ -5413,6 +5433,25 @@ bool expectRVVTargetArtifactExporterShape(
            "tcrv_rvv.binary"}))
     return false;
 
+  TargetArtifactCandidate staleVectorReductionRuntimeControlMirror =
+      vectorReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleVectorReductionRuntimeControlMirror,
+          "tcrv_rvv.runtime_control_plan",
+          "metadata-derived-runtime-plan")) {
+    llvm::errs() << "test fixture did not contain vector-reduction runtime "
+                    "control plan mirror metadata\n";
+    return false;
+  }
+  if (!expectVectorReductionCandidateFailure(
+          staleVectorReductionRuntimeControlMirror,
+          "vector-reduction reduce_add registry rejects stale runtime control "
+          "mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
   TargetArtifactCandidate staleVectorReductionABIMirror =
       vectorReductionFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleVectorReductionABIMirror,
@@ -5425,7 +5464,9 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectVectorReductionCandidateFailure(
           staleVectorReductionABIMirror,
           "vector-reduction reduce_add registry rejects stale ABI mirror",
-          {"runtime_abi_order", "lhs,rhs,out,n", "lhs,out,rhs,n"}))
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror", "lhs,rhs,out,n",
+           "lhs,out,rhs,n"}))
     return false;
 
   TargetArtifactCandidate staleVectorReductionStoreVLMirror =
@@ -6180,6 +6221,25 @@ bool expectRVVTargetArtifactExporterShape(
            "header-mirror"}))
     return false;
 
+  TargetArtifactCandidate staleStandaloneAddRuntimeControlMirror =
+      standaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleStandaloneAddRuntimeControlMirror,
+          "tcrv_rvv.runtime_control_plan",
+          "metadata-derived-runtime-plan")) {
+    llvm::errs() << "test fixture did not contain standalone reduce_add "
+                    "runtime control plan mirror metadata\n";
+    return false;
+  }
+  if (!expectStandaloneReduceAddCandidateFailure(
+          staleStandaloneAddRuntimeControlMirror,
+          "standalone reduce_add registry rejects stale runtime control "
+          "mirror",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
   TargetArtifactCandidate staleStandaloneAddM2VectorLoadMirror =
       standaloneReduceAddM2Fixture.candidate;
   if (!rewriteArtifactMetadataValue(staleStandaloneAddM2VectorLoadMirror,
@@ -6372,7 +6432,9 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectStandaloneReduceMinCandidateFailure(
           staleStandaloneMinABIMirror,
           "standalone reduce_min registry rejects stale ABI mirror",
-          {"runtime_abi_order", "lhs,acc,out,n", "lhs,out,acc,n"}))
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror", "lhs,acc,out,n",
+           "lhs,out,acc,n"}))
     return false;
 
   TargetArtifactCandidate staleStandaloneMinProviderMirrorCandidate =
@@ -8211,7 +8273,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneAddABIMirror,
           "runtime-scalar computed-mask standalone reduce_add registry rejects "
           "stale runtime ABI mirror",
-          {"runtime_abi_order", "cmp_lhs,rhs_scalar,src,acc,out,n",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror",
+           "cmp_lhs,rhs_scalar,src,acc,out,n",
            "cmp_lhs,src,rhs_scalar,acc,out,n"}))
     return false;
 
@@ -8636,7 +8700,9 @@ bool expectRVVTargetArtifactExporterShape(
           staleRuntimeScalarStandaloneMinABIMirror,
           "runtime-scalar computed-mask standalone reduce_min registry rejects "
           "stale runtime ABI mirror",
-          {"runtime_abi_order", "cmp_lhs,rhs_scalar,src,acc,out,n",
+          {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror",
+           "cmp_lhs,rhs_scalar,src,acc,out,n",
            "cmp_lhs,src,rhs_scalar,acc,out,n"}))
     return false;
 

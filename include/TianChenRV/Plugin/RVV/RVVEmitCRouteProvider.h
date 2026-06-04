@@ -1316,6 +1316,8 @@ struct RVVVectorReductionRouteValidationContract {
   std::string tailPolicy;
   std::string maskPolicy;
   std::string configContractID;
+  // Route-local runtime/control copies are target-side consistency mirrors.
+  // Runtime AVL/VL acceptance authority is runtimeAVLVLContract.
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -1325,6 +1327,7 @@ struct RVVVectorReductionRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string reductionAccumulatorLayout;
   std::string reductionResultLayout;
@@ -1471,6 +1474,8 @@ struct RVVStandaloneReductionRouteValidationContract {
   std::string tailPolicy;
   std::string maskPolicy;
   std::string configContractID;
+  // Route-local runtime/control copies are target-side consistency mirrors.
+  // Runtime AVL/VL acceptance authority is runtimeAVLVLContract.
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;

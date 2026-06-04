@@ -2342,10 +2342,10 @@ buildRVVStandaloneReductionRouteMetadataMirrorContract(
   appendRVVStandaloneReductionMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       facts.runtimeControlPlanID,
-      "selected typed RVV standalone reduction runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVStandaloneReductionMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
-      "selected typed RVV standalone reduction runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVStandaloneReductionMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations",
       facts.requiredHeaderDeclarations,
@@ -5147,6 +5147,14 @@ buildRVVVectorReductionRouteValidationContract(
   for (const support::RuntimeABIParameter &parameter :
        contract.runtimeABIParameters)
     contract.runtimeABIParameterRoles.push_back(parameter.role);
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
 
   appendRVVVectorReductionValidationHeaders(
       contract, contract.requiredHeaderDeclarations);

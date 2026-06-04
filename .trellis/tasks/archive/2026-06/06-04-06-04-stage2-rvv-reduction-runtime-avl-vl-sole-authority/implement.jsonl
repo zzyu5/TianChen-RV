@@ -1,0 +1,8 @@
+{"file":".trellis/spec/index.md","reason":"Global RVV Stage2 authority chain, mirror-only metadata policy, and no source-front-door/descriptor authority boundary."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-owned runtime/body/provider responsibility and common EmitC neutrality."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"RVVRuntimeAVLVLSelectedBoundaryContract semantics and selected-boundary-before-route-local-mirror order."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused target/lit validation and ssh rvv evidence requirements."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-contraction-runtime-avl-vl-sole-authority/prd.md","reason":"Most recent contraction-family route-local runtime mirror demotion pattern."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-runtime-avl-vl-sole-authority/prd.md","reason":"Selected-boundary-first target consumer and route-local mirror helper pattern."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-compare-select-candidate-metadata-runtime-mirror-closure/prd.md","reason":"Candidate metadata runtime_control_plan/runtime_abi_order mirror-label closure precedent."}
+{"file":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-vector-reduction-route-family-provider-contract-extraction/prd.md","reason":"Vector-reduction provider contract ownership and target consume-only baseline."}

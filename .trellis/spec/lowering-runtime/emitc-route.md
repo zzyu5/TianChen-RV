@@ -1482,6 +1482,7 @@ struct RVVStandaloneReductionRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string standaloneReductionRouteFamilyPlanID;
   std::string standaloneReductionSourceVectorTypeName;
@@ -1580,6 +1581,12 @@ surface.
   order, target leaf profile, provider-supported mirror, required headers, C
   type summary, operand-binding plan/summary, typed compute op, runtime ABI
   parameters, and EmitC setvl/loop names.
+- The contract must embed `RVVRuntimeAVLVLSelectedBoundaryContract`. Target
+  validation consumes that selected-boundary contract before accepting
+  standalone reduction route payload, runtime ABI parameters, statement-plan
+  shape, or candidate metadata mirrors. Retained runtime-control plan, runtime
+  ABI order, setvl/VL type, full-chunk VL, loop VL, and loop induction fields
+  are route-local runtime AVL/VL mirrors only.
 - The contract must include standalone reduction facts: route-family plan,
   source vector type/C type, scalar type, scalar-result vector type/C type,
   scalar-result runtime boundary, accumulator/result layout, reduction store
@@ -1601,6 +1608,9 @@ surface.
   `getRVVStandaloneReductionRouteMetadataMirrorContract(description)`. They may
   mirror provider-derived contract fields, but they cannot prove rebuilt route
   payload, ABI mappings, type mappings, or statement wiring.
+- Candidate metadata labels for `tcrv_rvv.runtime_control_plan` and
+  `tcrv_rvv.runtime_abi_order` must say `route-local runtime AVL/VL control
+  plan mirror` and `route-local runtime AVL/VL ABI order mirror`.
 - Common EmitC/export may carry the provider-built route and metadata mirrors,
   but must not choose standalone reduction semantics, reduction kind, ABI roles,
   mask/tail behavior, inactive-lane policy, scalar-result layout, or statement
@@ -1610,11 +1620,17 @@ surface.
 
 - Missing validation contract for an accepted standalone reduction route ->
   fail before target artifact provider-fact validation.
+- Missing or stale embedded runtime AVL/VL selected-boundary contract -> fail
+  before standalone reduction route payload, statement-plan, or mirror
+  acceptance.
+- Missing or stale route-local runtime AVL/VL mirrors -> fail after
+  selected-boundary validation with diagnostics that name
+  `route-local runtime AVL/VL mirror`.
 - Rebuilt route token differs from the provider contract -> fail before target
   artifact acceptance.
 - Description memory form, typed compute op, SEW/LMUL, tail/mask policy,
-  runtime-control plan, runtime ABI order, target leaf profile,
-  provider-supported mirror, header/type summary, operand-binding plan/summary,
+  target leaf profile, provider-supported mirror, header/type summary,
+  operand-binding plan/summary,
   route-family plan, scalar-result boundary, layout, reduction store VL, or
   intrinsic field differs from the contract -> fail before target artifact
   acceptance.
@@ -1675,11 +1691,15 @@ surface.
   standalone reductions, including ABI count, type mappings, required headers,
   metadata mirror count, and statement-plan counts.
 - C++ target artifact tests must mutate provider descriptions for stale route
-  payload facts: memory form, typed compute op, reduction kind, runtime ABI
-  order/parameters, operand-binding plan/summary, target leaf profile,
+  payload facts: memory form, typed compute op, reduction kind, runtime
+  selected-boundary facts, runtime ABI parameters, operand-binding plan/summary,
+  target leaf profile,
   provider-supported mirror, header/type summary, scalar-result vector type,
   accumulator/result layout, mask producer source, inactive-lane policy, RHS
   scalar broadcast, and cross-family residue fields.
+- C++ target artifact tests must mutate candidate runtime-control and runtime
+  ABI metadata mirrors and require route-local runtime AVL/VL mirror
+  diagnostics.
 - C++ target artifact tests must mutate rebuilt route payloads where practical:
   route token, headers, type mappings, ABI mappings, statement counts, and
   statement operand wiring.
@@ -1708,10 +1728,119 @@ Correct:
 ```text
 selected typed tcrv_rvv standalone reduction body
   -> RVV provider facts and route description
+  -> RVVRuntimeAVLVLSelectedBoundaryContract embedded in the route contract
   -> getRVVStandaloneReductionRouteValidationContract(description)
   -> target validator consumes contract for rebuilt route payload
   -> getRVVStandaloneReductionRouteMetadataMirrorContract(description)
   -> candidate metadata mirrors are checked separately as mirrors only
+```
+
+### Vector Reduction Runtime AVL/VL Route Boundary
+
+#### 1. Scope / Trigger
+
+When the existing vector RHS-load `reduce_add` route is accepted as a
+target artifact, runtime `n` / AVL / VL facts must be accepted only through the
+provider-built `RVVRuntimeAVLVLSelectedBoundaryContract` embedded in
+`RVVVectorReductionRouteValidationContract`.
+
+#### 2. Signatures
+
+```c++
+struct RVVVectorReductionRouteValidationContract {
+  RVVSelectedBodyOperationKind operation;
+  llvm::StringRef consumerLabel;
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string elementTypeName;
+  std::int64_t sew;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
+  std::string reductionAccumulatorLayout;
+  std::string reductionResultLayout;
+  std::string reductionStoreVL;
+  std::string setVLIntrinsic;
+  std::string vlCType;
+  std::string emitCFullChunkVLName;
+  std::string emitCLoopVLName;
+  std::string emitCLoopInductionName;
+  llvm::SmallVector<RuntimeABIParameter, 4> runtimeABIParameters;
+};
+```
+
+#### 3. Contracts
+
+- The provider builds `runtimeAVLVLContract` from selected typed
+  SEW/LMUL/policy/config facts, selected runtime ABI parameters, setvl/VL type
+  facts, and the vector-reduction consumer label.
+- Target validation consumes `runtimeAVLVLContract` before accepting route id,
+  route operand binding, runtime ABI parameters, headers, type mappings,
+  vector load/reduction/store statements, or candidate metadata mirrors.
+- `runtimeControlPlanID`, `runtimeABIOrder`, setvl/VL type, full-chunk VL,
+  loop VL, and loop induction fields are retained only as route-local runtime
+  AVL/VL mirrors checked against `runtimeAVLVLContract`.
+- Candidate metadata for `tcrv_rvv.runtime_control_plan` and
+  `tcrv_rvv.runtime_abi_order` is mirror-only and must use the same
+  route-local runtime AVL/VL mirror labels as other promoted route families.
+
+#### 4. Validation & Error Matrix
+
+- Missing embedded runtime AVL/VL selected-boundary contract -> fail before
+  target artifact provider-fact validation.
+- Stale runtime AVL source, runtime VL contract, selected `with_vl` scope,
+  setvl callee, VL C type, full-chunk VL, loop VL, loop induction, runtime
+  ABI order, or runtime `n` ABI parameter -> fail before vector reduction route
+  payload acceptance.
+- Stale route-local runtime mirror fields -> fail after selected-boundary
+  validation with `route-local runtime AVL/VL mirror` diagnostics.
+- Candidate metadata carries stale runtime-control plan or runtime ABI order
+  mirrors -> fail before artifact acceptance with route-local mirror labels.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: selected typed vector `reduce_add` body builds the vector reduction
+  contract, embeds the runtime selected-boundary contract, and target
+  validation checks route-local runtime mirrors only after that contract.
+- Base: candidate metadata continues to mirror provider facts after route
+  validation; it never establishes runtime `n` / AVL / VL authority.
+- Bad: target validation accepts a vector reduction route because
+  `tcrv_rvv.runtime_abi_order` metadata matches while the embedded runtime
+  selected-boundary contract is missing or stale.
+
+#### 6. Tests Required
+
+- C++ target artifact tests must assert the vector reduction contract embeds a
+  runtime selected-boundary contract matching the rebuilt route description.
+- C++ target artifact tests must mutate runtime selected-boundary facts,
+  runtime ABI parameters, route-local runtime mirrors, and candidate runtime
+  metadata mirrors.
+- Focused lit/FileCheck tests should continue to expose the generated vector
+  reduction artifact surface when route emission changes.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+candidate metadata tcrv_rvv.runtime_abi_order matches
+  -> vector reduction artifact accepted
+```
+
+Correct:
+
+```text
+selected typed vector reduction body
+  -> provider route validation contract with runtimeAVLVLContract
+  -> target validation accepts runtime AVL/VL selected-boundary first
+  -> route-local runtime/control fields and metadata are mirrors only
 ```
 
 ### Computed-Mask Strided Memory Fact Surface
