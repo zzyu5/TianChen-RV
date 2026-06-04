@@ -1104,3 +1104,44 @@ Strengthened pre-realized compare/select generated-bundle evidence to assert run
 ### Next Steps
 
 - None - task complete
+
+
+## Session 446: Stage2 RVV compare/select production fail-closed closure
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select production route and fail-closed legality closure
+**Branch**: `main`
+
+### Summary
+
+Hardened the compare/select target-artifact production path so stale non-compare/select route-family provider facts and candidate mirrors fail closed before artifact acceptance. Runtime-control and runtime-ABI metadata remain route-local mirrors after the embedded runtime AVL/VL selected-boundary contract.
+
+### Main Changes
+
+- Added compare/select provider validation rejection for stale elementwise, runtime-scalar splat-store, widening conversion, computed-mask memory, MAcc, standalone reduction, contraction, base-memory, segment2, and widening relation route-family residue.
+- Extended the compare/select metadata mirror contract with explicit stale unrelated route-family mirror keys.
+- Added target C++ negative coverage for stale computed-mask memory/base-memory provider facts and stale base-memory/segment2 candidate mirrors.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 8`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused compare/select lit filter: 28 passed / 449 excluded
+- [OK] `rtk git diff --check`
+- [OK] added-line old-authority scan over touched production/test files
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-compare-select-production`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

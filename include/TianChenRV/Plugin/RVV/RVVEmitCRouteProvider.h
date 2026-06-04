@@ -1759,7 +1759,7 @@ struct RVVCompareSelectRouteMetadataMirrorContract {
 
 struct RVVCompareSelectRouteMetadataMirrorContractSet {
   llvm::SmallVector<RVVCompareSelectRouteMetadataMirrorContract, 32> mirrors;
-  llvm::SmallVector<llvm::StringRef, 16> staleMirrorKeys;
+  llvm::SmallVector<llvm::StringRef, 24> staleMirrorKeys;
   llvm::StringRef staleMirrorLabel;
 };
 

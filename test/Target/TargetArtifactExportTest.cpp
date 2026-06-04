@@ -17908,6 +17908,24 @@ bool expectRVVTargetArtifactExporterShape(
                    << ": missing compare/select mirror contract\n";
       return false;
     }
+    auto hasStaleMirrorKey = [&](llvm::StringRef key) -> bool {
+      for (llvm::StringRef staleKey : mirrorContract->staleMirrorKeys)
+        if (staleKey == key)
+          return true;
+      return false;
+    };
+    if (mirrorContract->staleMirrorLabel !=
+            "selected typed RVV non-compare/select route-family mirror" ||
+        !hasStaleMirrorKey(
+            "tcrv_rvv.base_memory_movement_route_family_plan") ||
+        !hasStaleMirrorKey("tcrv_rvv.segment2_memory_route_family_plan") ||
+        !hasStaleMirrorKey("tcrv_rvv.plain_macc_route_family_plan")) {
+      llvm::errs()
+          << fixtureContext
+          << ": compare/select mirror contract did not reject stale "
+             "non-compare/select route-family mirrors\n";
+      return false;
+    }
     return true;
   };
 
@@ -18300,6 +18318,32 @@ bool expectRVVTargetArtifactExporterShape(
           "plain compare/select",
           {"stale provider-derived computed-mask select route-family plan",
            "rvv-computed-mask-select-route-family-plan.v1"}))
+    return false;
+
+  RVVRouteDescription stalePlainComputedMaskMemoryPlan =
+      manualPlainDescription;
+  stalePlainComputedMaskMemoryPlan.computedMaskMemoryRouteFamilyPlanID =
+      "rvv-computed-mask-memory-route-family-plan.v1";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute,
+          stalePlainComputedMaskMemoryPlan,
+          "compare/select mask registry rejects stale computed-mask memory "
+          "plan on plain compare/select",
+          {"stale non-compare/select route-family computed-mask memory "
+           "route-family plan",
+           "rvv-computed-mask-memory-route-family-plan.v1"}))
+    return false;
+
+  RVVRouteDescription stalePlainBaseMemoryPlan = manualPlainDescription;
+  stalePlainBaseMemoryPlan.baseMemoryMovementRouteFamilyPlanID =
+      "rvv-base-memory-movement-route-family-plan.v1";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualPlainCandidate, manualPlainRoute, stalePlainBaseMemoryPlan,
+          "compare/select mask registry rejects stale base-memory plan on "
+          "plain compare/select",
+          {"stale non-compare/select route-family base-memory route-family "
+           "plan",
+           "rvv-base-memory-movement-route-family-plan.v1"}))
     return false;
 
   RVVRouteDescription stalePlainBindingSummary = manualPlainDescription;
@@ -18708,6 +18752,32 @@ bool expectRVVTargetArtifactExporterShape(
           "compare/select mask registry rejects stale source memory form",
           {"source memory form", "unit-stride-load",
            "metadata-derived-source"}))
+    return false;
+
+  TargetArtifactCandidate stalePlainBaseMemoryCandidate =
+      manualPlainCandidate;
+  stalePlainBaseMemoryCandidate.artifactMetadata.emplace_back(
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "rvv-base-memory-movement-route-family-plan.v1");
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          stalePlainBaseMemoryCandidate, manualPlainRoute,
+          manualPlainDescription,
+          "compare/select mask registry rejects stale base-memory mirror "
+          "metadata on plain compare/select",
+          {"base_memory_movement_route_family_plan",
+           "selected typed RVV non-compare/select route-family mirror"}))
+    return false;
+
+  TargetArtifactCandidate staleDualSegment2Candidate = manualDualCandidate;
+  staleDualSegment2Candidate.artifactMetadata.emplace_back(
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "rvv-segment2-memory-route-family-plan.v1");
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          staleDualSegment2Candidate, manualDualRoute, manualDualDescription,
+          "compare/select mask registry rejects stale segment2 mirror metadata "
+          "on dual compare/select",
+          {"segment2_memory_route_family_plan",
+           "selected typed RVV non-compare/select route-family mirror"}))
     return false;
 
   RVVRouteDescription staleIndexedRuntimeAVLSource =

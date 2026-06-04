@@ -22567,6 +22567,23 @@ buildRVVCompareSelectRouteMetadataMirrorContract(
       facts.maskedPassthroughLayout,
       "selected typed RVV compare/select passthrough layout");
 
+  contract.staleMirrorKeys.append(
+      {"tcrv_rvv.elementwise_arithmetic_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+       "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+       "tcrv_rvv.widening_conversion_route_family_plan",
+       "tcrv_rvv.plain_macc_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+       "tcrv_rvv.accumulation_route_family_plan",
+       "tcrv_rvv.standalone_reduction_route_family_plan",
+       "tcrv_rvv.contraction_route_family_plan",
+       "tcrv_rvv.base_memory_movement_route_family_plan",
+       "tcrv_rvv.segment2_memory_route_family_plan",
+       "tcrv_rvv.widening_macc_relation",
+       "tcrv_rvv.widening_dot_relation"});
+  contract.staleMirrorLabel =
+      "selected typed RVV non-compare/select route-family mirror";
+
   return contract;
 }
 

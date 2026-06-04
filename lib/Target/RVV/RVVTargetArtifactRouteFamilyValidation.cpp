@@ -6396,6 +6396,74 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
                   contract.indexedMemoryLayout))
     return error;
 
+  auto rejectStaleRouteFamilyFact =
+      [&](llvm::StringRef label, llvm::StringRef actual) -> llvm::Error {
+    if (actual.empty())
+      return llvm::Error::success();
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " rejects stale non-compare/select route-family " + label + " fact '" +
+        actual + "'");
+  };
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "elementwise arithmetic route-family plan",
+          description.elementwiseArithmeticRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "scalar-broadcast elementwise route-family plan",
+          description.scalarBroadcastElementwiseRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "runtime scalar splat-store route-family plan",
+          description.runtimeScalarSplatStoreRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "widening conversion route-family plan",
+          description.wideningConversionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "computed-mask memory route-family plan",
+          description.computedMaskMemoryRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "computed-mask memory producer source",
+          description.computedMaskMemoryMaskProducerSource))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "plain MAcc route-family plan",
+          description.plainMAccRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "scalar-broadcast MAcc route-family plan",
+          description.scalarBroadcastMAccRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "accumulation route-family plan",
+          description.accumulationRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "standalone reduction route-family plan",
+          description.standaloneReductionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "contraction route-family plan",
+          description.contractionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "base-memory route-family plan",
+          description.baseMemoryMovementRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "segment2 route-family plan",
+          description.segment2MemoryRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "widening MAcc relation", description.wideningMAccRelation))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "widening dot relation", description.wideningDotProductRelation))
+    return error;
+
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
